@@ -55,7 +55,7 @@ impl fmt::Display for Missing {
 /// Whitespace, control characters and invisible format characters (joiners, direction marks,
 /// variation selectors) are skipped: they draw nothing.
 pub fn missing_glyphs<'a>(stack: &Stack, family: &FontRef, samples: impl IntoIterator<Item = Sample<'a>>, with_system: bool) -> Vec<Missing> {
-    let mut probe = stack.probe(with_system);
+    let probe = stack.probe(with_system);
     let mut missing = Vec::new();
     for sample in samples {
         let mut seen = Vec::new();

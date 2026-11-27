@@ -3,7 +3,8 @@
 
 use std::sync::{Arc, LazyLock};
 
-use egui::{FallbackRequest, FontData, FontFamily, FontInsert, FontPriority, FontProvider, InsertFontFamily};
+use craft_theme::FontSlot;
+use craft_ui_rt::{FaceSource, FallbackAsk, FontFace, StackFace};
 use fontique::{
     Attributes, Collection, CollectionOptions, FallbackKey, FamilyId, FontStyle, FontWeight, FontWidth, GenericFamily, Language, QueryFamily,
     QueryFont, QueryStatus, Script, SourceCache, SourceCacheOptions,
@@ -29,7 +30,7 @@ fn build() -> Index {
 
 /// A provider over the shared index that prefers `locale`'s fonts. With `wait`, a lookup before the
 /// index is built blocks until it is; without, it finds nothing (see [`start`]).
-pub(super) fn provider(locale: &str, wait: bool) -> Arc<dyn FontProvider> {
+pub(super) fn provider(locale: &str, wait: bool) -> Arc<dyn FaceSource> {
     Arc::new(Lookup::new(&INDEX, locale_language(locale), wait))
 }
 
@@ -43,10 +44,10 @@ fn locale_language(locale: &str) -> Option<Language> {
     Language::parse(tag).ok()
 }
 
-/// Start building the index in the background. `ctx` reloads its fonts once it is built if a
+/// Start building the index in the background. `host` offers its stack again once it is built if a
 /// lookup found nothing meanwhile.
-pub(super) fn start(ctx: &egui::Context) {
-    INDEX.start(Some(ctx));
+pub(super) fn start(host: &crate::fonts::FontHost) {
+    INDEX.start(Some(host));
 }
 
 /// Start building the index in the background, for a caller that doesn't look fonts up.
@@ -75,14 +76,14 @@ fn resolve_system_ui(collection: &mut Collection, source_cache: &mut SourceCache
         let regular = match_weight(collection, source_cache, id, 400).filter(|(font, _)| can_render(font, 'a'))?;
         let family = collection.family_name(id)?.to_owned();
         let semibold = match_weight(collection, source_cache, id, 600).filter(|(font, _)| !font.synthesis.embolden());
-        let regular = face_data(regular.0, 400);
+        let regular = face_data(regular.0, 400, super::ui_face::SYSTEM_UI_REGULAR);
         let (semibold, semibold_weight) = match semibold {
             Some((font, weight)) => {
-                let data = face_data(font, 600);
+                let data = face_data(font, 600, super::ui_face::SYSTEM_UI_SEMIBOLD);
                 let weight = wght_of(&data).unwrap_or(weight);
                 (data, weight)
             }
-            None => (regular.clone(), 400),
+            None => (regular.clone().named(super::ui_face::SYSTEM_UI_SEMIBOLD), 400),
         };
         Some(SystemUiFace::new(family, regular, semibold, semibold_weight))
     })
@@ -105,33 +106,32 @@ fn match_weight(collection: &mut Collection, source_cache: &mut SourceCache, id:
     Some((font, info.weight().value().round() as u16))
 }
 
-/// A matched font as egui face data, at the variation fontique suggests for `weight` and the
-/// system face's optical size. A variable face's `wght` is always set, so the stack's family
-/// weights ([`crate::fonts::set_weight`]) leave it as it is.
-fn face_data(font: QueryFont, weight: u16) -> FontData {
+/// A matched font as a face, at the variation fontique suggests for `weight` and the system face's
+/// optical size. A variable face's `wght` is always set, so the stack's family weights
+/// ([`crate::fonts::set_weight`]) leave it as it is.
+fn face_data(font: QueryFont, weight: u16, name: &str) -> StackFace {
     let coords = font.synthesis.variation_settings().iter().map(|(tag, value)| (tag.to_be_bytes(), *value));
     let coords: Vec<([u8; 4], f32)> = coords.chain([(*b"wght", f32::from(weight))]).collect();
     let (blob, _) = font.blob.into_raw_parts();
-    instance(FontData::from_blob(blob, font.index), coords)
+    instance(StackFace::new(name, blob, font.index), coords)
 }
 
 /// The `wght` coordinate a face is set to.
-fn wght_of(data: &FontData) -> Option<u16> {
-    let wght = egui::epaint::text::Tag::new(b"wght");
+fn wght_of(data: &StackFace) -> Option<u16> {
     // Clamped to the font's axis, which lies within 1 to 1000.
-    data.tweak.coords.as_ref().iter().find(|(tag, _)| *tag == wght).map(|(_, value)| value.round() as u16)
+    data.coord(*b"wght").map(|value| value.round() as u16)
 }
 
 impl FontIndex for Index {
     type Locale = Option<Language>;
 
-    fn font_for(&mut self, request: &FallbackRequest<'_>, locale: &Option<Language>) -> Option<FontInsert> {
-        let FallbackRequest { cluster, family } = request;
+    fn face_for(&mut self, ask: &FallbackAsk<'_>, locale: &Option<Language>) -> Option<StackFace> {
+        let FallbackAsk { cluster, family } = *ask;
         let base_char = cluster.chars().next()?;
         let Self { collection, source_cache } = self;
         let generic = match family {
-            FontFamily::Monospace => GenericFamily::Monospace,
-            FontFamily::Proportional | FontFamily::Name(_) => GenericFamily::SansSerif,
+            FontFace::Slot(FontSlot::Mono) => GenericFamily::Monospace,
+            _ => GenericFamily::SansSerif,
         };
 
         let font = if let Some(script) = script_of(base_char) {
@@ -156,11 +156,7 @@ impl FontIndex for Index {
         let family_name = collection.family_name(font.family.0).unwrap_or("unknown");
         let name = format!("system:{family_name}:{}:{}", font.family.1, font.index);
         let (blob, _) = font.blob.into_raw_parts();
-        Some(FontInsert {
-            name,
-            data: FontData::from_blob(blob, font.index),
-            families: vec![InsertFontFamily { family: (*family).clone(), priority: FontPriority::Lowest }],
-        })
+        Some(StackFace::new(name, blob, font.index))
     }
 }
 

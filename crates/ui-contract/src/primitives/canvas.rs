@@ -3,12 +3,11 @@
 //! (`items`); the canvas moves them into the node's and applies the fade in force. Text arrives shaped by the frame's
 //! `TextEngine`. `Services` is the frame's text engine and image store, which text layout and pictures go through.
 
-use crate::fonts::document::Kind;
-use crate::fonts::{FaceBytes, FaceState, FontRef, StackFacts};
+use crate::fonts::document;
+use crate::fonts::{FaceBytes, FaceState, StackFacts};
 use craft_theme::Rgba;
 use craft_ui_rt::{
-    Clip, DisplayList, FaceInstall, FontFace, ImageKey, ImageOptions, ImageStore, Item, RgbaImage, RichText, TextEngine, TextLayout as RtLayout,
-    TextMetrics,
+    Clip, DisplayList, ImageKey, ImageOptions, ImageStore, Item, RgbaImage, RichText, TextEngine, TextLayout as RtLayout, TextMetrics,
 };
 use craft_ui_rt::{Pos2, Rect, Vec2};
 use egui::{Color32, CornerRadius};
@@ -33,12 +32,13 @@ pub trait Services {
     fn image_if(&self, _key: ImageKey, _options: ImageOptions, _make: &mut dyn FnMut() -> Option<Arc<RgbaImage>>) -> bool {
         false
     }
-    /// The document face `key` over the interface face, its bytes from `load` the first time (`DocumentFaces`). An
-    /// engine that installs no faces at run time leaves it unavailable.
+    /// The document face `key` over the interface face, its bytes from `load` the first time
+    /// (`fonts::document::over_interface`). Services without the session's document faces, or an engine that installs
+    /// no faces at run time, leave it unavailable.
     fn face_over_interface(&self, _key: &str, _load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
         FaceState::Unavailable
     }
-    /// The document face `key`, loaded by the job `job` gives (`DocumentFaces::face`).
+    /// The document face `key`, loaded by the job `job` gives (`fonts::document::face`).
     fn face(&self, _key: &str, _job: FaceJob<'_>) -> FaceState {
         FaceState::Unavailable
     }
@@ -66,13 +66,22 @@ pub struct FrameServices<'f> {
     images: RefCell<&'f mut ImageStore>,
     scale: f32,
     fonts: StackFacts,
+    /// The window's context, where the session's document faces are found; none leaves them unavailable.
+    ctx: Option<crate::contract::Context>,
 }
 
 impl<'f> FrameServices<'f> {
     /// `text` is `None` where no engine is lent (layouts come out empty). `fonts` are the window's stack facts
     /// (`fonts::stack_facts`, a recorded read).
     pub fn new(text: Option<&'f mut dyn TextEngine>, images: &'f mut ImageStore, scale: f32, fonts: StackFacts) -> Self {
-        FrameServices { text: RefCell::new(text), images: RefCell::new(images), scale, fonts }
+        FrameServices { text: RefCell::new(text), images: RefCell::new(images), scale, fonts, ctx: None }
+    }
+
+    /// The services with the document faces of `ctx`'s session.
+    #[must_use]
+    pub(crate) fn with_context(mut self, ctx: crate::contract::Context) -> Self {
+        self.ctx = Some(ctx);
+        self
     }
 }
 
@@ -122,35 +131,19 @@ impl Services for FrameServices<'_> {
 
     /// The face from `load`, installed in the engine the first time `key` is asked for, over the interface face.
     fn face_over_interface(&self, key: &str, load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
-        let family = Kind::OverInterface.family_name(key);
-        self.install(&family, true, &mut || load())
-    }
-
-    /// The face the job loads, installed alone. The load runs here, in the frame: craft-ui-rt has no job queue for it
-    /// yet (B9), so the first frame that asks waits for the bytes.
-    fn face(&self, key: &str, job: FaceJob<'_>) -> FaceState {
-        let family = Kind::Alone.family_name(key);
-        let mut job = Some(job);
-        self.install(&family, false, &mut || job.take().and_then(|job| job()()))
-    }
-}
-
-impl FrameServices<'_> {
-    /// Installs the face `load` gives as `family` unless the engine has it: then its fallbacks, its chain of document
-    /// faces and, `over_interface`, the interface face.
-    fn install(&self, family: &str, over_interface: bool, load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
+        let Some(ctx) = &self.ctx else { return FaceState::Unavailable };
         let mut text = self.text.borrow_mut();
-        let Some(engine) = text.as_deref_mut() else { return FaceState::Unavailable };
-        if engine.has_face(family) {
-            return FaceState::Ready(FontRef::named(family));
-        }
-        let Some(face) = load().filter(FaceBytes::parses) else { return FaceState::Unavailable };
-        let mut fallback: Vec<FontFace> = face.chain_families().into_iter().map(|name| FontFace::Family(name.into())).collect();
-        if over_interface {
-            fallback.push(FontFace::Slot(craft_theme::FontSlot::Ui));
-        }
-        let install = FaceInstall { family: family.into(), bytes: Arc::clone(&face.bytes), index: face.index, coords: face.coords.clone(), fallback };
-        if engine.install_face(install) { FaceState::Ready(FontRef::named(family)) } else { FaceState::Unavailable }
+        document::over_interface(ctx, text.as_deref_mut(), key, load)
+    }
+
+    /// The face the job loads, installed alone once the load lands.
+    fn face(&self, key: &str, job: FaceJob<'_>) -> FaceState {
+        let Some(ctx) = &self.ctx else { return FaceState::Unavailable };
+        document::face(ctx, key, job)
+    }
+
+    fn face_bytes(&self, key: &str) -> Option<FaceBytes> {
+        document::bytes(self.ctx.as_ref()?, key)
     }
 }
 

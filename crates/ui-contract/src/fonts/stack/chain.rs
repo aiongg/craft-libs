@@ -3,11 +3,11 @@
 use craft_fonts_build::{EmbeddedFace, MONO_ROLE, SIGNATURE_ROLE, ServedFace, TAB_ROLE};
 use craft_i18n::Han;
 use craft_theme::InterfaceFont;
-use egui::{FontData, FontDefinitions, FontFamily};
+use craft_ui_rt::{FontFace, StackFace};
 
 use super::{CjkRows, Family, SEMIBOLD, Stack, SystemFonts, TAB_TITLE, UiFonts, fit};
 use crate::fonts::defaults::SUITE_FACES;
-use crate::fonts::faces::{FaceList, baseline_fallback};
+use crate::fonts::faces::{Definitions, FaceList, baseline_fallback};
 use crate::fonts::script::EMOJI;
 use crate::fonts::system::ui_face::{SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemUiFace};
 use crate::fonts::{FontRef, set_weight};
@@ -76,8 +76,13 @@ fn style_rank(face: &EmbeddedFace, weight: u16) -> Option<u8> {
     }
 }
 
-fn data(face: &EmbeddedFace) -> FontData {
-    baseline_fallback(FontData { index: face.index, ..FontData::from_static(face.bytes) })
+fn data(face: &EmbeddedFace) -> StackFace {
+    baseline_fallback(StackFace::from_static(face.name(), face.bytes, face.index))
+}
+
+/// A face with no bytes: a slot whose data comes later, or none at all.
+fn no_data(name: &str) -> StackFace {
+    StackFace::from_static(name, &[], 0)
 }
 
 /// Script codes with the CLDR unions spelled out.
@@ -128,7 +133,7 @@ fn region_rank(face: Option<Han>, wanted: Option<Han>) -> u8 {
 #[derive(Clone)]
 struct Face {
     name: String,
-    data: FontData,
+    data: StackFace,
     /// The served face this stands for; `data` is empty until it is fetched.
     served: Option<ServedFace>,
     /// The system face's slot, whose data the stack adds when the face resolves.
@@ -145,12 +150,12 @@ struct Chain {
 }
 
 impl Face {
-    fn new(name: &str, data: FontData) -> Self {
+    fn new(name: &str, data: StackFace) -> Self {
         Self { name: name.to_owned(), data, served: None, system_ui: false }
     }
 
     /// Set a variable face to `weight`. A face that isn't at regular weight gets its own name, so
-    /// the regular and bold uses of one file don't collide in egui's face store.
+    /// the regular and bold uses of one file don't collide in the engine's face store.
     fn weighted(mut self, weight: u16) -> Self {
         if set_weight(&mut self.data, weight) && weight != 400 {
             self.name = format!("{} @{weight}", self.name);
@@ -163,10 +168,11 @@ impl UiFonts<'_> {
     /// [`Self::stack`] with the system face resolved as `resolved` (`None`: not yet).
     pub(super) fn stack_with_system_ui(&self, resolved: Option<Option<&SystemUiFace>>) -> Stack {
         let mut stack = Stack {
-            definitions: FontDefinitions::empty(),
+            definitions: Definitions::default(),
             after_system: FaceList::default(),
             system: self.system,
             system_provider: self.system_provider.clone(),
+            on_demand: None,
             ui_language: self.ui_language.clone(),
             language_scripts: std::iter::once(&self.ui_language)
                 .chain(&self.languages)
@@ -189,15 +195,15 @@ impl UiFonts<'_> {
         };
         let mut cjk_faces: Vec<String> = Vec::new();
         for family in self.family_specs() {
-            let default_family = if family.monospaced { &FontFamily::Monospace } else { &family.family };
-            let default_chain = defaults.families.get(default_family).or_else(|| defaults.families.get(&FontFamily::Proportional));
+            let default_family = if family.monospaced { FontRef::monospace().face().clone() } else { family.family.clone() };
+            let default_chain = defaults.families.get(&default_family).or_else(|| defaults.families.get(FontRef::proportional().face()));
             // The suite's interface face stands in for an app's own faces only where it has none; behind them, egui's faces follow.
             let own_faces = !self.app_faces_for(&family).is_empty();
             let egui_faces: Vec<Face> = default_chain
                 .into_iter()
                 .flatten()
                 .filter(|name| !(own_faces && SUITE_FACES.contains(&name.as_str())))
-                .filter_map(|name| Some(Face::new(name, (**defaults.font_data.get(name)?).clone())))
+                .filter_map(|name| Some(Face::new(name, defaults.font_data.get(name)?.clone())))
                 .collect();
             let mut chain = self.chain(&family, egui_faces);
             let cjk = chain.configured.iter().chain(&chain.after).filter(|face| cjk_names.contains(&face.name));
@@ -206,7 +212,7 @@ impl UiFonts<'_> {
                 self.egui_faces
                     .iter()
                     .filter(|(_, families)| families.contains(&family.family))
-                    .filter_map(|(name, _)| Some(Face::new(name, (**defaults.font_data.get(name)?).clone()))),
+                    .filter_map(|(name, _)| Some(Face::new(name, defaults.font_data.get(name)?.clone()))),
             );
             let mut configured: Vec<String> = chain.configured.into_iter().map(|face| stack.add_configured(face.weighted(family.weight))).collect();
             let mut tail: Vec<String> = chain.after.into_iter().map(|face| stack.add_after(face.weighted(family.weight))).collect();
@@ -219,8 +225,8 @@ impl UiFonts<'_> {
             tail.retain(|name| !configured.contains(name));
             dedup(&mut tail);
             stack.definitions.families.insert(family.family.clone(), configured);
-            stack.after_system.set_chain(FontRef::from_family(family.family.clone()), tail);
-            stack.weights.push((FontRef::from_family(family.family), family.weight));
+            stack.after_system.set_chain(FontRef(family.family.clone()), tail);
+            stack.weights.push((FontRef(family.family), family.weight));
         }
         stack.fit_into_rows(&cjk_faces);
         stack.cjk_faces = cjk_faces;
@@ -245,8 +251,8 @@ impl UiFonts<'_> {
     /// baseline; craft faces already do, and egui's faces keep their names, under which egui leaves out some of their
     /// characters.
     fn add_tab_title(&self, stack: &mut Stack, mut lead: Face) {
-        let semibold = FontFamily::Name(SEMIBOLD.into());
-        let base = if stack.definitions.families.contains_key(&semibold) { semibold } else { FontFamily::Proportional };
+        let semibold = FontRef::named(SEMIBOLD).into_face();
+        let base = if stack.definitions.families.contains_key(&semibold) { semibold } else { FontRef::proportional().into_face() };
         let configured = stack.chain_of(&base).to_vec();
         let reference = configured.iter().find_map(|name| stack.definitions.font_data.get(name)).cloned();
         if let Some(reference) = reference {
@@ -260,27 +266,27 @@ impl UiFonts<'_> {
             match stack.definitions.font_data.get(&name) {
                 Some(data) if app_face(&name) => {
                     let copy = format!("{name} (tab title)");
-                    let data = baseline_fallback((**data).clone());
-                    stack.definitions.font_data.insert(copy.clone(), std::sync::Arc::new(data));
+                    let data = baseline_fallback(data.clone()).named(copy.as_str());
+                    stack.definitions.font_data.insert(copy.clone(), data);
                     chain.push(copy);
                 }
                 _ => chain.push(name),
             }
         }
         dedup(&mut chain);
-        let tail = stack.after_system.chain(&FontRef::from_family(base)).to_vec();
+        let tail = stack.after_system.chain_of(&base).to_vec();
         let family = FontRef::named(TAB_TITLE);
-        stack.definitions.families.insert(family.family(), chain);
+        stack.definitions.families.insert(family.face().clone(), chain);
         stack.after_system.set_chain(family.clone(), tail);
         stack.weights.push((family, 600));
     }
 
     /// Proportional, Monospace and the signature family, every family an app face names, then the declared families.
     fn family_specs(&self) -> Vec<Family> {
-        // The signature family goes in every build: egui fails on a `FontFamily::Name` it doesn't know.
+        // The signature family goes in every build: `FontRef::signature()` always names a family the stack has.
         let mut specs = vec![Family::proportional(), Family::monospace(), Family::signature()];
         // With no face of its own for the interface, the app gets the suite's, whose semibold roles draw in Inter SemiBold.
-        if !self.app_faces.iter().any(|face| face.families.contains(&FontFamily::Proportional)) {
+        if !self.app_faces.iter().any(|face| face.families.contains(FontRef::proportional().face())) {
             specs.push(Family::named(super::SEMIBOLD).weight(600));
         }
         for family in self.app_faces.iter().flat_map(|f| &f.families) {
@@ -383,12 +389,12 @@ impl UiFonts<'_> {
             SystemFonts::BeforeCraft => after.extend(craft(others)),
             SystemFonts::AfterCraft | SystemFonts::Off => configured.extend(craft(others)),
         }
-        let emoji = |name: &str, data: &Option<FontData>| Some(Face::new(name, data.clone()?));
+        let emoji = |name: &str, data: &Option<StackFace>| Some(Face::new(name, data.clone()?.named(name)));
         after.extend(emoji("emoji-color", &self.emoji.color));
         after.extend(emoji("emoji-web", &self.emoji.web));
         after.extend(self.emoji.served.map(|face| {
             let face = ServedFace { scripts: &[EMOJI], ..face };
-            Face { served: Some(face), ..Face::new(&face.name(), FontData::from_static(&[])) }
+            Face { served: Some(face), ..Face::new(&face.name(), no_data(&face.name())) }
         }));
         after.extend(emoji("emoji-monochrome", &self.emoji.monochrome));
         after.extend(egui_tail);
@@ -398,26 +404,26 @@ impl UiFonts<'_> {
     /// With [`InterfaceFont::System`], the system face's slot ahead of the app's faces in the
     /// proportional and [`SEMIBOLD`] families: its name, without data until
     /// [`Stack::provide_system_ui`].
-    fn system_ui_slot(&self, family: &FontFamily) -> Option<Face> {
+    fn system_ui_slot(&self, family: &FontFace) -> Option<Face> {
         let name = match family {
             _ if self.interface != InterfaceFont::System => return None,
-            FontFamily::Proportional => SYSTEM_UI_REGULAR,
-            FontFamily::Name(name) if &**name == SEMIBOLD => SYSTEM_UI_SEMIBOLD,
+            FontFace::Slot(craft_theme::FontSlot::Ui) => SYSTEM_UI_REGULAR,
+            FontFace::Slot(craft_theme::FontSlot::UiSemibold) => SYSTEM_UI_SEMIBOLD,
             _ => return None,
         };
-        Some(Face { system_ui: true, ..Face::new(name, FontData::from_static(&[])) })
+        Some(Face { system_ui: true, ..Face::new(name, no_data(name)) })
     }
 
     /// The app faces heading `family`; a named family without its own takes the monospace ones if
     /// it is [`Family::monospaced`], the proportional ones otherwise.
     fn app_faces_for(&self, family: &Family) -> Vec<Face> {
-        let faces = |family: &FontFamily| -> Vec<Face> {
+        let faces = |family: &FontFace| -> Vec<Face> {
             self.app_faces.iter().filter(|face| face.families.contains(family)).map(|face| Face::new(&face.name, face.data.clone())).collect()
         };
         match faces(&family.family) {
-            own if !own.is_empty() || !matches!(family.family, FontFamily::Name(_)) => own,
-            _ if family.monospaced => faces(&FontFamily::Monospace),
-            _ => faces(&FontFamily::Proportional),
+            own if !own.is_empty() || !matches!(family.family, FontFace::Family(_)) => own,
+            _ if family.monospaced => faces(FontRef::monospace().face()),
+            _ => faces(FontRef::proportional().face()),
         }
     }
 
@@ -455,7 +461,7 @@ impl UiFonts<'_> {
         let face = self.craft_faces.get(index);
         Face {
             name: face.map(EmbeddedFace::name).unwrap_or_default(),
-            data: face.map_or_else(|| FontData::from_static(&[]), data),
+            data: face.map_or_else(|| no_data(""), data),
             served: self.served.get(index).copied().flatten(),
             system_ui: false,
         }
@@ -481,7 +487,8 @@ impl UiFonts<'_> {
 impl Stack {
     fn add_configured(&mut self, face: Face) -> String {
         if !face.system_ui && !self.add_served(&face) {
-            self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| std::sync::Arc::new(face.data));
+            let name = face.name.clone();
+            self.definitions.font_data.entry(face.name.clone()).or_insert_with(|| face.data.named(name));
         }
         face.name
     }

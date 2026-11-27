@@ -150,14 +150,18 @@ impl Default for FaceTweak {
     }
 }
 
+/// A font file's bytes, shared without copying: a file read at run time, a face embedded in the
+/// binary (`Arc::new(bytes)` over a `&'static [u8]`) or a system font's mapped file.
+pub type FontBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
+
 /// One face of a [`FontStack`] family.
 #[derive(Clone)]
 pub struct StackFace {
     /// The face's name: a face listed by several families has the same name in each, and the
-    /// engine reads its file once.
+    /// engine reads its file once. A face set at another weight or tweak has a name of its own.
     pub name: Arc<str>,
     /// The font file.
-    pub bytes: Arc<[u8]>,
+    pub bytes: FontBytes,
     /// The face's index in the file.
     pub index: u32,
     /// The variation coordinates the face is drawn at (`wght`, `opsz`).
@@ -165,11 +169,40 @@ pub struct StackFace {
     pub tweak: FaceTweak,
 }
 
+impl StackFace {
+    /// Face `index` of `bytes`, at its default coordinates, untweaked.
+    pub fn new(name: impl Into<Arc<str>>, bytes: FontBytes, index: u32) -> StackFace {
+        StackFace { name: name.into(), bytes, index, coords: Vec::new(), tweak: FaceTweak::default() }
+    }
+
+    /// Face `index` of a file embedded in the binary, shared without a copy.
+    pub fn from_static(name: impl Into<Arc<str>>, bytes: &'static [u8], index: u32) -> StackFace {
+        StackFace::new(name, Arc::new(bytes), index)
+    }
+
+    /// The font file's bytes.
+    pub fn data(&self) -> &[u8] {
+        (*self.bytes).as_ref()
+    }
+
+    /// The face under `name`, the rest unchanged.
+    #[must_use]
+    pub fn named(mut self, name: impl Into<Arc<str>>) -> StackFace {
+        self.name = name.into();
+        self
+    }
+
+    /// The coordinate set for `tag`, if any.
+    pub fn coord(&self, tag: [u8; 4]) -> Option<f32> {
+        self.coords.iter().find(|(t, _)| *t == tag).map(|(_, value)| *value)
+    }
+}
+
 impl std::fmt::Debug for StackFace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StackFace")
             .field("name", &self.name)
-            .field("bytes", &self.bytes.len())
+            .field("bytes", &self.data().len())
             .field("index", &self.index)
             .field("coords", &self.coords)
             .field("tweak", &self.tweak)
@@ -177,12 +210,54 @@ impl std::fmt::Debug for StackFace {
     }
 }
 
+/// What a [`FaceSource`] is asked when no face of a family has a character.
+#[derive(Clone, Copy, Debug)]
+pub struct FallbackAsk<'a> {
+    /// The family the text is set in.
+    pub family: &'a FontFace,
+    /// The grapheme cluster that starts with the character: the face returned must have a glyph for
+    /// its first character, and should have the cluster's other visible characters (a variation
+    /// selector picks between emoji and symbol faces).
+    pub cluster: &'a str,
+}
+
+/// Faces a [`FontStack`] finds while text is shaped, after its families' own faces: the installed
+/// system fonts, faces fetched or read when a character first needs them, faces kept for scripts
+/// beyond the interface's. Engines ask the sources of a stack in order during shaping, so a face a
+/// source finds sets the character in the same layout.
+pub trait FaceSource: Send + Sync {
+    /// Faces to put after `family`'s own, up front. Asked once per family per stack.
+    fn faces_for(&self, family: &FontFace) -> Vec<StackFace> {
+        let _ = family;
+        Vec::new()
+    }
+
+    /// A face with a glyph for the first character of `ask.cluster`, after every face of the family
+    /// (its own and those found before) missed it. Asked at most once per family and character per
+    /// stack generation, also when it answers `None`: a source that finds the face later (a fetch, a
+    /// file read in the background) has the host set the stack again
+    /// ([`TextEngine::set_stack`]), which asks again. The face is appended to the family.
+    fn face_for(&self, ask: &FallbackAsk<'_>) -> Option<StackFace> {
+        let _ = ask;
+        None
+    }
+}
+
 /// The faces text is set in, for every renderer: each family's faces in the order a character
-/// falls back through them. The theme's slots ([`FontFace::Slot`]) and the families an app names
-/// ([`FontFace::Family`]) are families alike. An engine takes it with [`TextEngine::set_stack`].
-#[derive(Clone, Debug, Default)]
+/// falls back through them, then the sources asked for a character none of them has. The theme's
+/// slots ([`FontFace::Slot`]) and the families an app names ([`FontFace::Family`]) are families
+/// alike. An engine takes it with [`TextEngine::set_stack`].
+#[derive(Clone, Default)]
 pub struct FontStack {
     pub families: Vec<(FontFace, Vec<StackFace>)>,
+    /// Asked in order after a family's faces, per family and character.
+    pub fallback: Vec<Arc<dyn FaceSource>>,
+}
+
+impl std::fmt::Debug for FontStack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FontStack").field("families", &self.families).field("fallback", &self.fallback.len()).finish()
+    }
 }
 
 impl FontStack {
@@ -197,6 +272,16 @@ impl FontStack {
             Some((_, kept)) => *kept = faces,
             None => self.families.push((family, faces)),
         }
+    }
+
+    /// The faces every source puts after `family`'s own, in source order.
+    pub fn source_faces(&self, family: &FontFace) -> Vec<StackFace> {
+        self.fallback.iter().flat_map(|source| source.faces_for(family)).collect()
+    }
+
+    /// The first source's face for `ask`, the sources asked in order.
+    pub fn find_fallback(&self, ask: &FallbackAsk<'_>) -> Option<StackFace> {
+        self.fallback.iter().find_map(|source| source.face_for(ask))
     }
 }
 
@@ -366,6 +451,15 @@ pub trait TextEngine {
 
     /// Whether the family `family` was installed ([`install_face`](Self::install_face)).
     fn has_face(&self, family: &str) -> bool {
+        let _ = family;
+        false
+    }
+
+    /// Takes out the family `family` that [`install_face`](Self::install_face) added, to free its
+    /// file; text set in it from the next layout on falls back as an unknown family does. Layouts
+    /// made before keep their shaping, and the stack generation does not move: nothing still shows
+    /// the family when its owner takes it out. Returns whether the engine had it.
+    fn remove_face(&mut self, family: &str) -> bool {
         let _ = family;
         false
     }

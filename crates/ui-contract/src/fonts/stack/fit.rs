@@ -4,7 +4,7 @@
 //! A CJK face that follows the app's face sits on that face's baseline and keeps its row height, scaled down only as far
 //! as keeps a few tall and deep characters inside the row.
 
-use egui::FontData;
+use craft_ui_rt::StackFace;
 use skrifa::instance::{LocationRef, Size};
 use skrifa::outline::{DrawSettings, OutlinePen};
 use skrifa::{FontRef, MetadataProvider as _};
@@ -16,7 +16,7 @@ const ROW_SAMPLES: &str = "漢中國體鬱한뷁あぎアギㄅ「」";
 /// Fit `face`, a CJK fallback after `primary`, into `primary`'s rows: its glyphs sit on
 /// `primary`'s baseline and the row keeps `primary`'s height. The face is scaled down only as far
 /// as keeps [`ROW_SAMPLES`] inside the row.
-pub(super) fn into_row(primary: &FontData, face: &mut FontData) {
+pub(super) fn into_row(primary: &StackFace, face: &mut StackFace) {
     let (Some(p), Some(f)) = (VerticalMetrics::of(primary), VerticalMetrics::of(face)) else { return };
     let ascent = primary.tweak.scale * p.ascent;
     let height = primary.tweak.scale * p.height();
@@ -30,7 +30,7 @@ pub(super) fn into_row(primary: &FontData, face: &mut FontData) {
     }
     // egui centres a fallback's row in the primary's row without growing it; the offset moves the
     // centred baseline onto the primary's. Both are in units of the font size times the scale.
-    face.tweak.set_baseline_fallback(false);
+    face.tweak.baseline_fallback = false;
     face.tweak.scale = scale;
     let centred = 0.5 * (height - scale * f.height()) + scale * f.ascent;
     face.tweak.y_offset_factor = (ascent - centred + primary.tweak.scale * primary.tweak.y_offset_factor) / scale;
@@ -39,16 +39,16 @@ pub(super) fn into_row(primary: &FontData, face: &mut FontData) {
 
 /// Scale `face` so that its x-height matches `reference`'s as drawn: the tab-title face draws as tall as the semibold
 /// text beside it. A face without an x-height in its `OS/2` table, or with a reference that has none, keeps its scale.
-pub(super) fn to_x_height(reference: &FontData, face: &mut FontData) {
+pub(super) fn to_x_height(reference: &StackFace, face: &mut StackFace) {
     let (Some(wanted), Some(own)) = (x_height(reference), x_height(face)) else { return };
     face.tweak.scale = reference.tweak.scale * wanted / own;
 }
 
 /// A face's x-height in ems, from its `OS/2` table, at the instance its variation coordinates set; `None` when the
 /// table gives none.
-fn x_height(data: &FontData) -> Option<f32> {
-    let font = FontRef::from_index(data.bytes(), data.index).ok()?;
-    let location = font.axes().location(data.tweak.coords.as_ref());
+fn x_height(data: &StackFace) -> Option<f32> {
+    let font = FontRef::from_index(data.data(), data.index).ok()?;
+    let location = font.axes().location(data.coords.iter().map(|(tag, value)| (skrifa::Tag::new(tag), *value)));
     let metrics = font.metrics(Size::unscaled(), &location);
     let em = f32::from(metrics.units_per_em);
     metrics.x_height.filter(|&x| x > 0.0 && em > 0.0).map(|x| x / em)
@@ -62,8 +62,8 @@ struct VerticalMetrics {
 }
 
 impl VerticalMetrics {
-    fn of(data: &FontData) -> Option<Self> {
-        let font = FontRef::from_index(data.bytes(), data.index).ok()?;
+    fn of(data: &StackFace) -> Option<Self> {
+        let font = FontRef::from_index(data.data(), data.index).ok()?;
         let metrics = font.metrics(Size::unscaled(), LocationRef::default());
         let em = f32::from(metrics.units_per_em);
         (em > 0.0).then(|| Self { ascent: metrics.ascent / em, descent: -metrics.descent / em, line_gap: metrics.leading / em })
@@ -76,8 +76,8 @@ impl VerticalMetrics {
 
 /// How far the outlines of `text`'s characters in `data` reach above and below the baseline, in
 /// ems, from their control points.
-fn ink_extent(data: &FontData, text: &str) -> (f32, f32) {
-    let Ok(font) = FontRef::from_index(data.bytes(), data.index) else { return (0.0, 0.0) };
+fn ink_extent(data: &StackFace, text: &str) -> (f32, f32) {
+    let Ok(font) = FontRef::from_index(data.data(), data.index) else { return (0.0, 0.0) };
     let em = f32::from(font.metrics(Size::unscaled(), LocationRef::default()).units_per_em);
     let (charmap, outlines) = (font.charmap(), font.outline_glyphs());
     let mut pen = Extent::default();

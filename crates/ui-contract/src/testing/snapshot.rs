@@ -18,8 +18,10 @@ pub use image::RgbaImage;
 /// When wgpu finds no adapter.
 pub fn renderer() -> EpaintRenderer {
     #[allow(clippy::expect_used, reason = "a snapshot cannot be taken without an adapter")]
-    EpaintRenderer::create_blocking(EpaintOptions::predictable(), crate::fonts::deflated_default_definitions(), None)
-        .expect("a wgpu adapter (a software one will do)")
+    let mut renderer = EpaintRenderer::create_blocking(EpaintOptions::predictable(), craft_ui_render_epaint::FontDefinitions::empty(), None)
+        .expect("a wgpu adapter (a software one will do)");
+    craft_ui_rt::TextEngine::set_stack(craft_ui_rt::Renderer::text(&mut renderer), &crate::fonts::default_stack());
+    renderer
 }
 
 /// The window's last frame as an image, in physical pixels, over a transparent ground.

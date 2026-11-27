@@ -5,8 +5,7 @@ pub(in crate::fonts) mod loader;
 use std::sync::Arc;
 
 use craft_fonts_build::ServedFace;
-use egui::FontFamily;
-use egui::epaint::text::Blob;
+use craft_ui_rt::{FontBytes, FontFace, StackFace};
 
 use super::faces::baseline_fallback;
 use super::faces::set_weight;
@@ -38,17 +37,17 @@ impl Stack {
     /// mathematical notation the math faces (`Zmth`) and then the symbol faces, and emoji the emoji
     /// faces. Empty for characters of no particular script and for characters no served face maps.
     pub fn downloads_for(&self, family: &FontRef, c: char) -> Vec<&ServedFace> {
-        self.downloads(&family.family(), c.encode_utf8(&mut [0; 4]))
+        self.downloads(family.face(), c.encode_utf8(&mut [0; 4]))
     }
 
     /// [`Self::downloads_for`] the first character of a cluster, whose variation selector chooses
     /// between emoji and symbol faces.
-    pub(in crate::fonts) fn downloads(&self, family: &FontFamily, cluster: &str) -> Vec<&ServedFace> {
+    pub(in crate::fonts) fn downloads(&self, family: &FontFace, cluster: &str) -> Vec<&ServedFace> {
         let (Some(c), Some(script)) = (cluster.chars().next(), script_of_cluster(cluster)) else { return Vec::new() };
         let wanted = if script == MATH { [MATH, SYMBOLS].as_slice() } else { std::slice::from_ref(&script) };
         let alphabet = matches!(script, "Latn" | "Grek" | "Cyrl");
-        let configured = self.definitions.families.get(family).or_else(|| self.definitions.families.get(&FontFamily::Proportional));
-        let after = self.after_system.chain(&FontRef::from_family(family.clone()));
+        let configured = self.definitions.families.get(family).or_else(|| self.definitions.families.get(FontRef::proportional().face()));
+        let after = self.after_system.chain_of(family);
         let mut faces: Vec<&ServedFace> = Vec::new();
         for want in wanted {
             for name in configured.into_iter().flatten().chain(after) {
@@ -69,30 +68,31 @@ impl Stack {
     /// install. A face in a family of another weight is set to that weight, and renamed as
     /// [`super::UiFonts::stack`] would have. The loader does this for each file it fetches; an app
     /// that gets the files some other way can call it itself.
-    pub fn provide(&mut self, url: &str, file: &Blob) {
+    pub fn provide(&mut self, url: &str, file: &FontBytes) {
         self.provide_to(file, |face| face.url == url);
     }
 
     /// [`Self::provide`] for bytes fetched and checked against `integrity`: only the faces that
     /// require that integrity (or none, when it is empty) take them.
-    pub(in crate::fonts) fn provide_fetched(&mut self, url: &str, integrity: &str, file: &Blob) {
+    pub(in crate::fonts) fn provide_fetched(&mut self, url: &str, integrity: &str, file: &FontBytes) {
         self.provide_to(file, |face| face.url == url && face.integrity == integrity);
     }
 
-    fn provide_to(&mut self, file: &Blob, takes: impl Fn(&ServedFace) -> bool) {
+    fn provide_to(&mut self, file: &FontBytes, takes: impl Fn(&ServedFace) -> bool) {
         let faces: Vec<ServedFace> = self.served.iter().filter(|face| takes(face)).copied().collect();
         for face in faces {
             let name = face.name();
-            let data = baseline_fallback(egui::FontData::from_blob(Arc::clone(file), face.index));
-            let weight = |family: &FontFamily| self.weights.iter().find(|(f, _)| f.family() == *family).map_or(400, |(_, w)| *w);
-            let weighted = |family: &FontFamily| {
+            let data = baseline_fallback(StackFace::new(name.as_str(), Arc::clone(file), face.index));
+            let weight = |family: &FontFace| self.weights.iter().find(|(f, _)| f.face() == family).map_or(400, |(_, w)| *w);
+            let weighted = |family: &FontFace| {
                 let mut data = data.clone();
                 let weight = weight(family);
                 let name = if set_weight(&mut data, weight) && weight != 400 { format!("{name} @{weight}") } else { name.clone() };
+                let data = data.named(name.as_str());
                 (name, data)
             };
             let mut configured = Vec::new();
-            for (family, chain) in &mut self.definitions.families {
+            for (family, chain) in self.definitions.families.iter_mut() {
                 for entry in chain.iter_mut().filter(|entry| **entry == name) {
                     let (new_name, data) = weighted(family);
                     entry.clone_from(&new_name);
@@ -109,7 +109,7 @@ impl Stack {
             }
             let mut names: Vec<String> = configured.iter().map(|(name, _)| name.clone()).collect();
             for (name, data) in configured {
-                self.definitions.font_data.insert(name, Arc::new(data));
+                self.definitions.font_data.insert(name, data);
             }
             names.extend(after.iter().map(|(name, _)| name.clone()));
             for (name, data) in after {
@@ -124,11 +124,4 @@ impl Stack {
     fn served_face(&self, name: &str) -> Option<&ServedFace> {
         self.served.iter().find(|face| face.name() == name)
     }
-}
-
-/// Whether the UI language's served faces are still being fetched, for an app that waits for them
-/// before drawing its interface. False without a fetcher, and once every fetch has finished,
-/// failed ones included.
-pub fn loading(ctx: &egui::Context) -> bool {
-    loader::loading(ctx)
 }

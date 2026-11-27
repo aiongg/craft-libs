@@ -1,6 +1,6 @@
 //! The UI font stack every Craft app installs.
 //!
-//! egui draws a character only if one of its installed faces has it. [`UiFonts`] builds the same
+//! The text engine draws a character only if one of the stack's faces has it. [`UiFonts`] builds the same
 //! fallback order for every app, so a label or file name in any shipped script draws in every app:
 //!
 //! 1. the app's own faces for the family (UI face, semibold, mono), or egui's default faces for a
@@ -10,7 +10,7 @@
 //! 2. craft-fonts faces for the UI language;
 //! 3. craft-fonts faces for every other script the app ships, so a Japanese interface still draws
 //!    Arabic file names;
-//! 4. installed system fonts ([`system_font_provider`](super::system_font_provider)), at regular weight ([`RegularWeight`](super::RegularWeight));
+//! 4. installed system fonts ([`system_font_source`](super::system_font_source)), at regular weight ([`RegularWeight`](super::RegularWeight));
 //! 5. emoji faces ([`Emoji`]) and, behind the app's own faces, egui's default faces.
 //!
 //! When the faces of step 1 don't cover the UI language's main script (Arabic, Thai, Georgian),
@@ -49,17 +49,17 @@ use std::sync::Arc;
 
 use craft_fonts_build::{EmbeddedFace, MONO_ROLE, SIGNATURE_ROLE, ServedFace};
 use craft_theme::InterfaceFont;
-use egui::{FontData, FontDefinitions, FontFamily, FontProvider};
+use craft_ui_rt::{FaceSource, FontFace, StackFace};
 
 pub(super) use chain::{EM_SQUARE_SCRIPTS, covers, is_cjk};
 
-use super::FontRef;
 use super::coverage::script_sample;
-use super::faces::FaceList;
+use super::faces::{Definitions, FaceList};
 use super::language::{I18nScripts, LanguageScripts};
 use super::on_demand::{FontCandidates, OnDemandFonts, han_for_locale};
 use super::served::loader::FontFetcher;
 use super::system::ui_face;
+use super::{FontHost, FontRef};
 
 /// The family [`crate::style`] draws the semibold type roles with (strong body text, titles,
 /// headings): `Family::named(fonts::SEMIBOLD).weight(600)`. Without it, those roles draw with the
@@ -74,7 +74,7 @@ pub const TAB_TITLE: &str = "tab-title";
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Family {
-    family: FontFamily,
+    family: FontFace,
     weight: u16,
     lead: Option<String>,
     monospaced: bool,
@@ -105,7 +105,7 @@ impl Family {
     }
 
     fn of(family: FontRef, monospaced: bool) -> Self {
-        Self { family: family.family(), weight: REGULAR, lead: None, monospaced, lead_role: None }
+        Self { family: family.into_face(), weight: REGULAR, lead: None, monospaced, lead_role: None }
     }
 
     /// The weight (`wght`) this family's faces draw at: bold craft faces are used from 600 up, and
@@ -143,14 +143,14 @@ const REGULAR: u16 = 400;
 #[non_exhaustive]
 pub struct Emoji {
     /// A colour emoji font, e.g. Noto Color Emoji (COLRv1) on desktop.
-    pub color: Option<FontData>,
+    pub color: Option<StackFace>,
     /// A lighter colour emoji font for web builds, e.g. Twemoji.
-    pub web: Option<FontData>,
+    pub web: Option<StackFace>,
     /// A colour emoji font served beside the wasm, fetched the first time text needs an emoji;
     /// asked after `web`. Needs a [`FontFetcher`].
     pub served: Option<ServedFace>,
     /// A monochrome emoji font, e.g. Noto Emoji; the last resort.
-    pub monochrome: Option<FontData>,
+    pub monochrome: Option<StackFace>,
 }
 
 /// How rows treat the CJK faces that follow the app's face.
@@ -181,8 +181,8 @@ pub enum SystemFonts {
 
 struct AppFace {
     name: String,
-    data: FontData,
-    families: Vec<FontFamily>,
+    data: StackFace,
+    families: Vec<FontFace>,
 }
 
 /// The configuration of an app's UI fonts. Build it, then [`Self::install`] it, or take its
@@ -190,7 +190,7 @@ struct AppFace {
 pub struct UiFonts<'a> {
     scripts: &'a dyn LanguageScripts,
     app_faces: Vec<AppFace>,
-    egui_faces: Vec<(String, Vec<FontFamily>)>,
+    egui_faces: Vec<(String, Vec<FontFace>)>,
     app_scripts: Vec<String>,
     craft_faces: Vec<EmbeddedFace>,
     /// For each of `craft_faces`, the served face it stands for, whose data is fetched later.
@@ -201,7 +201,7 @@ pub struct UiFonts<'a> {
     families: Vec<Family>,
     emoji: Emoji,
     system: SystemFonts,
-    system_provider: Option<Arc<dyn FontProvider>>,
+    system_provider: Option<Arc<dyn FaceSource>>,
     cjk_rows: CjkRows,
     interface: InterfaceFont,
     candidates: Option<Arc<dyn FontCandidates>>,
@@ -235,8 +235,8 @@ impl<'a> UiFonts<'a> {
     }
 
     /// One of the app's own faces, heading `families` in the order the app adds them.
-    pub fn app_face(mut self, name: &str, data: FontData, families: &[FontRef]) -> Self {
-        self.app_faces.push(AppFace { name: name.to_owned(), data, families: families.iter().map(FontRef::family).collect() });
+    pub fn app_face(mut self, name: &str, data: StackFace, families: &[FontRef]) -> Self {
+        self.app_faces.push(AppFace { name: name.to_owned(), data: data.named(name), families: families.iter().map(|f| f.face().clone()).collect() });
         self
     }
 
@@ -245,7 +245,7 @@ impl<'a> UiFonts<'a> {
     /// fonts, e.g. Hack in the proportional family for symbols the app's face lacks (⇧, ▸). A name
     /// egui doesn't ship is ignored.
     pub fn egui_face(mut self, name: &str, families: &[FontRef]) -> Self {
-        self.egui_faces.push((name.to_owned(), families.iter().map(FontRef::family).collect()));
+        self.egui_faces.push((name.to_owned(), families.iter().map(|f| f.face().clone()).collect()));
         self
     }
 
@@ -352,9 +352,9 @@ impl<'a> UiFonts<'a> {
         self
     }
 
-    /// The provider to use for installed fonts instead of [`super::system_font_provider`] (with the
+    /// The source to use for installed fonts instead of [`super::system_font_source`] (with the
     /// `system_fonts` feature, on desktop). It is wrapped in [`RegularWeight`](super::RegularWeight).
-    pub fn system_provider(mut self, provider: Arc<dyn FontProvider>) -> Self {
+    pub fn system_provider(mut self, provider: Arc<dyn FaceSource>) -> Self {
         self.system_provider = Some(provider);
         self
     }
@@ -373,13 +373,15 @@ impl<'a> UiFonts<'a> {
         self
     }
 
-    /// Build the stack and install it in `ctx`, with the on-demand loader when one is configured.
-    pub fn install(&self, ctx: &egui::Context) -> Stack {
-        let stack = self.stack();
-        stack.install(ctx);
+    /// Build the stack and offer it to the text engine through `host`, with the on-demand loader when one is
+    /// configured: the loader is the first source the stack asks after its families' faces.
+    pub fn install(&self, host: &FontHost) -> Stack {
+        let mut stack = self.stack();
         if let Some(candidates) = &self.candidates {
-            OnDemandFonts::new(candidates.clone(), han_for_locale(&self.ui_language, self.os_locale.as_deref())).install(ctx);
+            let loader = OnDemandFonts::new(candidates.clone(), han_for_locale(&self.ui_language, self.os_locale.as_deref()));
+            stack.on_demand = Some(loader.install(host));
         }
+        stack.install(host);
         stack
     }
 
@@ -389,16 +391,18 @@ impl<'a> UiFonts<'a> {
     }
 }
 
-/// A built font stack: the configured faces and chains, and the providers asked after them.
+/// A built font stack: the configured faces and chains, and the sources asked after them.
 #[derive(Clone)]
 pub struct Stack {
     /// The configured faces and each family's chain. A chain entry without font data is skipped.
-    pub(in crate::fonts) definitions: FontDefinitions,
+    pub(in crate::fonts) definitions: Definitions,
     /// Faces asked after the system fonts: emoji, egui's defaults and, with
     /// [`SystemFonts::BeforeCraft`], the craft faces for other scripts.
     pub(in crate::fonts) after_system: FaceList,
     system: SystemFonts,
-    system_provider: Option<Arc<dyn FontProvider>>,
+    system_provider: Option<Arc<dyn FaceSource>>,
+    /// The on-demand loader [`UiFonts::install`] made, asked first after the families' faces.
+    pub(in crate::fonts) on_demand: Option<Arc<dyn FaceSource>>,
     ui_language: String,
     /// The scripts of the UI language and every offered language.
     language_scripts: Vec<(String, Vec<String>)>,
@@ -423,27 +427,27 @@ impl Stack {
 
     /// The chain of `family`, if the stack has it.
     pub fn chain(&self, family: &FontRef) -> &[String] {
-        self.chain_of(&family.family())
+        self.chain_of(family.face())
     }
 
-    pub(in crate::fonts) fn chain_of(&self, family: &FontFamily) -> &[String] {
+    pub(in crate::fonts) fn chain_of(&self, family: &FontFace) -> &[String] {
         self.definitions.families.get(family).map_or(&[], Vec::as_slice)
     }
 
     /// Insert a face into `family`'s chain at `index` (clamped), adding its data.
-    pub fn insert(&mut self, family: &FontRef, index: usize, name: &str, data: FontData) {
-        self.definitions.font_data.insert(name.to_owned(), Arc::new(data));
-        let chain = self.definitions.families.entry(family.family()).or_default();
+    pub fn insert(&mut self, family: &FontRef, index: usize, name: &str, data: StackFace) {
+        self.definitions.font_data.insert(name.to_owned(), data.named(name));
+        let chain = self.definitions.families.entry(family.face().clone());
         chain.retain(|n| n != name);
         chain.insert(index.min(chain.len()), name.to_owned());
     }
 
     /// Replace the data of the face called `name`, wherever it is used.
-    pub fn replace(&mut self, name: &str, data: FontData) {
+    pub fn replace(&mut self, name: &str, data: StackFace) {
         if self.after_system.contains(name) {
             self.after_system.insert(name, data.clone());
         }
-        self.definitions.font_data.insert(name.to_owned(), Arc::new(data));
+        self.definitions.font_data.insert(name.to_owned(), data.named(name));
     }
 
     /// Remove the face called `name` from every chain, including those asked after the system
@@ -457,8 +461,8 @@ impl Stack {
     }
 
     /// Whether the proportional family can draw `language`'s scripts, e.g. to leave a language out
-    /// of the app's menu on a machine that can't show it. `with_system` also asks the system font
-    /// provider. The scripts come from the stack's [`LanguageScripts`] for the UI language and
+    /// of the app's menu on a machine that can't show it. `with_system` also asks the system fonts'
+    /// source. The scripts come from the stack's [`LanguageScripts`] for the UI language and
     /// [`UiFonts::languages`], and from craft-i18n for any other language. Each script is checked
     /// with a few of its common letters. A served face counts for the scripts it is tagged with,
     /// fetched or not, since it is fetched when text needs it.
@@ -467,38 +471,37 @@ impl Stack {
             Some((_, scripts)) => scripts.clone(),
             None => chain::expand(&I18nScripts.scripts(language)),
         };
-        let mut probe = self.probe(with_system);
+        let probe = self.probe(with_system);
         let proportional = FontRef::proportional();
         let served = |script: &str| self.served.iter().any(|face| chain::covers(face.scripts, script));
         scripts.iter().filter(|s| !served(s)).filter_map(|s| script_sample(s)).flat_map(str::chars).all(|c| probe.has(&proportional, c))
     }
 
-    /// The stack as one set of definitions, without providers: each family's chain followed by the
-    /// faces asked after the system fonts (emoji and egui's default faces), for a context or
-    /// font set that takes fonts only through definitions.
-    pub fn flat_definitions(&self) -> FontDefinitions {
+    /// The stack as one set of families, without sources: each family's chain followed by the faces asked after the
+    /// system fonts (emoji and egui's default faces), for an engine or probe that takes no sources.
+    pub fn flat_stack(&self) -> craft_ui_rt::FontStack {
         let mut definitions = self.checked_definitions();
-        let FontDefinitions { font_data, families, .. } = &mut definitions;
-        for (family, chain) in families {
-            for name in self.after_system.chain(&FontRef::from_family(family.clone())) {
+        let Definitions { font_data, families } = &mut definitions;
+        for (family, chain) in families.iter_mut() {
+            for name in self.after_system.chain_of(family) {
                 if let Some(data) = self.after_system.get(name)
                     && !chain.contains(name)
                 {
-                    font_data.entry(name.clone()).or_insert_with(|| Arc::new(data.clone()));
+                    font_data.entry(name.clone()).or_insert_with(|| data.clone());
                     chain.push(name.clone());
                 }
             }
         }
-        definitions
+        craft_ui_rt::FontStack { families: definitions.stack_families(), fallback: Vec::new() }
     }
 
-    fn checked_definitions(&self) -> FontDefinitions {
+    pub(in crate::fonts) fn checked_definitions(&self) -> Definitions {
         let mut definitions = self.definitions.clone();
         for chain in definitions.families.values_mut() {
             chain.retain(|name| self.definitions.font_data.contains_key(name));
         }
-        for family in [FontFamily::Proportional, FontFamily::Monospace] {
-            definitions.families.entry(family).or_default();
+        for family in [FontRef::proportional(), FontRef::monospace()] {
+            definitions.families.entry(family.into_face());
         }
         definitions
     }
@@ -510,7 +513,7 @@ impl Stack {
         let font_data = &self.definitions.font_data;
         let empty_slot = |name: &&String| *name == ui_face::SYSTEM_UI_REGULAR && !font_data.contains_key(name.as_str());
         let Some(primary) =
-            self.chain_of(&FontFamily::Proportional).iter().find(|name| !empty_slot(name)).and_then(|name| font_data.get(name)).cloned()
+            self.chain_of(FontRef::proportional().face()).iter().find(|name| !empty_slot(name)).and_then(|name| font_data.get(name)).cloned()
         else {
             return;
         };
@@ -518,7 +521,7 @@ impl Stack {
         let names: Vec<&String> = names.iter().filter(|name| !leads(name)).collect();
         for name in names {
             if let Some(data) = self.definitions.font_data.get_mut(name.as_str()) {
-                fit::into_row(&primary, Arc::make_mut(data));
+                fit::into_row(&primary, data);
             }
             if let Some(data) = self.after_system.get(name) {
                 let mut data = data.clone();

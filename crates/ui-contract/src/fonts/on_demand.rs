@@ -1,26 +1,27 @@
-//! On-demand font registration: a face for a script is read and added to the stack the
-//! first time a visible character of that script has no glyph, instead of every candidate face
-//! being installed up front. It covers CJK and every other script the same way.
+//! On-demand font registration: a face for a script is read and handed to the engine the first
+//! time a character of that script that text sets has no glyph, instead of every candidate face
+//! being installed up front. It covers CJK and every other script the same way. The loader is a
+//! source of the installed stack, so the engine asks it while it shapes the text, and the face
+//! sets the character in the same layout.
 
 #[cfg(not(target_arch = "wasm32"))]
 mod files;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_host::Wake;
 #[cfg(not(target_arch = "wasm32"))]
 use craft_host::target::Runtime;
 use craft_i18n::Han;
-use egui::{Context, FontData, Shape};
+use craft_ui_rt::{FaceSource, FallbackAsk, StackFace};
 use skrifa::MetadataProvider as _;
 use skrifa::raw::{FileRef, TableProvider as _};
 
-use super::faces::{baseline_fallback, set_weight};
+use super::FontHost;
+use super::faces::{baseline_fallback, has_char, set_weight};
 use super::script::{EMOJI, MATH, SYMBOLS, script_of};
 use super::stack::is_cjk;
-use crate::runtime::egui::fonts as egui_fonts;
-use crate::runtime::egui::memory;
 
 /// Candidate font files per script, most preferred first. Each is read only when a character of
 /// that script is missing, at most [`MAX_SCRIPT_READS`] files per script and one face per pass.
@@ -104,17 +105,15 @@ pub const MAX_SCRIPT_READS: usize = 6;
 /// Skip absurdly large files: a corrupt or non-font path must not eat memory.
 const MAX_FONT_BYTES: u64 = 128 << 20;
 
-/// The loader that registers faces on demand, kept in the context's runtime store. A host installs one with
-/// [`OnDemandFonts::install`].
+/// The loader that registers faces on demand: the first source an installed stack asks
+/// ([`super::UiFonts::install`] with [`super::UiFonts::on_demand`]).
 ///
-/// After each pass it looks at the shapes drawn for a missing glyph, picks the script of the first such
-/// character, reads that script's candidates until one covers it, and registers that face after
-/// the craft faces of every family (lowest priority, so it follows the stack's own chain). A face
-/// is read once; a script whose candidates are exhausted is not tried again until the fonts are
-/// reinstalled.
+/// When the engine finds no face for a character, the loader picks the character's script, reads that script's
+/// candidates until one covers it, and hands that face to the engine, which appends it to the family (after the
+/// stack's own chain). A face is read once and answers every family; a script whose candidates are exhausted is not
+/// tried again until the stack is installed again.
 ///
-/// The loader retains no font bytes: a file is read once, checked, and handed to egui as owned data, one
-/// face per file. Memory is bounded by `MAX_FONT_BYTES` per file and [`MAX_SCRIPT_READS`] files per script,
+/// The loader keeps each face it registered (one face per file), to answer the next character it has. Memory is bounded by `MAX_FONT_BYTES` per file and [`MAX_SCRIPT_READS`] files per script,
 /// so there is no blob budget to enforce. In a collection the face is chosen by character-map coverage, then by
 /// the Han region's family, and a face whose tables are malformed is skipped.
 pub struct OnDemandFonts {
@@ -125,11 +124,8 @@ pub struct OnDemandFonts {
     reads: Vec<(String, usize)>,
     /// Faces registered so far: (font name, file, face index).
     registered: Vec<(String, PathBuf, u32)>,
-    /// The pass after an install registers nothing: egui applies `set_fonts` at the start of the
-    /// next pass, so this pass's shapes were laid out with the old stack.
-    skip_pass: bool,
-    /// A face was registered by the last pass; egui adds it at the start of the next one.
-    adding: bool,
+    /// The registered faces, in the order of `registered`.
+    faces: Vec<StackFace>,
     /// The candidates were asked to wake the UI when their running lookup ends.
     waiting: bool,
 }
@@ -137,15 +133,15 @@ pub struct OnDemandFonts {
 impl OnDemandFonts {
     /// A loader over `candidates`, with the Han preference of the effective locale.
     pub fn new(candidates: Arc<dyn FontCandidates>, han: Option<Han>) -> Self {
-        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), skip_pass: false, adding: false, waiting: false }
+        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), faces: Vec::new(), waiting: false }
     }
 
-    /// Installs the loader on `ctx`, replacing an earlier one: `set_fonts` drops the registered faces, so an earlier
-    /// loader's state is replaced rather than kept.
-    pub fn install(mut self, ctx: &Context) {
-        self.skip_pass = true;
-        memory::with::<Loader, _>(ctx, |loader| loader.0 = Some(self));
-        egui_fonts::ensure_plugin(ctx);
+    /// The loader as the source a stack offered through `host` asks, replacing an earlier one: a new stack starts
+    /// with no registered faces.
+    pub fn install(self, host: &FontHost) -> Arc<dyn FaceSource> {
+        let source = Arc::new(OnDemandSource { fonts: Mutex::new(self), host: host.clone() });
+        host.set_on_demand(Arc::clone(&source));
+        source
     }
 
     fn reads_of(&self, script: &str) -> usize {
@@ -174,53 +170,17 @@ impl OnDemandFonts {
         self.set_reads(script, MAX_SCRIPT_READS);
     }
 
-    /// The first character with no glyph among `shapes`, if any: what the next pass loads for.
-    /// Only characters of scripts that still have candidates to read count.
-    fn missing_char(&self, ctx: &Context, shapes: &[egui::epaint::ClippedShape]) -> Option<char> {
-        fn collect(shape: &Shape, out: &mut Vec<char>, wanted: &dyn Fn(char) -> bool) {
-            match shape {
-                Shape::Text(t) => {
-                    let text = &t.galley.job.text;
-                    if !text.is_ascii() {
-                        for c in text.chars().filter(|c| wanted(*c)) {
-                            if out.len() >= 256 {
-                                return;
-                            }
-                            if !out.contains(&c) {
-                                out.push(c);
-                            }
-                        }
-                    }
-                }
-                Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out, wanted)),
-                _ => {}
-            }
-        }
-        let wanted = |c: char| face_script(c).is_some_and(|script| self.wanted(script));
-        let mut chars = Vec::new();
-        for shape in shapes {
-            collect(&shape.shape, &mut chars, &wanted);
-        }
-        egui_fonts::first_without_glyph(ctx, chars)
-    }
-
-    /// Whether the stack was reinstalled since the last face was registered: egui's definitions
-    /// no longer hold it.
-    fn faces_dropped(&self, ctx: &Context) -> bool {
-        let Some((name, ..)) = self.registered.first() else { return false };
-        !self.adding && !egui_fonts::has_face(ctx, name)
-    }
-
     /// The next face to register for `c`: the first unread candidate of its script whose
     /// character map has it. `None` when nothing is left, or while a background lookup may still
     /// add candidates for the preferred script.
-    fn next_face(&mut self, ctx: &Context, c: char, script: &'static str) -> Option<(String, FontData)> {
+    fn next_face(&mut self, host: &FontHost, c: char, script: &'static str) -> Option<StackFace> {
         let cjk = is_cjk(script);
         let pending = cjk && self.candidates.pending();
         if pending && !self.waiting {
             self.waiting = true;
-            let ctx = ctx.clone();
-            self.candidates.wake_when_ready(Wake::new(move || egui_fonts::wake(&ctx)));
+            // The lookup may add the candidate: the engine forgets this miss and asks again.
+            let host = host.clone();
+            self.candidates.wake_when_ready(Wake::new(move || host.refresh()));
         } else if !pending {
             self.waiting = false;
         }
@@ -253,9 +213,11 @@ impl OnDemandFonts {
             let name = format!("on-demand-{}", self.registered.len());
             log::info!("UI font fallback: registered {} (face {index}) for {script} as {name}", path.display());
             self.registered.push((name.clone(), path, index));
-            let mut data = FontData::from_owned(bytes);
-            data.index = index;
-            return Some((name, data));
+            // On the primary face's baseline and at regular weight (variable system faces often default to Thin).
+            let mut face = baseline_fallback(StackFace::new(name, Arc::new(bytes), index));
+            set_weight(&mut face, 400);
+            self.faces.push(face.clone());
+            return Some(face);
         }
         if pending {
             // The lookup may add a better candidate: try again, reading the same files.
@@ -268,64 +230,34 @@ impl OnDemandFonts {
     }
 }
 
-impl OnDemandFonts {
-    /// What a pass leaves to do: registers one face for the first drawn character without a glyph.
-    fn scan(&mut self, ctx: &Context, shapes: &[egui::epaint::ClippedShape]) {
-        if std::mem::take(&mut self.skip_pass) {
-            egui_fonts::wake(ctx);
-            return;
-        }
-        if self.faces_dropped(ctx) {
-            *self = OnDemandFonts::new(self.candidates.clone(), self.han);
-            egui_fonts::wake(ctx);
-            return;
-        }
-        self.adding = false;
-        let Some(c) = self.missing_char(ctx, shapes) else { return };
-        let Some(script) = face_script(c) else { return };
-        let pending = is_cjk(script) && self.candidates.pending();
-        match self.next_face(ctx, c, script) {
-            Some((name, data)) => {
-                register(ctx, name, data);
-                self.adding = true;
-                egui_fonts::wake(ctx);
-            }
-            // The lookup's wake requests the next frame.
-            None if pending => {}
-            // The script ran out of candidates for this character; another script may still load.
-            None => egui_fonts::wake(ctx),
-        }
+/// An [`OnDemandFonts`] loader as a stack's source, with the host it has offer the stack again when a running lookup
+/// ends.
+pub(crate) struct OnDemandSource {
+    fonts: Mutex<OnDemandFonts>,
+    host: FontHost,
+}
+
+impl OnDemandSource {
+    pub(crate) fn registered(&self) -> Vec<(String, PathBuf, u32)> {
+        self.fonts.lock().unwrap_or_else(PoisonError::into_inner).registered.clone()
     }
 }
 
-/// The context's loader, if one is installed.
-#[derive(Default)]
-struct Loader(Option<OnDemandFonts>);
-
-/// Runs the installed loader after a pass that painted `shapes`. The loader is out of the store while it runs, so it
-/// reads and writes the context without holding the store's lock.
-pub(crate) fn after_pass(ctx: &Context, shapes: &[egui::epaint::ClippedShape]) {
-    let Some(mut loader) = memory::with::<Loader, _>(ctx, |loader| loader.0.take()) else { return };
-    loader.scan(ctx, shapes);
-    memory::with::<Loader, _>(ctx, |slot| {
-        if slot.0.is_none() {
-            slot.0 = Some(loader);
+impl FaceSource for OnDemandSource {
+    /// A registered face that has the character, else the next face read for its script; nothing for characters of
+    /// scripts the stack's own faces are expected to draw, or whose candidates ran out.
+    fn face_for(&self, ask: &FallbackAsk<'_>) -> Option<StackFace> {
+        let c = ask.cluster.chars().next()?;
+        let script = face_script(c)?;
+        let mut fonts = self.fonts.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(face) = fonts.faces.iter().find(|face| has_char(face, c)) {
+            return Some(face.clone());
         }
-    });
-}
-
-/// The faces the context's loader registered so far (font name, file, face index), for the font list in
-/// Preferences and the tests.
-pub fn on_demand_registered(ctx: &Context) -> Vec<(String, PathBuf, u32)> {
-    memory::with::<Loader, _>(ctx, |loader| loader.0.as_ref().map(|loader| loader.registered.clone()).unwrap_or_default())
-}
-
-/// Adds `data` to every font family at the lowest priority, on the primary face's baseline and at
-/// regular weight (variable system faces often default to Thin).
-fn register(ctx: &Context, name: String, data: FontData) {
-    let mut data = baseline_fallback(data);
-    set_weight(&mut data, 400);
-    egui_fonts::add_face(ctx, name, data);
+        if !fonts.wanted(script) {
+            return None;
+        }
+        fonts.next_face(&self.host, c, script)
+    }
 }
 
 /// The ISO 15924 script of a character that may need an on-demand face, or `None` for Latin,

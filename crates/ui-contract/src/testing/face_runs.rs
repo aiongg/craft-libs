@@ -85,7 +85,7 @@ impl Default for FaceRuns {
 fn load() -> Option<FaceBytes> {
     let definitions = deflated_default_definitions();
     let data = definitions.font_data.get(FACE)?;
-    Some(FaceBytes::new(Arc::from(data.bytes()), data.index))
+    Some(FaceBytes::new(Arc::from(data.data()), data.index))
 }
 
 impl Component for FaceRuns {

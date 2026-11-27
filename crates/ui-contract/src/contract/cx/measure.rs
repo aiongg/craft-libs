@@ -60,11 +60,12 @@ impl<C: Component> MeasureCx<'_, C> {
     /// Runs `f` with the window's text and image services, as `Draw` will paint with them.
     fn with_services<R>(&self, f: impl FnOnce(&FrameServices<'_>) -> R) -> R {
         self.with_ui(|ui| {
+            let ctx = ui.ctx().clone();
             let build = ui.build_cx();
             let scale = build.scale();
             let fonts = crate::fonts::stack_facts(build);
             let (text, images) = build.paint_services();
-            f(&FrameServices::new(text, images, scale, fonts))
+            f(&FrameServices::new(text, images, scale, fonts).with_context(ctx))
         })
     }
 

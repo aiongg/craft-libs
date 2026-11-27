@@ -7,21 +7,30 @@
 //! missing goes to the system's font manager ([`SkiaText::new`]) or stays unresolved
 //! ([`SkiaText::isolated`], for tests that must not depend on the machine's fonts).
 //!
+//! A stack's faces are registered at their variation coordinates. Its sources are asked before a
+//! text is shaped, once per family and character no face of the family maps, and a face they find
+//! is registered and appended to the family, so the character sets in it in the same layout. Draw
+//! tweaks (scale, offsets) are not applied: skparagraph sets every face at the text size.
+//!
 //! A `Paragraph` is neither `Send` nor `Sync` in skia-safe, and a `TextHandle` must be both, so the
 //! paragraph lives only during `layout`: its glyph runs become one `TextBlob` (immutable and
 //! thread-safe in Skia), and each character's box is kept for hit testing and carets.
 
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
 use craft_theme::{FontSlot, Rgba};
-use craft_ui_rt::{FaceInstall, FontFace as StackFamily, FontStack, Overflow, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text};
+use craft_ui_rt::{
+    FaceInstall, FallbackAsk, FontFace as StackFamily, FontStack, Overflow, StackFace, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text,
+};
 use emath::{Pos2, Rect, pos2, vec2};
+use skia_safe::font_arguments::{VariationPosition, variation_position::Coordinate};
 use skia_safe::font_style::{Slant, Weight, Width};
 use skia_safe::textlayout::{
     FontCollection, Paragraph, ParagraphBuilder, ParagraphStyle, RectHeightStyle, RectWidthStyle, TextDirection, TextStyle, TypefaceFontProvider,
 };
-use skia_safe::{Data, FontMgr, FontStyle, TextBlob, TextBlobBuilder};
+use skia_safe::{Data, FontArguments, FontMgr, FontStyle, FourByteTag, TextBlob, TextBlobBuilder, Typeface};
 
 // The suite's interface face: the bytes craft-ui-contract ships (`fonts/inter`). Other faces (the
 // monospace face, scripts Inter lacks) come from the fonts set through `register_face`.
@@ -71,6 +80,12 @@ pub struct SkiaText {
     /// family's faces, each registered under its own name.
     stack: Option<FontStack>,
     stack_generation: u64,
+    /// The typefaces registered by name: the stack's faces and those its sources found.
+    typefaces: HashMap<String, Typeface>,
+    /// The faces the stack's sources found, per family, after the family's own.
+    found: HashMap<StackFamily, Vec<String>>,
+    /// The families and characters the sources were asked for under this stack.
+    asked: HashSet<(StackFamily, char)>,
 }
 
 impl Default for SkiaText {
@@ -102,6 +117,9 @@ impl SkiaText {
             installed: Vec::new(),
             stack: None,
             stack_generation: 0,
+            typefaces: HashMap::new(),
+            found: HashMap::new(),
+            asked: HashSet::new(),
         };
         for bytes in [INTER_REGULAR, INTER_SEMIBOLD] {
             text.add(UI_FAMILY, bytes);
@@ -144,6 +162,87 @@ impl SkiaText {
         }
     }
 
+    /// Registers `face` under its name at its variation coordinates.
+    fn add_stack_face(&mut self, face: &StackFace) -> bool {
+        let Some(typeface) = self.mgr.new_from_data(Data::new_copy(face.data()), Some(face.index as usize)) else {
+            log::error!("skia could not read the {} face", face.name);
+            return false;
+        };
+        let coordinates: Vec<Coordinate> =
+            face.coords.iter().map(|(tag, value)| Coordinate { axis: FourByteTag::new(u32::from_be_bytes(*tag)), value: *value }).collect();
+        let typeface = if coordinates.is_empty() {
+            typeface
+        } else {
+            let arguments = FontArguments::new().set_variation_design_position(VariationPosition { coordinates: &coordinates });
+            typeface.clone_with_arguments(&arguments).unwrap_or(typeface)
+        };
+        self.provider.register_typeface(typeface.clone(), face.name.as_ref());
+        self.typefaces.insert(face.name.to_string(), typeface);
+        true
+    }
+
+    /// Registers again every face of the stack, those its sources found and the installed faces,
+    /// in a new provider.
+    fn register_all(&mut self) {
+        self.provider = TypefaceFontProvider::new();
+        self.typefaces.clear();
+        let mut faces: Vec<StackFace> = Vec::new();
+        if let Some(stack) = &self.stack {
+            for (family, own) in &stack.families {
+                faces.extend(own.iter().cloned());
+                faces.extend(stack.source_faces(family));
+            }
+        }
+        for face in faces {
+            if !self.typefaces.contains_key(face.name.as_ref()) {
+                self.add_stack_face(&face);
+            }
+        }
+        for face in std::mem::take(&mut self.installed) {
+            self.add_at(&face.family, &face.bytes, face.index as usize);
+            self.installed.push(face);
+        }
+        self.sync();
+    }
+
+    /// Asks the stack's sources for each character of `text` that no face of `slot`'s family maps,
+    /// once per family and character, and registers what they find.
+    fn find_fallbacks(&mut self, slot: FontSlot, text: &str) {
+        let sources = self.stack.as_ref().map(|stack| stack.fallback.clone()).unwrap_or_default();
+        if sources.is_empty() {
+            return;
+        }
+        let family = StackFamily::Slot(slot);
+        let mut names: Option<Vec<String>> = None;
+        let mut added = false;
+        for (at, c) in text.char_indices() {
+            if c.is_whitespace() || c.is_control() || self.asked.contains(&(family.clone(), c)) {
+                continue;
+            }
+            let names = names.get_or_insert_with(|| self.families(slot).into_iter().map(str::to_owned).collect());
+            let covered = names.iter().filter_map(|name| self.typefaces.get(name)).any(|typeface| typeface.unichar_to_glyph(c as i32) != 0);
+            if covered {
+                continue;
+            }
+            self.asked.insert((family.clone(), c));
+            let end = text[at..].char_indices().nth(1).map_or(text.len(), |(next, _)| at + next);
+            let ask = FallbackAsk { family: &family, cluster: &text[at..end] };
+            let Some(face) = sources.iter().find_map(|source| source.face_for(&ask)) else { continue };
+            if !self.typefaces.contains_key(face.name.as_ref()) && !self.add_stack_face(&face) {
+                continue;
+            }
+            let found = self.found.entry(family.clone()).or_default();
+            if !found.iter().any(|name| **name == *face.name) {
+                found.push(face.name.to_string());
+                names.push(face.name.to_string());
+                added = true;
+            }
+        }
+        if added {
+            self.sync();
+        }
+    }
+
     fn sync(&mut self) {
         self.fonts.set_asset_font_manager(Some(self.provider.clone().into()));
     }
@@ -163,7 +262,8 @@ impl SkiaText {
 
     fn families(&self, slot: FontSlot) -> Vec<&str> {
         if let Some(faces) = self.stack_faces(slot) {
-            return faces.into_iter().chain(self.fallback.iter().map(String::as_str)).collect();
+            let found = self.found.get(&StackFamily::Slot(slot)).into_iter().flatten().map(String::as_str);
+            return faces.into_iter().chain(found).chain(self.fallback.iter().map(String::as_str)).collect();
         }
         let primary: &[&str] = match slot {
             FontSlot::Ui | FontSlot::UiSemibold | FontSlot::UiCondensed => &[UI_FAMILY],
@@ -269,27 +369,25 @@ impl TextEngine for SkiaText {
         self.installed.iter().any(|face| &*face.family == family)
     }
 
-    /// Registers every face of `stack` under its own name, in place of the faces registered
-    /// before, and the installed faces again. Variation coordinates and draw tweaks are not
-    /// applied here: skparagraph sets each face at its default instance.
+    /// Registers the faces again without the family: Skia's provider takes no face out.
+    fn remove_face(&mut self, family: &str) -> bool {
+        let before = self.installed.len();
+        self.installed.retain(|face| &*face.family != family);
+        let removed = self.installed.len() != before;
+        if removed {
+            self.register_all();
+        }
+        removed
+    }
+
+    /// Registers every face of `stack` under its own name at its variation coordinates, in place
+    /// of the faces registered before, and the installed faces again. The sources' answers of the
+    /// stack before are forgotten, so they are asked again.
     fn set_stack(&mut self, stack: &FontStack) {
-        self.provider = TypefaceFontProvider::new();
-        let mut added: Vec<&str> = Vec::new();
-        for (_, faces) in &stack.families {
-            for face in faces {
-                if !added.contains(&face.name.as_ref()) {
-                    added.push(face.name.as_ref());
-                    let (name, bytes, index) = (face.name.clone(), Arc::clone(&face.bytes), face.index as usize);
-                    self.add_at(&name, &bytes, index);
-                }
-            }
-        }
-        for face in std::mem::take(&mut self.installed) {
-            self.add_at(&face.family, &face.bytes, face.index as usize);
-            self.installed.push(face);
-        }
-        self.sync();
         self.stack = Some(stack.clone());
+        self.found.clear();
+        self.asked.clear();
+        self.register_all();
         self.stack_generation += 1;
     }
 
@@ -304,6 +402,7 @@ impl TextEngine for SkiaText {
     /// Layouts are in logical points at every scale: Skia rasterises glyphs under the canvas
     /// matrix at the target's pixel size, so the scale changes no metric here.
     fn layout(&mut self, spec: &TextSpec, _scale: f32) -> TextLayout {
+        self.find_fallbacks(spec.font.slot, &spec.text);
         let text = overflow_text(spec, |t| width(&self.paragraph(spec, t)));
         let mut paragraph = self.paragraph(spec, &text);
         let w = if spec.overflow == Overflow::Wrap && spec.max_width.is_some() { paragraph.longest_line() } else { width(&paragraph) };
