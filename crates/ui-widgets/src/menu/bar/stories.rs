@@ -8,7 +8,7 @@ use crate::list::CommandHighlight;
 use crate::menu::{EditMenu, GroupItem, HelpEntry, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::runtime::env::with_env;
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::IconId;
 use craft_theme::ControlSize;
 use craft_ui::Ui;

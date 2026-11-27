@@ -19,7 +19,7 @@ use std::borrow::Cow;
 /// Typed text reads with or without a leading `#`, in either case: three digits per channel count (`F80` is #FF8800
 /// with one digit), and with `alpha` four. A colour typed without alpha digits keeps the alpha it had when editing
 /// began. A draft applies as soon as it is a colour.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct HexCodec {
     /// Digits per channel: 1 or 2.

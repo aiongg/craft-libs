@@ -775,6 +775,14 @@ impl Component for MenuBar<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
+        // A title in the overflow menu has no part rect, so it records nothing.
+        for (at, title) in self.titles.iter().enumerate().take(found.shown) {
+            if let (false, Some(result), Some((text, _))) =
+                (title.holds.is_empty(), cx.part_if_declared(Self::slot_part(Open::Title(at))), texts.get(at))
+            {
+                ui.hold_commands(result.rect, &title.holds, Label::from(text.clone()));
+            }
+        }
         let words = cx.env.words::<MenuWords>();
         let underlined = cx.modifiers().alt || cx.is_focused();
         for slot in Self::slots(found) {
@@ -785,8 +793,7 @@ impl Component for MenuBar<'_> {
             };
             let open = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
             // Under the pointer a title is the active row, as it is while its menu is open or the keyboard is on it.
-            let lit =
-                open || cx.part_if_declared(part).is_some_and(|result| result.hovered) || cx.part_state(part).has(Flags::FOCUS_VISIBLE);
+            let lit = open || cx.part_if_declared(part).is_some_and(|result| result.hovered) || cx.part_state(part).has(Flags::FOCUS_VISIBLE);
             let mnemonic = match slot {
                 Open::Title(at) if underlined => texts[at].1.and_then(|(_, index)| index),
                 _ => None,
@@ -797,15 +804,6 @@ impl Component for MenuBar<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuBarOutput {
         let found = declared(&cx);
-        let texts = self.texts(&cx.env);
-        // A title in the overflow menu has no part rect, so it records nothing.
-        for (at, title) in self.titles.iter().enumerate().take(found.shown) {
-            if let (false, Some(result), Some((text, _))) =
-                (title.holds.is_empty(), cx.part_if_declared(Self::slot_part(Open::Title(at))), texts.get(at))
-            {
-                ui.hold_commands(result.rect, &title.holds, Label::from(text.clone()));
-            }
-        }
         let rects = Self::slots(found).into_iter().filter_map(|slot| cx.part_if_declared(Self::slot_part(slot)).map(|result| result.rect));
         let start = if cx.flow.is_rtl() { cx.rect.right_top() } else { cx.rect.left_top() };
         let titles = rects.reduce(Rect::union).unwrap_or_else(|| Rect::from_min_size(start, Vec2::ZERO));

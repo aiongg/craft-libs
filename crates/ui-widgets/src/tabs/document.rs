@@ -360,40 +360,37 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
                     let memory = ui.scope_id().with("document-tabs-trailing-width");
                     let held = ui.with_session(memory, |held: &mut f32| *held);
                     // design: allow[contract/allocate](the tabs are a plain `show`, not a component: the slot keeps last pass's room for the trailing area)
-                    let slot = ui.allocate_exact_size(craft_ui::geom::vec2(held, strip.response.response.rect.height()), egui::Sense::hover()).0;
+                    let slot = ui.allocate(craft_ui::geom::vec2(held, strip.response.response.rect.height()));
                     let all_show = strip.tab_rects.len() == tabs.len();
                     let after = match strip.tab_rects.last() {
-                        Some((_, rect)) if all_show => Some(rect.right() + ui.spacing().item_spacing.x),
+                        Some((_, rect)) if all_show => Some(rect.right() + ui.tokens().space.gap.item),
                         None => Some(strip.response.response.rect.left()),
                         _ => None,
                     };
                     // Overflowing, the control ends at the row's end edge; it never runs past it.
-                    let (room, layout) = match after {
-                        Some(at) if !ui.layout().prefer_right_to_left() => {
+                    let room = match after {
+                        Some(at) if !ui.is_rtl() => {
                             let end = slot.right().min(ui.clip_rect().right().max(slot.left()));
                             let left = at.min(slot.left()).min(end - held).max(strip.response.response.rect.left());
-                            (
-                                craft_ui::geom::Rect::from_min_max(
-                                    craft_ui::geom::pos2(left, slot.top()),
-                                    craft_ui::geom::pos2(slot.right().max(left + 400.0), slot.bottom()),
-                                ),
-                                egui::Layout::left_to_right(craft_ui::geom::Align::Center),
+                            craft_ui::geom::Rect::from_min_max(
+                                craft_ui::geom::pos2(left, slot.top()),
+                                craft_ui::geom::pos2(slot.right().max(left + 400.0), slot.bottom()),
                             )
                         }
                         _ => {
                             // The row's own edge can lie past what the bar leaves it: end at the visible edge.
                             let end = slot.right().min(ui.clip_rect().right().max(slot.left()));
-                            (
-                                craft_ui::geom::Rect::from_min_max(
-                                    craft_ui::geom::pos2(end - slot.width(), slot.top()),
-                                    craft_ui::geom::pos2(end, slot.bottom()),
-                                ),
-                                egui::Layout::right_to_left(craft_ui::geom::Align::Center),
+                            craft_ui::geom::Rect::from_min_max(
+                                craft_ui::geom::pos2(end - slot.width(), slot.top()),
+                                craft_ui::geom::pos2(end, slot.bottom()),
                             )
                         }
                     };
-                    let builder = egui::UiBuilder::new().max_rect(room).layout(layout);
-                    let drawn = ui.scope_builder(builder, |ui| area(ui)).response.rect.width();
+                    let builder = craft_ui::UiBuilder::new().max_rect(room);
+                    let drawn = ui.scope_builder(builder, |ui| {
+                        area(ui);
+                        ui.min_rect().width()
+                    });
                     if (drawn - held).abs() > 0.5 {
                         ui.with_session(memory, |held: &mut f32| *held = drawn);
                         ui.ctx().request_repaint();

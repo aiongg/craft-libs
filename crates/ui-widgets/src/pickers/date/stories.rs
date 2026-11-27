@@ -7,7 +7,7 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity,
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
 use craft_ui::Ui;

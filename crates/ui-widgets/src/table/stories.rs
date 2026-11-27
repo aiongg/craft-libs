@@ -4,7 +4,7 @@ use super::{Table, sort_rows};
 use crate::contract::{Bind, CollectionEvent, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ShowCollection as _, ToggleColumn};
 use crate::list::{ListRow, ToggleCell};
 use crate::testing::pointer::{moved, secondary};
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection};
 use craft_i18n::{AgeStyle, FileSize, SizeUnit};

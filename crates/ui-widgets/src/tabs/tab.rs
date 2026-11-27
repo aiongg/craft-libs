@@ -640,6 +640,7 @@ impl Component for Tab<'_> {
         if let Some(at) = placed.marker {
             paint_marker(&draw, at.center(), &MarkerStyle { side: style.marker, color: style.marker_color, edge: style.marker_edge });
         }
+        drop(draw);
         if let (Some(at), Some(icon)) = (placed.icon, &mut self.icon) {
             if icon.color.is_none() {
                 icon.color = Some(cx.resolve(&style.icon.color));

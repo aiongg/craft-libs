@@ -3,7 +3,7 @@
 use super::{RunWord, WordRun, WordState};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_ui::Ui;
 
 /// A recognised line of a scanned page.

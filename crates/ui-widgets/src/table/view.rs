@@ -176,7 +176,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> 
         } else {
             Vec::new()
         };
-        let ctx = cx.core.context().clone();
         let words = cx.words::<TableWords>();
         let mut picks = Vec::new();
         let layer = crate::menu::layer(false).anchor(Anchor::Point(at));
@@ -199,7 +198,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> 
                     Divider::horizontal().show(ui);
                 }
                 for (command, enabled) in &commands {
-                    let label = crate::runtime::commands::resolve(&ctx, *command).label.clone();
+                    let label = ui.resolve_command(*command).label.clone();
                     if MenuItem::new(label.to_string()).enabled(*enabled).show(ui).ran {
                         picks.push(ColumnRequest::Command(*command));
                     }

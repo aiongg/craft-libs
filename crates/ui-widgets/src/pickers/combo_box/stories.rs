@@ -4,7 +4,7 @@ use super::ComboBox;
 use crate::contract::{Entry, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::pointer::moved;
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{Mixed, Preview};
 use craft_ui::Ui;
 use craft_ui::input::{Key, Mods};

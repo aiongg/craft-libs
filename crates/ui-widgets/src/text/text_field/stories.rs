@@ -8,7 +8,7 @@ use crate::form::{Field, FieldGroup};
 use crate::layout_components::Stack;
 use crate::primitives::{Completer, Completion, IconSpec, SubmitKey};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed, PlainText};
 use craft_theme::ControlSize;
 use craft_ui::Ui;

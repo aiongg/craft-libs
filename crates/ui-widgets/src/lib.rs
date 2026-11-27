@@ -23,9 +23,9 @@ pub use craft_ui_contract::contract::{Context, Id, IdSalt, Response, Shown, Ui, 
 pub use craft_ui_contract::primitives::Color32;
 // The contract's `Draw` and `PaintShape` still take egui's corner radius.
 #[doc(hidden)]
-pub use egui::CornerRadius;
-#[doc(hidden)]
 pub use craft_ui_rt::{WindowCommand, WindowId};
+#[doc(hidden)]
+pub use egui::CornerRadius;
 
 /// Geometry in logical points.
 #[doc(hidden)]
