@@ -1206,13 +1206,11 @@ impl MemoProps for egui::load::SizedTexture {
     }
 }
 
-/// A stored picture by its texture id (a replaced picture has a new id) and its place on the page.
+/// A stored picture by its image key (a replaced picture has a new key) and its size.
 impl MemoProps for crate::primitives::textures::CachedTexture {
     fn key(&self, key: &mut MemoKey) {
-        key.feed_hash(&self.id);
+        key.feed_hash(&self.key);
         self.size.key(key);
-        self.origin.key(key);
-        self.page.key(key);
     }
 }
 

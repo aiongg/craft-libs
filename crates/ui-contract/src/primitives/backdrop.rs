@@ -8,7 +8,7 @@
 //! 2. The host passes [`BackdropLayer`]s in screen coordinates to [`compose`] for the covered area. A layer without a
 //!    thumbnail uses its fallback colour, so the first frame is defined.
 //! 3. The host uploads the composed image with [`upload`] into a [`TextureStore`] built with
-//!    `TextureStoreOptions::default().filter(TextureOptions::LINEAR)`, then paints the texture behind the controls
+//!    `TextureStoreOptions::default()`, then paints the texture behind the controls
 //!    with a tint it chooses.
 //!
 //! # What it does
@@ -32,7 +32,7 @@
 //! effect does not feed back.
 
 use super::{CachedTexture, Revision, TextureKey, TextureStore};
-use egui::{Color32, ColorImage, Context, Rect, pos2};
+use egui::{Color32, ColorImage, Rect, pos2};
 
 /// The most pixels a source image may have for [`Thumbnail::from_image`].
 pub const MAX_SOURCE_PIXELS: usize = 16_777_216;
@@ -152,16 +152,15 @@ pub fn compose(area: Rect, layers: &[BackdropLayer<'_>], background: Color32) ->
     Some(ColorImage::new([width, height], pixels.into_iter().map(|p| Color32::from_rgb(byte(p[0]), byte(p[1]), byte(p[2]))).collect()))
 }
 
-/// Puts `image` in `store` under `key`: an equal revision keeps the cached texture, a new one replaces it in place
-/// (the id stays), and the store's budget and eviction apply. The store should filter linearly
-/// (`TextureStoreOptions::default().filter(TextureOptions::LINEAR)`). `None` for an image over [`MAX_TEXELS`] or with
+/// Puts `image` in `store` under `key`: an equal revision keeps the cached texture, a new one replaces it, and the
+/// store's budget and eviction apply. The store should filter linearly (`TextureStoreOptions::default()`). `None` for an image over [`MAX_TEXELS`] or with
 /// a side over [`MAX_SIDE`], without touching the store.
-pub fn upload<K: TextureKey>(store: &TextureStore<K>, ctx: &Context, key: K, image: ColorImage) -> Option<CachedTexture> {
+pub fn upload<K: TextureKey>(store: &TextureStore<K>, cx: &mut craft_ui_rt::BuildCx<'_>, key: K, image: ColorImage) -> Option<CachedTexture> {
     if !valid_image(&image, MAX_TEXELS) || image.size.iter().any(|&side| side > MAX_SIDE) {
         return None;
     }
     let revision = Revision::of(&(image.size, &image.pixels));
-    Some(store.get_or_put(ctx, key, revision, || image))
+    Some(store.get_or_put(cx, key, revision, || std::sync::Arc::unwrap_or_clone(super::rgba_image(&image))))
 }
 
 fn box_pass(pixels: &mut [[f32; 3]], width: usize, height: usize, horizontal: bool) {
