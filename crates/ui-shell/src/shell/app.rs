@@ -384,7 +384,9 @@ fn start_on<A: App, P: Platform, R: Renderer>(
     let Prepared { spec, keymap } = prepared;
     let registry = WindowRegistry::new(spec.placement);
     let frame = spec.frame.as_ref().map(|decision| decision.frame.clone());
-    let main = rt_spec(&WindowSpec::document(), &spec.title, Some(MAIN), &|_| frame.clone());
+    let mut main = rt_spec(&WindowSpec::document(), &spec.title, Some(MAIN), &|_| frame.clone());
+    // The platform groups the app's windows and finds its icon and desktop entry by it.
+    main.app_id = Some(spec.app_id.clone());
     let main = registry.place(main, &spec.defaults, platform.surfaces());
     let window = open(&mut platform, &main);
     debug_assert_eq!(window, WindowId::ROOT, "the main window is the platform's first");

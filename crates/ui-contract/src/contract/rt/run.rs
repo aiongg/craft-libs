@@ -221,55 +221,55 @@ pub(crate) fn show_shaped<C: Component>(
             // node; its session and saved slots go back to the runtime's store when the run ends.
             kept.memory = std::mem::take(&mut kept.memory).within(&context, id).appearing(state.new);
             let out = (|| {
-            let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
-            hooks.read(&mut component, &mut kept.memory, id, &begun.env);
-            // A shape's step 5 runs whenever the build reaches it: its content (a collection's rows)
-            // lays out from what step 5 found (15.4).
-            let cached = kept.cached(room).filter(|_| kept_outputs && !shaped);
-            let size = match cached {
-                Some(size) => size,
-                None => {
-                    let node = Some(cx.node());
-                    measure(&mut component, &begun, id, room, &value, cx, node, &context, hooks)
+                let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
+                hooks.read(&mut component, &mut kept.memory, id, &begun.env);
+                // A shape's step 5 runs whenever the build reaches it: its content (a collection's rows)
+                // lays out from what step 5 found (15.4).
+                let cached = kept.cached(room).filter(|_| kept_outputs && !shaped);
+                let size = match cached {
+                    Some(size) => size,
+                    None => {
+                        let node = Some(cx.node());
+                        measure(&mut component, &begun, id, room, &value, cx, node, &context, hooks)
+                    }
+                };
+                let rect = place_in(flow, Some(cx.node()), at, size);
+                if kept_outputs && size == kept.size {
+                    kept.cache(room, size);
+                    if shaped {
+                        // The shape's content reconciles its children itself; its kept hooks stay.
+                        let tokens = flow.tokens.clone();
+                        return settle_shaped(component, kept, cx, rect, &begun, value, context, &tokens, hooks);
+                    }
+                    if state.path {
+                        // A node in one of its layer children is marked: reach them.
+                        reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep, context.clone());
+                    } else {
+                        cx.keep_children();
+                    }
+                    return settle(component, kept, cx, rect, &begun, value, context);
                 }
-            };
-            let rect = place_in(flow, Some(cx.node()), at, size);
-            if kept_outputs && size == kept.size {
-                kept.cache(room, size);
-                if shaped {
-                    // The shape's content reconciles its children itself; its kept hooks stay.
-                    let tokens = flow.tokens.clone();
-                    return settle_shaped(component, kept, cx, rect, &begun, value, context, &tokens, hooks);
-                }
-                if state.path {
-                    // A node in one of its layer children is marked: reach them.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep, context.clone());
-                } else {
-                    cx.keep_children();
-                }
-                return settle(component, kept, cx, rect, &begun, value, context);
-            }
-            let tokens = super::env::tokens(cx);
-            run_shaped(
-                component,
-                kept,
-                cx,
-                Ran {
-                    id,
-                    key,
-                    place: Place { room },
-                    size,
-                    rect,
-                    tokens: &tokens,
-                    sweep: flow.sweep,
-                    begun: &begun,
-                    value,
-                    tip,
-                    context,
-                    flow_reveal: &mut flow.reveal,
-                },
-                hooks,
-            )
+                let tokens = super::env::tokens(cx);
+                run_shaped(
+                    component,
+                    kept,
+                    cx,
+                    Ran {
+                        id,
+                        key,
+                        place: Place { room },
+                        size,
+                        rect,
+                        tokens: &tokens,
+                        sweep: flow.sweep,
+                        begun: &begun,
+                        value,
+                        tip,
+                        context,
+                        flow_reveal: &mut flow.reveal,
+                    },
+                    hooks,
+                )
             })();
             kept.memory.flush();
             out

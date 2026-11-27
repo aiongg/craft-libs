@@ -4,9 +4,7 @@
 use crate::contract::Context;
 use crate::primitives::Id;
 use crate::runtime::pending::Pending;
-use craft_platform::clipboard::{
-    Clipboard, ClipboardBackend, ClipboardError, ClipboardImage, Flavor, HTML, MATHML, RGBA8, RTF, TEXT, Written,
-};
+use craft_platform::clipboard::{Clipboard, ClipboardBackend, ClipboardError, ClipboardImage, Flavor, HTML, MATHML, RGBA8, RTF, TEXT, Written};
 use egui::ColorImage;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -176,7 +174,8 @@ pub(crate) struct Installed {
 fn with<R>(ctx: &Context, f: impl FnOnce(&mut Clipboard) -> R) -> R {
     let (shared, copies) = ctx.service::<Installed, _>(|installed| {
         let copies = Arc::clone(&installed.copies);
-        let clipboard = installed.clipboard.get_or_insert_with(|| Arc::new(Mutex::new(Clipboard::new(PlatformClipboard { copies: Arc::clone(&copies) }))));
+        let clipboard =
+            installed.clipboard.get_or_insert_with(|| Arc::new(Mutex::new(Clipboard::new(PlatformClipboard { copies: Arc::clone(&copies) }))));
         (Arc::clone(clipboard), copies)
     });
     let result = {

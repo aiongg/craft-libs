@@ -27,8 +27,7 @@ use super::overlay::LayerScope;
 use super::ui::Ui;
 use crate::primitives::Id;
 use crate::runtime::commands::{
-    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand,
-    Shown,
+    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand, Shown,
 };
 use crate::runtime::env::Label;
 
@@ -559,7 +558,11 @@ impl Ui<'_, '_> {
         super::layers::track(self.cx);
         let rt = self.cx.runtime();
         let open = super::layers::open(rt, self.cx.window());
-        let below: Vec<_> = open.iter().take_while(|o| o.entry.id != layer).filter(|o| super::layers::counts(&o.entry, crate::runtime::overlay::OpenFilter::Modal)).collect();
+        let below: Vec<_> = open
+            .iter()
+            .take_while(|o| o.entry.id != layer)
+            .filter(|o| super::layers::counts(&o.entry, crate::runtime::overlay::OpenFilter::Modal))
+            .collect();
         match below.last() {
             None => ModalAt::Free,
             Some(top) if super::layers::layer_child_of(rt, self.cx.node()) == Some(top.node) => ModalAt::Inside,
