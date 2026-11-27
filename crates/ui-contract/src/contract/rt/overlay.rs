@@ -481,6 +481,10 @@ impl LayerShow {
         if overlay.rank == Rank::Popup && overlay.dismiss.outside != Outside::Keep {
             spec = spec.dismiss_on_away();
         }
+        // A command run from outside closes a popup as a menu pick does; a flyout its host opens and closes stays.
+        if overlay.rank == Rank::Popup && overlay.dismiss.commands {
+            spec = spec.dismiss_on_command();
+        }
         let surface = match overlay.rank {
             Rank::Tooltip => Surface::Tip,
             Rank::Popup | Rank::Toast => Surface::Popup,
@@ -523,11 +527,12 @@ impl LayerShow {
 }
 
 /// The close a ui-rt dismissal means. A press in another window or the app losing focus is a
-/// press outside.
+/// press outside; a command run from outside closes as a pick inside would.
 pub(crate) fn close_reason(reason: DismissReason) -> CloseReason {
     match reason {
         DismissReason::Escape => CloseReason::Escape,
         DismissReason::FocusLeft => CloseReason::FocusLeft(FocusMove::Other),
+        DismissReason::Command => CloseReason::Activated,
         _ => CloseReason::Outside,
     }
 }

@@ -717,6 +717,19 @@ impl Runtime {
         }
     }
 
+    /// A command ran in `window` from the node `from` (`None`: a native menu pick or the palette,
+    /// from outside every layer): every layer child of the window that asks for it
+    /// ([`crate::LayerSpec::commands`]) and does not own `from` gets [`DismissReason::Command`].
+    /// The command board calls it when a key, a menu pick or the palette fires a command.
+    pub fn dismiss_on_command(&mut self, window: WindowId, from: Option<NodeId>) {
+        let Some(w) = self.windows.get(&window) else { return };
+        let chain = from.map(|n| self.tree.owner_chain(n)).unwrap_or_default();
+        let closing: Vec<NodeId> = w.layered.iter().filter(|(id, spec)| spec.commands && !chain.contains(id)).map(|(id, _)| *id).collect();
+        for id in closing {
+            self.deliver(id, id, &Event::Dismiss(DismissReason::Command));
+        }
+    }
+
     /// What the topmost child of `window`'s modal layer lets through to the content below it.
     pub(crate) fn modal_reach(&self, window: WindowId) -> Option<crate::layer::ModalReach> {
         let w = self.windows.get(&window)?;

@@ -111,6 +111,9 @@ pub struct LayerSpec {
     /// The window rect the child stays inside (a shell's popup region below its bars); the whole
     /// window when `None`.
     pub bounds: Option<Rect>,
+    /// A command a key, a native menu pick or the palette runs from outside the child (and the
+    /// children it owns) sends [`DismissReason::Command`] ([`crate::Runtime::dismiss_on_command`]).
+    pub commands: bool,
 }
 
 /// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
@@ -163,7 +166,13 @@ impl LayerSpec {
             reach: None,
             anchor: None,
             bounds: None,
+            commands: false,
         }
+    }
+
+    pub const fn dismiss_on_command(mut self) -> LayerSpec {
+        self.commands = true;
+        self
     }
 
     /// The child hangs from `node` ([`LayerSpec::anchor`]).
@@ -314,6 +323,8 @@ pub enum DismissReason {
     FocusLeft,
     /// The user turned to another window or app ([`LayerSpec::away`]).
     Away,
+    /// A command ran from outside it ([`LayerSpec::commands`]).
+    Command,
 }
 
 #[cfg(test)]
