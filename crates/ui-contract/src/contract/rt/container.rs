@@ -41,6 +41,8 @@ use crate::contract::{
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
+use crate::contract::label::{LabelIn, SideLabel};
+use crate::runtime::access::scope::FieldMessage;
 use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
@@ -180,6 +182,9 @@ struct Shape {
     edge_rule: Option<PaneEdge>,
     /// The colour of the band behind the header (`HeaderRegion::fill`).
     band: Option<Rgba>,
+    /// The container is a row of a vertical flow, not a member of a row's line (`label::in_column`): its field label
+    /// lines up with the form's control column.
+    in_column: bool,
 }
 
 impl Shape {
@@ -227,6 +232,7 @@ impl Shape {
                 _ => None,
             },
             band: props.header.and_then(|h| h.fill).map(|fill| crate::primitives::items::rgba(crate::style::band_color(&env.tokens, fill))),
+            in_column: !matches!(parent.dir_ref(), Dir::Row { .. }) || env.column_row,
         }
     }
 
@@ -553,6 +559,8 @@ struct Frame<'f> {
     moving: bool,
     /// Where the header lay in this build, for the move and reorder bands its run declares.
     geometry: HeaderGeometry,
+    /// The message cell of the container's label scope (`scope::note_message`), which the footer reads.
+    message: Option<State<Option<FieldMessage>>>,
 }
 
 /// Which region a `BodyCx` is made for: the header gets the gate, the body the gate's env and the scope's cancel.
@@ -560,6 +568,8 @@ struct Frame<'f> {
 enum Hook {
     Header,
     Region,
+    /// The footer: its `BodyCx` holds the field message (`BodyCx::field_message`).
+    Footer,
     Body,
 }
 
@@ -593,6 +603,7 @@ impl<'f> Frame<'f> {
             after_rule: false,
             moving: false,
             geometry: HeaderGeometry::default(),
+            message: None,
         }
     }
 
@@ -600,6 +611,12 @@ impl<'f> Frame<'f> {
     fn with<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
         let env = self.env.clone();
         self.run(ui, env, rect, Hook::Region, f)
+    }
+
+    /// Runs the footer hook at `rect`: its `BodyCx` holds the field message, read tracked by the footer's region node.
+    fn with_footer<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
+        let env = self.env.clone();
+        self.run(ui, env, rect, Hook::Footer, f)
     }
 
     /// Runs the header hook at `rect`: its `BodyCx` holds the gate.
@@ -625,7 +642,15 @@ impl<'f> Frame<'f> {
 
     fn run<T>(&mut self, ui: &mut Ui<'_, '_>, env: Env, rect: Rect, hook: Hook, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
         let header = hook == Hook::Header;
-        let shared = RegionShare { gate_mixed: header && self.gate_mixed, field_message: None, owner: self.owner };
+        // A measuring run of the footer peeks the message: only the footer's region node reads it, so a change reruns
+        // the footer alone.
+        let field_message = match (hook, self.message) {
+            (Hook::Footer, Some(cell)) if ui.flow.measuring.is_some() => ui.build_cx().peek_state(cell).clone(),
+            (Hook::Footer, Some(cell)) => cell.get(ui.build_cx()),
+            _ => None,
+        };
+        let field_message = field_message.map(|held| (held.message, held.tone));
+        let shared = RegionShare { gate_mixed: header && self.gate_mixed, field_message, owner: self.owner };
         let gate = if header { self.gate.as_mut() } else { None };
         // A measuring run leaves the cancel for the real run that follows it.
         let cancel = hook == Hook::Body && ui.flow.measuring.is_none() && std::mem::take(&mut self.cancel);
@@ -1476,7 +1501,7 @@ fn lay_out<C: Container>(
     let footer_h = match shape.footer {
         Some(_) => {
             region_size(cx, &into, Region::Footer, id, footer_room, tokens, &mut |ui| {
-                frame.with(ui, footer_room, |ui, bcx| component.footer(ui, bcx))
+                frame.with_footer(ui, footer_room, |ui, bcx| component.footer(ui, bcx))
             })
             .y
         }
@@ -1500,6 +1525,12 @@ fn lay_out<C: Container>(
     };
     let body_end_band = if body_end_h > 0.0 { body_end_h + shape.gap } else { 0.0 };
     let body_rect = Rect::from_min_max(main.min, Pos2::new(main.max.x, (inner.max.y - footer_band - body_end_band).max(top)));
+    // The container's field label beside or above the body: the body runs in the rect the label leaves.
+    let row = body_rect;
+    let (body_rect, label_rect) = match component.props(Internal::new()).label.clone().filter(|_| !shape.closed) {
+        Some(side) => label_step(component, cx, &into, frame, shape, (id, origin, room), body_rect, &side, tokens, &mut place),
+        None => (body_rect, Rect::NOTHING),
+    };
     let (body_size, body_node, flow) = if shape.closed {
         (Vec2::ZERO, None, Flow::new(id, body_rect.min, body_rect, shape.gap, tokens.clone()))
     } else {
@@ -1511,6 +1542,11 @@ fn lay_out<C: Container>(
     // While the collapse moves, the container shows the moving share of the body's height.
     let body_size = if shape.collapsing() { Vec2::new(body_size.x, body_size.y * shape.share) } else { body_size };
     place(body_node, Rect::from_min_size(body_rect.min, body_size));
+    // With a field label the body's line holds the label and the body: as large as the two together.
+    let body_size = match label_rect.is_positive() {
+        true => (Rect::from_min_size(body_rect.min, body_size).union(label_rect).max - row.min).max(Vec2::ZERO),
+        false => body_size,
+    };
     let mut below = (top + body_size.y).max(top + inline.0);
     // An inline header's move band spans its whole line: header, body and end region.
     if shape.header.is_some_and(|h| h.inline) {
@@ -1545,7 +1581,7 @@ fn lay_out<C: Container>(
             };
             let footer_rect = Rect::from_min_size(Pos2::new(end_min, footer_top), Vec2::new(end_w, footer_h));
             let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, Dir::Stack, tokens, &mut |ui| {
-                frame.with(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
+                frame.with_footer(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
             });
             place(fnode, Rect::from_min_size(footer_rect.min, footer));
             end_bottom = end_bottom.max(footer_top + footer.y);
@@ -1567,7 +1603,7 @@ fn lay_out<C: Container>(
     let slot = if in_body && real { crate::contract::footer_slot::take(&ctx, id) } else { None };
     if let Some(slot) = slot {
         let (fnode, footer) =
-            region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| frame.with(ui, slot, |ui, bcx| component.footer(ui, bcx)));
+            region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| frame.with_footer(ui, slot, |ui, bcx| component.footer(ui, bcx)));
         place(fnode, Rect::from_min_size(slot.min, footer));
     } else if shape.footer.is_some() && !in_body && !in_end {
         if shape.bands.footer > 0.0 {
@@ -1577,7 +1613,7 @@ fn lay_out<C: Container>(
         let footer_rect = Rect::from_min_max(Pos2::new(footer_min, footer_top), Pos2::new(footer_max, footer_top + footer_h));
         let footer_dir = if shape.footer.is_some_and(|f| f.place == FooterPlace::Body) { Dir::Stack } else { line() };
         let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, footer_dir, tokens, &mut |ui| {
-            frame.with(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
+            frame.with_footer(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
         });
         place(fnode, Rect::from_min_size(footer_rect.min, footer));
         footer_w = footer.x;
@@ -1608,6 +1644,62 @@ fn lay_out<C: Container>(
         cx.request_layout();
     }
     (size, flow)
+}
+
+/// The container's label step (`ContainerProps::label`) in `row`, the body's rect: shows the label in the container's
+/// node, gives the body the label scope its controls name (`label::under_label`), with the message cell the footer
+/// reads. Returns the rect left for the body and the label's rect.
+#[allow(clippy::too_many_arguments)]
+fn label_step<C: Container>(
+    component: &C,
+    cx: &mut BuildCx<'_>,
+    into: &Host<'_>,
+    frame: &mut Frame<'_>,
+    shape: &Shape,
+    (id, origin, room): (Id, Pos2, Vec2),
+    row: Rect,
+    side: &SideLabel,
+    tokens: &Arc<Tokens>,
+    place: &mut dyn FnMut(Option<NodeId>, Rect),
+) -> (Rect, Rect) {
+    let props = component.props(Internal::new());
+    let real = into.kept.is_some();
+    let resolved = frame.resolved;
+    let input = LabelIn {
+        scope: id,
+        owner: id,
+        parent: Some(id),
+        row,
+        // A content-sized container is as wide as its content took: the choice between beside and above reads the room.
+        room: if shape.sizing.content_width() && room.x.is_finite() { room.x.max(row.width()) } else { row.width() },
+        content_row: false,
+        egui_cell: frame.env.egui_cell,
+        text: resolved.label_value,
+        side,
+        help: props.help.as_ref(),
+        enabled: resolved.enabled,
+        size: resolved.size,
+        control: id,
+        control_min: 0.0,
+        leaf: false,
+        in_column: shape.in_column,
+        claims: false,
+        status: props.footer.is_some_and(|footer| footer.status),
+        trailing: Vec2::ZERO,
+    };
+    let flow = Flow::new(id.with("label"), origin, row, tokens.space.gap.row, tokens.clone()).with_sweep(into.sweep);
+    let flow = if real { flow } else { flow.measuring(into.node) };
+    let mut ui = Ui::new(cx, flow);
+    let (placed, mut label) = crate::contract::label::run(&mut ui, frame.env, &input, None);
+    let Ui { cx, flow, .. } = ui;
+    for at in &flow.placed {
+        place(Some(at.node), Rect::from_min_size(origin + at.offset, at.size));
+    }
+    label.message = real.then(|| crate::runtime::access::scope::message_cell(cx, id));
+    frame.message = label.message;
+    let body_env = frame.body_env.take().unwrap_or_else(|| frame.env.clone());
+    frame.body_env = Some(crate::contract::label::under_label(&body_env, label));
+    (placed.control, placed.label)
 }
 
 /// The body's rect in the container's inner rect: as tall as `room_height` when the props give one.
@@ -1693,7 +1785,8 @@ fn region(
             crate::layout::begin_capture(ctx);
             hook(&mut ui);
             rk.column_reports = crate::layout::end_capture(ctx);
-            let Ui { cx, flow, .. } = ui;
+            let Ui { cx, mut flow, .. } = ui;
+            super::node::set_drawn(&mut rk.drawn, cx, flow.take_drawn(flow.origin));
             let size = flow.content_size();
             if rk.placed != flow.placed || rk.size != size {
                 rk.placed = flow.placed;
@@ -1732,6 +1825,7 @@ fn plain_body(
             let at = BodyAt { node: Some(node), own_kept: into.own_kept, marked: state.path || state.marked, sweep: into.sweep };
             let (mut flow, ran) = run_body(cx, shape, at, Some(&mut *rk), frame, id, region, rect.min, None, tokens, body);
             frame.ran |= ran;
+            super::node::set_drawn(&mut rk.drawn, cx, flow.take_drawn(flow.origin));
             let content = flow.content_size();
             if rk.placed != flow.placed || rk.size != content {
                 rk.placed = std::mem::take(&mut flow.placed);

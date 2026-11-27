@@ -50,6 +50,9 @@ pub struct FieldLabel {
     pub(crate) reset: Option<ResetAsk>,
     /// The cell the control writes what its label shows of it (`ScopeFacts`).
     pub(crate) facts: Option<State<ScopeFacts>>,
+    /// The cell the controls under a container's label write their validity message to (`note_message`); the
+    /// container's footer reads it, so a message change reruns the footer alone.
+    pub(crate) message: Option<State<Option<FieldMessage>>>,
 }
 
 impl FieldLabel {
@@ -71,6 +74,7 @@ impl FieldLabel {
             claim: None,
             reset: None,
             facts: None,
+            message: None,
         }
     }
 
@@ -254,6 +258,46 @@ pub(crate) fn note_line(core: &crate::contract::CxCore<'_>) {
         None => ControlLine::Centre(core.rect.height() / 2.0),
     };
     note(core, move |facts| facts.line = Some(line));
+}
+
+/// The validity message of the first control under a container's label that reported one, and the tone it shows in.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FieldMessage {
+    /// The control that reported it; it alone replaces or clears it.
+    pub control: Id,
+    pub message: crate::runtime::env::Message,
+    pub tone: craft_theme::variant::Tone,
+}
+
+/// The message cell of the container `container`'s label scope, kept by the container's node.
+pub(crate) fn message_cell(cx: &mut BuildCx<'_>, container: Id) -> State<Option<FieldMessage>> {
+    cx.slot(("label_message", container.value()), || None)
+}
+
+/// Writes the running control's validity message (`validity_of`) into the message cell of the container label above
+/// it when its build ends, only when it changes the cell: the first control that reports a message holds the cell
+/// until it reports none. Returns the message as text when no container shows it as its status line
+/// (`FooterRegion::status`): the control shows it itself, in its tooltip.
+pub(crate) fn note_message(core: &crate::contract::CxCore<'_>, validity: Option<(&crate::runtime::env::Message, bool)>) -> Option<String> {
+    let label = core.env.field_label();
+    let cell = label.and_then(|label| label.message);
+    if !core.run.measuring
+        && let Some(cell) = cell
+    {
+        let id = core.id;
+        let mine = validity.map(|(message, warns)| FieldMessage { control: id, message: message.clone(), tone: message.effective_tone(warns) });
+        crate::contract::context::log_build_read(move |cx| {
+            use craft_ui_rt::Writes as _;
+            let held = cell.with(cx.store_mut(), |held| held.as_ref().map(|held| held.control));
+            match (held, mine) {
+                (Some(holder), _) if holder != id => {}
+                (_, mine) => cell.set_if_changed(cx, mine),
+            }
+        });
+    }
+    let shown_by_scope = cell.is_some() && label.is_some_and(|label| label.status);
+    let (message, _) = validity.filter(|_| !shown_by_scope)?;
+    Some(core.env.resolve(&message.text).as_str().to_owned())
 }
 
 /// How many resets the label scope `scope` has asked; kept for the session, so a label that shows again carries on

@@ -634,6 +634,7 @@ pub(crate) fn run_shaped<C: Component>(
     let wrote = steps::apply_values(&mut component, &mut cxx).wrote();
     hooks.apply(&mut component, &mut cxx);
     steps::register_reset(&mut component, &mut cxx);
+    let message = crate::runtime::access::scope::note_message(cxx.core, steps::validity_of(&cxx.validity));
 
     // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6); then the
     // shape's content (a collection's rows), whose children join the ones the paint showed.
@@ -694,7 +695,7 @@ pub(crate) fn run_shaped<C: Component>(
         };
         cx.announce(text, politeness);
     }
-    let tip_text = crate::contract::tooltip::text_of(cxx.core, component.shows_label(), <C as Meta>::CANVAS_CONTROL, None);
+    let tip_text = crate::contract::tooltip::text_of(cxx.core, component.shows_label(), <C as Meta>::CANVAS_CONTROL, message.as_deref());
     // The parts' tooltips: the component's own parts', then its members' (a collection's).
     let part_tips = part_tips.into_iter().chain(std::mem::take(&mut cxx.core.part_tips)).collect();
     tip::show(&mut kept.tip, tip_text, part_tips, true, cx, id, rect, tokens);
