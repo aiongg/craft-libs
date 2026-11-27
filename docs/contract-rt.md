@@ -318,7 +318,7 @@ Sources: `contract/mod.rs` (the real traits), `contract/cx*`, `contract/paint_ui
 
 #### `Meta`, `Show`, `ShowContainer`, `ShowCollection`
 
-Unchanged from `contract/mod.rs`, with `Ui` the craft `Ui`. `Show::measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2` and `ShowContainer::measure_in` stay; they run a measuring run through the node's size cache (B4). `show_at_taking_room` stays.
+Unchanged from `contract/mod.rs`, with `Ui` the craft `Ui`. `Show::measure_in(&mut self, ui: &mut Ui, proposal: Proposal) -> Vec2` and `ShowContainer::measure_in(&mut self, ui: &mut Ui, proposal)` stay (a measuring run needs `&mut BuildCx`); they run a measuring run through the node's size cache (B4). `show_at_taking_room` stays.
 
 Backed by: `Meta` is a plain trait (no rt state). The `Show*` entry points call the rt driver (`contract/rt/run.rs`: keep decision, `Kept`, variants, size cache) with the real steps (INT-1b, INT-2, INT-4).
 
