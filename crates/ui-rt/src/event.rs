@@ -181,6 +181,19 @@ pub enum Event {
     /// The pointer entered (`true`) or left the node or the nodes under it. Only nodes that asked
     /// ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     Hover(bool),
+    /// A primary press went down outside the focused node and left it the focus: on a shape that
+    /// keeps focus, on nothing that takes presses, or on a place that holds the focused node's
+    /// draft. `holds` is true when the press is on a shape recorded with
+    /// [`crate::PaintCx::holds_drafts`] or in a layer child above the focused node's; a node that
+    /// holds drafts ([`crate::Element::holds_drafts`]) keeps the focus on such a press whatever
+    /// shape takes it. Goes to the focused node only, before the press's own events.
+    PressKept {
+        holds: bool,
+    },
+    /// Alt went down and up with no other key, pointer press or modifier between. Goes to the
+    /// focused node (or the key root) and bubbles, then reaches the window root's key stage as a
+    /// key does.
+    LoneAlt,
 }
 
 /// The context of one node's event handler.

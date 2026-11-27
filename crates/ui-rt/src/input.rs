@@ -19,7 +19,7 @@ use emath::{Pos2, Rect, Vec2};
 
 use crate::event::{AccessInput, Event, EventCx, FocusCause, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 use crate::gesture::Touches;
-use crate::hit::{Hit, chain, contains, hit_test, hit_test_through, window_origin};
+use crate::hit::{Hit, HitKind, chain, contains, hit_records, hit_test, hit_test_through, window_origin};
 use crate::id::{NodeId, WindowId};
 use crate::layer::{DismissReason, Layer, OutsidePress};
 use crate::platform::{Cursor, ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowEvent};
@@ -127,6 +127,13 @@ pub(crate) struct InputState {
     /// The handler of the last key press asked that the text the platform sends with it not type
     /// (`EventCx::withhold_text`): the next text event of the window is dropped.
     withhold_text: bool,
+    /// The open press holds the focused node's draft (`Event::PressKept`): it went down on a
+    /// [`HitKind::Hold`](crate::hit::HitKind::Hold) shape or in a layer child above the focus.
+    press_holds: bool,
+    /// The modifiers of the window's last modifier change (`WindowEvent::Modifiers`).
+    mods: Mods,
+    /// Alt went down alone and nothing has happened since: its release is a lone Alt.
+    alt_armed: bool,
     pub(crate) touches: Touches,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
@@ -185,7 +192,9 @@ impl Runtime {
         let Some(env) = self.windows.get(&window).map(|w| w.env) else { return };
         let mods = match ev {
             WindowEvent::Pointer(p) => Some(p.mods),
-            WindowEvent::Wheel { mods, .. } | WindowEvent::Pinch { mods, .. } | WindowEvent::Key { mods, .. } => Some(*mods),
+            WindowEvent::Wheel { mods, .. } | WindowEvent::Pinch { mods, .. } | WindowEvent::Key { mods, .. } | WindowEvent::Modifiers(mods) => {
+                Some(*mods)
+            }
             _ => None,
         };
         if let Some(mods) = mods {
@@ -246,6 +255,7 @@ impl Runtime {
             }
             return;
         }
+        let lone_alt = self.track_alt(window, ev);
         match ev {
             WindowEvent::Key { down: true, .. } | WindowEvent::Text(_) => self.show_focus(window, true),
             WindowEvent::Pointer(p) if p.phase == PointerPhase::Down => self.show_focus(window, false),
@@ -298,6 +308,7 @@ impl Runtime {
             }
             WindowEvent::Paste(text) => self.send_to_focused(window, Event::Paste(text.clone())),
             WindowEvent::Access(req) => self.route_access(window, req),
+            WindowEvent::Modifiers(_) if lone_alt => self.route_lone_alt(window),
             _ => {}
         }
         self.flush_queue(window);
@@ -305,6 +316,53 @@ impl Runtime {
         let windows: Vec<WindowId> = self.windows.keys().copied().collect();
         for w in windows {
             self.refresh_cursor(w);
+        }
+    }
+
+    /// Follows Alt alone: a modifier change to Alt and nothing else arms it, any other modifier
+    /// change, key, pointer press, wheel turn or pinch disarms it. Returns whether `ev` releases an
+    /// armed Alt: a lone Alt.
+    fn track_alt(&mut self, window: WindowId, ev: &WindowEvent) -> bool {
+        let Some(input) = self.input_mut(window) else { return false };
+        match ev {
+            WindowEvent::Modifiers(mods) => {
+                let alone = Mods { alt: true, ..Mods::NONE };
+                let released = input.alt_armed && *mods == Mods::NONE;
+                input.alt_armed = *mods == alone && input.mods == Mods::NONE;
+                input.mods = *mods;
+                released
+            }
+            WindowEvent::Key { down: true, .. } | WindowEvent::Wheel { .. } | WindowEvent::Pinch { .. } | WindowEvent::Focus(false) => {
+                input.alt_armed = false;
+                false
+            }
+            WindowEvent::Pointer(p) if p.phase == PointerPhase::Down => {
+                input.alt_armed = false;
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// A lone Alt goes where a key goes: the focused node (or the key root) and up its path, then the
+    /// window root's key stage.
+    fn route_lone_alt(&mut self, window: WindowId) {
+        let Some(target) = self.focused(window).or_else(|| self.key_root(window)) else {
+            return;
+        };
+        if self.dispatch(target, &Event::LoneAlt, true).is_some() {
+            return;
+        }
+        if let Some(root) = self.root(window)
+            && !chain(&self.tree, target).contains(&root)
+        {
+            let mut stage = vec![root];
+            stage.extend(self.tree.nodes.get(&root).map_or(&[][..], |n| n.children.as_slice()));
+            for node in stage {
+                if self.deliver(node, target, &Event::LoneAlt) == Handled::Yes {
+                    return;
+                }
+            }
         }
     }
 
@@ -730,13 +788,21 @@ impl Runtime {
                 }
                 let time = self.time;
                 let slop = self.slop(p.kind);
+                let focused = self.focused(window);
+                let holds = p.button == PointerButton::Primary && focused.is_some() && self.press_holds(window, p.pos, focused);
                 let Some(input) = self.input_mut(window) else { return };
+                input.press_holds = holds;
                 let clicks = count_clicks(input.last_press, p.pos, time, p.mods, slop);
                 input.last_press = Some((p.pos, time, clicks, p.mods));
                 input.press =
                     Some(Press { pointer: p.id, kind: p.kind, button: p.button, mods: p.mods, owner: None, pos: p.pos, long_pressed: false });
                 let ev = PressEvent::pressed_by(p.button, p.pos, time, clicks);
                 self.step_press(window, &[ev], p, Vec2::ZERO, None);
+                // A press no shape took keeps the focus where it is.
+                if p.button == PointerButton::Primary && self.input(window).is_some_and(|i| i.press_hit.is_none()) {
+                    let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
+                    self.note_press_kept(window, focused, None, holds);
+                }
                 self.refresh_hover(window);
             }
             PointerPhase::Up => {
@@ -912,7 +978,11 @@ impl Runtime {
                 input.press_hit = Some((hit, cursor));
                 input.cursor_check = true;
             }
-            if !hit.sense.contains(Sense::KEEP_FOCUS) {
+            let before = self.focused(window);
+            let primary = p.button == PointerButton::Primary;
+            let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
+            let held = holds && before.is_some_and(|f| self.tree.nodes.get(&f).and_then(|n| n.element.as_ref()).is_some_and(|e| e.holds_drafts()));
+            if !hit.sense.contains(Sense::KEEP_FOCUS) && !held {
                 let stop = self.nearest_focusable(hit.node);
                 self.set_focus(window, stop, FocusCause::Pointer);
                 if stop.is_some()
@@ -920,6 +990,9 @@ impl Runtime {
                 {
                     input.focus_pressed = true;
                 }
+            }
+            if primary {
+                self.note_press_kept(window, before, Some(hit.node), holds);
             }
             let owner = self.dispatch(hit.node, &ev, true);
             if let Some(press) = self.input_mut(window).and_then(|i| i.press.as_mut()) {
@@ -935,6 +1008,45 @@ impl Runtime {
         } else if let Some(owner) = self.input(window).and_then(|i| i.press).and_then(|q| q.owner) {
             self.deliver(owner, hit.node, &ev);
         }
+    }
+
+    /// Whether a primary press at `pos` holds the draft of `focused`: it lands on a
+    /// [`HitKind::Hold`] shape, or in a layer child above the one `focused` shows in (a popup opened
+    /// over a field).
+    fn press_holds(&self, window: WindowId, pos: Pos2, focused: Option<NodeId>) -> bool {
+        let Some(w) = self.windows.get(&window) else { return false };
+        if hit_records(&self.tree, w, pos, &|h| h.kind == HitKind::Hold).is_some() {
+            return true;
+        }
+        let Some((under, _)) = hit_records(&self.tree, w, pos, &|h| h.kind == HitKind::Input) else { return false };
+        match (self.layer_place(window, under.node), focused.map(|f| self.layer_place(window, f))) {
+            (Some(at), Some(below)) => at.0 >= Layer::Popup.index() && below.is_none_or(|below| below < at),
+            _ => false,
+        }
+    }
+
+    /// The layer `node` shows in and the place of its layer child among that layer's children, so
+    /// that a later place is above an earlier one; `None` on the content layer.
+    fn layer_place(&self, window: WindowId, node: NodeId) -> Option<(u8, usize)> {
+        let w = self.windows.get(&window)?;
+        let path = chain(&self.tree, node);
+        Layer::ALL.into_iter().filter(|l| *l != Layer::Content).find_map(|layer| {
+            let at = path.iter().position(|&n| n == w.layer(layer))?;
+            let child = path.get(at.checked_sub(1)?)?;
+            let index = self.tree.nodes.get(&w.layer(layer))?.children.iter().position(|c| c == child)?;
+            Some((layer.index(), index))
+        })
+    }
+
+    /// Sends the node that held the focus before a primary press, `before`, [`Event::PressKept`]
+    /// when it still holds it and the press was not its own: `on` (the node the press went down on,
+    /// `None` when no shape took it) takes focus for some other stop, or for none.
+    fn note_press_kept(&mut self, window: WindowId, before: Option<NodeId>, on: Option<NodeId>, holds: bool) {
+        let Some(focused) = before.filter(|f| self.focused(window) == Some(*f)) else { return };
+        if on.is_some_and(|on| self.nearest_focusable(on) == Some(focused)) {
+            return;
+        }
+        self.deliver(focused, focused, &Event::PressKept { holds });
     }
 
     fn route_key(&mut self, window: WindowId, k: KeyInput) {

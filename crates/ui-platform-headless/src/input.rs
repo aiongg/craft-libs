@@ -60,6 +60,8 @@ pub enum Input {
         mods: Mods,
         down: bool,
     },
+    /// The modifiers held changed, as a platform reports a modifier key going down or up.
+    Modifiers(Mods),
     Text(String),
     ImePreedit {
         text: String,
@@ -136,6 +138,7 @@ impl Input {
             },
             Input::Pinch { pos, zoom, rotation, mods } => WindowEvent::Pinch { pos: *pos, zoom: *zoom, rotation: *rotation, mods: *mods },
             Input::Key { key, mods, down } => WindowEvent::Key { key: *key, mods: *mods, down: *down, repeat: false },
+            Input::Modifiers(mods) => WindowEvent::Modifiers(*mods),
             Input::Text(t) => WindowEvent::Text(t.clone()),
             Input::ImePreedit { text, cursor } => WindowEvent::ImePreedit { text: text.clone(), cursor: cursor.clone() },
             Input::ImeCommit(t) => WindowEvent::ImeCommit(t.clone()),

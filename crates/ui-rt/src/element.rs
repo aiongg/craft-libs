@@ -84,6 +84,13 @@ pub trait Element: 'static {
         false
     }
 
+    /// While focused, the node keeps its focus on a primary press that holds drafts
+    /// ([`Event::PressKept`] with `holds`), whatever shape takes the press.
+    fn holds_drafts(&self, local: &Self::Local) -> bool {
+        let _ = local;
+        false
+    }
+
     /// A value ancestors read with [`EventCx::tag_below`] to tell which child a bubbled event
     /// came from (a row's item key). Zero is no tag.
     fn tag(&self) -> u64 {
@@ -130,6 +137,7 @@ pub(crate) trait AnyElement {
     fn event(&mut self, cx: &mut EventCx<'_>, ev: &Event) -> Handled;
     fn access(&self, cx: &mut AccessCx<'_>) -> Option<accesskit::Node>;
     fn focusable(&self) -> bool;
+    fn holds_drafts(&self) -> bool;
     fn tag(&self) -> u64;
     fn text_input(&self) -> Option<ImePurpose>;
     fn ime_cursor(&self) -> Option<Rect>;
@@ -194,6 +202,10 @@ impl<E: Element> AnyElement for ElementBox<E> {
 
     fn focusable(&self) -> bool {
         self.el.focusable()
+    }
+
+    fn holds_drafts(&self) -> bool {
+        self.local.as_ref().is_some_and(|local| self.el.holds_drafts(local))
     }
 
     fn tag(&self) -> u64 {

@@ -113,6 +113,9 @@ pub enum NodeInput {
     Wheel(craft_behavior::Wheel),
     /// A menu key the window root routed to its menu bar node (F10, a lone Alt, an Alt mnemonic).
     Menu(crate::runtime::keys::MenuKey),
+    /// A primary press outside this focused node left it the focus and held its draft: the press went down on a part
+    /// declared `holds_drafts` or in a popup above the node (ui-rt `Event::PressKept` with `holds`).
+    HeldPress,
     /// A reveal a child of a container that owns its body's scroll asked for, in window coordinates (`Focus::take_reveal`).
     Reveal(craft_ui_rt::Rect),
     /// A press phase a node under a collection took (a band row's node, or a part one of its children declares),
@@ -175,10 +178,45 @@ impl MenuBar {
         state.bar.filter(|(bar, _)| within(*bar)).and(state.returns_to)
     }
 
+    /// Where a menu pick returns the focus: the stop the bar took it from when the pick's walk out of the menus ends
+    /// on the bar (`to`), else `to`.
+    pub(crate) fn past_bar(cx: &craft_ui_rt::BuildCx<'_>, to: NodeId) -> NodeId {
+        let Some(menu) = cx.provided::<MenuBar>() else { return to };
+        let mut state = menu.0.borrow_mut();
+        match state.bar {
+            Some((bar, _)) if bar == to => state.returns_to.take().filter(|back| cx.runtime().window_rect(*back).is_some()).unwrap_or(to),
+            _ => to,
+        }
+    }
+
+    /// A lone Alt off a Mac (spec 9.7) focuses the bar as F10 does. ui-rt routes it as it routes a key, so a focused
+    /// field that holds drafts takes it first.
+    pub(crate) fn lone_alt(cx: &mut EventCx<'_>) -> Handled {
+        let Some(menu) = cx.provided::<MenuBar>() else { return Handled::No };
+        let Some((bar, _)) = menu.0.borrow().bar else { return Handled::No };
+        let mac = cx.provided::<crate::contract::context::Context>().is_some_and(|ctx| ctx.os().is_mac());
+        if mac || cx.window_rect(bar).is_none() {
+            return Handled::No;
+        }
+        Self::focus_bar(&menu, cx, bar);
+        Handled::Yes
+    }
+
+    /// Moves the focus to the bar, remembering the stop it left, and routes `MenuKey::Focus` to it.
+    fn focus_bar(menu: &MenuBar, cx: &mut EventCx<'_>, bar: NodeId) {
+        let focused = cx.focused();
+        if focused != Some(bar) {
+            menu.0.borrow_mut().returns_to = focused;
+            cx.focus_node(bar);
+        }
+        menu.0.borrow_mut().keys.push(crate::runtime::keys::MenuKey::Focus);
+        cx.request_build_of(bar);
+    }
+
     /// The window root's menu keys, off the focused node's path (spec 9.7): F10 on every OS, and Alt with a letter off
     /// a Mac for a bar with mnemonics of its own, reach the bar as `NodeInput::Menu`. F10 moves the focus to the bar
-    /// and remembers the stop it left; Escape with the focus on the bar itself gives it back. A lone Alt needs a
-    /// platform signal ui-rt does not have yet.
+    /// and remembers the stop it left; Escape with the focus on the bar itself gives it back. A lone Alt reaches the
+    /// bar through [`MenuBar::lone_alt`].
     pub(crate) fn key(cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
         let Some(menu) = cx.provided::<MenuBar>() else { return Handled::No };
         let Some((bar, claims)) = menu.0.borrow().bar else { return Handled::No };
@@ -190,11 +228,8 @@ impl MenuBar {
         let focused = cx.focused();
         let routed = match k.key {
             craft_keymap::Key::F10 if plain => {
-                if focused != Some(bar) {
-                    menu.0.borrow_mut().returns_to = focused;
-                    cx.focus_node(bar);
-                }
-                crate::runtime::keys::MenuKey::Focus
+                Self::focus_bar(&menu, cx, bar);
+                return Handled::Yes;
             }
             craft_keymap::Key::Escape if plain && focused == Some(bar) => {
                 let back = menu.0.borrow_mut().returns_to.take();
@@ -307,6 +342,8 @@ pub(crate) struct KeptPart {
     /// What the operating system does with a press on the part (a title bar's drag area, a caption
     /// button, a resize edge).
     pub(crate) exclusive: Option<crate::runtime::windows::WindowHit>,
+    /// A press on the part holds a focused text draft (`PartBuilder::holds_drafts`): recorded as a ui-rt hold shape.
+    pub(crate) holds: bool,
 }
 
 /// The ui-rt part id of `part`: never 0, which names the node's own shape.
@@ -422,6 +459,11 @@ pub(crate) struct Kept {
 }
 
 impl Kept {
+    /// The node is a stop whose keys, as its last run left them, hold drafts (`KeyUse::holds_drafts`).
+    pub(crate) fn holds_drafts(&self) -> bool {
+        self.focus.stop.is_some_and(|keys| keys.holds_drafts)
+    }
+
     pub(crate) fn new() -> Kept {
         Kept {
             id: Id::NULL,
@@ -563,6 +605,12 @@ impl Element for ComponentNode {
         self.stop
     }
 
+    /// The stop's keys as its last run left them hold drafts (`KeyUse::holds_drafts`): ui-rt keeps its focus on a
+    /// press that holds drafts, whatever shape takes the press.
+    fn holds_drafts(&self, kept: &Kept) -> bool {
+        kept.holds_drafts()
+    }
+
     fn text_input(&self) -> Option<ImePurpose> {
         self.text
     }
@@ -615,6 +663,9 @@ impl Element for ComponentNode {
             if let Some(hit) = p.exclusive {
                 cx.window_zone(p.shape, super::windows::zone_tag(hit));
             }
+            if p.holds {
+                cx.holds_drafts(p.shape);
+            }
             match p.cursor {
                 Some(cursor) => cx.hit_cursor(p.shape, p.sense, p.id, cursor),
                 None => cx.hit(p.shape, p.sense, p.id),
@@ -660,6 +711,20 @@ impl Element for ComponentNode {
             }
             Event::Text(_) | Event::ImePreedit { .. } | Event::ImeCommit(_) | Event::Paste(_) => super::ime::event(self.text.is_some(), kept, cx, ev),
             Event::Key(k) => self.key(kept, cx, k),
+            // Only a node that holds drafts acts on a held press: the run shows the draft as its value would.
+            Event::PressKept { holds: true } if kept.holds_drafts() => {
+                kept.queue.push(NodeInput::HeldPress);
+                cx.request_build();
+                Handled::Yes
+            }
+            // A lone Alt in a field that holds drafts would take the focus to the menu bar: the field keeps it and
+            // alerts instead.
+            Event::LoneAlt if kept.holds_drafts() && cx.target() == cx.node() => {
+                if let Some(ctx) = cx.provided::<crate::contract::context::Context>() {
+                    ctx.refuse();
+                }
+                Handled::Yes
+            }
             Event::Access(a) if a.target == cx.node() && a.action == accesskit::Action::Focus && a.sub.is_none() => super::focus::request(kept, cx),
             Event::Hover(on) => {
                 if let Some(tip) = kept.tip.as_mut() {
@@ -875,6 +940,7 @@ impl Element for ScopeNode {
                 },
                 handled => handled,
             },
+            Event::LoneAlt if kept.window_root => MenuBar::lone_alt(cx),
             _ => Handled::No,
         }
     }

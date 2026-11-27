@@ -68,6 +68,7 @@ pub(crate) fn kept_parts(parts: &PartsStep, origin: Pos2) -> Vec<KeptPart> {
                 sense: decl.sense,
                 cursor: decl.cursor.as_ref().map(crate::contract::rt::cursor::platform),
                 exclusive: extras.exclusive,
+                holds: extras.holds_drafts,
             }
         })
         .collect()

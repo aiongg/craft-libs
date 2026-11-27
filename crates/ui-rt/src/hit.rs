@@ -64,6 +64,8 @@ pub(crate) enum HitKind {
     Drop,
     /// What the operating system does with a press there ([`crate::PaintCx::window_zone`]).
     Zone,
+    /// A press there holds the focused node's draft ([`crate::PaintCx::holds_drafts`]).
+    Hold,
 }
 
 /// One recorded shape: what it senses and which part of its node it is (the node's own tag
@@ -204,7 +206,7 @@ pub(crate) fn window_zones(tree: &Tree, window: &Window) -> Vec<WindowZone> {
             match h.kind {
                 HitKind::Zone => out.push(Entry::Zone(h.part, rect, id)),
                 HitKind::Input if !h.sense.is_empty() => out.push(Entry::Input(rect, id)),
-                HitKind::Input | HitKind::Drop => {}
+                HitKind::Input | HitKind::Drop | HitKind::Hold => {}
             }
         }
         for &child in &node.children {

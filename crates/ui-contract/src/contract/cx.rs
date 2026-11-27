@@ -21,7 +21,7 @@ pub(crate) use access::apply_field_label;
 pub use body::BodyCx;
 pub(crate) use body::{BodyOwner, RegionShare};
 pub use context::{Activation, Cx, CxCore};
-pub(crate) use context::{RecordedText, RunIo, Under, child_env};
+pub(crate) use context::{RecordedText, RunIo, Under, UpdateText, child_env};
 pub use edit::Edit;
 pub(crate) use edit::gesture_key;
 pub use focus::Focus;
