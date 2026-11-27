@@ -669,6 +669,10 @@ pub(crate) fn show_leaving(cx: &mut BuildCx<'_>, layer: Layer, key: u64) -> Opti
         cx.keep_children();
         if lk.leaving.is_none() {
             lk.leaving = Some(ends);
+            // Its close is read: shown open again, it starts with no dismissal and no close of its own.
+            lk.dismissed = None;
+            lk.closed.set(None);
+            lk.hovered = false;
             let level = lk.kept.level.get_mut();
             if level.is_none() {
                 Level::aim(level, 1.0, motion::OPEN_FADE);
