@@ -20,13 +20,13 @@ fn layout_of(edit: &TextEdit, text: &str, config: &EditConfig, wrap: Option<f32>
         max_width: wrap,
         overflow: craft_ui_rt::Overflow::Wrap,
     };
-    let mut engine = FixedText;
+    let mut engine = FixedText::default();
     let layout = engine.layout(&spec, 1.0);
     let metrics = engine.metrics(&layout);
     EditLayout::new(layout, &metrics, &shown)
 }
 
-fn geometry(layout: &EditLayout, view: Rect, edit: &TextEdit) -> Geometry<'_> {
+fn geometry<'a>(layout: &'a EditLayout, view: Rect, edit: &TextEdit) -> Geometry<'a> {
     Geometry { layout, view, origin: view.min, scroll: edit.scroll() }
 }
 

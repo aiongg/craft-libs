@@ -91,6 +91,15 @@ pub trait Element: 'static {
         false
     }
 
+    /// While focused, the node gives its focus up on a primary press on a shape that takes no
+    /// focus (no focusable node holds it): a text field commits, read-only text a press focused
+    /// lets go. A node that keeps it (a button, a canvas) returns false, as does every node under a
+    /// [`crate::BuildCx::keep_focus_on_empty_presses`] node.
+    fn releases_focus(&self, local: &Self::Local) -> bool {
+        let _ = local;
+        false
+    }
+
     /// A value ancestors read with [`EventCx::tag_below`] to tell which child a bubbled event
     /// came from (a row's item key). Zero is no tag.
     fn tag(&self) -> u64 {
@@ -138,6 +147,7 @@ pub(crate) trait AnyElement {
     fn access(&self, cx: &mut AccessCx<'_>) -> Option<accesskit::Node>;
     fn focusable(&self) -> bool;
     fn holds_drafts(&self) -> bool;
+    fn releases_focus(&self) -> bool;
     fn tag(&self) -> u64;
     fn text_input(&self) -> Option<ImePurpose>;
     fn ime_cursor(&self) -> Option<Rect>;
@@ -206,6 +216,10 @@ impl<E: Element> AnyElement for ElementBox<E> {
 
     fn holds_drafts(&self) -> bool {
         self.local.as_ref().is_some_and(|local| self.el.holds_drafts(local))
+    }
+
+    fn releases_focus(&self) -> bool {
+        self.local.as_ref().is_some_and(|local| self.el.releases_focus(local))
     }
 
     fn tag(&self) -> u64 {

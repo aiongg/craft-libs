@@ -751,6 +751,10 @@ impl Element for ComponentNode {
         kept.holds_drafts()
     }
 
+    fn releases_focus(&self, kept: &Kept) -> bool {
+        kept.focus.releases_focus()
+    }
+
     fn text_input(&self) -> Option<ImePurpose> {
         self.text
     }

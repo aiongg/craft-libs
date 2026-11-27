@@ -616,6 +616,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     kept.focus.stop = stop.then(|| text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()));
     kept.focus.press_only = facts.text() && resolved.read_only;
+    kept.focus.text = text_keys.is_some() || cxx.core.editor.is_some();
     kept.focus.role = hooks.key_role(&component);
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
