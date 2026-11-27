@@ -799,8 +799,8 @@ mod context_requests {
 
     use craft_behavior::{DisplayOrder, ItemSource, SpanLayout};
     use craft_ui_contract::contract::{
-        Collection, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx, Id, ItemOutput, NoValue, Outcome,
-        Response, Role, ShowCollection as _, ShowContainer,
+        Collection, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx, HoverLead, Id, ItemOutput, NoValue,
+        Outcome, Response, Role, ShowCollection as _, ShowContainer,
     };
     use craft_ui_contract::runtime::windows::window_root;
     use craft_ui_contract::style::StyleCx;
@@ -961,7 +961,8 @@ mod context_requests {
             window_root(cx, |ui| {
                 let region = Region { common: Common::new(), props: ContainerProps::new() };
                 let _ = ShowContainer::show(region, ui, |ui, _| {
-                    let list = List { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new() };
+                    let items = CollectionProps::new().hover_lead(HoverLead::Lead);
+                    let list = List { common: Common::new(), props: ContainerProps::new(), items };
                     let out = list.show_items(ui, &Count(4), &mut |_, _| Row { common: Common::new() });
                     LIST_RECT.with(|rect| rect.set(out.response.rect));
                 });
@@ -1002,6 +1003,22 @@ mod context_requests {
         let before = REGION_RUNS.with(Cell::get);
         input(&mut rig, Input::mouse_move(row + Vec2::new(4.0, 0.0)));
         assert_eq!(REGION_RUNS.with(Cell::get), before, "a frame without requests runs no region");
+    }
+
+    /// The collection follows the pointer with its hover lead (`Cx::hover_point`): a move inside it runs it alone.
+    #[test]
+    fn a_hover_move_inside_a_collection_reruns_only_that_collection() {
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig).ran), "the rig did not settle");
+        let list = LIST_RECT.with(Cell::get);
+        let row = Pos2::new(list.center().x, list.min.y + ROW_H * 0.5);
+        input(&mut rig, Input::mouse_move(row));
+        let regions = REGION_RUNS.with(Cell::get);
+        let within = input(&mut rig, Input::mouse_move(row + Vec2::new(5.0, 2.0)));
+        assert_eq!(within.frame.runs, 1, "a move within a row runs the collection alone: {within:?}");
+        let next = input(&mut rig, Input::mouse_move(row + Vec2::new(0.0, ROW_H)));
+        assert!(next.frame.runs <= 3, "a move to the next row runs the collection and the two rows whose lead moved: {next:?}");
+        assert_eq!(REGION_RUNS.with(Cell::get), regions, "the region around it never runs");
     }
 }
 
