@@ -198,7 +198,7 @@ fn content_node<R>(
     build: impl FnOnce(&mut Ui<'_, '_>, &RowFacts) -> R,
 ) -> (R, Flow, NodeId) {
     cx.keyed(Region::Content, |cx| {
-        cx.inline(ScopeNode { key: 0 }, |ck, _, cx| {
+        cx.inline(ScopeNode { key: 0, clip: false }, |ck, _, cx| {
             let origin = view.content_origin();
             let region = Rect::from_min_size(origin, extent.max(view.rect.size()));
             let band = if view.band == Rect::EVERYTHING { None } else { Some(view.band.translate(origin.to_vec2())) };

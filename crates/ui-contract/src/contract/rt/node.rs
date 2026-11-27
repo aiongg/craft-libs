@@ -538,16 +538,23 @@ impl Element for ComponentNode {
     type Local = Kept;
 
     fn props_key(&self) -> u64 {
-        self.key
+        self.key ^ u64::from(self.clip).rotate_right(1)
     }
 
     fn init(&self, _: &mut craft_ui_rt::BuildCx<'_>) -> Kept {
         Kept::new()
     }
 
-    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
+    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, constraints: Constraints) -> Vec2 {
         kept.place_children(cx, Vec2::ZERO);
-        kept.size
+        if self.clip { constraints.constrain(kept.size) } else { kept.size }
+    }
+
+    fn paint(&self, _: &Kept, cx: &mut PaintCx<'_>) {
+        if self.clip {
+            let bounds = cx.bounds();
+            cx.clip(bounds);
+        }
     }
 
     /// Its size is decided in the build.
@@ -828,10 +835,12 @@ impl ComponentNode {
     }
 }
 
-/// A scope: the window root's content, a `MemoView`. It keeps its returned value and its children's
-/// places; it paints nothing and has no access node of its own.
+/// A scope: the window root's content, a `MemoView`, a container's region. It keeps its returned value and its
+/// children's places; it paints nothing and has no access node of its own. With `clip` it is as large as its parent
+/// places it and clips its children to that (a collapsing body shows the moving share of its height).
 pub(crate) struct ScopeNode {
     pub(crate) key: u64,
+    pub(crate) clip: bool,
 }
 
 impl Element for ScopeNode {
@@ -839,16 +848,23 @@ impl Element for ScopeNode {
     type Local = Kept;
 
     fn props_key(&self) -> u64 {
-        self.key
+        self.key ^ u64::from(self.clip).rotate_right(1)
     }
 
     fn init(&self, _: &mut craft_ui_rt::BuildCx<'_>) -> Kept {
         Kept::new()
     }
 
-    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
+    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, constraints: Constraints) -> Vec2 {
         kept.place_children(cx, Vec2::ZERO);
-        kept.size
+        if self.clip { constraints.constrain(kept.size) } else { kept.size }
+    }
+
+    fn paint(&self, _: &Kept, cx: &mut PaintCx<'_>) {
+        if self.clip {
+            let bounds = cx.bounds();
+            cx.clip(bounds);
+        }
     }
 
     fn relayout_boundary(&self) -> bool {
