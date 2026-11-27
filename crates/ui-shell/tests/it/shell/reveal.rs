@@ -3,9 +3,10 @@
 
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::display::Text;
+use craft_ui::runtime::commands::ChromeToggle;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
 use craft_ui::runtime::focus::{KeyUse, host_canvas};
-use craft_ui::runtime::frame::{ChromeToggle, request_chrome_toggle};
+use craft_ui::runtime::frame::request_chrome_toggle;
 use craft_ui::shell::{AppShell, ChromeState, ScreenMode, Slot, chrome_state};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};

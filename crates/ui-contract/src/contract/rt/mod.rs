@@ -53,7 +53,7 @@ pub mod textures;
 mod tip;
 mod toast;
 mod ui;
-pub mod windows;
+pub(crate) mod windows;
 
 pub use commands::CommandBoard;
 pub use container::{Container, show_container};

@@ -142,11 +142,6 @@ pub use steps::scroll_step;
 pub(crate) use steps::{child_reveal, peek_reveal, queue_child_reveal, take_reveal};
 pub(crate) use steps::{draft, keeping_ids};
 
-/// Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
-pub fn install(ctx: &egui::Context, spec: crate::runtime::InstallSpec) -> Result<(), crate::runtime::InstallError> {
-    crate::runtime::install(ctx, spec.frame_layers(Some(overlay::paint_frame_layers)))
-}
-
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
 #[non_exhaustive]

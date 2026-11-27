@@ -1,5 +1,6 @@
 //! Background results (14): one result per key in runtime memory, produced by a job on a `host::queue::JobQueue` per context.
 
+pub use crate::contract::rt::{Delivery, JobBoard};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, repaint};
 use crate::runtime::env::Env;

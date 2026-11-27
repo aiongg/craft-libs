@@ -2,8 +2,9 @@
 //! ends with the container's close, so a `GestureHost` keeps one undo step for the edits of the body's fields.
 
 use crate::contract::BodyCx;
+use crate::runtime::edit::OuterEdit;
 use crate::runtime::edit::{RemovalWatch, next_gesture_id};
-use crate::runtime::frame::{OuterEdit, note_outer_edit};
+use crate::runtime::frame::note_outer_edit;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay;
 use craft_behavior::GestureId;

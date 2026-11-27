@@ -1,6 +1,5 @@
 //! The command sets the library itself declares.
 
-use crate::runtime::frame::ChromeToggle;
 use craft_behavior::EditCommand;
 use craft_keymap::CommandRef;
 
@@ -179,4 +178,19 @@ impl ChromeCommand {
             ChromeCommand::TogglePanelsKeepTools => ChromeToggle::PanelsKeepTools,
         }
     }
+}
+
+/// Which panels a window's chrome toggle hides (spec 1.8): the `window.toggle_panels` and
+/// `window.toggle_panels_keep_tools` commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ChromeToggle {
+    /// Every panel of the window.
+    Panels,
+    /// Every panel of the window except the tools.
+    PanelsKeepTools,
+    /// Ends Tab and Shift+Tab hiding the panels; nothing when they are shown.
+    ShowPanels,
+    /// Reveals the edge while the window is body-only or its panels are hidden; `None` ends the reveal.
+    Reveal(Option<crate::runtime::env::RevealEdge>),
 }

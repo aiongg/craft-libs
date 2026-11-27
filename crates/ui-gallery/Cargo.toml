@@ -31,6 +31,8 @@ path = "src/bin/contract-api.rs"
 test = false
 
 [features]
+# `skia`: the gallery can draw with Skia's CPU raster (`CRAFT_RENDERER=skia`; native only).
+skia = ["craft-ui/skia"]
 # One feature per domain crate whose stories the viewer links; `apps` is all of them and the default. A build
 # that needs one crate's stories only (the story renderer) turns the default off and names the crate.
 default = ["apps"]
@@ -70,7 +72,6 @@ craft-theme = { workspace = true }
 craft-theme-editor = { workspace = true }
 craft-window = { workspace = true }
 egui = { workspace = true }
-eframe = { version = "0.37", default-features = false }
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
@@ -105,7 +106,9 @@ craft-font-manager = { workspace = true, features = ["suite"], optional = true }
 craft-update = { workspace = true, features = ["suite"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["console"] }
 
 [dev-dependencies]
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }

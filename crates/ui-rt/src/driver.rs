@@ -39,16 +39,22 @@ pub struct Driver<P: Platform, R: Renderer> {
     windows: Vec<WindowId>,
     attached: BTreeSet<WindowId>,
     wake: Option<WakeHandler>,
+    input: Option<InputFilter>,
 }
 
 /// Runs on the UI thread at each [`PlatformEvent::Wake`] with the runtime's cells and images: the
 /// host's job board delivers finished jobs into them ([`Driver::set_wake_handler`]).
 pub type WakeHandler = Box<dyn FnMut(&mut Store, &mut ImageStore)>;
 
+/// Sees each platform event before the runtime does, with the runtime: the app host's input hook
+/// ([`Driver::set_input_filter`]). Returning true takes the event, and the runtime never gets it.
+pub type InputFilter = Box<dyn FnMut(&PlatformEvent, &mut Runtime) -> bool>;
+
 impl<P: Platform, R: Renderer> Driver<P, R> {
     /// Takes every platform window's size and scale and attaches the surfaces that exist.
     pub fn new(runtime: Runtime, platform: P, renderer: R) -> Self {
-        let mut driver = Driver { runtime, platform, renderer, events: Vec::new(), windows: Vec::new(), attached: BTreeSet::new(), wake: None };
+        let mut driver =
+            Driver { runtime, platform, renderer, events: Vec::new(), windows: Vec::new(), attached: BTreeSet::new(), wake: None, input: None };
         for window in driver.platform.surfaces().windows() {
             driver.sync_window(window);
         }
@@ -69,6 +75,13 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
     /// are marked in the same step.
     pub fn set_wake_handler(&mut self, handler: impl FnMut(&mut Store, &mut ImageStore) + 'static) {
         self.wake = Some(Box::new(handler));
+    }
+
+    /// Sets what sees each platform event before the runtime, in the step that polls it: the app's
+    /// input hook. An event it takes never reaches the runtime; the driver's own bookkeeping
+    /// (surfaces, wakes) still runs for it.
+    pub fn set_input_filter(&mut self, filter: impl FnMut(&PlatformEvent, &mut Runtime) -> bool + 'static) {
+        self.input = Some(Box::new(filter));
     }
 
     /// Asks every window to close ([`Runtime::quit`]).
@@ -126,7 +139,10 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
         self.platform.poll(&mut events);
         report.events = u32::try_from(events.len()).unwrap_or(u32::MAX);
         for ev in &events {
-            self.runtime.handle_event(ev);
+            let taken = self.input.as_mut().is_some_and(|filter| filter(ev, &mut self.runtime));
+            if !taken {
+                self.runtime.handle_event(ev);
+            }
             match ev {
                 PlatformEvent::Suspend => {
                     for window in std::mem::take(&mut self.attached) {

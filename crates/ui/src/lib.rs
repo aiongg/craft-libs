@@ -24,9 +24,27 @@ pub use craft_ui_canvas::{canvas, canvas_controls, dialog};
 pub use craft_ui_contract::registry;
 #[doc(hidden)]
 pub use craft_ui_contract::{__private, __register_command_set, __register_contract, __register_pattern};
-pub use craft_ui_contract::{InstallError, InstallSpec, contract, fonts, install, layout, primitives, runtime, style, words};
+pub use craft_ui_contract::{contract, fonts, layout, primitives, runtime, style, words};
 pub use craft_ui_panels::{docking, rails, sections};
 pub use craft_ui_shell::shell;
+
+pub use craft_ui_contract::contract::{Context, Id, IdSalt, Response, Shown, Ui, UiBuilder};
+pub use craft_ui_rt::{WindowCommand, WindowId};
+
+/// The app host: `App`, `LogicCx`, `AppSpec`, `run` (with the `app` feature), and `start` for any platform.
+pub mod app {
+    pub use craft_ui_shell::shell::app::*;
+}
+
+/// Geometry in logical points.
+pub mod geom {
+    pub use craft_ui_rt::{Align, Pos2, Rangef, Rect, Vec2, lerp, pos2, vec2};
+}
+
+/// Keys, modifiers, pointer buttons and cursors.
+pub mod input {
+    pub use craft_ui_rt::{CursorIcon, Key, Mods, PointerButton};
+}
 pub use craft_ui_widgets::{
     bars, buttons, choice, controls, display, edit, form, graph, layout_components, list, menu, notices, pickers, popover, table, tabs, text,
     tile_grid, value_drag,

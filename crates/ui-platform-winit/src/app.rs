@@ -20,14 +20,14 @@ use crate::shared::{Cell, Shared, monitor_info, push};
 use crate::{UserEvent, WinitPlatform, apply, cursor, input};
 
 type Setup<R> = Box<dyn FnOnce(WinitPlatform) -> Pin<Box<dyn Future<Output = Driver<WinitPlatform, R>>>>>;
-type AfterStep<R> = Box<dyn FnMut(&mut Driver<WinitPlatform, R>, &StepReport)>;
+type Step<R> = Box<dyn FnMut(&mut Driver<WinitPlatform, R>, f64)>;
 
 struct App<R: Renderer + 'static> {
     proxy: EventLoopProxy<UserEvent>,
     shared: Cell,
     woken: Arc<AtomicBool>,
     setup: Option<Setup<R>>,
-    after_step: AfterStep<R>,
+    step: Step<R>,
     driver: Rc<RefCell<Option<Driver<WinitPlatform, R>>>>,
     start: Instant,
 }
@@ -201,8 +201,7 @@ impl<R: Renderer + 'static> App<R> {
         let time = self.start.elapsed().as_secs_f64();
         let Ok(mut slot) = self.driver.try_borrow_mut() else { return };
         if let Some(driver) = slot.as_mut() {
-            let report = driver.step(time);
-            (self.after_step)(driver, &report);
+            (self.step)(driver, time);
         }
     }
 }
@@ -326,12 +325,28 @@ impl<R: Renderer + 'static> ApplicationHandler<UserEvent> for App<R> {
 /// place to poll app state (close requests go through `Runtime::request_close`). On the desktop `run`
 /// returns when the last window closes; in the browser it returns at once and the page's event
 /// loop keeps running.
-pub fn run<R, F, Fut, H>(setup: F, after_step: H) -> Result<(), winit::error::EventLoopError>
+pub fn run<R, F, Fut, H>(setup: F, mut after_step: H) -> Result<(), winit::error::EventLoopError>
 where
     R: Renderer + 'static,
     F: FnOnce(WinitPlatform) -> Fut + 'static,
     Fut: Future<Output = Driver<WinitPlatform, R>> + 'static,
     H: FnMut(&mut Driver<WinitPlatform, R>, &StepReport) + 'static,
+{
+    run_with(setup, move |driver, time| {
+        let report = driver.step(time);
+        after_step(driver, &report);
+    })
+}
+
+/// [`run`] for a host that takes the turn itself: `step` is called with the frame time where
+/// `run` calls `Driver::step`, so a host with inline roots calls `Driver::step_with` and does its
+/// own work around it.
+pub fn run_with<R, F, Fut, S>(setup: F, step: S) -> Result<(), winit::error::EventLoopError>
+where
+    R: Renderer + 'static,
+    F: FnOnce(WinitPlatform) -> Fut + 'static,
+    Fut: Future<Output = Driver<WinitPlatform, R>> + 'static,
+    S: FnMut(&mut Driver<WinitPlatform, R>, f64) + 'static,
 {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     let app = App::<R> {
@@ -339,7 +354,7 @@ where
         shared: Rc::new(RefCell::new(Shared::default())),
         woken: Arc::default(),
         setup: Some(Box::new(move |p| Box::pin(setup(p)))),
-        after_step: Box::new(after_step),
+        step: Box::new(step),
         driver: Rc::new(RefCell::new(None)),
         start: Instant::now(),
     };

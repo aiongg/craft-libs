@@ -1,6 +1,7 @@
 //! Trials of the keys and presses a host's own egui widgets keep while the runtime is installed on the whole window.
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, ShowContainer as _};
+use crate::runtime::commands::ChromeToggle;
 use crate::runtime::commands::{
     AppCatalog, Binding, CommandDef, CommandInput, CommandSet as _, EditCommands, NavCommand, QuitCommand, Scope, TypingRule,
 };
@@ -8,7 +9,7 @@ use crate::runtime::drag::{self, DragPreview};
 use crate::runtime::egui::{areas, fixture};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::focus::{EditSet, FocusPolicy, FocusTarget, KeepKeys, KeyUse, host_canvas, request};
-use crate::runtime::frame::{ChromeToggle, take_output};
+use crate::runtime::frame::take_output;
 use crate::runtime::ime;
 use crate::runtime::keys::with_window_intents;
 use crate::style::{ComponentStyle, StyleCx};

@@ -11,18 +11,16 @@ use crate::viewer::{Catalog, GalleryCommands, GallerySettings, PanelId, Viewer, 
 use craft_behavior::dock::{PanelState, Workspace as Dock};
 use craft_theme::AppSizes;
 use craft_theme_editor::{ThemeSubject, parse_sizes};
-use craft_ui::contract::{Bind, BodyCx, CommandSet as _, Tracked};
+use craft_ui::app::{App, LogicCx, PlatformEvent, PointerPhase, WindowEvent, WindowId};
+use craft_ui::contract::{Bind, BodyCx, CommandSet as _};
 use craft_ui::docking::DockConfig;
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::popover::DropVeil;
-use craft_ui::runtime::commands::{CommandInput, CommandStates};
+use craft_ui::runtime::commands::{CommandState, CommandStates, Fired};
 use craft_ui::runtime::drag::OsFile;
 use craft_ui::runtime::env::WindowKey;
-use craft_ui::runtime::frame::{FrameInput, FrameOutput};
 use craft_ui::runtime::toast::{self, Toast};
 use craft_ui::shell::AppShell;
-use craft_ui::shell::app::ShellApp;
-use craft_ui::shell::embed::CloseDecision;
 use egui::Ui;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -38,9 +36,11 @@ pub struct Gallery {
     noted: HashSet<String>,
     /// A command changed the viewer since the settings were last compared.
     command_ran: bool,
-    /// The app-scope command states of the front component's stories, and that component: rebuilt only when another
-    /// component comes to the front, so an idle frame keeps one revision.
-    command_states: (Option<&'static str>, Tracked<CommandStates>),
+    /// Input that can change what a control edits arrived since the settings were last compared.
+    edited: bool,
+    /// The app-scope command states of the front component's stories, and that component: written to the command
+    /// board only when another component comes to the front.
+    command_states: (Option<&'static str>, CommandStates),
 }
 
 impl Gallery {
@@ -52,7 +52,38 @@ impl Gallery {
     /// The viewer of `catalog` over `persisted`.
     pub fn new(catalog: Catalog, persisted: Persisted) -> Self {
         let viewer = Viewer::new(catalog, persisted.get());
-        Gallery { viewer, persisted, drop_note: None, noted: HashSet::new(), command_ran: false, command_states: (None, Tracked::default()) }
+        Gallery {
+            viewer,
+            persisted,
+            drop_note: None,
+            noted: HashSet::new(),
+            command_ran: false,
+            edited: false,
+            command_states: (None, CommandStates::new()),
+        }
+    }
+
+    /// Gives the command board the app-scope command states of the front component's stories, when another component
+    /// came to the front: the Overview, the Theme dock and a dock with no such tab give none, and a command the
+    /// previous component's stories set goes back to enabled.
+    fn publish_command_states(&mut self, cx: &mut LogicCx<'_>) {
+        let front = front_component(&self.viewer);
+        if front == self.command_states.0 {
+            return;
+        }
+        let browser = &self.viewer.browser;
+        let stories = front
+            .into_iter()
+            .flat_map(|type_name| browser.catalog.stories_of(type_name).iter().map(|&at| &browser.catalog.entries[at].registration.story));
+        let states = craft_ui::testing::Story::command_states(stories);
+        let board = cx.commands().clone();
+        for (command, _) in self.command_states.1.iter().filter(|(command, _)| states.get(command).is_none()) {
+            board.set_state(cx.store(), command.clone(), CommandState::new());
+        }
+        for (command, state) in states.iter() {
+            board.set_state(cx.store(), command.clone(), state.clone());
+        }
+        self.command_states = (front, states);
     }
 
     /// Shows what the settings and a dropped file have to say, once each, as toasts.
@@ -68,8 +99,19 @@ impl Gallery {
 
 /// Whether an input event can have changed what a control edits: hover, focus and pointer motion alone cannot, the
 /// release or key that ends an edit can.
-fn is_edit(event: &egui::Event) -> bool {
-    !matches!(event, egui::Event::PointerMoved(_) | egui::Event::MouseMoved(_) | egui::Event::PointerGone | egui::Event::WindowFocused(_))
+fn is_edit(event: &PlatformEvent) -> bool {
+    let PlatformEvent::Window(_, event) = event else { return false };
+    match event {
+        WindowEvent::Pointer(pointer) => matches!(pointer.phase, PointerPhase::Down | PointerPhase::Up),
+        WindowEvent::Wheel { .. }
+        | WindowEvent::Key { .. }
+        | WindowEvent::Text(_)
+        | WindowEvent::ImeCommit(_)
+        | WindowEvent::Paste(_)
+        | WindowEvent::Files(_)
+        | WindowEvent::Access(_) => true,
+        _ => false,
+    }
 }
 
 /// The app layer a dropped `sizes.json` holds.
@@ -161,44 +203,36 @@ fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
     }
 }
 
-impl ShellApp for Gallery {
-    fn frame_input(&mut self) -> FrameInput {
-        // App-scope command states are one input per frame, so only the stories of the component shown reach it; the
-        // Overview, the Theme dock and a frame with no such tab give none.
-        let browser = &self.viewer.browser;
-        let front = front_component(&self.viewer);
-        if front != self.command_states.0 {
-            let stories = front
-                .into_iter()
-                .flat_map(|type_name| browser.catalog.stories_of(type_name).iter().map(|&at| &browser.catalog.entries[at].registration.story));
-            self.command_states = (front, Tracked::new(craft_ui::testing::Story::command_states(stories)));
-        }
-        FrameInput::new(self.viewer.env.clone()).commands(CommandInput::new().states(&self.command_states.1))
+impl App for Gallery {
+    fn input(&mut self, event: &PlatformEvent, _: &mut LogicCx<'_>) -> bool {
+        self.edited |= is_edit(event);
+        false
     }
 
-    fn output(&mut self, output: FrameOutput) {
-        for fired in output.fired {
-            if let Some(command) = GalleryCommands::from_ref(&fired.command) {
-                self.command_ran = true;
-                self.viewer.run(command);
-            }
+    fn logic(&mut self, fired: &Fired, cx: &mut LogicCx<'_>) {
+        if let Some(command) = GalleryCommands::from_ref(&fired.command) {
+            self.command_ran = true;
+            self.viewer.run(command);
+            cx.request_build(WindowId::ROOT);
         }
     }
 
-    fn tick(&mut self, now: Instant) -> Option<Instant> {
+    fn frame(&mut self, cx: &mut LogicCx<'_>) -> Option<f64> {
+        self.publish_command_states(cx);
+        let now = Instant::now();
         let (deadline, merged) = self.persisted.tick(now);
         if let Some(settings) = merged {
             self.viewer.restore(&settings);
+            cx.request_build(WindowId::ROOT);
         }
-        deadline
+        deadline.map(|due| cx.time() + due.saturating_duration_since(now).as_secs_f64())
     }
 
-    fn close_requested(&mut self) -> CloseDecision {
+    fn exit(&mut self) {
         self.persisted.save();
-        CloseDecision::Close
     }
 
-    fn ui(&mut self, ui: &mut Ui) {
+    fn ui(&mut self, _window: WindowId, ui: &mut Ui<'_, '_>) {
         let in_theme = self.viewer.workspace == Workspace::Theme;
         let shell = |ui: &mut Ui, viewer: &mut Viewer| {
             AppShell::new(WindowKey::main())
@@ -228,9 +262,13 @@ impl ShellApp for Gallery {
         }
         self.viewer.sync_sizes();
         self.announce(ui.ctx());
-        // The controls change the viewer only on input, and a command only in `output`: a pass with neither has
+        // Another component in front: the next turn's `frame` gives the command board its stories' states.
+        if front_component(&self.viewer) != self.command_states.0 {
+            ui.ctx().request_repaint();
+        }
+        // The controls change the viewer only on input, and a command only in `logic`: a build after neither has
         // nothing new to save.
-        let edited = std::mem::take(&mut self.command_ran) || ui.ctx().input(|input| input.events.iter().any(is_edit));
+        let edited = std::mem::take(&mut self.command_ran) | std::mem::take(&mut self.edited);
         if edited && self.persisted.set(GallerySettings::of(&self.viewer)) {
             // The pass after a change ticks the store, which names when the save is due.
             ui.ctx().request_repaint();

@@ -53,7 +53,7 @@ pub use display::{
     StrokeAlign, SurfaceKey, TextHighlight, Vertex, Wrap,
 };
 pub use drag::{DragData, DragGhost, DragInfo, DragOutcome, DragPointer, DragStart, DropInput, DropPhase};
-pub use driver::{Driver, StepReport, WakeHandler};
+pub use driver::{Driver, InputFilter, StepReport, WakeHandler};
 pub use element::{Element, Memo, Show};
 pub use event::{AccessInput, CloseReason, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 pub use frame::{Draw, FrameChanges, FrameNode, FrameTree, Part};
@@ -84,7 +84,7 @@ pub use craft_behavior::{
 pub use craft_host::target::Os;
 pub use craft_keymap::chord::{Key, Mods};
 pub use craft_theme::{Rgba, Tokens};
-pub use emath::{Align, Pos2, Rect, Vec2, pos2, vec2};
+pub use emath::{Align, Pos2, Rangef, Rect, Vec2, lerp, pos2, vec2};
 pub use kurbo::BezPath;
 
 #[cfg(test)]

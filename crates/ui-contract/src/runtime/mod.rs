@@ -15,7 +15,6 @@ pub mod frame;
 pub mod ime;
 pub(crate) mod inputs;
 pub mod inspect;
-pub mod install;
 pub mod keys;
 pub mod layout_memory;
 pub(crate) mod lazy;
@@ -42,7 +41,6 @@ pub mod windows;
 pub mod words;
 
 pub use ::egui::RecordShift;
-pub use install::{InstallError, InstallSpec, install};
 #[doc(hidden)]
 pub use replay::journal;
 pub use shift::{Clip, Shift};

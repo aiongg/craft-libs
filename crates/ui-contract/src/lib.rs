@@ -21,9 +21,6 @@ pub mod style;
 #[cfg(feature = "testing")]
 pub mod testing;
 
-pub use contract::install;
-pub use runtime::{InstallError, InstallSpec};
-
 #[doc(hidden)]
 pub mod __private {
     pub use egui;

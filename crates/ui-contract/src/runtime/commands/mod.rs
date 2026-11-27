@@ -8,7 +8,7 @@ mod registry;
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
 pub use craft_behavior::EditCommand;
 pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule, Platform, Scope, Trigger, TypingRule};
-pub use library::ChromeCommand;
+pub use library::{ChromeCommand, ChromeToggle};
 pub use library::{EditCommands, NavCommand, QuitCommand, WindowCommand};
 pub(crate) use library::{WindowShortcut, yields_default};
 pub use registry::CommandDefError;
@@ -17,6 +17,7 @@ pub use registry::{SetEntry, sets};
 #[cfg(feature = "suite")]
 pub(crate) use registry::{StorySelection, configure_story_sets, with_story_sets};
 
+pub use crate::contract::rt::CommandBoard;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub use board::clear_focus_vantage;
@@ -25,6 +26,7 @@ pub use board::declare_child;
 #[doc(hidden)]
 pub use board::focus_within;
 pub use board::keymap;
+pub use board::linked_keymap;
 #[doc(hidden)]
 pub use board::note_page_root;
 #[cfg(feature = "testing")]
@@ -501,7 +503,7 @@ impl CommandStates {
         self.states.get(self.position(command)?).map(|(_, state)| state)
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &(CommandRef, CommandState)> {
+    pub fn iter(&self) -> impl Iterator<Item = &(CommandRef, CommandState)> {
         self.states.iter()
     }
 

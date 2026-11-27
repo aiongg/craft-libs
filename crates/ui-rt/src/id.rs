@@ -38,6 +38,10 @@ pub(crate) enum ChildKey {
 pub struct WindowId(pub u64);
 
 impl WindowId {
+    /// The first window a platform opens: the app host opens its main window first, so this names
+    /// it.
+    pub const ROOT: WindowId = WindowId(1);
+
     /// The id of the window's root node.
     pub fn root(self) -> NodeId {
         NodeId(hash_key(&("window", self.0)))

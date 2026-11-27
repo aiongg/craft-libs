@@ -18,8 +18,10 @@ workspace = true
 [features]
 suite = ["testing", "craft-ui-contract/suite", "craft-ui-widgets/suite", "craft-ui-panels/suite", "craft-ui-canvas/suite", "craft-ui-patterns/suite", "craft-ui-shell/suite"]
 default = []
-# `shell::app`: the eframe entry point.
+# `app::run` and `app::start_web`: the app host on winit, drawing with epaint.
 app = ["craft-ui-shell/app"]
+# `app::run` can draw with Skia's CPU raster too (`CRAFT_RENDERER=skia`; native only).
+skia = ["app", "craft-ui-shell/skia"]
 # `craft_ui::testing`: the fixture and suite runner, with every crate's test helpers.
 testing = [
     "craft-ui-contract/testing",
@@ -49,6 +51,8 @@ craft-ui-panels = { workspace = true }
 craft-ui-canvas = { workspace = true }
 craft-ui-patterns = { workspace = true }
 craft-ui-shell = { workspace = true }
+# `WindowId`, `WindowCommand`, `geom` and `input`.
+craft-ui-rt = { workspace = true }
 craft-cloud-ui = { workspace = true }
 
 [dev-dependencies]
