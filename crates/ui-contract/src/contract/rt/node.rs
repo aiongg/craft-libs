@@ -51,6 +51,17 @@ pub enum NodeInput {
         /// The press, with its origin in the node's coordinates.
         start: PressStart,
     },
+    /// A secondary click no shape sensing `CONTEXT_CLICK` took, over the node (ui-rt `Event::ContextClick`): its
+    /// context request, with no press phases.
+    ContextClick {
+        /// Where the button came up, in the node's coordinates.
+        pos: Pos2,
+        /// The modifiers held.
+        mods: Mods,
+        /// The part under the pointer: the ui-rt part id of its kept shape, 0 for the node's own shape or a node
+        /// under it.
+        part: u64,
+    },
     /// An assistive technology's action on the node or one of its sub-nodes.
     Access(super::access::AccessAction),
     /// The drag the node started ended.
@@ -904,6 +915,12 @@ impl Element for ComponentNode {
                 if let Some(tip) = kept.tip.as_mut() {
                     tip.hover(*on, cx);
                 }
+                Handled::Yes
+            }
+            Event::ContextClick { pos, mods, hit } => {
+                let part = if hit.node == cx.node() { hit.part } else { 0 };
+                kept.queue.push(NodeInput::ContextClick { pos: cx.to_local(*pos), mods: *mods, part });
+                cx.request_build();
                 Handled::Yes
             }
             Event::MultiTap(tap) => {

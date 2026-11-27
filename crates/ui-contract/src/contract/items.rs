@@ -365,8 +365,8 @@ fn press_mods(input: &[crate::contract::rt::NodeInput]) -> craft_keymap::Mods {
         .unwrap_or_default()
 }
 
-/// The newest pointer input of the run's queue `input` with the given button that ended its press (`Gesture::Up`),
-/// with where it ended.
+/// The newest pointer input of the run's queue `input` with the given button that ended its press (`Gesture::Up`), or
+/// for the secondary button a click no shape took (`NodeInput::ContextClick`), with where it ended.
 fn released(input: &[crate::contract::rt::NodeInput], button: craft_ui_rt::PointerButton) -> Option<Pos2> {
     release(input, button).map(|(pos, ..)| pos)
 }
@@ -378,6 +378,9 @@ fn release(input: &[crate::contract::rt::NodeInput], button: craft_ui_rt::Pointe
         crate::contract::rt::NodeInput::Pointer { gesture: craft_ui_rt::Gesture::Up { .. }, pos, button: held, mods, part, .. }
             if *held == button =>
         {
+            Some((*pos, *mods, *part))
+        }
+        crate::contract::rt::NodeInput::ContextClick { pos, mods, part } if button == craft_ui_rt::PointerButton::Secondary => {
             Some((*pos, *mods, *part))
         }
         _ => None,

@@ -367,3 +367,158 @@ fn arrows_move_focus_within_a_roving_group_and_tab_returns_to_its_lead() {
     press(&mut rig, &mut app, Key::Tab, Mods::SHIFT);
     assert_eq!(focused(&rig), Some(app.r[2]), "Shift+Tab comes back to the member that had focus");
 }
+
+/// Secondary clicks (production: a context request on a secondary release over the hovered component; focus only
+/// from a primary press). A click no shape sensing `CONTEXT_CLICK` takes reaches the component under the pointer with
+/// no press; a secondary press moves no focus to its shape, and one away from a focused text field releases it.
+mod secondary {
+    use std::cell::RefCell;
+
+    use crate::skeleton::IconButton;
+    use crate::text_field::TextField;
+    use craft_behavior::IconId;
+    use craft_ui_contract::contract::{Bind, Common, Component, Cx, MeasureCx, Response, Role, Show as _, Ui};
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_platform_headless::{Contact, Input};
+    use craft_ui_rt::{PointerButton, PointerPhase, Pos2, Rect, Sense, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+
+    thread_local! {
+        static RECTS: RefCell<Vec<(&'static str, Rect)>> = const { RefCell::new(Vec::new()) };
+        static RUNS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+        static CLICKS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// A pad sensing `sense` that records its runs and its secondary clicks.
+    #[derive(craft_ui_contract::contract::Component)]
+    #[component(unregistered)]
+    struct Pad {
+        #[common]
+        common: Common,
+        #[key(skip)]
+        name: &'static str,
+        #[key(skip)]
+        sense: Sense,
+    }
+
+    impl Component for Pad {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: PadStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(120.0, 40.0)
+        }
+
+        fn sense(&self) -> Sense {
+            self.sense
+        }
+
+        fn update(&mut self, cx: &mut Cx<'_, Self>) {
+            RUNS.with(|runs| runs.borrow_mut().push(self.name));
+            if cx.response.secondary_clicked() {
+                CLICKS.with(|clicks| clicks.borrow_mut().push(self.name));
+            }
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    fn pad(ui: &mut Ui, name: &'static str, sense: Sense) {
+        let rect = Pad { common: Common::new(), name, sense }.show(ui).rect;
+        RECTS.with(|rects| {
+            let mut rects = rects.borrow_mut();
+            rects.retain(|(n, _)| *n != name);
+            rects.push((name, rect));
+        });
+    }
+
+    fn rect(name: &str) -> Rect {
+        RECTS.with(|rects| rects.borrow().iter().find(|(n, _)| *n == name).map(|(_, r)| *r)).unwrap_or_else(|| panic!("no pad {name}"))
+    }
+
+    fn runs(name: &str) -> usize {
+        RUNS.with(|runs| runs.borrow().iter().filter(|n| **n == name).count())
+    }
+
+    fn clicks() -> Vec<&'static str> {
+        CLICKS.with(|clicks| clicks.borrow().clone())
+    }
+
+    fn harness() -> Harness {
+        let mut h = Harness::new_ui(|ui| {
+            let mut text = String::new();
+            let _ = IconButton::new(IconId::new("plus"), "A").focusable().show(ui);
+            let field = TextField::new(Bind::bound(&mut text)).show(ui).response.rect;
+            RECTS.with(|rects| {
+                let mut rects = rects.borrow_mut();
+                rects.retain(|(n, _)| *n != "field");
+                rects.push(("field", field));
+            });
+            // A slider-like shape that drags, one that only hovers (a label), one that takes its secondary press.
+            pad(ui, "drag", Sense::HOVER | Sense::CLICK | Sense::DRAG);
+            pad(ui, "label", Sense::HOVER);
+            pad(ui, "context", Sense::HOVER | Sense::CLICK | Sense::CONTEXT_CLICK | Sense::FOCUS | Sense::TAKE_FOCUS);
+        });
+        h.run();
+        h
+    }
+
+    fn secondary(h: &mut Harness, phase: PointerPhase, at: Pos2) {
+        h.send(Input::pointer(Contact { button: PointerButton::Secondary, ..Contact::MOUSE }, phase, at)).run();
+    }
+
+    fn secondary_click(h: &mut Harness, at: Pos2) {
+        h.send(Input::mouse_move(at)).run();
+        secondary(h, PointerPhase::Down, at);
+        secondary(h, PointerPhase::Up, at);
+    }
+
+    #[test]
+    fn a_secondary_click_no_shape_takes_reaches_the_component_under_the_pointer_with_no_press() {
+        let mut h = harness();
+        let at = rect("drag").center();
+        h.send(Input::mouse_move(at)).run();
+        let before = runs("drag");
+        secondary(&mut h, PointerPhase::Down, at);
+        assert_eq!(runs("drag"), before, "a secondary press no shape takes runs nothing");
+        secondary(&mut h, PointerPhase::Up, at);
+        assert_eq!(clicks(), ["drag"], "its release is the dragging shape's secondary click");
+        assert_eq!(runs("drag"), before + 1, "which runs it once");
+
+        secondary(&mut h, PointerPhase::Down, at);
+        h.send(Input::mouse_move(at + Vec2::new(30.0, 0.0))).run();
+        secondary(&mut h, PointerPhase::Up, at + Vec2::new(30.0, 0.0));
+        assert_eq!(clicks(), ["drag"], "a secondary drag is no click");
+
+        secondary_click(&mut h, rect("label").center());
+        assert_eq!(clicks(), ["drag", "label"], "a shape that only hovers gets its secondary click too");
+    }
+
+    #[test]
+    fn a_secondary_press_moves_no_focus_and_one_away_from_a_focused_field_releases_it() {
+        let mut h = harness();
+        let a = h.get_by_label("A");
+        h.click(&a).run();
+        assert_eq!(h.focused().map(|t| t.label), Some("A".to_owned()), "a primary click focuses A");
+        secondary_click(&mut h, rect("context").center());
+        assert_eq!(clicks(), ["context"], "the shape that senses CONTEXT_CLICK takes its secondary click");
+        assert_eq!(h.focused().map(|t| t.label), Some("A".to_owned()), "a secondary press does not move focus to its shape");
+
+        let bounds = rect("field");
+        let field = bounds.center();
+        h.click_at(field).run();
+        assert_eq!(h.focused().map(|t| t.bounds), Some(bounds), "a primary click enters the field");
+        secondary_click(&mut h, field);
+        assert_eq!(h.focused().map(|t| t.bounds), Some(bounds), "a secondary press on the focused field keeps its focus");
+        secondary_click(&mut h, rect("drag").center());
+        assert_eq!(h.focused(), None, "a secondary press away from the focused field releases it");
+    }
+}

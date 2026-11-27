@@ -204,6 +204,19 @@ pub enum Event {
     /// over a node under it. Entering and leaving the node send [`Event::Hover`] instead. Only nodes
     /// that asked ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     HoverPart(Option<u64>),
+    /// A secondary click (the button went down and came up within the slop) that no shape sensing
+    /// [`Sense::CONTEXT_CLICK`] took. It goes to the node under the pointer, the topmost shape
+    /// that senses hover or presses, and bubbles until a node handles it. No press opens for it:
+    /// nothing captures the pointer, no `Pointer` phase reaches a node and a move past the slop
+    /// ends it.
+    ContextClick {
+        /// Where the button came up, in window coordinates.
+        pos: Pos2,
+        /// The modifiers held.
+        mods: Mods,
+        /// The shape under the pointer, on the node the event went to first.
+        hit: Hit,
+    },
     /// Two or more fingers tapped together (`fingers`, around `at` in window coordinates): the node
     /// the gesture's start went to gets it, else the node under the fingers that takes presses,
     /// bubbling.

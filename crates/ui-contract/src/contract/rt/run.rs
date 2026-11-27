@@ -1124,20 +1124,13 @@ pub(crate) fn own_stop<C: Component>(component: &C, resolved: &Resolved<'_>) -> 
 /// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop
 /// and senses nothing else; one bound to an edit command keeps the focus where it is on a press.
 fn own_sense<C: Component>(component: &C, resolved: &Resolved<'_>) -> Sense {
-    let sense = with_context_click(component.sense());
+    let sense = component.sense();
     match resolved.enabled {
         true if resolved.command.is_some_and(|command| command.edit) => sense.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS),
         true => sense,
         false if steps::takes_focus(resolved) => Sense::HOVER | sense.intersection(Sense::FOCUS),
         false => Sense::HOVER,
     }
-}
-
-/// A component's own shape that clicks and does not drag takes its secondary click too (`Sense::CONTEXT_CLICK`), so a
-/// right click on it is its context request (production: a secondary release over the component); a shape that drags
-/// leaves the secondary press to the context target under it, as production's press arena does.
-fn with_context_click(sense: Sense) -> Sense {
-    if sense.contains(Sense::CLICK) && !sense.contains(Sense::DRAG) { sense | Sense::CONTEXT_CLICK } else { sense }
 }
 
 /// The activation of a run: a key or AccessKit activation, or a primary click; none for a component
@@ -1401,6 +1394,10 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                     }
                     Gesture::Down { .. } => facts.pressed |= *button == PointerButton::Primary,
                 }
+            }
+            NodeInput::ContextClick { pos, .. } => {
+                facts.pointer = Some(*pos + origin.to_vec2());
+                facts.secondary_clicked = true;
             }
             NodeInput::Access(a) => {
                 let click = a.action == accesskit::Action::Click && a.sub.is_none();

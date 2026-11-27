@@ -540,7 +540,8 @@ impl CxCore<'_> {
                 button: craft_behavior::PointerButton::Secondary,
                 part,
                 ..
-            } => Some(*part),
+            }
+            | NodeInput::ContextClick { part, .. } => Some(*part),
             _ => None,
         });
         if let Some(part) = clicked {
