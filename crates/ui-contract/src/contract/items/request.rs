@@ -24,7 +24,7 @@ pub fn request_rename<K: Clone + Send + Sync + 'static>(ctx: &Context, collectio
         requests.0.retain(|(id, _)| *id != collection);
         requests.0.push((collection, key.clone()));
     });
-    ctx.request_repaint();
+    ctx.request_build_of(collection);
 }
 
 /// The rename request addressed to `collection`, once.

@@ -535,6 +535,9 @@ impl<A: App> Host<A> {
             for command in ctx.take_window_commands() {
                 driver.runtime.window_command(window, command);
             }
+            if ctx.wants_root_build() {
+                driver.runtime.mark_root(window);
+            }
         }
     }
 

@@ -722,6 +722,108 @@ impl<'u, 'c> Ui<'u, 'c> {
         pointer.pos.filter(|at| rect.contains(*at))
     }
 
+    // Layer queries (section 15.9): the window's open layers, as each layer child's entry holds them. Each read is
+    // tracked through the window's open-layer cell, so a reader runs again when a layer opens, changes or closes.
+
+    fn open_layers(&mut self) -> Vec<super::layers::Open> {
+        super::layers::track(self.cx);
+        super::layers::open(self.cx.runtime(), self.cx.window())
+    }
+
+    /// Whether the layer `id` is open and not fading out.
+    pub fn layer_open(&mut self, id: Id) -> bool {
+        super::layers::find(&self.open_layers(), id).is_some_and(|open| !open.entry.exiting)
+    }
+
+    /// Whether the layer `id` opened in this frame.
+    pub fn layer_opening(&mut self, id: Id) -> bool {
+        let now = self.cx.now();
+        super::layers::find(&self.open_layers(), id).is_some_and(|open| !open.entry.exiting && open.since == Some(now))
+    }
+
+    /// The entry of the layer `id`, while it shows.
+    pub fn layer_entry(&mut self, id: Id) -> Option<crate::runtime::overlay::OpenEntry> {
+        super::layers::find(&self.open_layers(), id).map(|open| open.entry.clone())
+    }
+
+    /// Whether a layer that `filter` counts is open in the window.
+    pub fn any_layer_open(&mut self, filter: crate::runtime::overlay::OpenFilter) -> bool {
+        self.open_layers().iter().any(|open| super::layers::counts(&open.entry, filter))
+    }
+
+    /// The top layer that takes keys, if any.
+    pub fn top_layer(&mut self) -> Option<crate::runtime::overlay::OpenEntry> {
+        let open = self.open_layers();
+        open.into_iter().rev().find(|open| super::layers::counts(&open.entry, crate::runtime::overlay::OpenFilter::Keys)).map(|open| open.entry)
+    }
+
+    /// The id of the layer this cursor builds in; `None` on the window's content.
+    pub fn layer_parent(&mut self) -> Option<Id> {
+        let open = self.open_layers();
+        let child = super::layers::layer_child_of(self.cx.runtime(), self.cx.node())?;
+        open.iter().find(|o| o.node == child).map(|o| o.entry.id).or_else(|| self.layer_body_id(child))
+    }
+
+    /// The id of the layer child `node` from its kept facts, for the layer whose body is running (its entry is not
+    /// readable while its own build runs).
+    fn layer_body_id(&self, node: craft_ui_rt::NodeId) -> Option<Id> {
+        super::ids::id_of(self.cx, node)
+    }
+
+    /// Whether this cursor builds inside the top modal layer.
+    pub fn in_top_modal(&mut self) -> bool {
+        super::layers::track(self.cx);
+        super::layers::in_top_modal(self.cx.runtime(), self.cx.node())
+    }
+
+    /// Whether the layer `id` is the top modal layer of the window.
+    pub fn is_top_modal(&mut self, id: Id) -> bool {
+        super::layers::track(self.cx);
+        super::layers::top_modal(self.cx.runtime(), self.cx.window()).is_some_and(|top| top.entry.id == id)
+    }
+
+    /// The modal layer this cursor builds in, if it builds in one.
+    pub fn running_dialog(&mut self) -> Option<Id> {
+        let open = self.open_layers();
+        let child = super::layers::layer_child_of(self.cx.runtime(), self.cx.node())?;
+        match open.iter().find(|o| o.node == child) {
+            Some(o) => o.entry.rank.is_modal().then_some(o.entry.id),
+            None => self.layer_body_id(child),
+        }
+    }
+
+    // Window services (section 15.9).
+
+    /// Adds the running tool's `gesture` to what a modal layer lets through to `canvas`; it applies from the modal
+    /// body's next run. Nothing in a measuring run.
+    pub fn pass_tool_gesture(&mut self, canvas: Id, gesture: crate::runtime::sampler::CanvasGesture) {
+        if !self.is_measuring() {
+            crate::runtime::sampler::pass_tool_gesture(&self.ctx, canvas, gesture);
+        }
+    }
+
+    /// The width of `column` in the column group the innermost open frame reads, `None` when no group is open; the row
+    /// reports `content`.
+    pub fn ambient_width(&mut self, column: &craft_behavior::ColumnKey, content: f32) -> Option<f32> {
+        crate::layout::ambient_width(&self.ctx, column, content)
+    }
+
+    /// Shows `rows` beside the drag ghost at `at`. Nothing in a measuring run.
+    pub fn ghost_readout(&mut self, at: Pos2, rows: &[(crate::runtime::env::Label, String)]) {
+        if !self.is_measuring() {
+            let env = self.env.clone();
+            crate::contract::ghost::readout(&self.ctx, &env.view(), at, rows);
+        }
+    }
+
+    /// Asks the collection `collection` to start renaming the item `key`: the collection builds in a later round of
+    /// this frame and takes the request in its item step. Nothing in a measuring run.
+    pub fn request_rename<K: Clone + Send + Sync + 'static>(&mut self, collection: Id, key: &K) {
+        if !self.is_measuring() {
+            crate::contract::items::request_rename(&self.ctx, collection, key);
+        }
+    }
+
     // Crate-private surface for ui-contract's own code (section 15.2).
 
     /// A fresh id under this cursor's, unique among the ids it handed out in this run.

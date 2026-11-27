@@ -408,6 +408,12 @@ impl BuildCx<'_> {
         }
     }
 
+    /// `node` builds in a later build round of this frame: a request addressed to it by id (a
+    /// collection asked to start a rename) reached this build.
+    pub fn request_build_of(&mut self, node: NodeId) {
+        self.rt.tree.mark_build(node);
+    }
+
     /// This inline node runs again in a later build round of this frame: what its build decided
     /// from turned out stale (a reused measurement its content no longer matches).
     pub fn rebuild(&mut self) {

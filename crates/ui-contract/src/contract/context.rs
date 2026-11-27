@@ -179,6 +179,12 @@ impl Context {
         let store = cx.runtime().store();
         let theme = cells.map_or(0, |cells| cells.theme.version(store));
         ctx.shared.styles.clear_if_moved((tokens.version(store), theme, scale.version(store)));
+        let builds = std::mem::take(&mut *ctx.shared.builds.borrow_mut());
+        for id in builds {
+            if let Some(node) = super::rt::ids::node_of(cx, id) {
+                cx.request_build_of(node);
+            }
+        }
         ctx
     }
 
@@ -299,6 +305,29 @@ impl Context {
     /// Puts `text` on the clipboard.
     pub fn copy_text(&self, text: String) {
         self.platform(PlatformRequest::CopyText(text));
+    }
+
+    /// The node `id` names builds: inside a build, in a later round of this frame; outside one, in the next frame (the
+    /// host builds the window root, which hands the request on through the window's `Id` map).
+    pub(crate) fn request_build_of(&self, id: Id) {
+        if building() {
+            log_build_read(move |cx| {
+                if let Some(node) = super::rt::ids::node_of(cx, id) {
+                    cx.request_build_of(node);
+                }
+            });
+        } else {
+            self.shared.builds.borrow_mut().push(id);
+            if let Some(waker) = self.shared.waker.borrow().as_ref() {
+                waker.wake();
+            }
+        }
+    }
+
+    /// Whether builds by `Id` wait for the window root ([`Context::request_build_of`]): the host then builds the root.
+    #[doc(hidden)]
+    pub fn wants_root_build(&self) -> bool {
+        !self.shared.builds.borrow().is_empty()
     }
 
     /// Puts `image` (straight alpha) on the clipboard; platforms without image support ignore it.
