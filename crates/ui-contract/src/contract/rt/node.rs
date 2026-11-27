@@ -3,17 +3,18 @@
 
 use std::any::Any;
 
-use craft_behavior::{PartRef, PressStart};
+use craft_behavior::{EditorInput, Intent, PartRef, PressStart};
+use craft_keymap::Chord;
 use craft_ui_rt::{
     AccessCx, Constraints, CornerRadii, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape,
-    InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rgba, Sense, State, Vec2,
+    ImePurpose, InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rect, Rgba, Sense, State, Vec2,
 };
 
 use egui::Id;
 
 use super::drag::{DragSource, DropRule};
 use super::focus::FocusKept;
-use super::keys::KeyPress;
+use super::keys::Taken;
 use super::memory::Memory;
 use super::overlay::PopupStates;
 use super::sweep::Sweep;
@@ -57,8 +58,28 @@ pub enum NodeInput {
     DragEnd(DragOutcome),
     /// A payload the node's drop rule takes was dropped on it.
     Drop(DragData),
-    /// A key the focused node took (`super::keys`).
-    Key(KeyPress),
+    /// An intent the key stage took for the focused node (`super::keys`): from a key press, or typed
+    /// or pasted text. The run reads the queued intents through `Cx::intents`.
+    Intent {
+        /// The intent.
+        intent: Intent,
+        /// A horizontal arrow sent it: the run reads its move in the node's direction.
+        horizontal: bool,
+        /// Shift was held at the press.
+        shift: bool,
+    },
+    /// A press a recorder (`OwnerClass::Recorder`) or a claim (`KeyUse::claims`) took, as a chord.
+    Chord(Chord),
+    /// An arrow press as a nudge of the node's content (`KeyUse::nudge`): its unit direction.
+    Nudge {
+        /// The unit direction.
+        direction: Vec2,
+        /// The modifiers held.
+        mods: Mods,
+    },
+    /// Input method input for the node's editor ([`super::ime`]): a preedit, or a commit, whose text
+    /// follows as an `Intent::Text`.
+    Ime(EditorInput),
     /// The node is its window's close guard and the window was asked to close.
     Close(craft_ui_rt::CloseReason),
 }
@@ -163,6 +184,8 @@ pub(crate) struct Kept {
     pub(crate) env: Option<super::env::EnvCells>,
     /// The node is a window root scope: it owns the window's Tab and F6 order.
     pub(crate) window_root: bool,
+    /// The command board the host gave the window root (window root only).
+    pub(crate) commands: Option<super::commands::CommandBoard>,
     /// The cursor over the node's own shape, from `Component::cursor`.
     pub(crate) cursor: Option<Cursor>,
     /// Paint-time state: the fade between pointer looks.
@@ -171,6 +194,9 @@ pub(crate) struct Kept {
     pub(crate) level: std::cell::RefCell<Option<super::motion::Level>>,
     /// The node's stop, scope and roving group, and its focus ring.
     pub(crate) focus: FocusKept,
+    /// The node's input method state: the composition and the caret rect the platform places its
+    /// candidate window at.
+    pub(crate) ime: super::ime::ImeKept,
 }
 
 impl Kept {
@@ -204,10 +230,12 @@ impl Kept {
             dragging: false,
             env: None,
             window_root: false,
+            commands: None,
             cursor: None,
             fade: Default::default(),
             level: Default::default(),
             focus: FocusKept::default(),
+            ime: Default::default(),
         }
     }
 
@@ -256,6 +284,9 @@ pub(crate) struct ComponentNode {
     /// The component is a Tab stop (`Component::keys`): ui-rt focuses it on a press and falls back
     /// to it when focus inside it goes.
     pub(crate) stop: bool,
+    /// The component takes text input while focused (`Component::text_input`): ui-rt runs a
+    /// platform IME session for it.
+    pub(crate) text: Option<ImePurpose>,
 }
 
 impl Element for ComponentNode {
@@ -286,6 +317,15 @@ impl Element for ComponentNode {
 
     fn focusable(&self) -> bool {
         self.stop
+    }
+
+    fn text_input(&self) -> Option<ImePurpose> {
+        self.text
+    }
+
+    /// The caret rect the last run reported (`Cx::ime_cursor`), in the node's coordinates.
+    fn ime_cursor(&self, kept: &Kept) -> Option<Rect> {
+        kept.ime.caret
     }
 
     /// Shows the kept looks for the node's pointer state (reading it only when the variants differ),
@@ -340,9 +380,12 @@ impl Element for ComponentNode {
             Event::Focus(on) => {
                 if *on {
                     kept.focus.took_focus();
+                } else {
+                    super::ime::focus_left(kept, cx);
                 }
                 Handled::Yes
             }
+            Event::Text(_) | Event::ImePreedit { .. } | Event::ImeCommit(_) | Event::Paste(_) => super::ime::event(self.text.is_some(), kept, cx, ev),
             Event::Key(k) => self.key(kept, cx, k),
             Event::Access(a) if a.target == cx.node() && a.action == accesskit::Action::Focus && a.sub.is_none() => super::focus::request(kept, cx),
             Event::Hover(on) => {
@@ -404,10 +447,18 @@ impl ComponentNode {
     /// then by its roving group or its trapping scope.
     fn key(&self, kept: &mut Kept, cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
         if cx.target() == cx.node() {
-            if let Some(press) = super::keys::take(&kept.focus, k) {
-                kept.queue.push(NodeInput::Key(press));
-                cx.request_build();
+            // While the input method composes, its keys are the composition's.
+            if kept.ime.composing() {
                 return Handled::Yes;
+            }
+            match super::keys::take(&kept.focus, cx, k) {
+                Taken::Queue(input) => {
+                    kept.queue.push(input);
+                    cx.request_build();
+                    return Handled::Yes;
+                }
+                Taken::Held => return Handled::Yes,
+                Taken::No => {}
             }
             return super::focus::trap_tab(kept, false, cx, k);
         }
@@ -492,11 +543,14 @@ impl Element for ScopeNode {
         true
     }
 
-    /// The window root (the scope that holds the window's env cells) is the last claimant on every
-    /// key's path: Tab and F6.
+    /// The window root is the last claimant on every key's path: Tab and F6, then the command the
+    /// key is bound to.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
-            Event::Key(k) if kept.window_root => super::focus::window_keys(kept, cx, k),
+            Event::Key(k) if kept.window_root => match super::focus::window_keys(kept, cx, k) {
+                Handled::No => super::commands::window_command(kept, cx, k),
+                handled => handled,
+            },
             _ => Handled::No,
         }
     }

@@ -83,6 +83,9 @@ pub(crate) struct Flow {
     pub(crate) fills: usize,
     /// The window's toggle sweep record, handed down from the window root.
     pub(crate) sweep: Option<State<Sweep>>,
+    /// The intents the layer scope whose body this flow is took for it (an untaken Enter's Submit, a
+    /// clearing Escape); empty in every other flow ([`super::intents`]).
+    pub(crate) scope: super::intents::ScopeIntents,
 }
 
 impl Flow {
@@ -110,6 +113,7 @@ impl Flow {
             planned: Vec::new(),
             fills: 0,
             sweep: None,
+            scope: super::intents::ScopeIntents::default(),
         }
     }
 

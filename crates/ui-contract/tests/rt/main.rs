@@ -9,6 +9,7 @@ mod input;
 mod layout;
 mod overlay;
 mod services;
+mod text;
 mod windows;
 
 use craft_behavior::IconId;

@@ -258,7 +258,7 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
     }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop }, |kept, state, cx| {
+        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop, text: component.text_input() }, |kept, state, cx| {
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
             let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };

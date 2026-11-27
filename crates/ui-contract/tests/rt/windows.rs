@@ -355,7 +355,7 @@ fn a_job_wake_delivers_through_the_driver_and_runs_only_the_view_that_started_it
         deliver.deliver(store, images);
     });
     let mut app = Jobbed::default();
-    let host = WindowEnv { cells: None::<EnvCells>, jobs: Some(board) };
+    let host = WindowEnv { cells: None::<EnvCells>, jobs: Some(board), commands: None };
     let frame = |rig: &mut Rig<RecordingRenderer>, app: &mut Jobbed| {
         rig.frame_with(0.0, &mut |_, cx| {
             window_root_with(cx, host.clone(), |ui| {
