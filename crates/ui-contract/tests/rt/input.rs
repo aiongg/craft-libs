@@ -4,7 +4,7 @@
 use crate::skeleton::{IconButton, ScrollArea, Slider, Stack, Toggle};
 use craft_behavior::IconId;
 use craft_ui_contract::contract::Bind;
-use craft_ui_contract::contract::{MemoView, Ui};
+use craft_ui_contract::contract::{MemoView, Outbox, Ui};
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
@@ -65,22 +65,36 @@ impl Default for Nested {
 
 fn nested(ui: &mut Ui<'_, '_>, app: &mut Nested) {
     IconButton::new(IconId::new("plus"), "Top").show(ui);
-    MemoView::new(1u32).show(ui, |ui, _| {
-        Stack::new().show(ui, |ui| {
-            IconButton::new(IconId::new("brush"), "Z").show(ui);
-            let x = MemoView::new(2u32).show(ui, |ui, _| {
-                Stack::new().show(ui, |ui| {
-                    let x = IconButton::new(IconId::new("brush"), "X").show(ui);
-                    IconButton::new(IconId::new("eraser"), "Y").show(ui);
-                    x
-                })
-            });
-            app.x = x.rect;
-            if x.clicked() {
-                app.x_clicks += 1;
-            }
-        })
-    });
+    let mut clicks = Vec::new();
+    if let Some(shown) = MemoView::new(1u32, Outbox::new(&mut clicks), outer_view).show(ui) {
+        app.x = shown.value;
+    }
+    app.x_clicks += u32::try_from(clicks.len()).unwrap_or(u32::MAX);
+}
+
+/// The outer view: Z, and the inner view; it passes on the inner view's clicks on X.
+fn outer_view(clicks: &mut Outbox<'_, ()>, ui: &mut Ui) -> Rect {
+    Stack::new().show(ui, |ui| {
+        IconButton::new(IconId::new("brush"), "Z").show(ui);
+        let mut inner = Vec::new();
+        let x = MemoView::new(2u32, Outbox::new(&mut inner), inner_view).show(ui).map_or(Rect::NOTHING, |shown| shown.value);
+        for click in inner {
+            clicks.send(click);
+        }
+        x
+    })
+}
+
+/// The inner view: X and Y; it sends each click on X.
+fn inner_view(clicks: &mut Outbox<'_, ()>, ui: &mut Ui) -> Rect {
+    Stack::new().show(ui, |ui| {
+        let x = IconButton::new(IconId::new("brush"), "X").show(ui);
+        IconButton::new(IconId::new("eraser"), "Y").show(ui);
+        if x.clicked() {
+            clicks.send(());
+        }
+        x.rect
+    })
 }
 
 #[test]
@@ -234,15 +248,20 @@ impl Default for Reading {
     }
 }
 
+/// The view holding Inside: its rect and whether it reads hovered; it sends each run.
+fn inside_view(ran: &mut Outbox<'_, ()>, ui: &mut Ui) -> (Rect, bool) {
+    ran.send(());
+    let r = IconButton::new(IconId::new("brush"), "Inside").show(ui);
+    (r.rect, r.hovered())
+}
+
 fn reading(ui: &mut Ui<'_, '_>, app: &mut Reading) {
     app.outside = IconButton::new(IconId::new("plus"), "Outside").show(ui).rect;
-    let (rect, hovered) = MemoView::new(0u32).show(ui, |ui, _| {
-        app.view_runs += 1;
-        let r = IconButton::new(IconId::new("brush"), "Inside").show(ui);
-        (r.rect, r.hovered())
-    });
-    app.inside = rect;
-    app.hovered = hovered;
+    let mut ran = Vec::new();
+    if let Some(shown) = MemoView::new(0u32, Outbox::new(&mut ran), inside_view).show(ui) {
+        (app.inside, app.hovered) = shown.value;
+    }
+    app.view_runs += u32::try_from(ran.len()).unwrap_or(u32::MAX);
 }
 
 #[test]

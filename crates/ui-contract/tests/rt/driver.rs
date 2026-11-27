@@ -46,10 +46,15 @@ impl Component for HoverPad {
     }
 }
 
-#[derive(Default)]
 struct App {
     pad: Rect,
     button: Rect,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App { pad: Rect::NOTHING, button: Rect::NOTHING }
+    }
 }
 
 fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -81,13 +86,25 @@ fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepR
 fn a_pointer_move_reruns_only_the_node_that_reads_its_hover_point() {
     let mut app = App::default();
     let mut rig = settled(&mut app);
-    let entered = input(&mut rig, &mut app, Input::mouse_move(app.pad.center()));
+    let entered = {
+        let event = Input::mouse_move(app.pad.center());
+        input(&mut rig, &mut app, event)
+    };
     assert_eq!(entered.frame.runs, 1, "entering the pad runs the pad alone: {entered:?}");
-    let within = input(&mut rig, &mut app, Input::mouse_move(app.pad.center() + Vec2::new(5.0, 3.0)));
+    let within = {
+        let event = Input::mouse_move(app.pad.center() + Vec2::new(5.0, 3.0));
+        input(&mut rig, &mut app, event)
+    };
     assert_eq!(within.frame.runs, 1, "a move over the pad runs the pad again, and nothing else: {within:?}");
-    let left = input(&mut rig, &mut app, Input::mouse_move(app.button.center()));
+    let left = {
+        let event = Input::mouse_move(app.button.center());
+        input(&mut rig, &mut app, event)
+    };
     assert_eq!(left.frame.runs, 1, "leaving the pad runs it once; the button only repaints: {left:?}");
-    let over_button = input(&mut rig, &mut app, Input::mouse_move(app.button.center() + Vec2::new(1.0, 1.0)));
+    let over_button = {
+        let event = Input::mouse_move(app.button.center() + Vec2::new(1.0, 1.0));
+        input(&mut rig, &mut app, event)
+    };
     assert_eq!(over_button.frame.runs, 0, "a move away from the pad runs nothing: {over_button:?}");
     let away = input(&mut rig, &mut app, Input::mouse_move(Pos2::new(390.0, 290.0)));
     assert_eq!(away.frame.runs, 0);
@@ -168,9 +185,14 @@ impl Component for SlotFiller {
     }
 }
 
-#[derive(Default)]
 struct SlotApp {
     filler: Rect,
+}
+
+impl Default for SlotApp {
+    fn default() -> SlotApp {
+        SlotApp { filler: Rect::NOTHING }
+    }
 }
 
 fn slot_step(rig: &mut Rig<RecordingRenderer>, app: &mut SlotApp) -> StepReport {
@@ -284,7 +306,7 @@ mod nested {
     use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection, SpanLayout};
     use craft_ui_contract::contract::{
         Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome,
-        Response, Role, SelectMode, Show, ShowCollection as _, Ui,
+        Response, Role, SelectMode, ShowCollection as _, Ui,
     };
     use craft_ui_contract::runtime::windows::window_root;
     use craft_ui_contract::style::StyleCx;
@@ -418,6 +440,7 @@ mod nested {
         #[container]
         props: ContainerProps,
         items: CollectionProps,
+        #[key(skip)]
         inner: Option<&'a mut Selection<usize>>,
     }
 
@@ -466,10 +489,15 @@ mod nested {
         }
     }
 
-    #[derive(Default)]
     struct App {
         selection: Selection<usize>,
         button: Rect,
+    }
+
+    impl Default for App {
+        fn default() -> App {
+            App { selection: Default::default(), button: Rect::NOTHING }
+        }
     }
 
     fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -504,10 +532,19 @@ mod nested {
         let inner = INNER_RECT.with(Cell::get);
         let row = Pos2::new(inner.center().x, inner.min.y + ROW_H * 1.5);
 
-        input(&mut rig, &mut app, Input::mouse_move(app.button.center()));
+        {
+            let event = Input::mouse_move(app.button.center());
+            input(&mut rig, &mut app, event)
+        };
         let before = OUTER_RUNS.with(Cell::get);
-        input(&mut rig, &mut app, Input::mouse_down(app.button.center()));
-        input(&mut rig, &mut app, Input::mouse_up(app.button.center()));
+        {
+            let event = Input::mouse_down(app.button.center());
+            input(&mut rig, &mut app, event)
+        };
+        {
+            let event = Input::mouse_up(app.button.center());
+            input(&mut rig, &mut app, event)
+        };
         assert_eq!(OUTER_RUNS.with(Cell::get), before, "a press outside the outer collection does not run it");
 
         input(&mut rig, &mut app, Input::mouse_move(row));
@@ -515,7 +552,7 @@ mod nested {
         input(&mut rig, &mut app, Input::mouse_down(row));
         assert!(OUTER_RUNS.with(Cell::get) > before, "the inner collection's press reaches the outer one");
         input(&mut rig, &mut app, Input::mouse_up(row));
-        assert_eq!(app.selection.lead(), Some(&1), "the inner collection still takes the click");
+        assert_eq!(app.selection.lead, Some(1), "the inner collection still takes the click");
     }
 }
 
@@ -526,7 +563,7 @@ mod members {
     use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection, SpanLayout};
     use craft_ui_contract::contract::{
         Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome, PaintUi,
-        Response, Role, SelectMode, Show, ShowCollection as _,
+        Response, Role, SelectMode, ShowCollection as _,
     };
     use craft_ui_contract::runtime::windows::window_root;
     use craft_ui_contract::style::StyleCx;
@@ -665,11 +702,16 @@ mod members {
         }
     }
 
-    #[derive(Default)]
     struct App {
         selection: Selection<usize>,
         strip: Rect,
         button: Rect,
+    }
+
+    impl Default for App {
+        fn default() -> App {
+            App { selection: Default::default(), strip: Rect::NOTHING, button: Rect::NOTHING }
+        }
     }
 
     fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -710,15 +752,27 @@ mod members {
         }
         assert!(settled, "the rig did not settle");
 
-        input(&mut rig, &mut app, Input::mouse_move(row(&app, 0)));
+        {
+            let event = Input::mouse_move(row(&app, 0));
+            input(&mut rig, &mut app, event)
+        };
         take_hooks();
-        let report = input(&mut rig, &mut app, Input::mouse_move(row(&app, 1)));
+        let report = {
+            let event = Input::mouse_move(row(&app, 1));
+            input(&mut rig, &mut app, event)
+        };
         assert!(take_hooks().is_empty(), "a hover moving between member rows runs no member: {report:?}");
 
-        input(&mut rig, &mut app, Input::mouse_down(row(&app, 1)));
+        {
+            let event = Input::mouse_down(row(&app, 1));
+            input(&mut rig, &mut app, event)
+        };
         take_hooks();
-        input(&mut rig, &mut app, Input::mouse_up(row(&app, 1)));
-        assert_eq!(app.selection.lead(), Some(&1), "the click on a member row selects it");
+        {
+            let event = Input::mouse_up(row(&app, 1));
+            input(&mut rig, &mut app, event)
+        };
+        assert_eq!(app.selection.lead, Some(1), "the click on a member row selects it");
         let hooks = take_hooks();
         assert!(!hooks.is_empty(), "the selection change runs the collection and its members");
         for key in 0..ROWS {
@@ -741,7 +795,7 @@ mod members {
 /// Focus asked for by `Id` on a node that is no Tab stop (a collection row holding stops) lands on its first stop.
 mod focus_into {
     use craft_behavior::IconId;
-    use craft_ui_contract::contract::{Id, Props as _, Show as _};
+    use craft_ui_contract::contract::{Id, Props as _};
     use craft_ui_contract::runtime::focus::FocusTarget;
     use craft_ui_contract::runtime::windows::window_root;
     use craft_ui_rt::Vec2;
@@ -1110,10 +1164,15 @@ mod drop_mark {
         }
     }
 
-    #[derive(Default)]
     struct App {
         source: Rect,
         target: Rect,
+    }
+
+    impl Default for App {
+        fn default() -> App {
+            App { source: Rect::NOTHING, target: Rect::NOTHING }
+        }
     }
 
     fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -1241,5 +1300,174 @@ mod part_tips {
         h.advance(DELAY + 0.05);
         h.run();
         assert!(tip(&h).is_some());
+    }
+}
+
+/// OS file drags while a modal layer is shown reach only a target that takes files under a modal
+/// (`DropTarget::under_modal`), and a two-finger tap reaches the node under the fingers once.
+mod modal_files_and_taps {
+    use std::cell::RefCell;
+
+    use craft_ui_contract::contract::*;
+    use craft_ui_contract::runtime::drag::OsFiles;
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::{Contact, Input};
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{BuildCx, Constraints, Element, Layer, LayerSpec, LayoutCx, Placement, PointerPhase, Pos2, Rect, Sense, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    thread_local! {
+        /// The targets that took a drop, by name.
+        static DROPPED: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+        /// The multi-finger taps each pad took: its name and the finger count.
+        static TAPS: RefCell<Vec<(&'static str, u8)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Takes OS files anywhere over its rect; under a modal only when `under_modal`.
+    struct Files {
+        rect: Rect,
+        under_modal: bool,
+    }
+
+    impl DropTarget<OsFiles> for Files {
+        type Drop = ();
+
+        fn accept(&self, _: &OsFiles, _: Pos2, _: DropOperation) -> Option<()> {
+            Some(())
+        }
+
+        fn mark(&self, _: &()) -> DropMark {
+            DropMark::line(self.rect.left_top(), self.rect.right_top())
+        }
+
+        fn under_modal(&self) -> bool {
+            self.under_modal
+        }
+    }
+
+    /// A pad that takes OS files (under a modal when `under_modal`) and multi-finger taps.
+    #[derive(Component)]
+    struct Pad {
+        #[common]
+        common: Common,
+        name: &'static str,
+        under_modal: bool,
+    }
+
+    impl Component for Pad {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: PadStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(120.0, 60.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER | Sense::CLICK
+        }
+
+        fn update(&mut self, cx: &mut Cx<'_, Self>) {
+            let rect = cx.rect;
+            if cx.drop_target::<OsFiles, _>(&Files { rect, under_modal: self.under_modal }).is_some() {
+                DROPPED.with(|d| d.borrow_mut().push(self.name));
+            }
+            if let Some(tap) = cx.take_multi_tap() {
+                TAPS.with(|t| t.borrow_mut().push((self.name, tap.fingers)));
+            }
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    /// A blank sheet on the modal layer, away from the pads.
+    struct Sheet;
+
+    impl Element for Sheet {
+        type Output = ();
+        type Local = ();
+
+        fn props_key(&self) -> u64 {
+            0
+        }
+
+        fn init(&self, _: &mut BuildCx<'_>) {}
+
+        fn layout(&self, _: &mut (), _: &mut LayoutCx<'_>, c: Constraints) -> Vec2 {
+            c.constrain(Vec2::new(40.0, 40.0))
+        }
+    }
+
+    struct App {
+        modal: bool,
+        flagged: Rect,
+        plain: Rect,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            if app.modal {
+                cx.layer(Layer::Modal, "sheet", LayerSpec::new(Placement::At(Pos2::new(350.0, 250.0))), Sheet);
+            }
+            window_root(cx, |ui| {
+                app.flagged = Show::show(Pad { common: Common::new(), name: "flagged", under_modal: true }, ui).rect;
+                app.plain = Show::show(Pad { common: Common::new(), name: "plain", under_modal: false }, ui).rect;
+            })
+        })
+    }
+
+    fn settled(app: &mut App) -> Rig<RecordingRenderer> {
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig, app).ran), "the rig did not settle");
+        rig
+    }
+
+    fn drop_files(rig: &mut Rig<RecordingRenderer>, app: &mut App, at: Pos2) {
+        let main = rig.main;
+        rig.driver.platform.file_drop(main, vec!["photo.png".into()], Some(at));
+        step(rig, app);
+        step(rig, app);
+    }
+
+    #[test]
+    fn an_os_file_drag_under_a_modal_reaches_only_a_target_that_takes_files_under_a_modal() {
+        let mut app = App { modal: true, flagged: Rect::NOTHING, plain: Rect::NOTHING };
+        let mut rig = settled(&mut app);
+        let (flagged, plain) = (app.flagged.center(), app.plain.center());
+        drop_files(&mut rig, &mut app, plain);
+        assert_eq!(DROPPED.with(|d| d.borrow().clone()), Vec::<&str>::new(), "the modal refuses the files over the plain target");
+        drop_files(&mut rig, &mut app, flagged);
+        assert_eq!(DROPPED.with(|d| d.borrow().clone()), vec!["flagged"], "the flagged target takes them under the modal");
+        app.modal = false;
+        step(&mut rig, &mut app);
+        drop_files(&mut rig, &mut app, plain);
+        assert_eq!(DROPPED.with(|d| d.borrow().clone()), vec!["flagged", "plain"], "without the modal the plain target takes them");
+    }
+
+    #[test]
+    fn a_two_finger_tap_reaches_the_pad_under_the_fingers_once_and_no_other() {
+        let mut app = App { modal: false, flagged: Rect::NOTHING, plain: Rect::NOTHING };
+        let mut rig = settled(&mut app);
+        let main = rig.main;
+        let at = app.plain.center();
+        let fingers = [(Contact::touch(1), at - Vec2::new(6.0, 0.0)), (Contact::touch(2), at + Vec2::new(6.0, 0.0))];
+        for (contact, pos) in fingers {
+            rig.inject(main, Input::pointer(contact, PointerPhase::Down, pos));
+        }
+        step(&mut rig, &mut app);
+        for (contact, pos) in fingers {
+            rig.inject(main, Input::pointer(contact, PointerPhase::Up, pos));
+        }
+        step(&mut rig, &mut app);
+        step(&mut rig, &mut app);
+        assert_eq!(TAPS.with(|t| t.borrow().clone()), vec![("plain", 2)], "one tap of two fingers, on the pad under them");
     }
 }

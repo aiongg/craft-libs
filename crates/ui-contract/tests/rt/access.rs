@@ -6,8 +6,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use craft_ui_contract::contract::{
-    Access, AccessAction, Common, Component, Container, ContainerProps, Cx, Gap, MeasureCx, MemoView, NodeInput, Numeric, PaintUi, Politeness,
-    Response, Role, Scroll, Show as _, ShowContainer as _, Sizing, Styled as _, Ui,
+    Access, AccessAction, Common, Component, Container, ContainerProps, Cx, Gap, MeasureCx, MemoProps, MemoView, Name, NodeInput, Numeric, Outbox,
+    PaintUi, Politeness, Response, Role, Scroll, Show as _, ShowContainer as _, Sizing, Styled as _, Ui,
 };
 use craft_ui_contract::primitives::PaintShape;
 use craft_ui_contract::runtime::windows::window_root;
@@ -64,7 +64,7 @@ impl Component for Item {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let ink = ui.env.tokens.theme().color.text.faint;
+        let ink = ui.env.tokens.color.text.faint;
         if cx.state().state != craft_theme::State::Rest {
             ui.draw().fill(&PaintShape::Rect(cx.rect, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
         }
@@ -72,11 +72,11 @@ impl Component for Item {
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
         self.accessed.set(self.accessed.get() + 1);
-        access.label(self.label.as_str());
+        access.name(Name::Text(self.label.clone()));
         if let Some(v) = self.number {
             access.numeric(Numeric::new(v, 0.0..=10.0).step(1.0));
         }
-        access.custom_action(7, "Reset");
+        access.custom_action(7, "Reset".into());
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
@@ -109,30 +109,39 @@ impl App {
             clicks: 0,
             a: Rect::NOTHING,
             other: Rect::NOTHING,
-            runs: Rc::default(),
-            accessed: Rc::default(),
-            seen: Rc::default(),
+            runs: COUNTERS.with(|c| c.0.clone()),
+            accessed: COUNTERS.with(|c| c.1.clone()),
+            seen: COUNTERS.with(|c| c.2.clone()),
             view_runs: 0,
         }
     }
 }
 
-fn item(ui: &mut Ui<'_, '_>, app: &App, label: &str, number: Option<f64>) -> Response {
-    Item {
-        common: Common::new(),
-        label: label.into(),
-        bits: number.map(f64::to_bits),
-        number,
-        runs: app.runs.clone(),
-        accessed: app.accessed.clone(),
-        seen: app.seen.clone(),
-    }
-    .show(ui)
+thread_local! {
+    /// The counters every `Item` of the running trial shares: runs, `access` calls and the actions that reached it.
+    static COUNTERS: (Rc<Cell<u32>>, Rc<Cell<u32>>, Rc<std::cell::RefCell<Vec<AccessAction>>>) = Default::default();
+}
+
+fn item(ui: &mut Ui<'_, '_>, label: &str, number: Option<f64>) -> Response {
+    let (runs, accessed, seen) = COUNTERS.with(|c| c.clone());
+    Item { common: Common::new(), label: label.into(), bits: number.map(f64::to_bits), number, runs, accessed, seen }.show(ui)
+}
+
+/// The view holding A: its label, and each run sent out.
+#[derive(MemoProps)]
+struct ViewProps<'a> {
+    label: String,
+    ran: Outbox<'a, ()>,
+}
+
+fn view(props: &mut ViewProps<'_>, ui: &mut Ui) -> Rect {
+    props.ran.send(());
+    item(ui, &props.label, Some(3.0)).rect
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     let other_label = app.other_label.clone();
-    let o = item(ui, app, &other_label, None);
+    let o = item(ui, &other_label, None);
     app.other = o.rect;
     if o.clicked() {
         app.clicks += 1;
@@ -144,11 +153,11 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
         }
     }
     let label = app.label_a.clone();
-    let rect = MemoView::new(label).show(ui, |ui, label| {
-        app.view_runs += 1;
-        item(ui, app, label, Some(3.0)).rect
-    });
-    app.a = rect;
+    let mut ran = Vec::new();
+    if let Some(shown) = MemoView::new("a", ViewProps { label, ran: Outbox::new(&mut ran) }, view).show(ui) {
+        app.a = shown.value;
+    }
+    app.view_runs += u32::try_from(ran.len()).unwrap_or(u32::MAX);
 }
 
 fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -330,24 +339,23 @@ impl Component for Pane {
 
 impl Container for Pane {}
 
-fn rows_ui(ui: &mut Ui<'_, '_>, app: &App) {
+fn rows_ui(ui: &mut Ui<'_, '_>) {
     let mut props = ContainerProps::new();
     props.body_gap = Gap::None;
     let props = props.scroll(Scroll::vertical()).sizing(Sizing::Fill);
     Pane { common: Common::new(), props }.show(ui, |ui, _| {
         for i in 0..300 {
-            item(ui, app, &format!("row {i}"), None);
+            item(ui, &format!("row {i}"), None);
         }
     });
 }
 
 #[test]
 fn rows_out_of_view_are_not_in_the_tree_and_scrolling_sends_only_those_that_enter() {
-    let app = App::new();
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
     let main = rig.main;
     rig.driver.runtime.set_access_enabled(main, true);
-    let step = |rig: &mut Rig<RecordingRenderer>| rig.step_with(&mut |_, cx| window_root(cx, |ui| rows_ui(ui, &app)));
+    let step = |rig: &mut Rig<RecordingRenderer>| rig.step_with(&mut |_, cx| window_root(cx, |ui| rows_ui(ui)));
     for _ in 0..6 {
         if !step(&mut rig).ran {
             break;

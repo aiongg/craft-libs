@@ -122,6 +122,7 @@ pub use values::{Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoVa
 
 pub use crate::primitives::{Id, IdSalt};
 pub use craft_ui_rt::ImePurpose;
+pub use rt::access::AccessAction;
 pub use rt::drag::{DragSource, DropRule};
 #[doc(hidden)]
 pub use rt::node::NodeInput;
