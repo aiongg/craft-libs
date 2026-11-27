@@ -63,14 +63,6 @@ impl<'a> EnvView<'a> {
         self.scoped.measure
     }
 
-    /// The content-sized `Stack` column whose first sweep runs now, if the scope is a direct child of it in flow.
-    pub(crate) fn column_first_sweep(&self) -> Option<Id> {
-        match self.scoped.column {
-            Some(super::ColumnSweep::Count(column)) => Some(column),
-            _ => None,
-        }
-    }
-
     /// The side label whose control the scope shows; `None` outside a label scope.
     pub(crate) fn field_label(&self) -> Option<&'a crate::runtime::access::FieldLabel> {
         self.scoped.field_label.as_deref()

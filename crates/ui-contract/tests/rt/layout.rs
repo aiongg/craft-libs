@@ -4,18 +4,21 @@
 //! is as tall as its content until it outgrows the room, a kept `MemoView` repeats no event, and a column group
 //! settles in its first frame.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use craft_behavior::{ColumnKey, Sense};
+use craft_ui::contract::Edit as _;
 use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
 use craft_ui::contract::{
-    BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps,
-    MemoView, Mount, Overlay, PaneEdge, Response, RowAlign, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, Ui,
+    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, EditResponse, FooterRegion, Gap, HeaderRegion, Lazy,
+    MeasureCx, MemoKey, MemoProps, MemoView, Mount, Overlay, PaneEdge, Props as _, Response, RowAlign, Scroll, ShellPane, Show as _,
+    ShowContainer as _, SideLabel, Sizing, Ui, Validity,
 };
 use craft_ui::layout::{BodyLayout, ColumnGroup};
 use craft_ui::runtime::edit::OuterEdit;
+use craft_ui::runtime::env::Message;
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::Input;
@@ -1017,4 +1020,204 @@ fn a_pane_edge_drag_saves_its_placement_once() {
     assert_eq!(panes.pane.width(), 140.0, "the pane keeps the extent the drag saved: {:?}", panes.pane);
     assert!(panes.after.min.x >= 140.0, "{:?}", panes.after);
     assert_eq!(panes.changes.borrow().len(), changes.len(), "a build reports no placement change");
+}
+
+/// A leaf bound to a text whose check warns while the text is empty.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Needed<'a> {
+    #[common]
+    common: Common,
+    value: Bind<'a, String>,
+    #[key(skip)]
+    rect: Rc<Cell<Rect>>,
+}
+
+impl Component for Needed<'_> {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = EditResponse<String>;
+
+    fn style(_: &StyleCx<'_>, _: NeededStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(60.0, ROW)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, String>> {
+        Some(self.value.reborrow())
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<String> {
+        self.rect.set(cx.rect);
+        cx.edit_response()
+    }
+}
+
+/// A container with a field label, a header that counts its runs and a footer that counts its runs and records the
+/// field message it was given.
+#[derive(craft_ui::contract::Component)]
+#[component(container, unregistered)]
+struct Field {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    #[key(skip)]
+    headers: Rc<Cell<u32>>,
+    #[key(skip)]
+    footers: Rc<Cell<u32>>,
+    #[key(skip)]
+    message: Rc<RefCell<Option<String>>>,
+}
+
+impl Component for Field {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FieldStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Field {
+    fn header(&mut self, _: &mut Ui, _: &mut BodyCx<'_>) {
+        self.headers.set(self.headers.get() + 1);
+    }
+
+    fn footer(&mut self, _: &mut Ui, bcx: &mut BodyCx<'_>) {
+        self.footers.set(self.footers.get() + 1);
+        *self.message.borrow_mut() = bcx.field_message().map(|(message, _)| message.text.as_str().to_owned());
+    }
+}
+
+struct FieldState {
+    value: String,
+    field: Rc<Cell<Rect>>,
+    control: Rc<Cell<Rect>>,
+    headers: Rc<Cell<u32>>,
+    footers: Rc<Cell<u32>>,
+    message: Rc<RefCell<Option<String>>>,
+}
+
+impl Default for FieldState {
+    fn default() -> FieldState {
+        FieldState {
+            value: String::new(),
+            field: Rc::new(Cell::new(Rect::NOTHING)),
+            control: Rc::new(Cell::new(Rect::NOTHING)),
+            headers: Rc::default(),
+            footers: Rc::default(),
+            message: Rc::default(),
+        }
+    }
+}
+
+fn field_ui(ui: &mut Ui, state: &mut FieldState) {
+    let mut footer = FooterRegion::new();
+    footer.status = true;
+    let props = props(|p| p.header(HeaderRegion::new()).footer(footer).label(SideLabel::new()));
+    let field =
+        Field { common: Common::new(), props, headers: state.headers.clone(), footers: state.footers.clone(), message: state.message.clone() }
+            .label("Name");
+    let control = state.control.clone();
+    let value = &mut state.value;
+    let shown = field.show(ui, |ui, _| {
+        let check = |text: &String| if text.is_empty() { Validity::Warn(Message::new("Needed")) } else { Validity::Ok };
+        Needed { common: Common::new(), value: Bind::bound(value).check(check), rect: control.clone() }.show(ui);
+    });
+    state.field.set(shown.output.rect);
+}
+
+#[test]
+fn a_labelled_container_shows_its_label_and_its_bodys_field_message_under_it() {
+    let mut rig = rig();
+    let mut state = FieldState::default();
+    settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| field_ui(ui, &mut state))));
+    let (field, control) = (state.field.get(), state.control.get());
+    assert!(control.min.x > field.min.x, "the label stands beside the control: {field:?} {control:?}");
+    assert!(field.contains_rect(control), "the control stays inside the field");
+    assert_eq!(state.message.borrow().as_deref(), Some("Needed"), "the footer shows the control's message");
+}
+
+#[test]
+fn a_field_message_change_reruns_only_the_containers_footer() {
+    let mut rig = rig();
+    let mut state = FieldState::default();
+    settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| field_ui(ui, &mut state))));
+    let (headers, footers) = (state.headers.get(), state.footers.get());
+    state.value = "Ada".into();
+    settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| field_ui(ui, &mut state))));
+    assert_eq!(state.message.borrow().as_deref(), None, "the message clears with the warning");
+    assert!(state.footers.get() > footers, "the footer ran for the message");
+    assert_eq!(state.headers.get(), headers, "the header did not run");
+}
+
+/// A leaf 100 wide in no room and 40 at its least, which takes the room it is given between the two.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Narrowing {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    rect: Rc<Cell<Rect>>,
+}
+
+impl Component for Narrowing {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: NarrowingStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let width = match cx.proposal {
+            craft_behavior::Proposal::Min => 40.0,
+            _ => cx.room.map_or(100.0, |room| room.clamp(40.0, 100.0)),
+        };
+        Vec2::new(width, ROW)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        self.rect.set(cx.rect);
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_row_too_long_for_its_room_narrows_its_leaves_evenly_down_to_their_least() {
+    let mut rig = rig();
+    let rects: Vec<Rc<Cell<Rect>>> = (0..3).map(|_| Rc::new(Cell::new(Rect::NOTHING))).collect();
+    let measures = Rc::new(Cell::new(0));
+    let row = Rect::from_min_size(Pos2::ZERO, Vec2::new(200.0, 100.0));
+    let mut step = |rig: &mut Rig<RecordingRenderer>| {
+        rig.step_with(&mut |_, cx| {
+            root(cx, |ui| {
+                let props = props(|p| p.layout(BodyLayout::row()).sizing(Sizing::FillWidth));
+                Boxed::new(props, &measures).show_at(ui, row, |ui, _| {
+                    for (i, rect) in rects.iter().enumerate() {
+                        Narrowing { common: Common::new(), rect: rect.clone() }.id_salt(i).show(ui);
+                    }
+                });
+            })
+        })
+    };
+    settle(&mut rig, &mut step);
+    let shown: Vec<Rect> = rects.iter().map(|r| r.get()).collect();
+    for rect in &shown {
+        assert!(rect.width() < 100.0 && rect.width() >= 40.0, "each leaf narrows, never below its least: {shown:?}");
+        assert!(rect.max.x <= row.max.x + 0.5, "every leaf stays in the row: {shown:?}");
+    }
+    assert!((shown[0].width() - shown[2].width()).abs() < 0.5, "the leaves give way evenly: {shown:?}");
+    assert!(shown.windows(2).all(|w| w[0].max.x <= w[1].min.x + 0.01), "no leaf cuts into its neighbour: {shown:?}");
+    assert!(!step(&mut rig).ran, "a settled row runs nothing");
 }

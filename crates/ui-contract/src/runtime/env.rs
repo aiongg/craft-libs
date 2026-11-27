@@ -200,10 +200,6 @@ pub struct Scoped {
     /// The shrink step of the unwrapped `Row` or `Stack` body that encloses the scope, as its direct children in flow
     /// take part in it.
     pub(crate) shrink: Option<Shrink>,
-    /// The sweep of the content-sized `Stack` column that encloses the scope, as its direct children in flow see it:
-    /// a held fill-width child reports the width it measured at, and after the column's second sweep measures and
-    /// shows at the width the column settled on (`ColumnSweep`).
-    pub(crate) column: Option<ColumnSweep>,
     /// The scope runs in the least measure of a body (`Shrink::Least`): every leaf in flow takes its least width. It
     /// holds through the bodies nested inside.
     pub(crate) least: bool,
@@ -322,31 +318,17 @@ impl Deref for Scoped {
 }
 
 /// The shrink step of an unwrapped `Row` or a `Stack` body, as its direct children shown in flow see it. In a row
-/// each leaf, and each body that does not fill the row, is a unit the row narrows to fit.
+/// each child that does not fill it is a unit the row narrows to fit (`layout::row_shrink`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Shrink {
-    /// The first sweep of a measuring run of the row: each unit reports its widths to the row (`layout::report_shrink`),
-    /// a levelled unit its width at each level (`layout::levelled_unit`).
-    Count(Id),
-    /// The sweep of a short row that asks each body unit for its least width (`layout::report_least`): it measures its
-    /// content unbounded along x, every leaf at its least, and leaves no record.
+    /// The sweep of a measuring run of a row too long for its room that asks each unit for its least width: it
+    /// measures unbounded along x, every leaf at its least (`Scoped::least`).
     Least(Id),
-    /// Each unit shows at most the width the measuring run of the row gave it (`layout::shrink_cap`), a levelled unit
-    /// at the level the row gave it.
+    /// Each unit of the row `Id` shows at most the room the row's plan gave it, never below its least: a leaf whose
+    /// measure does not follow its room still fits.
     Apply(Id),
     /// A `Stack` body or a wrapping `Row`: each leaf shows at most the room (a whole line), never below its least.
     Fit,
-}
-
-/// The sweep of a content-sized `Stack` column, as its direct children shown in flow see it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum ColumnSweep {
-    /// The first sweep of the measuring run of the column `Id`: each held fill-width child reports the width it
-    /// measured at (`layout::report_held`).
-    Count(Id),
-    /// The width the content-sized `Stack` column `Id` settled on, in its second sweep and in the real run after one:
-    /// a held fill-width child measures and shows across it, and a held picture measures in it.
-    Column(Id, f32),
 }
 
 /// The line of an unwrapped `Row` body, as its direct children placed in flow see it: a child of one line sits with
@@ -500,7 +482,6 @@ impl Scoped {
         self.fill_share = None;
         self.fill_view = None;
         self.shrink = None;
-        self.column = None;
         self.offered = None;
         self.egui_cell = false;
     }
@@ -520,7 +501,6 @@ impl Scoped {
             || self.fill_share.is_some()
             || self.fill_view.is_some()
             || self.shrink.is_some()
-            || self.column.is_some()
             || self.offered.is_some()
     }
 
@@ -538,7 +518,7 @@ impl Scoped {
     /// that fills there takes its measured width, not the row's flow region a view the row does not narrow is shown in.
     pub(crate) fn start_view_room(&mut self, view: Id) {
         let fits = self.view_fits();
-        let row_unit = matches!(self.shrink, Some(Shrink::Count(_) | Shrink::Least(_) | Shrink::Apply(_)));
+        let row_unit = matches!(self.shrink, Some(Shrink::Least(_) | Shrink::Apply(_)));
         let shares = self.shares();
         let (content_column, given_column, egui_cell) = (self.content_column, self.given_column, self.egui_cell);
         // The view stands on the line of the row around it only to fill it, as a levelled unit does: a fill-width row in
@@ -570,7 +550,7 @@ impl Scoped {
     /// `Row` narrows. In a `Grid` cell or a `Ui` with no body around it a leaf keeps its measured width, and so does the
     /// view's content.
     pub(crate) const fn view_fits(&self) -> bool {
-        matches!(self.shrink, Some(Shrink::Count(_) | Shrink::Least(_) | Shrink::Apply(_) | Shrink::Fit))
+        matches!(self.shrink, Some(Shrink::Least(_) | Shrink::Apply(_) | Shrink::Fit))
     }
 
     /// The key of everything a memoized view shown in this scope inherits beyond `key` and `flow` (the style inputs and
@@ -781,7 +761,6 @@ impl Env {
                 fill_share: None,
                 fill_view: None,
                 shrink: None,
-                column: None,
                 least: false,
                 offered: None,
                 measure: None,

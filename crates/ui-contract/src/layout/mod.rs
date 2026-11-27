@@ -16,4 +16,4 @@ pub use slot::measure_slot;
 
 #[doc(hidden)]
 pub use body::place_in_flow;
-pub(crate) use body::{HeldKind, flow_room, grid_cell};
+pub(crate) use body::{HeldKind, flow_room, grid_cell, row_overflows, row_shrink, shrink_cap};
