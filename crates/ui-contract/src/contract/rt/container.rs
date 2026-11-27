@@ -1182,82 +1182,18 @@ fn show_plain<C: Container, R>(
                     flow.placed.push(Placed { node: cx.node(), offset: rect.min - flow.origin, size });
                     rect
                 }
-                shape.closed = !open && shape.share <= 0.0;
-                let own_kept = holds(kept, key, state);
-                let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
-                let into =
-                    Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
-                crate::layout::begin_capture(&ctx);
-                let (size, mut inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
-                kept.column_reports = crate::layout::end_capture(&ctx);
-                // A container that owns its body's scroll without a scroll region (a canvas with a view of its own) takes
-                // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`). Its least move
-                // brings the point to the edge of its view, and the scroll bodies around it bring that place into theirs.
-                if props.scroll_owner
-                    && shape.scroll.is_none()
-                    && let Some(at) = inner.reveal.take()
-                {
-                    kept.queue.push(NodeInput::Reveal(Rect::from_min_size(at, Vec2::ZERO)));
-                    let view = Rect::from_min_size(origin, size);
-                    inner.reveal = Some(at.clamp(view.min, view.max));
+            };
+            if let Some(why) = frame.close {
+                component.closed(why);
+                if let Some(host) = &hosted {
+                    host.close(why);
                 }
-                flow.absorb(&inner);
-                // The header changed the open state or the gate after the body was laid out by the old one: the body read
-                // it, so the container builds again in this frame (the same-frame rerun rule).
-                if frame.open != frame.open_at_read {
-                    write_open(&mut component, kept, frame.open, &resolved, &props, &ctx);
-                    cx.rebuild();
-                }
-                if let Some(on) = frame.gate.filter(|on| Some(*on) != frame.gate_at_read) {
-                    write_gate(&mut component, on, &resolved);
-                    cx.rebuild();
-                }
-                let rect = match at {
-                    ShowAt::Flow => flow.allocate(Some(cx.node()), size, fills),
-                    ShowAt::Rect(rect) => {
-                        let rect = Rect::from_min_size(rect.min, size);
-                        flow.placed.push(Placed { node: cx.node(), offset: rect.min - flow.origin, size });
-                        rect
-                    }
-                };
-                if let Some(why) = frame.close {
-                    component.closed(why);
-                    if let Some(host) = &hosted {
-                        host.close(why);
-                    }
-                }
-                if own_kept && size == kept.size {
-                    kept.cache(room, size);
-                    // The body reconciled the children; the layer children are reached the same way.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
-                    let output = settle(component, kept, cx, rect, &begun, value, ctx.clone());
-                    kept.memory.flush();
-                    return output;
-                }
-                let ran = Ran {
-                    id,
-                    key,
-                    place: Place { room },
-                    size,
-                    rect,
-                    tokens: &tokens,
-                    sweep,
-                    begun: &begun,
-                    value,
-                    tip,
-                    context: ctx.clone(),
-                    flow_reveal: &mut flow.reveal,
-                };
-                let output = run(component, kept, cx, ran);
-                // The props' scope and roving group, where the component's hooks name none.
-                if scope != crate::runtime::focus::FocusPolicy::NONE {
-                    kept.focus.scope = scope;
-                    cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
-                }
-                if roving.is_some() {
-                    kept.focus.roving = roving;
-                }
-                note_access(kept, &props, open);
+            }
+            if own_kept && size == kept.size {
+                kept.cache(room, size);
+                // The body reconciled the children; the layer children are reached the same way.
+                reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
+                let output = settle(component, kept, cx, rect, &begun, value, ctx.clone());
                 kept.memory.flush();
                 return output;
             }
