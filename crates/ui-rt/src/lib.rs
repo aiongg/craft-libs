@@ -85,7 +85,7 @@ pub use craft_behavior::{
 pub use craft_host::target::Os;
 pub use craft_keymap::chord::{Key, Mods};
 pub use craft_theme::{Rgba, Tokens};
-pub use emath::{Align, Pos2, Rangef, Rect, Vec2, lerp, pos2, vec2};
+pub use emath::{Align, Align2, Pos2, Rangef, Rect, Vec2, lerp, pos2, vec2};
 pub use kurbo::BezPath;
 
 #[cfg(test)]

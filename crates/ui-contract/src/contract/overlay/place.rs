@@ -1,8 +1,8 @@
 //! Where a layer sits and how it sizes: anchors, places, viewport shares, fit, resize and size limits.
 
 use craft_behavior::overlay::{Align, Side};
+use craft_ui_rt::Align2;
 use craft_ui_rt::{Pos2, Rect, Vec2};
-use egui::Align2;
 
 /// Where an overlay hangs from.
 #[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
@@ -61,7 +61,7 @@ impl FloatPlace {
     }
 }
 
-/// Where an egui layer sits.
+/// Where an overlay layer sits.
 #[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Place {
@@ -149,7 +149,7 @@ impl ViewportShare {
     }
 }
 
-/// How an egui layer sizes.
+/// How an overlay layer sizes.
 #[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum OverlayFit {

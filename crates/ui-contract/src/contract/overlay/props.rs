@@ -11,10 +11,8 @@ use crate::runtime::overlay::{Backdrop, LayerRole, Rank};
 use crate::runtime::windows::ResizeEdge;
 use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_behavior::{GesturePhase, OwnerClass};
+use craft_ui_rt::Align2;
 use craft_ui_rt::{Pos2, Rect, Vec2};
-use egui::Align2;
-use egui::emath::TSTransform;
-use std::borrow::Cow;
 
 /// What a press outside the layer and its anchor does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
@@ -100,7 +98,7 @@ impl Default for Dismiss {
     }
 }
 
-/// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
+/// Data describing an overlay layer. Presets fill focus and dismissal; builders change single fields.
 #[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Overlay {
@@ -204,29 +202,6 @@ impl Overlay {
             role: LayerRole::default(),
             full_window: false,
         }
-    }
-
-    /// The overlay with what its caller gives in the parent's layer space (`placed`, `placed_at`, a float position
-    /// and `bounds`) in screen space, by the parent layer's map `to_screen`: where the layer host places the layer and
-    /// its body moves and resizes it.
-    pub(crate) fn in_screen(&self, to_screen: TSTransform) -> Cow<'_, Overlay> {
-        if to_screen == TSTransform::IDENTITY {
-            return Cow::Borrowed(self);
-        }
-        let mut mapped = self.clone();
-        mapped.placed = mapped.placed.map(|rect| to_screen * rect);
-        mapped.placed_at = mapped.placed_at.map(|pos| to_screen * pos);
-        mapped.bounds = mapped.bounds.map(|rect| to_screen * rect);
-        match &mut mapped.place {
-            Place::Float(FloatPlace { pos: Some(pos), .. }) => *pos = to_screen * *pos,
-            // An offset is a vector: it scales with the layer's space and does not translate.
-            Place::Anchored { offset, clear, .. } => {
-                *offset = to_screen.scaling * *offset;
-                *clear = clear.map(|rect| to_screen * rect);
-            }
-            _ => {}
-        }
-        Cow::Owned(mapped)
     }
 
     fn below() -> Place {
