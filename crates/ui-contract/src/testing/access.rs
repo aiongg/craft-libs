@@ -60,6 +60,11 @@ impl AccessView {
         self.data_of(key).is_some_and(|node| node.supports_action(action))
     }
 
+    /// Whether a column header node declares a sort direction: it sorts when activated, sorted now or not.
+    pub fn declares_sort(&self, key: NodeKey) -> bool {
+        self.data_of(key).is_some_and(|node| node.sort_direction().is_some())
+    }
+
     /// The node's role.
     pub fn role_of(&self, key: NodeKey) -> Option<Role> {
         self.data_of(key).map(Node::role)

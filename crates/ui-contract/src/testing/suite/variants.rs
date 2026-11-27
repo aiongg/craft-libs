@@ -3,7 +3,6 @@
 
 use super::drive::{cancels, for_input, root_target, run, tab_or_press, variants};
 use super::{ANY, Case, Subject};
-use crate::contract::Role;
 use crate::testing::access::AccessView;
 use crate::testing::access::{is_interactive, violations};
 use crate::testing::relations::mirrored;
@@ -135,7 +134,7 @@ fn in_document_space(tree: &AccessView, key: accesskit::NodeId) -> bool {
     let mut inside = false;
     while let Some(node) = at {
         let role = tree.role_of(node);
-        if role == Some(Role::GraphicsObject) || (inside && role == Some(Role::Canvas)) {
+        if role == Some(accesskit::Role::GraphicsObject) || (inside && role == Some(accesskit::Role::Canvas)) {
             return true;
         }
         inside = true;
@@ -239,8 +238,8 @@ fn hosts() -> Option<(Arc<craft_host::Host>, Arc<craft_host::Host>)> {
     Some((english.clone(), Arc::new(english.with_lang(japanese))))
 }
 
-/// After a language change to a non-Latin language the ids are as before, a settled frame runs one pass (no
-/// font-coverage discard) and the access rules still hold.
+/// After a language change to a non-Latin language the ids are as before, a settled frame builds nothing and the
+/// access rules still hold.
 fn a_language_change_keeps_the_ids(subject: &Subject) -> Result<(), String> {
     let Some((english, japanese)) = hosts() else { return Err("the suite's language catalogs did not build".to_owned()) };
     for story in &subject.stories {
@@ -253,8 +252,10 @@ fn a_language_change_keeps_the_ids(subject: &Subject) -> Result<(), String> {
         if fixture.root_id() != id {
             return Err(format!("{}: the id changed with the language", story.name));
         }
-        if fixture.passes() != 1 {
-            return Err(format!("{}: a settled frame ran {} passes after the language changed", story.name, fixture.passes()));
+        let builds = fixture.builds();
+        fixture.step();
+        if fixture.builds() != builds {
+            return Err(format!("{}: a settled frame built the story again after the language changed", story.name));
         }
         let found = violations(&fixture.tree());
         if !found.is_empty() {

@@ -29,7 +29,7 @@ fn slop_separates_click_from_drag(subject: &Subject) -> Result<(), String> {
         let slop = fixture.slop();
         match plan {
             Plan::Activate if !probe.carries_value() && fixture.tree().declares_key(root_target(fixture).id, Action::Click) => {
-                let part = fixture.click_part().zip(fixture.root_id());
+                let part = fixture.root_id().and_then(|id| fixture.click_part(id).map(|part| (part, id)));
                 let target = |fixture: &StoryHarness| {
                     let target = part.and_then(|(part, id)| fixture.part(id, part)).unwrap_or_else(|| root_target(fixture));
                     fixture.visible(&target).unwrap_or(target)

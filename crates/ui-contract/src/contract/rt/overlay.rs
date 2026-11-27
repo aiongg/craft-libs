@@ -243,6 +243,9 @@ pub(crate) enum Surface {
 /// owner last built.
 pub(crate) struct LayerKept {
     pub(crate) kept: Kept,
+    /// The layer's key and surface, as its element gave them (the harness lists layers by them).
+    pub(crate) key: u64,
+    pub(crate) surface: Surface,
     /// ui-rt asked it to go; its owner's next overlay pass closes it.
     pub(crate) dismissed: Option<DismissReason>,
     /// The pointer is over it (a toast stack holds its timers while it is).
@@ -285,6 +288,8 @@ impl Element for LayerScope {
     fn init(&self, _: &mut BuildCx<'_>) -> LayerKept {
         LayerKept {
             kept: Kept::new(),
+            key: self.key,
+            surface: self.surface,
             dismissed: None,
             hovered: false,
             frame: DisplayList::default(),

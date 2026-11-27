@@ -80,7 +80,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         let Some((_, size)) = position_in_set(&fixture, shown[0].id) else { continue };
         row_click::click(&mut fixture, &shown[0]);
         let name = story.name;
-        let ends = if focus_on_cell(&fixture) { Mods::COMMAND } else { Mods::NONE };
+        let ends = if focus_on_cell(&fixture) { Mods::CMD } else { Mods::NONE };
         let expect = |fixture: &mut StoryHarness, key: Key, mods: Mods, at: usize, what: &str| -> Result<(), String> {
             fixture.key(key, mods);
             fixture.settle();
@@ -94,17 +94,17 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         let wrapped = shown.iter().skip(1).any(|other| (other.bounds.min.y - shown[0].bounds.min.y).abs() < shown[0].bounds.height() / 2.0);
         if owner_arrows(&fixture) {
             // The arrows reach the owner's commands: they are no moves of the lead.
-            fixture.key(Key::ArrowDown, Mods::NONE);
+            fixture.key(Key::Down, Mods::NONE);
             fixture.settle();
-            expect(&mut fixture, Key::ArrowUp, Mods::NONE, first, "Down and Up (the owner's arrows)")?;
+            expect(&mut fixture, Key::Up, Mods::NONE, first, "Down and Up (the owner's arrows)")?;
         } else {
-            fixture.key(Key::ArrowDown, Mods::NONE);
+            fixture.key(Key::Down, Mods::NONE);
             fixture.settle();
             match lead(&fixture, &container) {
                 Some(found) if found == first + 1 || (wrapped && found > first) => {}
                 found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
             }
-            expect(&mut fixture, Key::ArrowUp, Mods::NONE, first, "Up")?;
+            expect(&mut fixture, Key::Up, Mods::NONE, first, "Up")?;
         }
         match end_meaning(&fixture) {
             EndKey::LastItem => {
@@ -119,14 +119,14 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                 if lead(&fixture, &container) != Some(first) {
                     return Err(format!("{name}: End moved the lead, but it declares End mode"));
                 }
-                fixture.key(Key::ArrowDown, Mods::NONE);
+                fixture.key(Key::Down, Mods::NONE);
                 fixture.settle();
                 let jumped = lead(&fixture, &container);
                 if jumped == Some(first + 1) {
                     return Err(format!("{name}: End then Down moved the lead one row, expected the jump to the data edge"));
                 }
                 // Ctrl+End goes to the last used cell and scrolls it into view, so the lead is read again.
-                fixture.key(Key::End, Mods::COMMAND);
+                fixture.key(Key::End, Mods::CMD);
                 fixture.settle();
                 match lead(&fixture, &container) {
                     Some(found) if found > first && jumped.is_none_or(|edge| found >= edge) => {}
@@ -137,7 +137,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                     }
                 }
                 let home = home_row(&fixture);
-                expect(&mut fixture, Key::Home, Mods::COMMAND, home, "Ctrl+Home")?;
+                expect(&mut fixture, Key::Home, Mods::CMD, home, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Mods::NONE);
@@ -189,7 +189,7 @@ pub(super) fn type_ahead_moves_the_lead(subject: &Subject) -> Result<(), String>
         };
         let Some(letter) = names[target] else { continue };
         row_click::click(&mut fixture, &shown[0]);
-        if !fixture.focused_role().is_some_and(|role| role.type_ahead) {
+        if !fixture.focused_keys().is_some_and(|keys| keys.type_ahead) {
             continue;
         }
         fixture.type_text(&letter.to_string());
@@ -303,7 +303,7 @@ pub(super) fn keyboard_reorder_ends_once(subject: &Subject) -> Result<(), String
         fixture.take_outputs();
         let mut moved = Vec::new();
         for key in [Key::OpenBracket, Key::CloseBracket] {
-            fixture.key(key, Mods::COMMAND);
+            fixture.key(key, Mods::CMD);
             fixture.settle();
             moved = reorders(&events(&mut fixture));
             if !moved.is_empty() {
@@ -334,7 +334,7 @@ pub(super) fn empty_collection_shows_no_rows(subject: &Subject) -> Result<(), St
         if !shown.is_empty() {
             return Err(format!("{}: an empty collection shows {} rows", story.name, shown.len()));
         }
-        if fixture.shown().height().partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+        if !fixture.shown().is_some_and(|shown| shown.height() > 0.0) {
             return Err(format!("{}: an empty collection allocates no height", story.name));
         }
         let visible = fixture.take_outputs().into_iter().last().and_then(|output| output.visible);
@@ -430,7 +430,7 @@ fn nodes_of(fixture: &StoryHarness, container: &Target, role: Role) -> Vec<Targe
 fn selected_cell_reports_selected(story: &Story) -> Result<(), String> {
     let Some((mut fixture, container, _)) = with_rows(story, 2) else { return Ok(()) };
     let cells = nodes_of(&fixture, &container, Role::Cell);
-    let Some(clicked) = cells.first().copied() else { return Ok(()) };
+    let Some(clicked) = cells.first().cloned() else { return Ok(()) };
     fixture.take_outputs();
     fixture.click(&clicked);
     if !events(&mut fixture).contains(&CollectionKind::Selection) {
@@ -455,7 +455,7 @@ fn selected_cell_reports_selected(story: &Story) -> Result<(), String> {
 fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
     let Some((mut fixture, container, _)) = with_rows(story, 0) else { return Ok(()) };
     let headers = nodes_of(&fixture, &container, Role::ColumnHeader);
-    let Some(first) = headers.first().copied() else { return Ok(()) };
+    let Some(first) = headers.first().cloned() else { return Ok(()) };
     let name = story.name;
     if headers.iter().any(|header| fixture.tree().name_of(header.id).is_none_or(str::is_empty)) {
         return Err(format!("{name}: a column header has no name"));
@@ -476,7 +476,7 @@ fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
         fixture.fire(ColumnCommands::Resize, FireSource::Automation);
         fixture.settle();
         fixture.take_outputs();
-        fixture.key(Key::ArrowRight, Mods::NONE);
+        fixture.key(Key::Right, Mods::NONE);
         fixture.settle();
         if !columns(&mut fixture) {
             return Err(format!("{name}: the Resize Column command and an arrow key gave no column event"));

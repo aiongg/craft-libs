@@ -229,6 +229,7 @@ impl HarnessBuilder {
             look: self.look,
             ctx: ctx_seen,
             commands: self.commands,
+            host: None,
         }
     }
 }
@@ -249,6 +250,8 @@ pub struct Harness<S = (), R: Renderer = RecordingRenderer> {
     look: Look,
     ctx: Rc<RefCell<Option<Context>>>,
     commands: Option<CommandBoard>,
+    /// The app host provided above the window root, as an app's host provides it (language, formats, jobs).
+    host: Option<std::sync::Arc<craft_host::Host>>,
 }
 
 impl Harness<(), RecordingRenderer> {
@@ -327,6 +330,14 @@ impl<S, R: Renderer> Harness<S, R> {
         self.last
     }
 
+    /// Gives the window `host` (its language, formats and jobs) as an app host provides it above every window root;
+    /// the root builds in the next step.
+    pub fn host(&mut self, host: std::sync::Arc<craft_host::Host>) -> &mut Self {
+        self.host = Some(host);
+        self.rebuild = true;
+        self
+    }
+
     /// Steps taken so far.
     pub fn steps_taken(&self) -> usize {
         self.steps
@@ -340,7 +351,13 @@ impl<S, R: Renderer> Harness<S, R> {
         let now = self.driver.platform.now();
         let (state, view) = (&mut self.state, &mut self.view);
         let host = WindowEnv { cells: Some(self.cells), jobs: None, commands: self.commands.clone() };
-        let report = self.driver.step_with(now, &mut |_, cx| window_root_with(cx, host.clone(), |ui| view(ui, state)));
+        let app_host = self.host.clone();
+        let report = self.driver.step_with(now, &mut |_, cx| {
+            if let Some(app_host) = &app_host {
+                cx.provide(app_host.clone());
+            }
+            window_root_with(cx, host.clone(), |ui| view(ui, state))
+        });
         self.last = report;
         self.steps += 1;
         report
