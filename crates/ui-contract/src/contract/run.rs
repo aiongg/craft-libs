@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub(crate) use crate::contract::rt::container::{measure_container, show_container, show_container_taking};
-pub(crate) use crate::contract::rt::show_leaf;
+pub(crate) use crate::contract::rt::{keep_leaf, show_leaf};
 
 /// What a shape adds to a leaf's run at the driver's steps (contract-rt 15.4, 15.5): a collection's
 /// rows. Each hook defaults to the leaf's behaviour; `content` runs whenever the build reaches the
@@ -333,7 +333,8 @@ pub(crate) fn paint_ui<'a>(
         canvas,
         host_canvas: None,
         pointer,
-        showed_child: std::cell::Cell::new(false),
+        children: RefCell::default(),
+        keep: None,
         host,
     }
 }

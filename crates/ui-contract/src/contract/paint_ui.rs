@@ -17,7 +17,7 @@ use craft_behavior::PartRef;
 use craft_theme::{ControlSize, Variant};
 use craft_ui_rt::Rect;
 use craft_ui_rt::text_edit::{EditConfig, EditLayout, TextEdit};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -86,8 +86,20 @@ pub struct PaintUi<'a> {
     pub(crate) host_canvas: Option<&'a Canvas<'a>>,
     /// The pointer state this variant shows; the pointer facts a paint reads answer it.
     pub(crate) pointer: Pointer,
-    /// The paint showed a child: the run records one paint, with the current pointer state (15.6 rule 5).
-    pub(crate) showed_child: Cell<bool>,
+    /// The children this paint showed, in order (15.6 rule 5).
+    pub(crate) children: RefCell<Vec<Shown>>,
+    /// In a later look, the children the first look showed from here on: this look keeps them instead of
+    /// reconciling (15.6 rule 5). `None` in the first look.
+    pub(crate) keep: Option<&'a [Shown]>,
+}
+
+/// A child a paint showed (15.6 rule 5): its id, the rect the paint gave it and the rect it took (the control's rect
+/// beside its label for `labelled`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Shown {
+    pub(crate) id: Id,
+    pub(crate) at: Rect,
+    pub(crate) rect: Rect,
 }
 
 /// What a child shown from `paint` inherits from its composite.
@@ -102,16 +114,28 @@ impl Kids {
     /// Shows `child` at `rect` on `ui` under the composite's `enabled` and `size`, and `inside`, the inside label of the
     /// side label the child is the control of. The rect is physical: this site is unmirrored.
     fn show<C: Show>(self, ui: &mut Ui<'_, '_>, id: Id, rect: Rect, child: C, tip: Option<TipFn<'_>>, inside: Option<Arc<InsideLabel>>) -> C::Output {
+        let env = self.env(ui, inside);
+        run::show_leaf(&mut Some(super::Props::id(child, id)), ui, (ShowAt::Rect(rect), env), tip)
+    }
+
+    /// The keep path (15.6 rule 5): `child`'s output from the node the first look reconciled, at the rect it took
+    /// there.
+    fn keep<C: Show>(self, ui: &mut Ui<'_, '_>, id: Id, rect: Rect, child: C, inside: Option<Arc<InsideLabel>>) -> C::Output {
+        let env = self.env(ui, inside);
+        run::keep_leaf(super::Props::id(child, id), ui, env, rect)
+    }
+
+    /// The env a child shows under.
+    fn env(self, ui: &mut Ui<'_, '_>, inside: Option<Arc<InsideLabel>>) -> Env {
         let outer = Env::of(ui);
         let env = super::cx::child_env(&outer, &super::cx::Under { enabled: self.enabled, size: self.size, inside });
         // A child shown while the owner's fade runs lies under the owner's veil, so a faded child adds none of its own.
-        let env = match self.veiled {
+        match self.veiled {
             true => env.derive_local(|scoped| {
                 scoped.inherited_mut().values.set(super::steps::UnderVeil(true));
             }),
             false => env,
-        };
-        run::show_leaf(&mut Some(super::Props::id(child, id)), ui, (ShowAt::Rect(rect), env), tip)
+        }
     }
 }
 
@@ -202,9 +226,11 @@ impl PaintUi<'_> {
     /// owner's name names the control.
     pub fn inner<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output {
         let (id, owner) = (self.id.with(key), self.id);
-        // Only the access report reads the fold, and turning the access tree on runs every node again.
+        // Only the access report reads the fold, and turning the access tree on runs every node again. A later look
+        // keeps the fold its first look asked for.
+        let first = self.keep.is_none();
         host_ui(self.host, |ui| {
-            if ui.build_cx().access_enabled() {
+            if first && ui.build_cx().access_enabled() {
                 access::fold::request(ui.ctx(), id, owner);
             }
         });
@@ -233,8 +259,13 @@ impl PaintUi<'_> {
         // Without a node of its own the composite leaves the label to the node its `Ui` sits under.
         let parent = self.node.then_some(self.id);
         let owner = self.id;
-        self.showed_child.set(true);
-        host_ui(self.host, |ui| {
+        if let Some(control) = self.kept_rect(id, rect) {
+            return host_ui(self.host, |ui| {
+                let inside = label::leaf_under(&Env::of(ui), &side, &child, (enabled, size)).inside;
+                kids.keep(ui, id, control, child, inside)
+            });
+        }
+        let (out, control) = host_ui(self.host, |ui| {
             let env = Env::of(ui);
             let mut child = child;
             let under = label::leaf_under(&env, &side, &child, (enabled, size));
@@ -246,8 +277,10 @@ impl PaintUi<'_> {
                 control.max.y = control.max.y.min(control.min.y + ideal.y);
             }
             // The child shows under its label scope.
-            Env::run_in(ui, placed.env_for(&env), |ui| kids.show(ui, id, control, child, None, under.inside.clone()))
-        })
+            (Env::run_in(ui, placed.env_for(&env), |ui| kids.show(ui, id, control, child, None, under.inside.clone())), control)
+        });
+        self.children.borrow_mut().push(Shown { id, at: rect, rect: control });
+        out
     }
 
     /// What the children shown from here inherit.
@@ -258,8 +291,21 @@ impl PaintUi<'_> {
     /// Shows `child` at `rect` under the composite's `enabled` and `size`.
     fn child_with<C: Show>(&mut self, id: Id, rect: Rect, child: C, tip: Option<TipFn<'_>>) -> C::Output {
         let kids = self.kids();
-        self.showed_child.set(true);
+        if let Some(rect) = self.kept_rect(id, rect) {
+            return host_ui(self.host, |ui| kids.keep(ui, id, rect, child, None));
+        }
+        self.children.borrow_mut().push(Shown { id, at: rect, rect });
         host_ui(self.host, |ui| kids.show(ui, id, rect, child, tip, None))
+    }
+
+    /// In a later look (15.6 rule 5): records the child `id` shown at `at` and gives the rect it took in the first
+    /// look, or `at` when the first look showed another child in this place. `None` in the first look.
+    fn kept_rect(&self, id: Id, at: Rect) -> Option<Rect> {
+        let keep = self.keep?;
+        let mut children = self.children.borrow_mut();
+        let rect = keep.get(children.len()).filter(|first| first.id == id && first.at == at).map_or(at, |first| first.rect);
+        children.push(Shown { id, at, rect });
+        Some(rect)
     }
 
     /// Paints `face` as the look of `part`: its style, surface and state fill from the part's state merged with the

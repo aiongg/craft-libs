@@ -699,8 +699,9 @@ These rules apply the same way in INT-1b (leaf steps), INT-2 (body chrome) and I
 3. **Which variants.** `Rest` always. `Hover` when paint read `Hovered`. `Press` only when paint read `Pressed` and the node takes presses (its `sense` or a part's has click or drag). At most three paints per run. During a variant's recording, the pointer facts answer that variant's state.
 4. **Focus in paint.** `Focused`, `FocusWithin` and selection, open, checked and disabled bits read in paint are build reads (the node reruns). `FocusVisible` is read only by the focus ring in ui-rt's paint phase (`PaintCx::interaction_fact`).
 5. **Children shown from `paint`** (`PaintUi::child`, `inner`, `labelled`, `child_with_tip`, the 65 sites):
-   - children are reconciled only in the first recording (`Rest`). In later recordings, the same `child` call returns `C::finish` on the child's settled `Cx` without reconciling (the keep path);
-   - a paint that shows a child and also reads `Hovered` or `Pressed` records **one** paint, with the current pointer state, and registers each pointer fact it read as a build read (rule 2). A hover that changes which children show reruns the node;
+   - children are reconciled only in the first recording, the one in the current pointer state. In later recordings, the same `child` call returns `C::finish` on the child's settled `Cx` at the rect the first recording gave it, without reconciling (the keep path); `labelled` keeps its label step from the first recording too;
+   - a paint that shows children still records its other looks (rule 3). The run compares each later look's children (their ids and the rects the paint gave, in order) with the first look's. While they are the same, the looks are kept and a pointer flip repaints only;
+   - when a later look's children differ (a hover that shows, hides or moves a child), the run keeps the first recording alone, as its `Rest` look, and registers each pointer fact the paint read as a build read (rule 2), so the flip reruns the node;
    - faces (`face`, `face_in`, `face_faded`) are not children: they record into the host's canvas and stay variants.
 6. **Access** is built once per run, outside variant recording; reads in `access` follow rule 2.
 
