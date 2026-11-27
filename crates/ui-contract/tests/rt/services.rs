@@ -1,31 +1,355 @@
-//! Count trials of the runtime services on craft-ui-rt (B9): motion read in paint, env cells and
-//! scopes, node-owned memory, jobs, the cursor and the texture cache. Relations only, no times.
+//! Count trials of the runtime services on craft-ui-rt: the open fade and motion off, env readers
+//! (direction, theme scope, layer frame), the cursor, and the texture store's pictures. Relations
+//! only, no times. Jobs started from a view are trialled in `windows.rs`; session memory in
+//! `memory.rs`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::skeleton::IconButton;
-use craft_behavior::{CursorIcon, IconId, MotionMode};
+use crate::skeleton::{IconButton, Stack};
+use craft_behavior::{CursorIcon, IconId};
 use craft_i18n::Direction;
-use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Cx, EnvCells, EnvScope, JobBoard, LayerFrame, MeasureCx, MemoView, Paint, TextureCache, TextureLook, ThemeBase, Ui,
-    WindowEnv, spec, window_root_with,
-};
-use craft_ui_contract::contract::rt::{Response, show_leaf};
-use craft_ui_contract::contract::{MemoKey, MemoProps};
-use craft_ui_contract::primitives::textures::{
-    CachedTexture, LoadedPicture, Priority, Revision, TextureBudget, TextureState, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions,
-    Thumbnails,
-};
-use craft_ui_contract::runtime::env::ThemeScope;
-use craft_ui_platform_headless::Input;
+use craft_ui_contract::contract::{Common, Component, Cx, Id, MeasureCx, Props as _, Response, Role, Show, Ui, spec};
+use craft_ui_contract::primitives::textures::{CachedTexture, Priority, Revision, TextureLook, TextureState, TextureStore, TextureStoreOptions};
+use craft_ui_contract::runtime::env::{EnvCells, EnvScope, LayerFrame, ThemeBase, ThemeScope};
+use craft_ui_contract::runtime::pending::JobBoard;
+use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
+use craft_ui_contract::style::StyleCx;
+use craft_ui_contract::testing::{FRAME, Harness, Target};
 use craft_ui_rt::record::RecordingRenderer;
-use craft_ui_rt::{CornerRadii, Cursor, ImageKey, Item, Pos2, Rect, RgbaImage, Sense, SizeU, State, StepReport, Vec2};
+use craft_ui_rt::{CornerRadii, Cursor, Item, Pos2, Rect, RgbaImage, Sense, SizeU, StepReport, Vec2};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::Rig;
-use craft_ui_test_kit::rt::rig::{FRAME, test_tokens};
-use egui::Color32;
 
-/// A window with host cells, a job board that runs jobs when told, and a view function.
+// ----- the open fade and motion off
+
+/// A fixed-size leaf that aims its opacity at `open`.
+#[derive(Component)]
+#[component(unregistered)]
+struct Fader {
+    #[common]
+    common: Common,
+    open: bool,
+}
+
+impl Component for Fader {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FaderStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.fade_to(if self.open { 1.0 } else { 0.0 }, spec::OPEN_FADE);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+fn fade_view(ui: &mut Ui<'_, '_>, open: &mut bool) {
+    Stack::new().show(ui, |ui| {
+        let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
+        let _ = Show::show(Fader { common: Common::new(), open: *open }, ui);
+    });
+}
+
+#[test]
+fn a_running_fade_repaints_only_its_node_per_frame_runs_no_hook_and_ends_without_a_frame_request() {
+    let mut h = Harness::builder().with_motion(true).build_ui_state(fade_view, true);
+    h.run_to_rest();
+    assert!(!h.driver.runtime.wants_time(), "a settled window reads no time");
+    *h.state_mut() = false;
+    let started = h.step_dt(0.0);
+    assert_eq!(started.frame.runs, 1, "the run that names the new target: only the fader: {started:?}");
+    assert!(h.driver.runtime.wants_time(), "the running fade reads the frame time");
+    let mut frames = 0;
+    while h.driver.runtime.wants_time() && frames < 100 {
+        let f = h.step_dt(FRAME);
+        frames += 1;
+        assert_eq!((f.frame.runs, f.frame.scopes, f.frame.built), (0, 0, 0), "no hook, scope or build runs during the fade: {f:?}");
+        assert!(f.frame.painted <= 1, "only the fader repaints: {f:?}");
+    }
+    assert!(frames >= 2, "the fade ran over several frames");
+    let after = h.step_dt(FRAME);
+    assert_eq!(after.frame.painted, 0, "a finished fade paints nothing");
+    assert!(!h.driver.runtime.needs_frame() && !h.driver.runtime.wants_time(), "a finished animation asks for no frame");
+}
+
+#[test]
+fn a_motion_mode_of_off_snaps_the_fade() {
+    let mut h = Harness::builder().with_motion(true).build_ui_state(fade_view, true);
+    h.run_to_rest();
+    h.motion(craft_behavior::MotionMode::Off);
+    h.step_dt(0.0);
+    *h.state_mut() = false;
+    h.step_dt(0.0);
+    assert!(!h.driver.runtime.wants_time(), "with motion off the opacity is at its target in the frame of the run");
+}
+
+// ----- env readers
+
+const FLIPPER: &str = "services-flipper";
+
+/// Reads the flow direction in `measure`.
+#[derive(Component)]
+#[component(unregistered)]
+struct Flipper {
+    #[common]
+    common: Common,
+}
+
+impl Component for Flipper {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FlipperStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        if cx.env.direction() == Direction::Rtl { Vec2::new(60.0, 20.0) } else { Vec2::new(40.0, 20.0) }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_direction_change_runs_only_the_nodes_that_read_it() {
+    let mut h = Harness::new_ui(|ui| {
+        Stack::new().show(ui, |ui| {
+            let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
+            let _ = Flipper { common: Common::new() }.id(Id::new(FLIPPER)).show(ui);
+        });
+    });
+    h.run();
+    let width = |h: &Harness<()>| h.rect_of(Id::new(FLIPPER)).expect("the flipper is shown").width();
+    assert_eq!(width(&h), 40.0);
+    h.direction(Direction::Rtl);
+    let changed = h.step_dt(0.0);
+    assert_eq!(changed.frame.runs, 1, "only the flipper reads the direction: {changed:?}");
+    assert_eq!(width(&h), 60.0, "it measured again in the new direction");
+    let settled = h.step_dt(0.0);
+    assert_eq!((settled.frame.painted, settled.frame.runs, settled.frame.scopes, settled.frame.built), (0, 0, 0, 0), "{settled:?}");
+}
+
+thread_local! {
+    static SEEN: RefCell<Vec<(&'static str, [u8; 4])>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Notes the panel colour of the tokens its measuring run saw.
+#[derive(Component)]
+#[component(unregistered)]
+struct Probe {
+    #[common]
+    common: Common,
+    name: &'static str,
+}
+
+impl Component for Probe {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: ProbeStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        SEEN.with(|s| s.borrow_mut().push((self.name, cx.tokens.theme().color.surface.panel.0)));
+        Vec2::new(20.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+fn base(mode: craft_theme::Mode, contrast: craft_theme::Contrast) -> Arc<ThemeBase> {
+    let appearance =
+        craft_theme::Appearance { mode, contrast, size: craft_theme::Size::Compact, text_size: craft_theme::TextSize::Small, reduced_motion: false };
+    Arc::new(ThemeBase {
+        def: Arc::new(craft_theme::builtins()[0].clone()),
+        appearance,
+        app: None,
+        sizes: Arc::new(craft_theme::AppSizes::default()),
+    })
+}
+
+fn probe(name: &'static str) -> Probe {
+    Probe { common: Common::new(), name }
+}
+
+#[test]
+fn a_theme_scope_resolves_its_own_tokens_and_a_base_change_runs_only_inside_it() {
+    let mut w = World::new((), |ui, ()| {
+        let _ = probe("outside").show(ui);
+        ThemeScope::new().mode(craft_theme::Mode::Light).show(ui, |ui| {
+            let _ = probe("inside").show(ui);
+        });
+    });
+    w.cells.theme.set(w.rig.driver.runtime.store_mut(), Some(base(craft_theme::Mode::Dark, craft_theme::Contrast::Standard)));
+    SEEN.with(|s| s.borrow_mut().clear());
+    w.step();
+    let seen = SEEN.with(|s| s.borrow().clone());
+    assert_eq!(seen.len(), 1, "only the probe under the scope measured: {seen:?}");
+    let outside = base(craft_theme::Mode::Dark, craft_theme::Contrast::Standard).tokens().color.surface.panel.0;
+    assert_ne!(seen[0].1, outside, "it saw the light tokens, the window's are dark");
+    SEEN.with(|s| s.borrow_mut().clear());
+    w.cells.theme.set(w.rig.driver.runtime.store_mut(), Some(base(craft_theme::Mode::Dark, craft_theme::Contrast::High)));
+    let changed = w.step();
+    let seen = SEEN.with(|s| s.borrow().clone());
+    assert!(seen.iter().all(|(n, _)| *n == "inside"), "only the node under the scope ran: {seen:?}");
+    assert!(changed.frame.scopes >= 1, "the scope reruns: {changed:?}");
+    assert_eq!(w.step().frame.runs, 0, "and then it is settled");
+}
+
+thread_local! {
+    static FRAMES: RefCell<Vec<Option<LayerFrame>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Notes the layer frame its measuring run saw.
+#[derive(Component)]
+#[component(unregistered)]
+struct FrameReader {
+    #[common]
+    common: Common,
+}
+
+impl Component for FrameReader {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FrameReaderStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        FRAMES.with(|f| f.borrow_mut().push(cx.env.frame()));
+        Vec2::new(10.0, 10.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+fn layer_frame() -> LayerFrame {
+    LayerFrame { rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(200.0, 100.0)), radii: CornerRadii::same(8.0) }
+}
+
+#[test]
+fn the_layer_frame_reaches_the_nodes_under_a_scope_and_rounds_the_surfaces_that_meet_it() {
+    let frame = layer_frame();
+    let mut h = Harness::new_ui(|ui| {
+        EnvScope::new().frame(Some(layer_frame())).show(ui, |ui| {
+            let _ = FrameReader { common: Common::new() }.show(ui);
+        });
+    });
+    h.run();
+    let seen = FRAMES.with(|f| f.borrow().clone());
+    assert_eq!(seen.last(), Some(&Some(frame)), "the node under the scope saw the frame: {seen:?}");
+    let surface = |rect: Rect| Item::Rect { rect, radii: CornerRadii::ZERO, fill: craft_theme::Rgba([1, 2, 3, 255]), stroke: None };
+    let mut items = vec![surface(frame.rect), surface(Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(20.0, 20.0)))];
+    frame.fit(Pos2::ZERO, &mut items);
+    let radii = |i: &Item| if let Item::Rect { radii, .. } = i { *radii } else { unreachable!() };
+    assert_eq!(radii(&items[0]), CornerRadii::same(8.0), "a surface that fills the frame takes its corners");
+    assert_eq!(radii(&items[1]), CornerRadii::ZERO, "one inside it keeps its own");
+}
+
+// ----- the cursor
+
+const HANDLE: &str = "services-handle";
+
+/// A leaf that names a cursor over its own shape.
+#[derive(Component)]
+#[component(unregistered)]
+struct Handle {
+    #[common]
+    common: Common,
+}
+
+impl Component for Handle {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: HandleStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(30.0, 30.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn cursor(&self) -> Option<craft_behavior::Cursor> {
+        Some(CursorIcon::ResizeHorizontal.into())
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn hovering_a_node_with_a_cursor_sets_it_with_no_run() {
+    let mut h = Harness::new_ui(|ui| {
+        Stack::new().show(ui, |ui| {
+            let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
+            let _ = Handle { common: Common::new() }.id(Id::new(HANDLE)).show(ui);
+        });
+    });
+    h.run();
+    let button = h.get_by_label("Other");
+    let handle = Target::area(h.rect_of(Id::new(HANDLE)).expect("the handle is shown"));
+    h.hover(&button);
+    assert_eq!(h.cursor_icon(), Cursor::Default);
+    h.hover(&handle);
+    assert_eq!(h.cursor_icon(), Cursor::Icon(CursorIcon::ResizeHorizontal));
+    let over = h.last_report();
+    assert_eq!((over.frame.runs, over.frame.scopes, over.frame.built), (0, 0, 0), "no hook, scope or build runs: {over:?}");
+    h.hover(&button);
+    assert_eq!(h.cursor_icon(), Cursor::Default);
+    let away = h.last_report();
+    assert_eq!((away.frame.runs, away.frame.scopes), (0, 0), "{away:?}");
+}
+
+// ----- the texture store's pictures
+
+/// A window whose host provides env cells and a job board whose jobs run when the trial says so,
+/// delivered by the driver on the wake as an app host does.
 struct World<A> {
     rig: Rig<RecordingRenderer>,
     app: Box<A>,
@@ -33,8 +357,6 @@ struct World<A> {
     cells: EnvCells,
     board: JobBoard,
     queue: Manual,
-    /// A cell the root reads: bumping it runs the root, as an app's own state change would.
-    rev: State<u64>,
 }
 
 /// Jobs that run when the trial says so, in place of threads.
@@ -63,7 +385,7 @@ impl<A> World<A> {
         World::build(|_| app, view)
     }
 
-    /// A world whose app is made from the job board (a cache keeps the board it makes pictures on).
+    /// A world whose app is made from the job board (a store keeps the board it makes pictures on).
     fn build(make: impl FnOnce(&JobBoard) -> A, view: fn(&mut Ui<'_, '_>, &mut A)) -> World<A> {
         let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
         let main = rig.main;
@@ -71,9 +393,12 @@ impl<A> World<A> {
         let cells = EnvCells::in_store(rig.driver.runtime.store_mut(), tokens);
         let queue = Manual::default();
         let board = JobBoard::new(Arc::new(queue.clone()), rig.driver.waker());
+        let deliver = board.clone();
+        rig.driver.set_wake_handler(move |store, images| {
+            deliver.deliver(store, images);
+        });
         let app = make(&board);
-        let rev = rig.driver.runtime.store_mut().create(0u64);
-        let mut world = World { rig, app: Box::new(app), view, cells, board, queue, rev };
+        let mut world = World { rig, app: Box::new(app), view, cells, board, queue };
         for _ in 0..6 {
             if !world.step().ran {
                 return world;
@@ -89,580 +414,187 @@ impl<A> World<A> {
     fn frame(&mut self, dt: f64) -> StepReport {
         let (app, view) = (&mut *self.app, self.view);
         let host = WindowEnv { cells: Some(self.cells), jobs: Some(self.board.clone()), commands: None };
-        let rev = self.rev;
-        self.rig.frame_with(dt, &mut |_, cx| {
-            window_root_with(cx, host.clone(), |ui| {
-                rev.get(ui.build_cx());
-                view(ui, app)
-            })
-        })
+        self.rig.frame_with(dt, &mut |_, cx| window_root_with(cx, host.clone(), |ui| view(ui, app)))
     }
 
     /// The app changed its state: the root runs.
     fn touch(&mut self) {
-        let rev = self.rev;
-        rev.update(self.rig.driver.runtime.store_mut(), |v| *v += 1);
-    }
-
-    fn input(&mut self, input: Input) -> StepReport {
         let main = self.rig.main;
-        self.rig.inject(main, input);
-        self.step()
+        self.rig.driver.runtime.mark_root(main);
     }
 
-    /// What the host does when the platform wakes the loop: hands finished jobs to their cells and images.
-    fn wake(&mut self) -> usize {
-        let (store, images) = self.rig.driver.runtime.store_and_images_mut();
-        self.board.deliver(store, images)
-    }
-}
-
-/// A fixed-size leaf that fills with `Color32::RED` and aims its opacity at `open`.
-struct Fader {
-    open: bool,
-}
-
-impl ComponentKey for Fader {
-    fn key(&self, key: &mut MemoKey) {
-        self.open.key(key);
-    }
-}
-
-impl Component for Fader {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(40.0, 20.0)
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        cx.fade_to(if self.open { 1.0 } else { 0.0 }, spec::OPEN_FADE);
-    }
-
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        paint.draw().canvas().rect_filled(paint.bounds(), 0.0, Color32::RED);
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-fn counts(r: &StepReport) -> (u32, u32, u32, u32) {
-    (r.frame.painted, r.frame.runs, r.frame.scopes, r.frame.built)
-}
-
-struct Faded {
-    open: bool,
-}
-
-#[test]
-fn a_running_fade_repaints_only_its_node_per_frame_runs_no_hook_and_ends_without_a_frame_request() {
-    let mut w = World::new(Faded { open: true }, |ui, app| {
-        let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
-        let _ = (Fader { open: app.open }).show_in(ui);
-    });
-    assert!(!w.rig.driver.runtime.wants_time(), "a settled window reads no time");
-    w.app.open = false;
-    w.touch();
-    let started = w.step();
-    assert_eq!(started.frame.runs, 1, "the run that names the new target: only the fader");
-    let duration = (f64::from(test_tokens().motion.open.millis) / 1000.0).max(FRAME);
-    assert!(duration > 2.0 * FRAME, "the trial needs a fade longer than two frames");
-    assert!(w.rig.driver.runtime.wants_time(), "the running fade reads the frame time");
-    let mut frames = 0;
-    while w.rig.driver.runtime.wants_time() && frames < 100 {
-        let f = w.frame(FRAME);
-        frames += 1;
-        assert_eq!((f.frame.runs, f.frame.scopes, f.frame.built), (0, 0, 0), "no hook, scope or build runs during the fade: {f:?}");
-        assert!(f.frame.painted <= 1, "only the fader repaints: {f:?}");
-    }
-    assert!(frames >= 2, "the fade ran over several frames");
-    let after = w.frame(FRAME);
-    assert_eq!(counts(&after).0, 0, "a finished fade paints nothing");
-    assert!(!w.rig.driver.runtime.needs_frame() && !w.rig.driver.runtime.wants_time(), "a finished animation asks for no frame");
-}
-
-#[test]
-fn a_motion_mode_of_off_snaps_the_fade() {
-    let mut w = World::new(Faded { open: true }, |ui, app| {
-        let _ = (Fader { open: app.open }).show_in(ui);
-    });
-    w.cells.motion.set(w.rig.driver.runtime.store_mut(), MotionMode::Off);
-    w.step();
-    w.app.open = false;
-    w.touch();
-    w.step();
-    assert!(!w.rig.driver.runtime.wants_time(), "with motion off the opacity is at its target in the frame of the run");
-}
-
-/// Reads the flow direction in `measure`.
-struct Flipper;
-
-impl ComponentKey for Flipper {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
-impl Component for Flipper {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
-        if cx.direction() == Direction::Rtl { Vec2::new(60.0, 20.0) } else { Vec2::new(40.0, 20.0) }
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-#[test]
-fn a_direction_change_runs_only_the_nodes_that_read_it() {
-    let mut w = World::new((Rect::NOTHING, Rect::NOTHING), |ui, app| {
-        app.0 = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
-        app.1 = Flipper.show_in(ui);
-    });
-    assert_eq!(w.app.1.width(), 40.0);
-    w.cells.direction.set(w.rig.driver.runtime.store_mut(), Direction::Rtl);
-    let changed = w.step();
-    assert_eq!(changed.frame.runs, 1, "only the flipper reads the direction: {changed:?}");
-    assert_eq!(w.app.1.width(), 60.0, "it measured again in the new direction");
-    let settled = w.step();
-    assert_eq!(counts(&settled), (0, 0, 0, 0));
-}
-
-thread_local! {
-    static SEEN: RefCell<Vec<(&'static str, [u8; 4])>> = const { RefCell::new(Vec::new()) };
-}
-
-/// Notes the panel colour of the tokens its run saw.
-struct Probe(&'static str);
-
-impl ComponentKey for Probe {
-    fn key(&self, key: &mut MemoKey) {
-        self.0.key(key);
-    }
-}
-
-impl Component for Probe {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
-        SEEN.with(|s| s.borrow_mut().push((self.0, cx.tokens.color.surface.panel.0)));
-        Vec2::new(20.0, 20.0)
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-fn base(mode: craft_theme::Mode, contrast: craft_theme::Contrast) -> Arc<ThemeBase> {
-    let appearance =
-        craft_theme::Appearance { mode, contrast, size: craft_theme::Size::Compact, text_size: craft_theme::TextSize::Small, reduced_motion: false };
-    Arc::new(ThemeBase {
-        def: Arc::new(craft_theme::builtins()[0].clone()),
-        appearance,
-        app: None,
-        sizes: Arc::new(craft_theme::AppSizes::default()),
-    })
-}
-
-#[test]
-fn a_theme_scope_resolves_its_own_tokens_and_a_base_change_runs_only_inside_it() {
-    let mut w = World::new((), |ui, ()| {
-        Probe("outside").show_in(ui);
-        ThemeScope::new().mode(craft_theme::Mode::Light).show(ui, |ui| {
-            Probe("inside").show_in(ui);
-        });
-    });
-    w.cells.theme.set(w.rig.driver.runtime.store_mut(), Some(base(craft_theme::Mode::Dark, craft_theme::Contrast::Standard)));
-    SEEN.with(|s| s.borrow_mut().clear());
-    w.step();
-    let seen = SEEN.with(|s| s.borrow().clone());
-    assert_eq!(seen.len(), 1, "only the probe under the scope measured: {seen:?}");
-    assert_ne!(seen[0].1, test_tokens().color.surface.panel.0, "it saw the light tokens, the window's are dark");
-    SEEN.with(|s| s.borrow_mut().clear());
-    w.cells.theme.set(w.rig.driver.runtime.store_mut(), Some(base(craft_theme::Mode::Dark, craft_theme::Contrast::High)));
-    let changed = w.step();
-    let seen = SEEN.with(|s| s.borrow().clone());
-    assert!(seen.iter().all(|(n, _)| *n == "inside"), "only the node under the scope ran: {seen:?}");
-    assert!(changed.frame.scopes >= 1, "the scope reruns: {changed:?}");
-    assert_eq!(w.step().frame.runs, 0, "and then it is settled");
-}
-
-/// A leaf that names a cursor over its own shape.
-struct Handle;
-
-impl ComponentKey for Handle {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
-impl Component for Handle {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(30.0, 30.0)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::HOVER
-    }
-
-    fn cursor(&self) -> Option<Cursor> {
-        Some(Cursor::Icon(CursorIcon::ResizeHorizontal))
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-#[test]
-fn hovering_a_node_with_a_cursor_sets_it_with_no_run() {
-    let mut w = World::new((Rect::NOTHING, Rect::NOTHING), |ui, app| {
-        app.0 = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
-        app.1 = Handle.show_in(ui);
-    });
-    let main = w.rig.main;
-    let (button, handle) = (w.app.0.center(), w.app.1.center());
-    w.input(Input::mouse_move(button));
-    assert_eq!(w.rig.driver.platform.cursor(main), Cursor::Default);
-    let over = w.input(Input::mouse_move(handle));
-    assert_eq!(w.rig.driver.platform.cursor(main), Cursor::Icon(CursorIcon::ResizeHorizontal));
-    assert_eq!((over.frame.runs, over.frame.scopes, over.frame.built), (0, 0, 0), "no hook, scope or build runs: {over:?}");
-    let away = w.input(Input::mouse_move(button));
-    assert_eq!(w.rig.driver.platform.cursor(main), Cursor::Default);
-    assert_eq!((away.frame.runs, away.frame.scopes), (0, 0));
-}
-
-struct Jobbed {
-    result: Option<u32>,
-    view_runs: u32,
-    other_runs: u32,
-}
-
-#[test]
-fn a_finished_job_runs_only_its_waiting_view_and_the_path() {
-    let mut w = World::new(Jobbed { result: None, view_runs: 0, other_runs: 0 }, |ui, app| {
-        let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
-        MemoView::new(1u32).show(ui, |ui, _| {
-            app.view_runs += 1;
-            let pending = ui.job("answer", || Ok::<u32, ()>(7));
-            app.result = match pending {
-                craft_ui_contract::contract::rt::Pending::Ready(v) => Some(v),
-                _ => None,
-            };
-            let _ = IconButton::new(IconId::new("brush"), "In view").show(ui);
-        });
-        MemoView::new(2u32).show(ui, |ui, _| {
-            app.other_runs += 1;
-            let _ = IconButton::new(IconId::new("eraser"), "Beside").show(ui);
-        });
-    });
-    assert_eq!((w.app.result, w.app.view_runs, w.app.other_runs), (None, 1, 1), "the job started and nothing arrived");
-    assert_eq!(w.queue.run_all(), 1, "one job was queued");
-    assert_eq!(w.wake(), 1);
-    let done = w.step();
-    assert_eq!(w.app.result, Some(7));
-    assert_eq!((w.app.view_runs, w.app.other_runs), (2, 1), "only the waiting view's closure ran again");
-    assert_eq!(done.frame.scopes, 2, "the root and the waiting view: {done:?}");
-    assert_eq!(done.frame.runs, 0, "no component ran: the view kept its button");
-    assert_eq!(w.step().frame.scopes, 0);
-}
-
-/// A leaf that draws the picture `id` of a cache.
-struct Thumb<'a> {
-    cache: &'a TextureCache<u32>,
-    id: u32,
-}
-
-impl ComponentKey for Thumb<'_> {
-    fn key(&self, key: &mut MemoKey) {
-        self.id.key(key);
-    }
-}
-
-impl Component for Thumb<'_> {
-    const ROLE: accesskit::Role = accesskit::Role::Image;
-    type Output = Response;
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(32.0, 32.0)
-    }
-
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        let key: ImageKey = self.cache.image_key(&self.id, REV);
-        if !self.cache.requested(&self.id, REV) {
-            self.cache.request(self.id, REV, Priority::VISIBLE, |_| Ok(Some(solid(8, 8))));
+    /// Steps until a step runs nothing; the reports of the steps that ran.
+    fn settle(&mut self) -> Vec<StepReport> {
+        let mut ran = Vec::new();
+        for _ in 0..20 {
+            let report = self.step();
+            if !report.ran && !self.rig.driver.runtime.needs_frame() {
+                return ran;
+            }
+            ran.push(report);
         }
-        let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-        paint.draw().canvas().image(key, paint.bounds(), uv, Color32::WHITE);
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
+        panic!("the rig did not settle");
     }
 }
 
 const REV: Revision = Revision::new(1);
 
-fn solid(w: u32, h: u32) -> RgbaImage {
-    let mut image = RgbaImage::new(SizeU { width: w, height: h });
+fn solid(side: u32) -> RgbaImage {
+    let mut image = RgbaImage::new(SizeU { width: side, height: side });
     image.pixels.fill(200);
     image
 }
 
-#[test]
-fn a_late_picture_reaches_its_node_through_the_image_store_with_no_run() {
-    struct App {
-        cache: TextureCache<u32>,
-    }
-    let mut w = World::build(
-        |board| App { cache: TextureCache::new("thumbs", TextureBudget::new(1 << 20, 64), board.clone()) },
-        |ui, app| {
-            let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
-            Thumb { cache: &app.cache, id: 3 }.show_in(ui);
-        },
-    );
-    let cache = w.app.cache.clone();
-    assert!(matches!(cache.look(&3, REV), TextureLook::Loading { stand_in: None, .. }));
-    assert_eq!(w.queue.run_all(), 1, "the first paint asked for the picture once");
-    assert_eq!(w.wake(), 1);
-    assert_eq!(cache.look(&3, REV), TextureLook::Ready(CachedTexture::new(cache.image_key(&3, REV), craft_behavior::PixelSize::new(8, 8))));
-    let arrived = w.step();
-    assert_eq!((arrived.frame.runs, arrived.frame.scopes, arrived.frame.built), (0, 0, 0), "nothing runs when the picture arrives: {arrived:?}");
-    assert_eq!(arrived.render.images_uploaded, 1, "the renderer uploads it: {arrived:?}");
-    assert!(!w.rig.driver.runtime.needs_frame(), "and the window is settled again");
-    let idle = w.step();
-    assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
+/// A leaf that reads the picture `id` of a store from its hook and asks for it when nobody has.
+#[derive(Component)]
+#[component(unregistered)]
+struct Thumb {
+    #[common]
+    common: Common,
+    id: u32,
+    #[key(skip)]
+    store: TextureStore<u32>,
+    /// Every state a run read, with the key it read.
+    #[key(skip)]
+    seen: Rc<RefCell<Vec<(u32, TextureState)>>>,
+    #[key(skip)]
+    runs: Rc<Cell<u32>>,
 }
 
-/// A leaf that paints the picture of a thumbnail state.
-struct Pic {
-    state: TextureState,
-}
-
-impl ComponentKey for Pic {
-    fn key(&self, key: &mut MemoKey) {
-        self.state.shown().map_or(0, |t| t.key.0).key(key);
-    }
-}
-
-impl Component for Pic {
-    const ROLE: accesskit::Role = accesskit::Role::Image;
+impl Component for Thumb {
+    const ROLE: Role = Role::IMAGE;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(32.0, 32.0)
-    }
-
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        if let Some(texture) = self.state.shown() {
-            let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-            paint.draw().canvas().image(texture.key, paint.bounds(), uv, Color32::WHITE);
-        }
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-/// A source whose pictures come from a background job.
-struct Slow;
-
-impl ThumbSource<u32> for Slow {
-    fn revision(&self, _: &u32, _: &ThumbRequest) -> Revision {
-        REV
-    }
-
-    fn render(&self, _: &u32, request: &ThumbRequest) -> ThumbRender {
-        let side = request.side;
-        ThumbRender::Later(Box::new(move |_| Ok(LoadedPicture::Image(solid(side, side)))))
-    }
-}
-
-struct Thumbed {
-    thumbs: Thumbnails<u32>,
-    state: Option<TextureState>,
-    view_runs: u32,
-    other_runs: u32,
-}
-
-#[test]
-fn a_thumbnail_is_delivered_once_to_the_view_that_reads_it_and_then_nothing_runs() {
-    let mut w = World::build(
-        |board| Thumbed { thumbs: Thumbnails::on(board, "trial", ThumbnailOptions::new()), state: None, view_runs: 0, other_runs: 0 },
-        |ui, app| {
-            MemoView::new(1u32).show(ui, |ui, _| {
-                app.view_runs += 1;
-                let state = app.thumbs.state(ui.build_cx(), &Slow, &7, &ThumbRequest::for_cell(32.0, 1.0), Priority::VISIBLE);
-                app.state = Some(state.clone());
-                Pic { state }.show_in(ui);
-            });
-            MemoView::new(2u32).show(ui, |ui, _| {
-                app.other_runs += 1;
-                let _ = IconButton::new(IconId::new("eraser"), "Beside").show(ui);
-            });
-        },
-    );
-    assert!(matches!(w.app.state, Some(TextureState::Loading { stand_in: None, .. })), "{:?}", w.app.state);
-    assert_eq!((w.app.view_runs, w.app.other_runs), (1, 1));
-    assert_eq!(w.queue.run_all(), 1, "one job makes the picture");
-    assert_eq!(w.wake(), 1, "its answer is delivered once");
-    let arrived = w.step();
-    assert!(matches!(w.app.state, Some(TextureState::Ready(_))), "{:?}", w.app.state);
-    assert_eq!((w.app.view_runs, w.app.other_runs), (2, 1), "only the view that reads the picture ran again");
-    assert_eq!(arrived.frame.scopes, 2, "the root and the reading view: {arrived:?}");
-    assert_eq!(arrived.frame.runs, 1, "only the picture's leaf ran: {arrived:?}");
-    assert_eq!(arrived.render.images_uploaded, 1, "{arrived:?}");
-    assert_eq!(w.wake(), 0, "nothing more is delivered");
-    let idle = w.step();
-    assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
-    assert!(!w.rig.driver.runtime.needs_frame());
-}
-
-/// Shows a leaf and returns its rect.
-trait ShowIn: Component<Output = Response> + Sized {
-    fn show_in(self, ui: &mut Ui<'_, '_>) -> Rect {
-        show_leaf(self, ui).rect
-    }
-}
-
-impl<C: Component<Output = Response>> ShowIn for C {}
-
-/// Counts the live memory slots of every `Held`.
-static LIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-struct Guard;
-
-impl Guard {
-    fn new() -> Guard {
-        LIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Guard
-    }
-}
-
-impl Drop for Guard {
-    fn drop(&mut self) {
-        LIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-    }
-}
-
-#[derive(Clone)]
-struct Held {
-    /// Counts the slot as live until the slot drops.
-    _guard: Arc<Guard>,
-}
-
-impl Default for Held {
-    fn default() -> Held {
-        Held { _guard: Arc::new(Guard::new()) }
-    }
-}
-
-/// Remembers a slot in its node's memory.
-struct Keeper;
-
-impl ComponentKey for Keeper {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
-impl Component for Keeper {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(10.0, 10.0)
+    fn style(_: &StyleCx<'_>, _: ThumbStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::new(32.0, 32.0))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        cx.memory::<Held>();
+        self.runs.set(self.runs.get() + 1);
+        let state = cx.texture_state(&self.store, &self.id, REV);
+        if matches!(state, TextureState::Missing) {
+            self.store.cache().request(self.id, REV, Priority::VISIBLE, |_| Ok(Some(solid(8))));
+        }
+        self.seen.borrow_mut().push((self.id, state));
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
 
-#[test]
-fn a_nodes_memory_lives_with_the_node() {
-    use std::sync::atomic::Ordering::SeqCst;
-    let base = LIVE.load(SeqCst);
-    let mut w = World::new(true, |ui, shown| {
-        if *shown {
-            Keeper.show_in(ui);
+struct Pictures {
+    store: TextureStore<u32>,
+    ids: Vec<u32>,
+    seen: Rc<RefCell<Vec<(u32, TextureState)>>>,
+    runs: Rc<Cell<u32>>,
+}
+
+impl Pictures {
+    fn new(board: &JobBoard, ids: &[u32]) -> Pictures {
+        Pictures {
+            store: TextureStore::on(board, "services-thumbs", TextureStoreOptions::default()),
+            ids: ids.to_vec(),
+            seen: Rc::default(),
+            runs: Rc::default(),
+        }
+    }
+
+    fn latest(&self, id: u32) -> Option<TextureState> {
+        self.seen.borrow().iter().rev().find(|(i, _)| *i == id).map(|(_, s)| s.clone())
+    }
+}
+
+fn pictures_view(ui: &mut Ui<'_, '_>, app: &mut Pictures) {
+    Stack::new().show(ui, |ui| {
+        let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
+        for &id in &app.ids {
+            let thumb = Thumb { common: Common::new(), id, store: app.store.clone(), seen: app.seen.clone(), runs: app.runs.clone() };
+            let _ = thumb.id(Id::new("services-thumb").with(id)).show(ui);
         }
     });
-    assert_eq!(LIVE.load(SeqCst), base + 1, "the run made the slot");
-    w.touch();
-    w.step();
-    assert_eq!(LIVE.load(SeqCst), base + 1, "a kept node keeps its slot");
-    *w.app = false;
-    w.touch();
-    w.step();
-    assert_eq!(LIVE.load(SeqCst), base, "the node left the tree and its slot went with it");
 }
 
-thread_local! {
-    static FRAMES: RefCell<Vec<Option<LayerFrame>>> = const { RefCell::new(Vec::new()) };
-}
-
-/// Notes the layer frame its run saw.
-struct FrameReader;
-
-impl ComponentKey for FrameReader {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
-impl Component for FrameReader {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = Response;
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(10.0, 10.0)
-    }
-
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        FRAMES.with(|f| f.borrow_mut().push(paint.frame()));
-    }
-
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
+fn image_key_of(app: &Pictures, id: u32) -> craft_ui_rt::ImageKey {
+    app.store.cache().image_key(&id, REV)
 }
 
 #[test]
-fn the_layer_frame_reaches_the_nodes_under_a_scope_and_rounds_the_surfaces_that_meet_it() {
-    let frame = LayerFrame { rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(200.0, 100.0)), radii: CornerRadii::same(8.0) };
-    let mut w = World::new(frame, |ui, frame| {
-        EnvScope::new().frame(Some(*frame)).show(ui, |ui| {
-            FrameReader.show_in(ui);
-        });
-    });
-    w.step();
-    let seen = FRAMES.with(|f| f.borrow().clone());
-    assert!(seen.contains(&Some(frame)) || seen.last() == Some(&Some(frame)), "the node under the scope saw the frame: {seen:?}");
-    let mut items = vec![
-        Item::Rect {
-            rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(200.0, 100.0)),
-            radii: CornerRadii::ZERO,
-            fill: craft_theme::Rgba([1, 2, 3, 255]),
-            stroke: None,
+fn a_late_picture_reaches_the_node_that_reads_it_through_the_image_store_and_then_nothing_runs() {
+    let mut w = World::build(|board| Pictures::new(board, &[3]), pictures_view);
+    assert!(matches!(w.app.latest(3), Some(TextureState::Missing)), "the first run found nothing and asked: {:?}", w.app.latest(3));
+    assert!(w.app.store.cache().requested(&3, REV), "the request is kept");
+    assert_eq!(w.queue.run_all(), 1, "one job makes the picture");
+    let runs = w.app.runs.get();
+    let arrived = w.step();
+    assert_eq!(w.app.runs.get(), runs + 1, "the node that reads the picture ran again, and no other: {arrived:?}");
+    assert_eq!(arrived.frame.runs, 1, "{arrived:?}");
+    assert_eq!(arrived.render.images_uploaded, 1, "the renderer uploads it: {arrived:?}");
+    let key = image_key_of(&w.app, 3);
+    match w.app.latest(3) {
+        Some(TextureState::Ready(CachedTexture { key: shown, .. })) => assert_eq!(shown, key),
+        other => panic!("the picture is ready: {other:?}"),
+    }
+    assert!(!w.rig.driver.runtime.needs_frame(), "the window is settled again");
+    let idle = w.step();
+    assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
+}
+
+/// Whether the cache holds a picture of `id` that is ready.
+fn is_ready(app: &Pictures, id: u32) -> bool {
+    matches!(app.store.cache().look(&id, REV), TextureLook::Ready(_))
+}
+
+struct Toggled {
+    shown: bool,
+    pictures: Pictures,
+}
+
+#[test]
+fn a_loading_picture_is_cancelled_when_its_last_reader_leaves_and_asked_again_when_one_returns() {
+    let mut w = World::build(
+        |board| Toggled { shown: true, pictures: Pictures::new(board, &[]) },
+        |ui, app| {
+            app.pictures.ids = if app.shown { vec![5] } else { Vec::new() };
+            pictures_view(ui, &mut app.pictures);
         },
-        Item::Rect {
-            rect: Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(20.0, 20.0)),
-            radii: CornerRadii::ZERO,
-            fill: craft_theme::Rgba([1, 2, 3, 255]),
-            stroke: None,
-        },
-    ];
-    frame.fit(Pos2::ZERO, &mut items);
-    let radii = |i: &Item| if let Item::Rect { radii, .. } = i { *radii } else { unreachable!() };
-    assert_eq!(radii(&items[0]), CornerRadii::same(8.0), "a surface that fills the frame takes its corners");
-    assert_eq!(radii(&items[1]), CornerRadii::ZERO, "one inside it keeps its own");
+    );
+    assert!(w.app.pictures.store.cache().requested(&5, REV), "the shown node asked for the picture");
+    w.app.shown = false;
+    w.touch();
+    w.settle();
+    assert!(!w.app.pictures.store.cache().requested(&5, REV), "the last reader left: the request was cancelled");
+    w.queue.run_all();
+    let late = w.settle();
+    assert!(late.iter().all(|r| r.render.images_uploaded == 0), "a cancelled job's picture is never delivered: {late:?}");
+    assert!(!is_ready(&w.app.pictures, 5), "and the key shows nothing");
+    w.app.shown = true;
+    w.touch();
+    w.settle();
+    assert!(w.app.pictures.store.cache().requested(&5, REV), "a reader that returns asks again");
+    assert_eq!(w.queue.run_all(), 1, "with one new job");
+    w.settle();
+    assert!(is_ready(&w.app.pictures, 5));
+}
+
+#[test]
+fn a_picture_reads_ready_only_once_it_is_in_the_image_store() {
+    let mut w = World::build(|board| Pictures::new(board, &[1, 2]), pictures_view);
+    {
+        let (_, images) = w.rig.driver.runtime.store_and_images_mut();
+        images.set_upload_budget(1);
+    }
+    assert_eq!(w.queue.run_all(), 2, "one job per picture");
+    let frames = w.settle();
+    let uploads: Vec<u32> = frames.iter().map(|r| r.render.images_uploaded).collect();
+    assert_eq!(uploads.iter().sum::<u32>(), 2, "both pictures reach the renderer: {uploads:?}");
+    assert!(uploads.iter().all(|&n| n <= 1), "a frame uploads no more than its budget takes: {uploads:?}");
+    let (_, images) = w.rig.driver.runtime.store_and_images_mut();
+    assert!(images.contains(image_key_of(&w.app, 1)) && images.contains(image_key_of(&w.app, 2)), "both are in the image store");
+    assert_eq!(images.waiting(), 0);
+    for id in [1, 2] {
+        assert!(matches!(w.app.latest(id), Some(TextureState::Ready(_))), "{id}: {:?}", w.app.latest(id));
+    }
+    assert!(!w.rig.driver.runtime.needs_frame());
 }
