@@ -687,8 +687,8 @@ mod focused {
     fn focused_stop_reruns_its_reader_only_when_focus_moves() {
         let mut h = Harness::new_ui(|ui| {
             let _ = MemoView::new("reader", (), reader).show(ui);
-            let _ = IconButton::new(IconId::new("plus"), "One").show(ui);
-            let _ = IconButton::new(IconId::new("plus"), "Two").show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "One").focusable().show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "Two").focusable().show(ui);
         });
         h.run();
         let runs = || RUNS.load(Ordering::Relaxed);
