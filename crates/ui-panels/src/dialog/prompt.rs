@@ -15,7 +15,7 @@ use crate::sections::{DialogRole, FooterButton, Section};
 use craft_behavior::{IconId, Mixed};
 use craft_keymap::{Chord, mnemonic};
 use craft_theme::variant::Tone;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

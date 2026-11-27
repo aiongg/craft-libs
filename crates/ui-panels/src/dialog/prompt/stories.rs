@@ -12,7 +12,7 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_quit::CloseScope;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 use std::time::Duration;
 
 /// How long before the recovery folder was listed the document was autosaved, from a few seconds to days.

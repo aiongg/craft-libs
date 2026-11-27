@@ -23,7 +23,8 @@ use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Context, Id, Pos2, Rect, Response, Ui};
+use craft_ui::{Context, Id, Response, Ui};
+use craft_ui::geom::{Pos2, Rect};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -327,7 +328,7 @@ impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
         self.over = live && cx.dragging::<P>().is_some_and(|(payload, at)| cx.rect.contains(at) && (self.accepts)(&payload));
         let target = OnSlot { rect: cx.rect, live, accepts: &*self.accepts };
         self.dropped = cx.drop_target(&target);
-        self.mods = if self.dropped.is_some() { crate::runtime::pointer::frame(&cx.ctx).pick_mods } else { craft_keymap::Mods::NONE };
+        self.mods = if self.dropped.is_some() { crate::runtime::pointer::frame(cx.context()).pick_mods } else { craft_keymap::Mods::NONE };
     }
 
     fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
@@ -719,7 +720,7 @@ impl FooterBar {
                 let lettered = letters_reach_footer(&ctx);
                 // A text part does not own modified chords, so a focused field does not stop a button's chord.
                 let chorded = crate::runtime::overlay::drawing_top_modal(&ctx);
-                let os = crate::runtime::windows::os_of(&ctx);
+                let os = ctx.os();
                 // Initial focus lands on the first enabled Accept button on every OS.
                 let armed_for = Env::of(&*ui).get::<ArmedFor>().0;
                 let default_at = buttons.iter().position(|button| button.role == DialogRole::Accept && button.live(armed_for));
@@ -768,7 +769,7 @@ impl FooterBar {
                         let alt = key.map(|key| Chord::new(Mods::ALT, key)).filter(|_| chorded && os != Os::Mac);
                         let modified = button.chord.filter(|_| chorded);
                         let chords = letter.into_iter().chain(alt).chain(modified);
-                        for chord in chords.filter(|_| live && !ui.is_sizing_pass()) {
+                        for chord in chords.filter(|_| live && !ui.is_measuring()) {
                             keys::capture(&ctx, owner, chord);
                             if keys::take_claimed(&ctx, owner, chord) {
                                 shown.picked = Some(at);
@@ -784,7 +785,7 @@ impl FooterBar {
                 } else {
                     place(ui, &mut shown);
                 }
-                if enter && shown.picked.is_none() && !ui.is_sizing_pass() {
+                if enter && shown.picked.is_none() && !ui.is_measuring() {
                     shown.picked = default_at.filter(|_| enter_reaches_footer(&ctx) && keys::take_submit(&ctx));
                 }
                 shown
@@ -792,7 +793,7 @@ impl FooterBar {
         });
         let inner = shown.inner.unwrap_or_default();
         let mods = if inner.picked.is_some() || inner.dropped.is_some() {
-            crate::runtime::pointer::frame(ui.ctx()).pick_mods
+            ui.pointer().pick_mods
         } else {
             craft_keymap::Mods::NONE
         };
@@ -862,14 +863,14 @@ impl Component for FooterBar {
     /// before every button armed holds the count.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(longest) = self.arms.iter().copied().reduce(f64::max) else { return };
-        let ctx = cx.ctx.clone();
+        let ctx = cx.context().clone();
         if crate::runtime::measure::active(&ctx) {
             return;
         }
         let Some(pass) = frame::running(&ctx) else { return };
         let focused = WindowHost::of(&ctx).facts(pass.viewport).is_some_and(|facts| facts.focused);
         let held =
-            !crate::runtime::pointer::frame(&ctx).buttons.is_empty() || keys::held(&ctx).iter().any(|key| matches!(key, Key::Enter | Key::Space));
+            !crate::runtime::pointer::frame(&ctx).buttons.is_empty() || ctx.held_keys().iter().any(|key| matches!(key, Key::Enter | Key::Space));
         let dialog = crate::runtime::overlay::running_dialog(&ctx);
         let arming = cx.keep::<Arming>();
         // A host's next dialog shown in the same place with the same ids waits its own delay.
@@ -884,7 +885,7 @@ impl Component for FooterBar {
         }
         self.armed_for = arming.shown;
         if let Some(next) = self.arms.iter().copied().filter(|seconds| *seconds > self.armed_for).reduce(f64::min) {
-            frame::request_repaint_after(&ctx, next - self.armed_for);
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(next - self.armed_for));
         }
     }
 

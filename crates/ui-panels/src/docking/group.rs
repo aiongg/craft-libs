@@ -25,7 +25,8 @@ use crate::style::{ComponentStyle, Corners, RuleLook, RuleWidth, StyleColor, Sty
 use crate::tabs::{PanelTabLook, Tab, TabKind, TabStrip, TornOff};
 use craft_behavior::{CursorIcon, CursorPriority, DockSide, IconId, Metrics, PartKey, PressPhase, Sense, keyed};
 use craft_theme::{ControlSize, GripMark, GripShape, Tokens};
-use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::borrow::Cow;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -75,7 +76,7 @@ impl GripMarks {
         let GripShape { mark, count, length, width, gap } = self.shape;
         if mark == GripMark::Bar {
             let bar = Rect::from_center_size(centre, Vec2::new(length, width));
-            ui.draw().fill(&PaintShape::Rect(bar, egui::CornerRadius::ZERO), self.ink);
+            ui.draw().fill(&PaintShape::Rect(bar, craft_ui::CornerRadius::ZERO), self.ink);
             return;
         }
         let look = RuleLook { color: self.ink.egui(), width: RuleWidth::Points(width) };
@@ -614,7 +615,7 @@ impl<P: Clone + PartialEq + Debug + Hash + Send + Sync + 'static> Component for 
             let end = rest.take_end(side).0;
             let height = side.min(slot.height());
             let top = if self.tab_look == PanelTabLook::Plain { slot.top() } else { slot.center().y - height / 2.0 };
-            let button = Rect::from_min_size(egui::Pos2::new(end.left(), top), Vec2::new(end.width(), height));
+            let button = Rect::from_min_size(craft_ui::geom::Pos2::new(end.left(), top), Vec2::new(end.width(), height));
             let _ = cx
                 .header_part(HeaderEdge::End, MENU, button)
                 .sense(Sense::CLICK | Sense::FOCUS)
@@ -802,7 +803,7 @@ impl<P: Clone + Hash + Send + Sync + PartialEq + Debug + 'static> Container for 
         // not theirs. The tab row takes the rest of the line, so the strip's empty room is its own, and nothing but the
         // memoized tab row runs in it, so a settled header replays.
         let titled = self.titled;
-        let cross = if titled { egui::Align::Center } else { egui::Align::Min };
+        let cross = if titled { craft_ui::geom::Align::Center } else { craft_ui::geom::Align::Min };
         let layout = if rtl { egui::Layout::right_to_left(cross) } else { egui::Layout::left_to_right(cross) };
         let mut sent = Vec::new();
         let strip = ui
@@ -826,7 +827,7 @@ impl<P: Clone + Hash + Send + Sync + PartialEq + Debug + 'static> Container for 
                     let close_name = cx.words::<DockWords>().close_panel.clone();
                     if let Some(panel) = shown.filter(|panel| self.closable && panel.closable) {
                         let name = Label::from(close_name.fill(&[("name", panel.title.as_str())]));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(craft_ui::geom::Align::Center), |ui| {
                             if crate::contract::clicked(&IconButton::new(IconId::new("close")).size(ControlSize::Sm).label(name).show(ui)) {
                                 sent.push(TabEvent::Closed(panel.key));
                             }
@@ -860,7 +861,7 @@ impl<P: Clone + Hash + Send + Sync + PartialEq + Debug + 'static> Container for 
             && !self.host_body
             && let Some((strip, _, _)) = &strip
         {
-            focus::request(ui.ctx(), FocusTarget::Id(*strip));
+            ui.request_focus(FocusTarget::Id(*strip));
         }
         if let Some((strip, tabs, overflow)) = &strip {
             self.reported.tabs = tabs.iter().map(|(key, rect)| (*key, *rect, crate::contract::item_node(*strip, key))).collect();
@@ -947,7 +948,7 @@ struct TabRow<'a, P> {
 }
 
 /// The tabs of `panels` whose toggle command marks them, as it marks the panel's rail button, with the command's hint.
-fn tab_marks(ctx: &egui::Context, panels: &[PanelTitle]) -> Vec<(PanelKey, Option<Arc<str>>)> {
+fn tab_marks(ctx: &craft_ui::Context, panels: &[PanelTitle]) -> Vec<(PanelKey, Option<Arc<str>>)> {
     panels
         .iter()
         .filter_map(|panel| {
@@ -1015,7 +1016,7 @@ fn tab_row<P: Clone + PartialEq + Debug + Hash + Send + Sync + 'static>(row: &mu
     let rtl = env.direction.is_rtl();
     let (panels, active, closable) = (row.panels.as_slice(), row.active, row.closable);
     let from = PanelKey::of(&row.anchor);
-    let drags = crate::runtime::drag::started(ui.ctx());
+    let drags = ui.drag_started();
     let tabs = strip_tabs(panels, closable);
     let source = keyed(&tabs, |tab: &StripTab<'_>| tab.key).with_text(|tab| Cow::Borrowed(tab.title.as_str()));
     let tabs = &tabs;
@@ -1075,7 +1076,7 @@ fn tab_row<P: Clone + PartialEq + Debug + Hash + Send + Sync + 'static>(row: &mu
     if let Some(dock) = row.dock {
         register_insertions(ui.ctx(), dock, &row.anchor, panels, &strip.tab_rects, rtl);
     }
-    if crate::runtime::drag::started(ui.ctx()) != drags && crate::runtime::drag::active::<PanelDrag>(ui.ctx()).is_some_and(|drag| drag.from == from) {
+    if ui.drag_started() != drags && crate::runtime::drag::active::<PanelDrag>(ui.ctx()).is_some_and(|drag| drag.from == from) {
         row.sent.send(TabEvent::DragStarted);
     }
     if let Some(key) = strip.picked {
@@ -1102,7 +1103,7 @@ fn tab_row<P: Clone + PartialEq + Debug + Hash + Send + Sync + 'static>(row: &mu
 /// Registers the tab insertion spots of a group: the half of each shown tab nearer the start edge inserts before
 /// it, the other half after it, and each spot's mark is the line at the boundary it inserts at.
 fn register_insertions<P: Clone + PartialEq + Debug + Hash + Send + Sync + 'static>(
-    ctx: &egui::Context,
+    ctx: &craft_ui::Context,
     dock: Id,
     anchor: &P,
     panels: &[PanelTitle],

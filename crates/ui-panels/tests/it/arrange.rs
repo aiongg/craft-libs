@@ -3,7 +3,7 @@
 use craft_behavior::dock::{Arrangement, DocumentGroup, DocumentWindows, arrange_rects};
 use craft_ui::docking::{ArrangeCommands, ArrangeSpace, Arranged, arrange};
 use craft_ui::testing::trial;
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 const AREA: Rect = Rect { min: Pos2::new(0.0, 40.0), max: Pos2::new(900.0, 640.0) };
 

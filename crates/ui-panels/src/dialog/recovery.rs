@@ -10,7 +10,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use crate::sections::DialogRole;
 use craft_i18n::AgeStyle;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 use serde_json::{Value, json};
 use std::time::Duration;
 

@@ -6,7 +6,7 @@ use super::tree::{self, FrameRules};
 use super::{ColumnBar, DockSizes, HidePanels, PanelSpec, column_cells, group_rects};
 use craft_behavior::Flow;
 use craft_behavior::dock::{Column, Layout, Node};
-use egui::Rect;
+use craft_ui::geom::Rect;
 use std::hash::Hash;
 
 /// How a dock lays out its panels, which its drop target reads to mark where a drop puts them

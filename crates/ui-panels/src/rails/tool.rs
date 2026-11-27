@@ -21,7 +21,8 @@ use crate::tabs::TornOff;
 use craft_behavior::overlay::Side;
 use craft_behavior::{IconId, Metrics, NavShape, Proposal, Roving, Sense, Value};
 use craft_theme::ControlSize;
-use egui::{Id, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use craft_ui::geom::{Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

@@ -8,8 +8,9 @@ use craft_ui::dialog::Dialog;
 use craft_ui::edit::{GestureHost, StepName, UndoMarks};
 use craft_ui::runtime::frame::{OuterEdit, take_output};
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Context, Key, Modifiers};
+use craft_ui::testing::{Harness, trial};
+use craft_ui::Context;
+use craft_ui::input::{Key, Mods};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -79,10 +80,10 @@ impl App {
 }
 
 /// An open dialog with two check boxes over the document, whose events go to the app's gesture host.
-fn dialog() -> (Fixture, Rc<RefCell<App>>) {
+fn dialog() -> (Harness, Rc<RefCell<App>>) {
     let app = Rc::new(RefCell::new(App { open: true, ..App::default() }));
     let state = app.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut app = state.borrow_mut();
         app.drain(ui.ctx());
         let App { doc, host, open, shown, .. } = &mut *app;
@@ -110,7 +111,7 @@ fn dialog() -> (Fixture, Rc<RefCell<App>>) {
 }
 
 /// Clicks both check boxes: two field edits inside the dialog.
-fn edit_both(fixture: &mut Fixture, app: &Rc<RefCell<App>>) {
+fn edit_both(fixture: &mut Harness, app: &Rc<RefCell<App>>) {
     for label in ["Snap", "Show Grid"] {
         let target = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} check box is shown"));
         fixture.click(&target).settle();
@@ -150,7 +151,7 @@ fn two_field_edits_and_ok_leave_one_undo_step_for_the_dialog() {
     assert_eq!(app.doc.values, Values { snap: true, grid: true }, "OK keeps both edits");
 }
 
-type Close<'a> = (&'a str, fn(&mut Fixture));
+type Close<'a> = (&'a str, fn(&mut Harness));
 
 /// The same edits closed by Cancel or by Escape: the outer gesture is cancelled, the document is as before, and the
 /// reopened dialog's fields show the values from before under a new outer gesture.
@@ -162,7 +163,7 @@ fn cancel_or_escape_takes_the_dialogs_field_edits_back() {
             fixture.click(&cancel);
         }),
         ("Escape", |fixture| {
-            fixture.key(Key::Escape, Modifiers::NONE);
+            fixture.key(Key::Escape, Mods::NONE);
         }),
     ];
     for (name, close) in closes {

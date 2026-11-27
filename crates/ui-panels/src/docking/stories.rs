@@ -15,11 +15,12 @@ use crate::menu::{Menu, PanelRow};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Message;
 use crate::tabs::PanelTabLook;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::dock::{Layout, Node, SplitSize};
 use craft_behavior::{Axis, IconId, Mixed};
 use craft_theme::Srgba;
-use egui::{Ui, Vec2};
+use craft_ui::Ui;
+use craft_ui::geom::Vec2;
 
 const LAYERS: usize = 0;
 const CHANNELS: usize = 1;
@@ -58,7 +59,7 @@ fn dock(ui: &mut Ui, bind: Bind<'_, Layout<usize>>, shown: &Layout<usize>, revis
     area.output.edit.into()
 }
 
-fn drag_handle(fixture: &mut Fixture) {
+fn drag_handle(fixture: &mut Harness) {
     let Some(id) = fixture.root_id() else { return };
     let Some(grip) = fixture.part(id, HANDLE.at(0)) else { return };
     let travel = 2.0 * crate::testing::input::slop(fixture.ctx());
@@ -145,7 +146,7 @@ fn a_panel_with_documents(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// A click on the panel menu button opens the group's panel menu.
-fn open_panel_menu(fixture: &mut Fixture) {
+fn open_panel_menu(fixture: &mut Harness) {
     if let Some(button) = fixture.root_id().and_then(|id| fixture.part(id, MENU)) {
         fixture.click(&button);
         fixture.settle();

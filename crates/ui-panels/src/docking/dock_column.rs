@@ -20,7 +20,8 @@ use crate::tabs::PanelTabLook;
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense, Value};
-use egui::{Context, Id, Pos2, Rect, Response, Ui};
+use craft_ui::{Context, Id, Response, Ui};
+use craft_ui::geom::{Pos2, Rect};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -342,7 +343,7 @@ impl<'a, P: Value + Hash + Debug + 'static> DockColumn<'a, P> {
 /// [`DockSizes::card`] on its top and bottom; `rect` for a column that is no card.
 pub(crate) fn card_rect(rect: Rect, card: Option<CardInset>, sizes: &DockSizes, edge: DockEdge, rtl: bool) -> Rect {
     let Some(outer) = card.map(|place| sizes.inset(place)) else { return rect };
-    let inner = rect.shrink2(egui::vec2(0.0, sizes.card));
+    let inner = rect.shrink2(craft_ui::geom::vec2(0.0, sizes.card));
     if (edge == DockEdge::Start) != rtl { inner.with_min_x(inner.left() + outer) } else { inner.with_max_x(inner.right() - outer) }
 }
 

@@ -24,7 +24,8 @@ use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::overlay::Side;
 use craft_behavior::{Axis, CursorIcon, DockSide, Metrics, PartKey, PressPhase, Sense, Value};
 use craft_theme::ControlSize;
-use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -76,7 +77,7 @@ impl IconicSizes {
 
     /// The sizes in the root scope's style, for code outside a style pass:
     /// `StyleCx::with_root(ctx, IconicSizes::style)`.
-    pub fn of(ctx: &egui::Context) -> Self {
+    pub fn of(ctx: &craft_ui::Context) -> Self {
         StyleCx::with_root(ctx, IconicSizes::style)
     }
 
@@ -883,7 +884,7 @@ impl<P: Value + Debug + Hash + 'static> IconicColumn<'_, P> {
     /// between them), the top of the first group and the bottom of the last down to the column's foot (a new group
     /// above or below), and the cells of each icon group (join its tabs). A floating column registers no edge bands:
     /// nothing goes beside it.
-    fn register(&self, ctx: &egui::Context, rect: Rect, rtl: bool, plan: &Plan, sizes: &IconicSizes) {
+    fn register(&self, ctx: &craft_ui::Context, rect: Rect, rtl: bool, plan: &Plan, sizes: &IconicSizes) {
         let anchor = |group: usize| self.column.groups.get(group).and_then(|group| group.panels.first());
         let Some(first) = anchor(0) else { return };
         if self.bar == ColumnBar::Own {

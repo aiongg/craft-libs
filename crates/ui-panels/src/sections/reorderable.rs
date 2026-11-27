@@ -12,7 +12,7 @@ use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::{Env, Label};
 use crate::style::TypeRole;
 use craft_behavior::{EditEvent, IconId, Mixed};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::cell::RefCell;
 use std::sync::Arc;
 

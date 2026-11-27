@@ -2,8 +2,9 @@
 //! a layer or a component shows it from its `overlay` hook, and whatever its body paints itself. Its content sits
 //! inside the popup padding, and a popup beside its owner does not cover it.
 
-use craft_ui::testing::{Drive, Fixture, Registry, trial};
-use egui::{Rect, Shape};
+use craft_ui::testing::{Drive, Harness, Registry, trial};
+use egui::Shape;
+use craft_ui::geom::Rect;
 
 /// Each story, opened by its drive, with a text only its popup shows.
 const OPEN: [(&str, &str); 4] = [
@@ -18,10 +19,10 @@ const OPEN: [(&str, &str); 4] = [
 ];
 
 /// The story `name`, opened by its drive, and the shapes of the frame after it settled.
-fn open(name: &str) -> (Fixture, Vec<Shape>) {
+fn open(name: &str) -> (Harness, Vec<Shape>) {
     let registry = Registry::of(&[craft_ui::testing::register, craft_ui_widgets::testing::register]);
     let entry = registry.stories().iter().find(|entry| entry.story.name == name).unwrap_or_else(|| panic!("story {name}"));
-    let mut fixture = Fixture::story(&entry.story);
+    let mut fixture = Harness::story(&entry.story);
     fixture.settle();
     if let Drive::Custom(open) = entry.story.drive {
         open(&mut fixture);

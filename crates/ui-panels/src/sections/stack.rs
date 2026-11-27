@@ -12,7 +12,8 @@ use crate::runtime::access::SetPosition;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Axis, EditEvent, Metrics, Mixed, Sense};
-use egui::{Pos2, Rect, Response, Ui};
+use craft_ui::geom::{Pos2, Rect};
+use craft_ui::{Response, Ui};
 use std::sync::{Arc, Mutex, PoisonError};
 
 #[cfg(feature = "suite")]

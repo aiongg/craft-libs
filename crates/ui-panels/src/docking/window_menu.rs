@@ -4,7 +4,7 @@ use super::SpecSource;
 use crate::contract::Show as _;
 use crate::menu::MenuItem;
 use craft_behavior::dock::{Action, Layout, PanelState};
-use egui::Ui;
+use craft_ui::Ui;
 use std::hash::Hash;
 
 /// One check row per panel in the order the app gives, for a Window menu. A row is checked while its panel is in the

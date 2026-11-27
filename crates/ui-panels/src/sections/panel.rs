@@ -16,7 +16,7 @@ use crate::runtime::focus::FocusPolicy;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::{Metrics, Sense};
-use egui::{CornerRadius, Id, Response, Ui};
+use craft_ui::{CornerRadius, Id, Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

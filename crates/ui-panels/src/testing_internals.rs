@@ -6,7 +6,7 @@ use crate::list::ListRow;
 pub use crate::list::row::RowPlacement;
 use crate::sections::DialogRole;
 use craft_behavior::Axis;
-use egui::{Pos2, Rect};
+use craft_ui::geom::{Pos2, Rect};
 
 /// Where the parts of `row` lie in a rect of `width`, under fixed sizes.
 pub fn place_row(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement {

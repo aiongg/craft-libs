@@ -11,7 +11,7 @@ use crate::testing::memory::global;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Flow;
 use craft_behavior::dock::{Column, Group};
-use egui::{Ui, UiBuilder};
+use craft_ui::{Ui, UiBuilder};
 
 /// The height of the card stories' columns.
 const CARD_HEIGHT: f32 = 160.0;

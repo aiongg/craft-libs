@@ -7,7 +7,7 @@ use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::docking::{DockCommands, DockScene, DockSizes, FloatSpace, actions};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::trial;
-use egui::{Pos2, Rect, vec2};
+use craft_ui::geom::{Pos2, Rect, vec2};
 
 const EXPLORER: usize = 1;
 const LIBRARY: usize = 2;
@@ -24,7 +24,7 @@ fn workspace() -> Workspace<usize> {
 
 /// Runs `command` on Library's tab menu as the dock does: over the workspace's layout and floated records.
 fn run(workspace: &mut Workspace<usize>, command: DockCommands) {
-    let sizes = with_cx(&egui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style);
+    let sizes = with_cx(&craft_ui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style);
     let space = FloatSpace::new(Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 825.0)), &sizes);
     let actions = {
         let scene = DockScene::new(workspace.layout(), &space, false, &allow).floated(workspace.floated());

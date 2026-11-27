@@ -10,7 +10,8 @@ use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::{Axis, Metrics, PartKey, Sense};
-use egui::{Rect, Response};
+use craft_ui::geom::Rect;
+use craft_ui::Response;
 
 const DIVIDER: PartKey = PartKey::new("divider");
 

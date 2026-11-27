@@ -2,7 +2,7 @@
 
 use super::{control, focus, focused};
 use craft_ui::testing::{Frames, trial};
-use egui::Ui;
+use craft_ui::Ui;
 use std::cell::Cell;
 
 /// Spec test row "when the focused component is not shown, focus goes nowhere": no stop inherits it, whether stops

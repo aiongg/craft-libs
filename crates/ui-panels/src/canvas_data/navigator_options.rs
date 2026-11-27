@@ -2,7 +2,7 @@
 //! `patterns::form_dialogs::NavigatorOptionsDialog`.
 
 use craft_theme::Srgba;
-use egui::Color32;
+use craft_ui::Color32;
 
 /// The proxy rectangle's colour (Panel Options, Color).
 ///

@@ -14,8 +14,9 @@ use craft_ui::runtime::drag;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, secondary};
-use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
+use craft_ui::testing::{Harness, Target, trial};
+use craft_ui::input::{Key, Mods};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -35,7 +36,7 @@ fn tools(ids: &[u8]) -> Vec<RailTool<u8>> {
 }
 
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     selected: Rc<RefCell<Vec<u8>>>,
     doubles: Rc<Cell<u32>>,
 }
@@ -46,7 +47,7 @@ fn build(hold_selects: bool, click: Option<EditCommands>) -> Rig {
     let doubles = Rc::new(Cell::new(0_u32));
     let shown = Rc::new(Cell::new(UNDO));
     let (seen, counted, current) = (selected.clone(), doubles.clone(), shown);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let all = tools(&[UNDO, REDO, CUT]);
         let at = current.get();
         let mut button = FlyoutButton::new(&all, &at).hold_selects(hold_selects);
@@ -101,7 +102,7 @@ fn a_click_selects_the_shown_tool_and_holding_opens_the_flyout() {
 fn dragging_a_press_away_opens_the_flyout_and_releasing_over_a_row_picks_it() {
     let mut dragged = rig(true);
     let target = button(&dragged);
-    let away = egui::Vec2::new(target.rect.width() * 1.5, 0.0);
+    let away = craft_ui::geom::Vec2::new(target.rect.width() * 1.5, 0.0);
     dragged.fixture.drag_hold_at(target.center(), away);
     dragged.fixture.idle(2);
     assert!(!dragged.fixture.by_role(Role::MENU).is_empty(), "a press dragged off the button opens the flyout");
@@ -122,7 +123,7 @@ fn the_flyout_checks_the_shown_tool_and_marks_no_other_row() {
     held.fixture.idle(3);
     assert!(!held.fixture.by_role(Role::MENU).is_empty(), "a held press opens the flyout");
     // The rows, not the rail button that also bears the shown tool's name.
-    let checked = |fixture: &Fixture, label: &str| {
+    let checked = |fixture: &Harness, label: &str| {
         let rows = fixture.by_role(Role::MENU_ITEM_CHECK_BOX);
         let row = rows.iter().find(|row| fixture.tree().name_of(row.node) == Some(label));
         fixture.tree().toggled_of(row.unwrap_or_else(|| panic!("the flyout lists {label}")).node)
@@ -143,7 +144,7 @@ fn the_flyout_checks_the_shown_tool_and_marks_no_other_row() {
 #[trial]
 fn the_flyout_of_a_low_tool_slides_up_to_stay_in_the_window() {
     let all: Vec<RailTool<u8>> = (0..12u8).map(|id| RailTool::new(id, EditCommands::Cut)).collect();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(440.0);
         FlyoutButton::new(&all, &0).show(ui);
     });
@@ -167,12 +168,12 @@ fn a_tool_groups_button_is_one_node_that_reports_and_opens_the_flyout() {
     let owner = Rc::new(Cell::new(None));
     let seen = owner.clone();
     let all = tools(&[UNDO, REDO, CUT]);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = FlyoutButton::new(&all, &UNDO).show(ui);
         seen.set(Some(out.response.id));
     });
     fixture.settle();
-    let named = |fixture: &Fixture| -> Vec<Target> {
+    let named = |fixture: &Harness| -> Vec<Target> {
         fixture.by_role(Role::BUTTON).into_iter().filter(|button| fixture.tree().name_of(button.node) == Some("Undo")).collect()
     };
     let buttons = named(&fixture);
@@ -195,8 +196,8 @@ fn a_tool_groups_button_is_one_node_that_reports_and_opens_the_flyout() {
     let owner = owner.get().expect("the flyout button shows");
     let mark = fixture.part_rect(owner, PartKey::new("mark")).expect("the button has a corner mark");
     assert!(button.rect.contains_rect(mark), "the mark {mark:?} lies on the button {:?}", button.rect);
-    fixture.frame(vec![moved(mark.center())]);
-    fixture.frame(vec![press(mark.center())]).idle(2);
+    fixture.send(moved(mark.center()));
+    fixture.send(press(mark.center())).idle(2);
     assert!(!fixture.by_role(Role::MENU).is_empty(), "a press on the mark opens the flyout without a hold");
     assert_eq!(named(&fixture).len(), 1, "the open flyout leaves one node named after the tool");
 }
@@ -206,7 +207,7 @@ fn a_tool_groups_button_is_one_node_that_reports_and_opens_the_flyout() {
 #[trial]
 fn the_current_tools_button_reports_pressed_and_the_others_not() {
     let (undo, cut) = (tools(&[UNDO]), tools(&[CUT]));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         FlyoutButton::new(&undo, &UNDO).id_salt("undo").selected(true).show(ui);
         FlyoutButton::new(&cut, &CUT).id_salt("cut").selected(false).show(ui);
     });
@@ -223,18 +224,18 @@ fn the_current_tools_button_reports_pressed_and_the_others_not() {
 #[trial]
 fn a_focused_rail_button_shows_the_focus_ring_around_it() {
     let all = tools(&[UNDO, REDO]);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         FlyoutButton::new(&all, &UNDO).show(ui);
     });
     fixture.settle();
-    let ring = |fixture: &mut Fixture| {
+    let ring = |fixture: &mut Harness| {
         fixture.frame_shapes().iter().find_map(|shape| match shape {
             egui::Shape::Rect(rect) if rect.stroke.width >= 2.0 => Some(rect.rect),
             _ => None,
         })
     };
     assert!(ring(&mut fixture).is_none(), "an unfocused rail button has no ring");
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     assert!(fixture.focused().is_some(), "Tab focused the rail button");
     let target = fixture.by_role(Role::BUTTON).into_iter().next().expect("the rail button shows");
@@ -253,12 +254,12 @@ fn a_click_command_cycles_and_a_hold_lists_the_tools_without_firing_it() {
     assert_eq!(fired(&clicked), 1, "a click fires the click command");
     // A pointer click need not leave focus on the button; the keys act on the focused one.
     if clicked.fixture.focused_stop().is_none() {
-        clicked.fixture.key(Key::Tab, Modifiers::NONE);
+        clicked.fixture.key(Key::Tab, Mods::NONE);
     }
     assert!(clicked.fixture.focused_stop().is_some(), "the button has focus for the keys");
-    clicked.fixture.key(Key::Enter, Modifiers::NONE);
+    clicked.fixture.key(Key::Enter, Mods::NONE);
     assert_eq!(fired(&clicked), 1, "Enter fires it");
-    clicked.fixture.key(Key::Space, Modifiers::NONE);
+    clicked.fixture.key(Key::Space, Mods::NONE);
     assert_eq!(fired(&clicked), 1, "Space fires it");
     assert!(clicked.selected.borrow().is_empty(), "the click command selects no tool");
     assert!(clicked.fixture.by_role(Role::MENU).is_empty(), "a click opens no list");
@@ -276,7 +277,7 @@ fn a_click_command_cycles_and_a_hold_lists_the_tools_without_firing_it() {
 
     let mut dragged = build(false, Some(EditCommands::Paste));
     let target = button(&dragged);
-    let away = egui::Vec2::new(target.rect.width() * 1.5, 0.0);
+    let away = craft_ui::geom::Vec2::new(target.rect.width() * 1.5, 0.0);
     dragged.fixture.drag_hold_at(target.center(), away);
     dragged.fixture.idle(2);
     assert!(!dragged.fixture.by_role(Role::MENU).is_empty(), "a drag away lists the tools");
@@ -301,7 +302,7 @@ fn a_click_command_cycles_and_a_hold_lists_the_tools_without_firing_it() {
 fn alt_click_steps_a_slot_and_a_modified_click_is_never_a_double_click() {
     let mut rig = rig(true);
     let target = button(&rig);
-    rig.fixture.hold(Modifiers::ALT);
+    rig.fixture.hold(Mods::ALT);
     for _ in 0..3 {
         rig.fixture.click(&target);
         rig.fixture.idle(2);
@@ -310,7 +311,7 @@ fn alt_click_steps_a_slot_and_a_modified_click_is_never_a_double_click() {
     assert!(rig.fixture.by_role(Role::MENU).is_empty(), "an Alt-click opens no flyout");
     assert_eq!(rig.doubles.get(), 0, "quick Alt-clicks are no double click");
 
-    rig.fixture.hold(Modifiers::NONE);
+    rig.fixture.hold(Mods::NONE);
     rig.fixture.click(&target);
     assert_eq!(rig.doubles.get(), 0, "a plain click after an Alt-click starts a new run");
     rig.fixture.click(&target);
@@ -323,7 +324,7 @@ const TEAR_OFF: &str = "Tear Off Group";
 /// A button over the three tools, with the tear-off bar when `tear_off` holds, and the pointers it reported torn off
 /// and the tools it selected.
 struct TearRig {
-    fixture: Fixture,
+    fixture: Harness,
     torn: Rc<RefCell<Vec<Pos2>>>,
     selected: Rc<RefCell<Vec<u8>>>,
 }
@@ -331,7 +332,7 @@ struct TearRig {
 fn tear_rig(tear_off: bool) -> TearRig {
     let (torn, selected) = (Rc::new(RefCell::new(Vec::new())), Rc::new(RefCell::new(Vec::new())));
     let (tears, picks) = (Rc::clone(&torn), Rc::clone(&selected));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let all = tools(&[UNDO, REDO, CUT]);
         let mut button = FlyoutButton::new(&all, &UNDO);
         if tear_off {
@@ -346,20 +347,20 @@ fn tear_rig(tear_off: bool) -> TearRig {
 }
 
 /// The first button of `fixture`.
-fn first_button(fixture: &Fixture) -> Target {
+fn first_button(fixture: &Harness) -> Target {
     fixture.by_role(Role::BUTTON).into_iter().next().expect("the flyout button shows")
 }
 
 /// Opens the flyout of the button at `at` by a right click, which leaves no press held.
-fn open_by_context(fixture: &mut Fixture, at: Pos2) {
-    fixture.frame(vec![moved(at)]);
-    fixture.frame(vec![secondary(at, true)]);
-    fixture.frame(vec![secondary(at, false)]);
+fn open_by_context(fixture: &mut Harness, at: Pos2) {
+    fixture.send(moved(at));
+    fixture.send(secondary(at, true));
+    fixture.send(secondary(at, false));
     fixture.idle(3);
     assert!(!fixture.by_role(Role::MENU).is_empty(), "a right click opens the flyout");
 }
 
-fn bar(fixture: &Fixture) -> Target {
+fn bar(fixture: &Harness) -> Target {
     fixture.by_label(TEAR_OFF).expect("the flyout shows its tear-off bar")
 }
 
@@ -433,10 +434,10 @@ struct Floated {
 
 /// A button over the three tools with its tear-off bar, whose host floats a torn-off group in a window of the dock
 /// model: in the pass that reports the tear-off the window continues the press at `GRAB`, a pass that runs twice.
-fn floating_rig() -> (Fixture, Rc<Floated>) {
+fn floating_rig() -> (Harness, Rc<Floated>) {
     let floated = Rc::new(Floated::default());
     let host = Rc::clone(&floated);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let all = tools(&[UNDO, REDO, CUT]);
         let out = FlyoutButton::new(&all, &UNDO).tear_off().show(ui);
         if let Some(pointer) = out.torn_off {
@@ -470,11 +471,11 @@ fn a_window_floated_from_a_torn_off_group_follows_the_held_press_and_docks_on_re
     let at = first_button(&fixture).center();
     open_by_context(&mut fixture, at);
     let from = bar(&fixture).center();
-    fixture.frame(vec![moved(from)]);
-    fixture.frame(vec![press(from)]);
+    fixture.send(moved(from));
+    fixture.send(press(from));
     let path = [from + Vec2::new(0.0, 12.0), from + Vec2::new(40.0, 30.0), from + Vec2::new(90.0, 60.0)];
     for pointer in path {
-        fixture.frame(vec![moved(pointer)]);
+        fixture.send(moved(pointer));
         let rect = floated.rect.get().expect("the torn-off group floats in a window");
         assert!((rect.min + GRAB).distance(pointer) < 1.0, "the window keeps the pointer at its grab point: {rect:?} at {pointer:?}");
     }
@@ -492,7 +493,7 @@ fn a_window_floated_from_a_torn_off_group_follows_the_held_press_and_docks_on_re
     let target = bar(&fixture);
     fixture.click(&target);
     let put = floated.rect.get().expect("a click on the bar floats the group too");
-    fixture.frame(vec![moved(target.center() + Vec2::new(60.0, 40.0))]).idle(2);
+    fixture.send(moved(target.center() + Vec2::new(60.0, 40.0))).idle(2);
     assert!(floated.changes.borrow().is_empty(), "with no press held the window reports no move");
     assert_eq!(floated.rect.get(), Some(put), "with no press held the window stays where it was put");
 }

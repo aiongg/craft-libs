@@ -14,7 +14,7 @@ use super::targets::DockSizes;
 use crate::contract::SizeLimits;
 use craft_behavior::dock::{Column, DockEdge, Node, SplitSize};
 use craft_behavior::{Axis, Flow};
-use egui::{Rect, Vec2, pos2, vec2};
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
 
 /// How far each divider beside a group that a drop makes smaller can still travel both ways: the group keeps this
 /// much above its minimum, or the groups beyond it give the room.

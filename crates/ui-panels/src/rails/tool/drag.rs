@@ -3,7 +3,7 @@
 use super::data::SlotId;
 use crate::contract::{DropMark, DropTarget};
 use craft_behavior::DropOperation;
-use egui::{Pos2, Rect};
+use craft_ui::geom::{Pos2, Rect};
 use std::cell::Cell;
 
 /// The payload of the drag session between the Edit Toolbar drawer and the rail. Positions, not tools: each side

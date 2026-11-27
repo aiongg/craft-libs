@@ -79,7 +79,8 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::dock::{DockEdge, Layout, Node, SplitSize};
 use craft_behavior::{Axis, EditEvents, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
-use egui::{Rect, Response, Vec2};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::Response;
 use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
@@ -259,7 +260,7 @@ pub struct SplitAreaOutput<P> {
     pub edit: EditResponse<Layout<P>>,
     /// The dividers drawn this pass: each split's path from the root (`false` for the first child), the rect of its
     /// handle and the id of the handle's accessibility node.
-    pub dividers: Vec<(Vec<bool>, Rect, egui::Id)>,
+    pub dividers: Vec<(Vec<bool>, Rect, craft_ui::Id)>,
 }
 
 /// The first body's share of a pair's room when its layout holds none: an even split.
@@ -340,7 +341,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> 
 
     /// The frames of this run (`SplitArea::frames`), else the ones derived for the caller's revision of `layout` in
     /// `rect`.
-    fn frames_of(&self, ctx: &egui::Context, id: egui::Id, layout: &Layout<P>, rect: Rect, sizes: &DockSizes, rtl: bool) -> Arc<SplitFrames<P>> {
+    fn frames_of(&self, ctx: &craft_ui::Context, id: craft_ui::Id, layout: &Layout<P>, rect: Rect, sizes: &DockSizes, rtl: bool) -> Arc<SplitFrames<P>> {
         if let Some(frames) = &self.frames {
             return Arc::clone(frames);
         }

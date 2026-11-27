@@ -11,7 +11,8 @@ use crate::runtime::frame::{self, PassStep, PerViewport, Stamped, Stored};
 use crate::style::{RuleKind, RuleWidth, StyleCx};
 use craft_behavior::DockSide;
 use craft_behavior::dock::{Action, Column, DockEdge, Layout, Node, ZoneSize, node_at, zones};
-use egui::{Context, Id, Pos2, Rect, Vec2};
+use craft_ui::{Context, Id};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::fmt::Debug;
 
 pub use craft_behavior::dock::{SIDE_ZONE_DEPTH_SHARE, SIDE_ZONE_FRACTION};
@@ -137,9 +138,9 @@ impl DockSizes {
     }
 
     /// The sizes in the style of the scope `ui` is in: what a dock shown in `ui` sizes with.
-    pub fn of_scope(ui: &egui::Ui) -> Self {
+    pub fn of_scope(ui: &craft_ui::Ui) -> Self {
         let env = crate::runtime::env::Env::of(ui);
-        Self::style(&StyleCx::of_env(ui.ctx(), &env))
+        Self::style(&StyleCx::of_env(&env))
     }
 
     /// The sizes of the style context `cx`.
@@ -718,7 +719,7 @@ pub struct GroupDrag<P> {
     /// Where the press that started the drag was, for a drag that moves a floating window it is the whole of (a
     /// floating tool rail by its grip): the window moves by the pointer's travel from here, so the point grabbed stays
     /// under the pointer. `None` elsewhere.
-    pub press: Option<egui::Pos2>,
+    pub press: Option<craft_ui::geom::Pos2>,
     /// The arrangement the drag started on, when it started in a dock area.
     pub(crate) started: Option<super::drop::Arrangement>,
     /// The drag is a floating window's move by its title row, which docks only with `DockConfig::title_bar_docks`. A

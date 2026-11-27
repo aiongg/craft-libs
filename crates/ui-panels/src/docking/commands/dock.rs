@@ -5,7 +5,7 @@ use crate::docking::{DockEvent, DragUnit, FloatSpace};
 use crate::runtime::commands::CommandState;
 use craft_behavior::DockSide;
 use craft_behavior::dock::{Action, Column, DockEdge, DockError, DockPlacement, Layout, Location, Node, PanelPlace, Permissions, Target, node_at};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::hash::Hash;
 
 /// The commands of a docked or floating panel. A panel command acts on one panel or on its tab group: the shown

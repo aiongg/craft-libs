@@ -24,7 +24,8 @@ use crate::style::TypeRole;
 use crate::text::TextField;
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Value};
-use egui::{Rect, Response, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::{Response, Ui};
 use std::borrow::Cow;
 
 #[cfg(feature = "suite")]

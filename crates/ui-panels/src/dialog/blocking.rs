@@ -13,7 +13,7 @@ use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::sections::{DialogRole, FooterButton};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{CancelRule, CursorIcon, CursorPriority, Metrics, Sense};
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The style of a blocking overlay: the card's surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]

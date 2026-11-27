@@ -4,12 +4,12 @@ use super::GroupBox;
 use crate::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::sections::sample::body;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
-fn toggle_gate(fixture: &mut Fixture) {
+fn toggle_gate(fixture: &mut Harness) {
     let gate = fixture.by_role(Role::CHECK_BOX).into_iter().find(|check| fixture.tree().name_of(check.node) == Some("Enable"));
     if let Some(gate) = gate {
         fixture.click(&gate);
@@ -42,7 +42,7 @@ fn group_box_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     GroupBox::new("Grid", Some(data.bind("gate", true).check(refuse_on))).show(ui, |ui, _| body(ui)).into()
 }
 
-fn toggle_apply(fixture: &mut Fixture) {
+fn toggle_apply(fixture: &mut Harness) {
     if let Some(check) = fixture.by_role(Role::CHECK_BOX).into_iter().next() {
         fixture.click(&check);
     }

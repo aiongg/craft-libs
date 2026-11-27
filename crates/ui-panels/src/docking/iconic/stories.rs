@@ -10,11 +10,12 @@ use crate::runtime::env::{Env, Message, with_env};
 use crate::sections::Panel;
 use crate::tabs::PanelTabLook;
 use crate::testing::memory::global;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, stage, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, stage, story};
 use craft_behavior::Mixed;
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::overlay::Side;
-use egui::{Rect, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::Ui;
 
 /// Panels without icons, so each cell shows the first letter of its panel's name.
 fn spec(panel: &u8) -> PanelSpec {
@@ -72,9 +73,9 @@ fn at_stage_wider<'a>(
     let env = Env::of(ui);
     let width = env.tokens.tokens().size.rail.width + extra; // design: allow[style/token-read](a story sizes its stage from the rail token)
     let cell = if env.direction.is_rtl() {
-        Rect::from_min_max(room.min, egui::pos2(room.left() + width, room.bottom()))
+        Rect::from_min_max(room.min, craft_ui::geom::pos2(room.left() + width, room.bottom()))
     } else {
-        Rect::from_min_max(egui::pos2(room.right() - width, room.top()), room.max)
+        Rect::from_min_max(craft_ui::geom::pos2(room.right() - width, room.top()), room.max)
     };
     column.edge(DockEdge::End).opens(Side::Start).within(room).show_flyouts_at(ui, cell, view)
 }
@@ -172,7 +173,7 @@ fn icons_as_a_rail_beside_the_expanded_column(ui: &mut Ui, _: &mut StoryData) ->
 }
 
 /// A click on the first icon opens the flyout of its panel, which the bound value then names.
-fn open_first_flyout(fixture: &mut Fixture) {
+fn open_first_flyout(fixture: &mut Harness) {
     let Some(id) = fixture.root_id() else { return };
     let Some(cell) = fixture.part(id, CELL.at(0)) else { return };
     fixture.click(&cell);

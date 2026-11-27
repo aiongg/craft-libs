@@ -7,9 +7,12 @@ use craft_ui::choice::Segmented;
 use craft_ui::contract::{Bind, Entry, ListDrag, Props as _, RowAlign, Show as _, ShowContainer as _};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::sections::{DropAction, FooterAction, FooterBar, ReorderableSections, SectionKey, SectionLayout, SectionSpec};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::tile_grid::{ThumbnailSlider, TileZoom};
-use egui::{Event, Modifiers, PointerButton, Pos2, Rect, Ui, Vec2};
+use egui::Event;
+use craft_ui::input::{Mods, PointerButton};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::Ui;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -17,7 +20,7 @@ use std::rc::Rc;
 fn footer(width: f32) -> (Rect, Rect, Vec<Rect>) {
     let seen = Rc::new(RefCell::new((Rect::NOTHING, Rect::NOTHING, Vec::new())));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let modes = [Entry::new(0u8, "List").icon(IconId::new("list")), Entry::new(1, "Icons").icon(IconId::new("grid"))];
         let mut zoom = 1.0;
         Row::new().fill_width().align(RowAlign::End).show(ui, |ui, _| {
@@ -52,7 +55,7 @@ fn a_footer_row_narrows_its_slider_to_leave_the_footer_bar_its_actions() {
 fn split(direction: craft_ui::runtime::env::Direction) -> Vec<Rect> {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let actions = ["ban", "check", "copy", "trash"].map(|icon| FooterAction::new(IconId::new(icon), icon));
         let bar = FooterBar::actions(actions).at_start(2).show_footer(ui);
         *out.borrow_mut() = bar.responses.iter().map(|response| response.rect).collect();
@@ -87,12 +90,12 @@ fn slot_target(ui: &mut Ui) -> Report {
 }
 
 /// Two sections whose headers drag, over `target`; every pass of `target` is noted in the list.
-fn over_sections(target: fn(&mut Ui) -> Report) -> (Fixture, Rc<RefCell<Vec<Report>>>) {
+fn over_sections(target: fn(&mut Ui) -> Report) -> (Harness, Rc<RefCell<Vec<Report>>>) {
     let layout = Rc::new(RefCell::new(SectionLayout::new(["albums", "folders"].map(SectionKey::new))));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let reports = Rc::clone(&seen);
     let specs = vec![SectionSpec::new("albums", "albums"), SectionSpec::new("folders", "folders")];
-    let fixture = Fixture::new(move |ui| {
+    let fixture = Harness::new_ui(move |ui| {
         Stack::new().show(ui, |ui, _| {
             let mut layout = layout.borrow_mut();
             let _ = ReorderableSections::new("Sidebar", Bind::bound(&mut *layout), &specs).show(ui, |ui, _, _| {
@@ -105,7 +108,7 @@ fn over_sections(target: fn(&mut Ui) -> Report) -> (Fixture, Rc<RefCell<Vec<Repo
 }
 
 /// The button going up at `pos` with `modifiers` in the event itself, as a release whose Shift went down after the press.
-fn release_with(pos: Pos2, modifiers: Modifiers) -> Event {
+fn release_with(pos: Pos2, modifiers: Mods) -> Event {
     Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers }
 }
 
@@ -125,7 +128,7 @@ fn a_drop_on_an_action_reports_the_modifiers_held_at_the_release() {
         fixture.drag_hold_at(from, to - from);
         let held = seen.borrow().len();
         assert!(reported(&seen, 0, |(dropped, ..)| *dropped).is_empty(), "{name}: nothing dropped while the button is held");
-        fixture.frame(vec![release_with(to, Modifiers::SHIFT)]).idle(2);
+        fixture.send(release_with(to, Modifiers::SHIFT)).idle(2);
         let dropped = reported(&seen, held, |(dropped, ..)| *dropped);
         assert!(!dropped.is_empty(), "{name}: the release dropped the section on the action");
         assert!(dropped.iter().all(|(.., shift)| *shift), "{name}: the drop reports the Shift of the release: {dropped:?}");
@@ -134,9 +137,9 @@ fn a_drop_on_an_action_reports_the_modifiers_held_at_the_release() {
     let (mut fixture, seen) = over_sections(footer_target);
     fixture.settle();
     let at = fixture.by_label("Delete").expect("the action").center();
-    fixture.frame(vec![pointer::moved(at)]).frame(vec![pointer::press(at)]);
+    fixture.send(pointer::moved(at)).frame(vec![pointer::press(at)]);
     let held = seen.borrow().len();
-    fixture.frame(vec![release_with(at, Modifiers::SHIFT)]).idle(2);
+    fixture.send(release_with(at, Modifiers::SHIFT)).idle(2);
     let picked = reported(&seen, held, |(_, picked, _)| *picked);
     assert!(!picked.is_empty(), "the release picked the action");
     assert!(picked.iter().all(|(.., shift)| *shift), "the pick reports the Shift of the release: {picked:?}");

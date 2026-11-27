@@ -7,7 +7,8 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::focus::{FocusPolicy, FocusTarget, KeyUse, TabReach, request};
 use craft_ui::testing::focus::{Group, Stop, pop_scope, push_scope, register_doc, register_group, register_stop, widget};
 use craft_ui::testing::{Frames, install_spec, trial};
-use egui::{Key, Modifiers, Ui};
+use craft_ui::input::{Key, Mods};
+use craft_ui::Ui;
 
 /// Frames on `os` whose root env sets `dialog_tab`.
 fn frames_on(os: Os, dialog_tab: TabReach) -> Frames {
@@ -47,12 +48,12 @@ fn scope(ui: &mut Ui, policy: FocusPolicy, fields: bool) {
 }
 
 /// Shows the scope, focuses `from` and presses Tab (Shift+Tab when `back`) once; returns the stop egui focus is on.
-fn tab_from(frames: &mut Frames, policy: FocusPolicy, fields: bool, from: &str, back: bool) -> Option<egui::Id> {
+fn tab_from(frames: &mut Frames, policy: FocusPolicy, fields: bool, from: &str, back: bool) -> Option<craft_ui::Id> {
     let mut show = |ui: &mut Ui| scope(ui, policy, fields);
     frames.idle(2, &mut show);
     focus(frames, from, &mut show);
     frames.idle(1, &mut show);
-    tap(frames, Key::Tab, if back { Modifiers::SHIFT } else { Modifiers::NONE }, &mut show);
+    tap(frames, Key::Tab, if back { Mods::SHIFT } else { Mods::NONE }, &mut show);
     focused(&frames.ctx)
 }
 
@@ -67,11 +68,11 @@ fn tab_in_a_fields_only_dialog_visits_text_stops_only() {
         frames.idle(2, &mut show);
         focus(&mut frames, "first", &mut show);
         frames.idle(1, &mut show);
-        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        tap(&mut frames, Key::Tab, Mods::NONE, &mut show);
         assert_eq!(focused(&frames.ctx), Some(id("second")), "{os:?}: Tab passes over the controls to the next field");
-        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        tap(&mut frames, Key::Tab, Mods::NONE, &mut show);
         assert_eq!(focused(&frames.ctx), Some(id("first")), "{os:?}: Tab wraps to the first field");
-        tap(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
+        tap(&mut frames, Key::Tab, Mods::SHIFT, &mut show);
         assert_eq!(focused(&frames.ctx), Some(id("second")), "{os:?}: Shift+Tab wraps back to the last field");
     }
 

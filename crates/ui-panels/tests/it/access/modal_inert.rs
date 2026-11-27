@@ -4,11 +4,11 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
-fn named(fixture: &Fixture, label: &str) -> usize {
+fn named(fixture: &Harness, label: &str) -> usize {
     let tree = fixture.tree();
     tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some(label)).count()
 }
@@ -17,7 +17,7 @@ fn named(fixture: &Fixture, label: &str) -> usize {
 fn a_modal_dialog_hides_the_window_behind_it_until_it_closes() {
     let open = Rc::new(Cell::new(false));
     let state = open.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Button::new("OK").show(ui);
         let mut now = state.get();
         Dialog::new("Options").opened(Bind::bound(&mut now)).buttons([FooterButton::new("OK", DialogRole::Accept)]).show(ui, |_, _| {});

@@ -2,7 +2,7 @@
 
 use super::{DockCommands, DockSizes, DragUnit, PanelKey};
 use crate::contract::{MemoProps, Tracked};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::collections::BTreeSet;
 
 /// A request for host state outside the layout, or a report of where something ended up.

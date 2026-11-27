@@ -18,7 +18,8 @@ use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, Flow, IconId, Metrics, Mixed, NavShape, PartKey, Roving, Sense};
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Stateful, States};
-use egui::{Id, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use craft_ui::geom::{Rect, Vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

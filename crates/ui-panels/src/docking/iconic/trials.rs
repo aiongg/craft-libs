@@ -21,11 +21,13 @@ use crate::style::StyleCx;
 use crate::tabs::PanelTabLook;
 use crate::testing::memory::global;
 use crate::testing::relations::{equals_token, grows_with};
-use crate::testing::{Fixture, trial};
+use crate::testing::{Harness, trial};
 use craft_behavior::DockSide;
 use craft_behavior::dock::{Action, Column, DockEdge, Group, Layout, Node};
 use craft_behavior::overlay::Side;
-use egui::{Id, Key, Modifiers, Pos2, Rect, UiBuilder, Vec2};
+use craft_ui::{Id, UiBuilder};
+use craft_ui::input::{Key, Mods};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -40,10 +42,10 @@ fn spec(panel: &u8) -> PanelSpec {
 const WIDE_COLUMN: f32 = 200.0;
 
 /// A column `width` wide over two icon-less panels, and the panel whose flyout is open.
-fn column(width: f32) -> (Fixture, Rc<Cell<Option<u8>>>) {
+fn column(width: f32) -> (Harness, Rc<Cell<Option<u8>>>) {
     let open = Rc::new(Cell::new(None));
     let seen = Rc::clone(&open);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
         let mut now = seen.get();
         IconicColumn::new("Panels", global("iconic column", "trial"), &column, Bind::bound(&mut now), &spec).show_flyouts(ui, |_, at, ui, _| {
@@ -61,7 +63,7 @@ fn column(width: f32) -> (Fixture, Rc<Cell<Option<u8>>>) {
 /// too, and a click on a name opens that panel's flyout as a click on its icon does.
 #[trial]
 fn an_icon_less_panel_shows_its_initial_and_a_wide_column_shows_names_that_open_flyouts() {
-    let painted = |fixture: &Fixture, text: &str| fixture.texts().iter().any(|run| run.text == text);
+    let painted = |fixture: &Harness, text: &str| fixture.texts().iter().any(|run| run.text == text);
     let (narrow, _) = column(40.0);
     assert!(painted(&narrow, "B") && painted(&narrow, "S"), "each icon-less panel shows its initial");
     assert!(!painted(&narrow, "Brushes"), "a narrow column shows no names");
@@ -136,7 +138,7 @@ fn take(layout: &mut Layout<u8>, resize: FlyoutResize<u8>) {
 /// An iconic column on one window edge over a layout the trial holds, which takes every flyout resize the column
 /// reports as the dock area does. The flyout's group shows a strip at its top that drags the group.
 struct Flyouts {
-    fixture: Fixture,
+    fixture: Harness,
     layout: Rc<RefCell<Layout<u8>>>,
     /// The rect the open flyout's group showed in, last pass.
     shown: Rc<Cell<Option<Rect>>>,
@@ -163,7 +165,7 @@ impl Flyouts {
         } else {
             Rect::from_min_size(Pos2::ZERO, Vec2::new(RAIL, SCREEN.y))
         };
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let column = first_column(&held.borrow());
             let mut now = open.get();
             let groups = RefCell::new(Vec::new());
@@ -257,7 +259,7 @@ fn a_key_command_leaves_the_open_flyout_and_the_focus_in_it() {
         let (open, stop, faded) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(None)), Rc::new(Cell::new(false)));
         let (seen, shown, fade) = (Rc::clone(&open), Rc::clone(&stop), Rc::clone(&faded));
         let place = Rect::from_min_size(Pos2::ZERO, Vec2::new(RAIL, SCREEN.y));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
             let mut now = seen.get();
             IconicColumn::new("Panels", global("iconic column", "commands"), &column, Bind::bound(&mut now), &spec)
@@ -269,7 +271,7 @@ fn a_key_command_leaves_the_open_flyout_and_the_focus_in_it() {
                     None
                 });
             // Last pass the open flyout was not among the live layers that take keys: it played its exit.
-            fade.set(fade.get() || (now.is_some() && !overlay::any_open(ui.ctx(), OpenFilter::Keys)));
+            fade.set(fade.get() || (now.is_some() && !ui.any_layer_open(OpenFilter::Keys)));
             seen.set(now);
         });
         let binding = Binding::parse("F9").expect("the trial's chord parses");
@@ -283,7 +285,7 @@ fn a_key_command_leaves_the_open_flyout_and_the_focus_in_it() {
         assert_eq!(fixture.focused_stop().map(|(id, _)| id), Some(button), "auto-collapse {auto_collapse}: the flyout's stop has the focus");
         faded.set(false);
         take_output(fixture.ctx());
-        fixture.key(Key::F9, Modifiers::NONE).settle();
+        fixture.key(Key::F9, Mods::NONE).settle();
         let fired = take_output(fixture.ctx()).fired;
         assert!(fired.iter().any(|fired| fired.command.id == NUDGE), "auto-collapse {auto_collapse}: the key runs its command");
         assert_eq!(open.get(), Some(1), "auto-collapse {auto_collapse}: the flyout stays open");
@@ -433,7 +435,7 @@ const OVERFLOW: f32 = 40.0;
 
 /// What [`tall_flyouts`] returns: the fixture, the panel whose flyout is open (the trial sets it) and the rect the open
 /// flyout's body showed in, last pass.
-type TallFlyouts = (Fixture, Rc<Cell<Option<u8>>>, Rc<Cell<Option<Rect>>>);
+type TallFlyouts = (Harness, Rc<Cell<Option<u8>>>, Rc<Cell<Option<Rect>>>);
 
 /// A column of the [`TALL`] panels, each in a group of its own, on the left window edge; its flyouts stay inside the
 /// bounds `within` holds and their bodies measure the height `body` holds. Returns the fixture, the panel whose flyout
@@ -443,7 +445,7 @@ fn tall_flyouts(within: &Rc<Cell<Rect>>, body: &Rc<Cell<f32>>) -> TallFlyouts {
     let (bounds, measures, now, seen) = (Rc::clone(within), Rc::clone(body), Rc::clone(&open), Rc::clone(&shown));
     let mut column = Column::new((0..TALL.len() as u8).map(|panel| Group::new(vec![panel], 0)).collect());
     column.iconic = true;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let current = now.get();
         let mut opened = current;
         IconicColumn::new("Panels", global("iconic column", "tall flyouts"), &column, Bind::bound(&mut opened), &|panel: &u8| {
@@ -471,7 +473,7 @@ fn tall_flyouts(within: &Rc<Cell<Rect>>, body: &Rc<Cell<f32>>) -> TallFlyouts {
 }
 
 /// Closes the open flyout of [`tall_flyouts`] and opens the last group's.
-fn reopen_last(fixture: &mut Fixture, open: &Cell<Option<u8>>) {
+fn reopen_last(fixture: &mut Harness, open: &Cell<Option<u8>>) {
     open.set(None);
     fixture.settle();
     open.set(Some(TALL.len() as u8 - 1));
@@ -538,7 +540,7 @@ fn a_groups_grip_lies_above_its_icons_and_its_drag_moves_the_group() {
         both.width() > 0.0 && both.height() > 0.0
     };
     for direction in [Direction::Ltr, Direction::Rtl] {
-        let mut fixture = Fixture::hosted(|ui| {
+        let mut fixture = Harness::hosted(|ui| {
             let mut column = Column::new(vec![Group::new(vec![1, 2], 0), Group::new(vec![3], 0)]);
             column.iconic = true;
             let place = Rect::from_min_size(Pos2::ZERO, Vec2::new(RAIL, SCREEN.y));
@@ -582,7 +584,7 @@ fn icon_groups_take_the_drops_of_an_expanded_columns_groups() {
     let probes: Rc<RefCell<Vec<Pos2>>> = Rc::default();
     let found: Rc<RefCell<Vec<Option<DockSpot<u8>>>>> = Rc::default();
     let (asked, seen) = (Rc::clone(&probes), Rc::clone(&found));
-    let mut fixture = Fixture::hosted(move |ui| {
+    let mut fixture = Harness::hosted(move |ui| {
         let mut column = Column::new(vec![Group::new(vec![1, 2], 0), Group::new(vec![3], 0)]);
         column.iconic = true;
         let place = Rect::from_min_size(Pos2::ZERO, Vec2::new(RAIL, SCREEN.y));
@@ -614,12 +616,12 @@ fn icon_groups_take_the_drops_of_an_expanded_columns_groups() {
 }
 
 /// The ticks of a grip strip in `shapes`: the quads of the one mesh that lies inside `strip`, and their colour.
-pub(crate) fn grip_ticks(shapes: &[egui::Shape], strip: Rect) -> Option<(Vec<Rect>, egui::Color32)> {
+pub(crate) fn grip_ticks(shapes: &[egui::Shape], strip: Rect) -> Option<(Vec<Rect>, craft_ui::Color32)> {
     shapes.iter().find_map(|shape| {
         let egui::Shape::Mesh(mesh) = shape else { return None };
         let quads: Vec<Rect> = mesh.vertices.chunks(4).map(|quad| Rect::from_points(&quad.iter().map(|v| v.pos).collect::<Vec<_>>())).collect();
         let inside = !quads.is_empty() && quads.iter().all(|quad| strip.expand(EPS).contains_rect(*quad));
-        inside.then(|| (quads, mesh.vertices.first().map_or(egui::Color32::TRANSPARENT, |v| v.color)))
+        inside.then(|| (quads, mesh.vertices.first().map_or(craft_ui::Color32::TRANSPARENT, |v| v.color)))
     })
 }
 
@@ -628,7 +630,7 @@ pub(crate) fn grip_ticks(shapes: &[egui::Shape], strip: Rect) -> Option<(Vec<Rec
 /// apart from the panel `panel` (photocraft#16406).
 pub(crate) fn assert_grip_ticks(
     ticks: &[Rect],
-    ink: egui::Color32,
+    ink: craft_ui::Color32,
     strip: Rect,
     panel: craft_theme::Rgba,
     grip: craft_theme::Rgba,
@@ -661,7 +663,7 @@ pub(crate) fn assert_grip_ticks(
 #[trial]
 fn a_groups_grip_is_a_row_of_upright_ticks_in_the_grip_ink() {
     let mut fixture =
-        Fixture::hosted(|ui| {
+        Harness::hosted(|ui| {
             let mut column = Column::new(vec![Group::new(vec![1, 2], 0), Group::new(vec![3], 0)]);
             column.iconic = true;
             let place = Rect::from_min_size(Pos2::ZERO, Vec2::new(RAIL, SCREEN.y));
@@ -687,7 +689,7 @@ fn a_groups_grip_is_a_row_of_upright_ticks_in_the_grip_ink() {
             grows_with(tight, below) && equals_token(above - below, GRIP_ABOVE),
             "group {group}: the marks keep space.gap.tight ({tight}) off the strip's bottom and {GRIP_ABOVE} points more off its top: {run:?} in {strip:?}"
         );
-        fixture.frame(vec![egui::Event::PointerMoved(strip.center())]);
+        fixture.send(egui::Event::PointerMoved(strip.center()));
         let hovered = fixture.frame_shapes();
         let (_, hover_ink) = grip_ticks(&hovered, strip).expect("the grip paints its ticks under the pointer");
         assert_eq!(hover_ink, ink, "group {group}: the ticks keep their ink under the pointer");
@@ -717,7 +719,7 @@ fn themed_grip(shape: craft_theme::GripShape) -> (Vec<egui::Shape>, Rect) {
     });
     def.shape = Some(seed);
     let def = std::sync::Arc::new(def);
-    let mut fixture = Fixture::hosted(move |ui| {
+    let mut fixture = Harness::hosted(move |ui| {
         let mut out = None;
         crate::layout_components::Stack::new().theme(crate::runtime::env::ThemeScope::new().theme(std::sync::Arc::clone(&def))).show(ui, |ui, _| {
             let mut column = Column::new(vec![Group::new(vec![1, 2], 0)]);
@@ -759,7 +761,7 @@ fn a_themes_bar_grip_is_one_level_bar() {
     let bars: Vec<Rect> = shapes
         .iter()
         .filter_map(|shape| match shape {
-            egui::Shape::Rect(rect) if strip.expand(EPS).contains_rect(rect.rect) && rect.fill != egui::Color32::TRANSPARENT => Some(rect.rect),
+            egui::Shape::Rect(rect) if strip.expand(EPS).contains_rect(rect.rect) && rect.fill != craft_ui::Color32::TRANSPARENT => Some(rect.rect),
             _ => None,
         })
         .collect();
@@ -771,10 +773,10 @@ fn a_themes_bar_grip_is_one_level_bar() {
 
 /// The icons of the two groups of a collapsed column `width` wide whose groups stand apart by `separator`: the fixture,
 /// the column's id and the panel whose flyout is open.
-fn separated(separator: IconGroupSeparator, width: f32) -> (Fixture, Id, Rc<Cell<Option<u8>>>) {
+fn separated(separator: IconGroupSeparator, width: f32) -> (Harness, Id, Rc<Cell<Option<u8>>>) {
     let open = Rc::new(Cell::new(None));
     let seen = Rc::clone(&open);
-    let mut fixture = Fixture::hosted(move |ui| {
+    let mut fixture = Harness::hosted(move |ui| {
         let mut column = Column::new(vec![Group::new(vec![1, 2], 0), Group::new(vec![3], 0)]);
         column.iconic = true;
         let place = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, SCREEN.y));
@@ -812,7 +814,7 @@ fn icon_groups_apart_by_a_rule_show_one_level_rule_between_them() {
     let (mut fixture, id, _) = separated(IconGroupSeparator::Rule, RAIL);
     let border = StyleCx::with_root(fixture.ctx(), |cx| cx.tokens.color.line.border);
     let shapes = fixture.frame_shapes();
-    let level: Vec<(Pos2, Pos2, egui::Color32)> = shapes
+    let level: Vec<(Pos2, Pos2, craft_ui::Color32)> = shapes
         .iter()
         .filter_map(|shape| match shape {
             egui::Shape::LineSegment { points: [a, b], stroke } if (a.y - b.y).abs() < EPS => Some((*a, *b, stroke.color)),
@@ -877,7 +879,7 @@ fn icon_groups_apart_by_a_rule_show_one_level_rule_between_them() {
 fn flyout_surfaces(framed: bool) -> Vec<egui::epaint::RectShape> {
     let shown: Rc<Cell<Option<Rect>>> = Rc::default();
     let seen = Rc::clone(&shown);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
         let mut open = Some(0_u8);
         IconicColumn::new("Panels", global("iconic column", "docked flyout"), &column, Bind::bound(&mut open), &spec).framed(framed).show_flyouts(
@@ -917,8 +919,8 @@ fn a_flush_docks_flyout_stands_square_with_no_shadow() {
 }
 
 /// The fills painted on the open panel's icon of a column beside tabs in `look`, with the colour of `surface.control`.
-fn open_icon_fills(look: PanelTabLook) -> (Vec<egui::Color32>, egui::Color32) {
-    let mut fixture = Fixture::hosted(move |ui| {
+fn open_icon_fills(look: PanelTabLook) -> (Vec<craft_ui::Color32>, craft_ui::Color32) {
+    let mut fixture = Harness::hosted(move |ui| {
         let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
         let mut open = Some(0_u8);
         let output = IconicColumn::new("Panels", global("iconic column", "open icon"), &column, Bind::bound(&mut open), &spec)
@@ -934,11 +936,11 @@ fn open_icon_fills(look: PanelTabLook) -> (Vec<egui::Color32>, egui::Color32) {
         .frame_shapes()
         .into_iter()
         .filter_map(|shape| match shape {
-            egui::Shape::Rect(rect) if cell.expand(EPS).contains_rect(rect.rect) && rect.fill != egui::Color32::TRANSPARENT => Some(rect.fill),
+            egui::Shape::Rect(rect) if cell.expand(EPS).contains_rect(rect.rect) && rect.fill != craft_ui::Color32::TRANSPARENT => Some(rect.fill),
             _ => None,
         })
         .collect();
-    (fills, egui::Color32::from_rgba_unmultiplied(control[0], control[1], control[2], control[3]))
+    (fills, craft_ui::Color32::from_rgba_unmultiplied(control[0], control[1], control[2], control[3]))
 }
 
 /// Beside block tabs (`PanelTabLook::Block`, VectorCraft's) the open panel's icon shows on `surface.control`, as the

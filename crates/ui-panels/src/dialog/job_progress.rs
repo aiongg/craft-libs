@@ -10,7 +10,7 @@ use crate::runtime::overlay::LayerRole;
 use crate::runtime::words::CommonWords;
 use crate::sections::DialogRole;
 use crate::style::TypeRole;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// Modal progress window for a running job: a progress bar (or an indeterminate one), counts and the percentage, the
 /// queued line, and Cancel (and Hide, when `can_hide`). Escape and the close action give Cancel. Its layer has the

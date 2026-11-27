@@ -3,7 +3,7 @@
 use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// Names a slot of the rail. The host numbers its slots; [`LastUsed`] remembers a tool under it.
 pub type SlotId = u32;

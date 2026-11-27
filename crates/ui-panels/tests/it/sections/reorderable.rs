@@ -5,8 +5,8 @@
 use craft_behavior::IconId;
 use craft_ui::contract::{Bind, Role};
 use craft_ui::sections::{ReorderableSections, SectionButton, SectionEvent, SectionKey, SectionLayout, SectionSpec};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use craft_ui::testing::{Harness, trial};
+use craft_ui::input::{Key, Mods};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -16,9 +16,9 @@ fn key(id: &str) -> SectionKey {
     SectionKey::new(id)
 }
 
-fn sidebar(layout: Rc<RefCell<SectionLayout>>) -> Fixture {
+fn sidebar(layout: Rc<RefCell<SectionLayout>>) -> Harness {
     let specs: Vec<SectionSpec> = IDS.iter().map(|id| SectionSpec::new(*id, *id)).collect();
-    Fixture::new(move |ui| {
+    Harness::new_ui(move |ui| {
         let mut layout = layout.borrow_mut();
         let _ = ReorderableSections::new("Sidebar", Bind::bound(&mut *layout), &specs).show(ui, |ui, _, _| {
             ui.label("body");
@@ -31,8 +31,8 @@ fn a_menu_row_runs_on_the_section_the_menu_opened_on_after_focus_moves_into_the_
     let layout = Rc::new(RefCell::new(SectionLayout::new(IDS.iter().map(|id| key(id)))));
     let mut fixture = sidebar(Rc::clone(&layout));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::F10, Modifiers::SHIFT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::F10, Mods::SHIFT);
     fixture.settle();
     assert!(!fixture.by_role(Role::MENU).is_empty(), "Shift+F10 on the first section opens its menu");
     let fold = fixture.by_label("Fold Section").expect("the menu lists the section's Fold command");
@@ -54,13 +54,13 @@ fn showing_an_arrangement_that_needs_reconciling_writes_nothing_until_the_user_c
 
 /// A sidebar whose Albums header has a button and a count, Folders a count and Keywords no rows and an empty hint;
 /// the events it reports go to `events`.
-fn counted_sidebar(layout: Rc<RefCell<SectionLayout>>, events: Rc<RefCell<Vec<SectionEvent>>>) -> Fixture {
+fn counted_sidebar(layout: Rc<RefCell<SectionLayout>>, events: Rc<RefCell<Vec<SectionEvent>>>) -> Harness {
     let specs = vec![
         SectionSpec::new("albums", "Albums").count(2).button(SectionButton::new("albumNew", IconId::new("plus"), "Create Album")),
         SectionSpec::new("folders", "Folders").count(4),
         SectionSpec::new("keywords", "Keywords").count(0).empty_hint("No keywords yet"),
     ];
-    Fixture::new(move |ui| {
+    Harness::new_ui(move |ui| {
         let mut layout = layout.borrow_mut();
         let out = ReorderableSections::new("Sidebar", Bind::bound(&mut *layout), &specs).show(ui, |ui, key, _| {
             if key.as_str() != "keywords" {
@@ -101,9 +101,9 @@ fn reset_in_the_section_menu_puts_a_moved_section_back() {
     let layout = Rc::new(RefCell::new(usual.clone()));
     let mut fixture = sidebar(Rc::clone(&layout));
     fixture.settle();
-    let menu_row = |fixture: &mut Fixture, label: &str| {
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::F10, Modifiers::SHIFT);
+    let menu_row = |fixture: &mut Harness, label: &str| {
+        fixture.key(Key::Tab, Mods::NONE);
+        fixture.key(Key::F10, Mods::SHIFT);
         fixture.settle();
         let row = fixture.by_label(label).unwrap_or_else(|| panic!("the section menu lists {label}"));
         fixture.click(&row);

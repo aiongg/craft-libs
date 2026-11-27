@@ -5,12 +5,12 @@ use super::{CUT, REDO, UNDO, tools};
 use craft_ui::contract::{Role, Tracked};
 use craft_ui::display::TargetMark;
 use craft_ui::rails::{LastUsed, SlotId, ToolRail, ToolSlot};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     selected: Rc<RefCell<Vec<u8>>>,
     flyout: Rc<Cell<Option<SlotId>>>,
 }
@@ -22,7 +22,7 @@ fn rig(reveal: Option<u8>, mark: Option<u8>) -> Rig {
     let (seen, opened) = (selected.clone(), flyout.clone());
     let slots = Tracked::new(vec![ToolSlot::new(0, tools(&[UNDO, REDO, CUT]))]);
     let last = Tracked::new(LastUsed::default());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut rail = ToolRail::new("Tools", &slots, &UNDO, &last);
         if let Some(tool) = &reveal {
             rail = rail.reveal(tool);

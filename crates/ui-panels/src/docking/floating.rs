@@ -29,7 +29,8 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::dock::DockEdge;
 use craft_behavior::{GesturePhase, IconId, Metrics, Sense};
 use craft_ui_widgets::popover::WholeWindow;
-use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::hash::Hash;
 
@@ -435,7 +436,7 @@ impl<'a> FloatingGroup<'a> {
         let env = Env::of(ui);
         // A window in the app window keeps the band over its title row that a layer the user moves keeps for its top
         // grip; an OS window's grips lie over its title row. The rule under the title row takes a band of its own.
-        let sizes = DockSizes::style(&StyleCx::of_env(ui.ctx(), &env));
+        let sizes = DockSizes::style(&StyleCx::of_env(&env));
         let sizes = self.scale.map_or(sizes, |scale| sizes.at_scale(scale));
         // A grip title row has no rule under it, so the chrome keeps no band for one.
         (self.header, self.chrome, self.rtl) =
@@ -448,7 +449,7 @@ impl<'a> FloatingGroup<'a> {
         let minimized = self.minimized;
         // The window's lower corners: its body ends at the window's foot and sides.
         let window = UiTokens::corner(env.tokens.shape.radius.window);
-        let lower = egui::CornerRadius { nw: 0, ne: 0, sw: window.sw, se: window.se };
+        let lower = craft_ui::CornerRadius { nw: 0, ne: 0, sw: window.sw, se: window.se };
         let rounded = self.rounded_body;
         let shown = self.show(ui, |ui, cx| {
             if rounded {

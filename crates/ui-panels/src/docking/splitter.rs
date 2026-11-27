@@ -4,7 +4,8 @@ use crate::contract::{Common, Component, Cx, PaintUi, Role, Styled as _};
 use crate::primitives::{DataWidth, PaintShape};
 use crate::style::{ComponentStyle, Stateful, StyleColor, StyleCx, resize_line_look};
 use craft_behavior::{Axis, Metrics, Sense};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 /// The style of a splitter: a thin line that becomes a thick accent line under the pointer.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]

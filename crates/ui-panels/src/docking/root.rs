@@ -11,7 +11,7 @@ use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue,
 use crate::runtime::env::AppValues;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::Response;
+use craft_ui::Response;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

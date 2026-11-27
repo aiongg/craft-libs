@@ -14,7 +14,8 @@ use craft_behavior::dock::{Action, Floating};
 use craft_behavior::placement::{Defaults, monitor_of, place};
 use craft_behavior::{Buttons, GesturePhase};
 use craft_host::target::WindowKind;
-use egui::{Context, Pos2, Rect, Vec2, ViewportId};
+use craft_ui::{Context, WindowId};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 /// How far the OS-reported size of a window may differ from the one the dock model keeps before the difference is a
 /// resize: the OS rounds to pixels, and a model that records its own rounding would re-send it for ever.
@@ -50,7 +51,7 @@ pub fn opens_os_windows(ctx: &Context, config: &DockConfig) -> bool {
 
 /// The display scale the OS window `viewport` lays out at: its monitor's scale with the app's zoom, as the window
 /// reported it (`WindowHost::facts`). `None` before it reported one.
-pub fn pixels_per_point(ctx: &Context, viewport: ViewportId) -> Option<f32> {
+pub fn pixels_per_point(ctx: &Context, viewport: WindowId) -> Option<f32> {
     WindowHost::of(ctx).facts(viewport)?.scale.map(|scale| scale * ctx.zoom_factor())
 }
 
@@ -66,7 +67,7 @@ pub fn spec_for(specs: &[PanelSpec]) -> WindowSpec {
 /// in the app window, as [`restore`] opens a window from its rect there. `None` while the main window has not
 /// reported its place.
 pub fn in_app(ctx: &Context, desktop: Rect) -> Option<Rect> {
-    let main = WindowHost::of(ctx).facts(ViewportId::ROOT)?;
+    let main = WindowHost::of(ctx).facts(WindowId::ROOT)?;
     Some(desktop.translate(-main.inner.min.to_vec2()))
 }
 
@@ -76,7 +77,7 @@ pub fn in_app(ctx: &Context, desktop: Rect) -> Option<Rect> {
 pub fn restore<P>(ctx: &Context, window: &Floating<P>) -> Rect {
     let host = WindowHost::of(ctx);
     let monitors = host.monitors();
-    let main = host.facts(ViewportId::ROOT);
+    let main = host.facts(WindowId::ROOT);
     let home = main.and_then(|facts| {
         let (scale, outer) = (facts.scale?, facts.outer.unwrap_or(facts.inner));
         let on = monitor_of(&monitors, Rect::from_min_max(outer.min * scale, outer.max * scale))?;
@@ -96,7 +97,7 @@ pub fn restore<P>(ctx: &Context, window: &Floating<P>) -> Rect {
 /// down in another window, so the drag would end. `continues` says that the window takes over the held press in this
 /// pass (`DockArea::continue_move`), which a window never placed on the desktop does in the app window.
 #[doc(hidden)]
-pub fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec], group: egui::Id, continues: bool) -> Opening {
+pub fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec], group: craft_ui::Id, continues: bool) -> Opening {
     let layer = Opening { rect: window.rect, spec: None, waits: false };
     if !allowed(ctx, config, specs) {
         return layer;
@@ -121,7 +122,7 @@ pub fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, spec
 pub fn waited(ctx: &Context, opening: &Opening, output: &FloatingGroupOutput) {
     let ended = output.placed.is_some_and(|change| matches!(change.phase, GesturePhase::Commit | GesturePhase::Cancel));
     if opening.waits && (ended || pointer::pressed_part(ctx, output.response.id).is_none()) {
-        crate::runtime::frame::request_repaint(ctx);
+        ctx.request_repaint();
     }
 }
 
@@ -131,7 +132,7 @@ pub fn waited(ctx: &Context, opening: &Opening, output: &FloatingGroupOutput) {
 /// ([`WindowColumn::kept`](super::WindowColumn::kept)). `None` while the model already holds what the OS reports, so a
 /// window at rest costs no action.
 #[doc(hidden)]
-pub fn reported<P: Clone>(ctx: &Context, window: &Floating<P>, viewport: ViewportId, kept: impl FnOnce(Rect) -> Rect) -> Option<Action<P>> {
+pub fn reported<P: Clone>(ctx: &Context, window: &Floating<P>, viewport: WindowId, kept: impl FnOnce(Rect) -> Rect) -> Option<Action<P>> {
     let panel = window.panels().next()?;
     let mut next = WindowHost::of(ctx).placement(viewport, window.native.clone())?;
     if let (false, false, Some(at)) = (next.maximized, next.fullscreen, next.position()) {
@@ -153,7 +154,7 @@ pub fn reported<P: Clone>(ctx: &Context, window: &Floating<P>, viewport: Viewpor
 /// corner and inner size), to `rect` where it differs by more than rounding: the place the dock gives a window it
 /// sizes itself (a column with steps). The window's next report is that place, which [`reported`] records.
 #[doc(hidden)]
-pub fn send_to(ctx: &Context, viewport: ViewportId, recorded: Rect, rect: Rect) {
+pub fn send_to(ctx: &Context, viewport: WindowId, recorded: Rect, rect: Rect) {
     let differs = |delta: Vec2| delta.x.abs() > SETTLED || delta.y.abs() > SETTLED;
     let host = WindowHost::of(ctx);
     if differs(rect.min - recorded.min) {

@@ -14,7 +14,7 @@ use crate::sections::{DialogRole, FooterBar, FooterButton, HeaderAction, HeaderS
 use crate::style::Ink;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// What a dialog shell returns: its response, how it closed in this pass, and the footer button that was picked.
 #[derive(Debug)]
@@ -234,18 +234,18 @@ pub(crate) fn footer_in(
 }
 
 /// Whether dialogs show the close x in their title row (true until an app turns it off).
-pub fn close_button(ctx: &egui::Context) -> bool {
+pub fn close_button(ctx: &craft_ui::Context) -> bool {
     !crate::runtime::memory::with_session(ctx, close_button_id(), |hidden: &mut CloseButtonHidden| hidden.0)
 }
 
 /// Turns the close x of every dialog's title row on or off, as an app's look decides; Escape and the footer buttons
 /// still close a dialog. Call it every pass or once at start.
-pub fn set_close_button(ctx: &egui::Context, on: bool) {
+pub fn set_close_button(ctx: &craft_ui::Context, on: bool) {
     crate::runtime::memory::with_session(ctx, close_button_id(), |hidden: &mut CloseButtonHidden| hidden.0 = !on);
 }
 
 /// The session slot of the app's close-x choice.
-fn close_button_id() -> egui::Id {
+fn close_button_id() -> craft_ui::Id {
     crate::runtime::memory::unique(("craft_ui::dialog", "close button"))
 }
 

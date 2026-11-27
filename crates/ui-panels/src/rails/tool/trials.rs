@@ -17,9 +17,9 @@ use crate::style::StyleCx;
 use crate::testing::pointer::secondary;
 use crate::testing::pointer::{moved, wheel};
 use crate::testing::relations::{above, grows_with};
-use crate::testing::{Fixture, MemoRun, last_frame_derived_builds, last_frame_memo_runs, last_pass_memo_key_bytes, trial};
+use crate::testing::{Harness, MemoRun, last_frame_derived_builds, last_frame_memo_runs, last_pass_memo_key_bytes, trial};
 use craft_theme::Size;
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -31,12 +31,12 @@ fn slots() -> Vec<ToolSlot<u8>> {
 }
 
 /// The bounds of the node labelled `label`.
-fn rect(fixture: &Fixture, label: &str) -> Rect {
+fn rect(fixture: &Harness, label: &str) -> Rect {
     fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).rect
 }
 
 /// How many columns the buttons of the rail stand in: the distinct left edges.
-fn columns_of(fixture: &Fixture) -> usize {
+fn columns_of(fixture: &Harness) -> usize {
     let mut lefts: Vec<f32> = Vec::new();
     for label in LABELS {
         let left = rect(fixture, label).left();
@@ -49,11 +49,11 @@ fn columns_of(fixture: &Fixture) -> usize {
 
 /// A rail in a room `width` wide and `height` high with a one-button footer, and the size `measure_rail` gives it at
 /// that width in the same pass.
-fn rail_in(width: f32, height: f32) -> (Fixture, Rc<Cell<Vec2>>) {
+fn rail_in(width: f32, height: f32) -> (Harness, Rc<Cell<Vec2>>) {
     let measured = Rc::new(Cell::new(Vec2::ZERO));
     let report = Rc::clone(&measured);
     let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let size = ToolRail::new("Tools", &slots, &0, &last).measure_rail(ui, width, |ui, _| {
             Button::new("Foot").show(ui);
         });
@@ -70,7 +70,7 @@ fn rail_in(width: f32, height: f32) -> (Fixture, Rc<Cell<Vec2>>) {
 /// of them one fewer, and a wider one no more columns than the rail has cells.
 #[trial]
 fn a_tool_rail_lays_out_the_most_whole_columns_its_width_holds() {
-    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Fixture::new(|_| {}).ctx()));
+    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Harness::new_ui(|_| {}).ctx()));
     for steps in 1..=3_u16 {
         let (fixture, _) = rail_in(grid.width(steps), 800.0);
         assert_eq!(columns_of(&fixture), usize::from(steps), "a width of {steps} steps shows {steps} columns");
@@ -89,13 +89,13 @@ fn a_tool_rail_lays_out_the_most_whole_columns_its_width_holds() {
 /// width of two steps the dense rail shows two columns, as wide as that grid, where a regular rail fits one.
 #[trial]
 fn a_dense_rail_and_its_grid_narrow_together() {
-    let ctx = Fixture::new(|_| {}).ctx().clone();
+    let ctx = Harness::new_ui(|_| {}).ctx().clone();
     let sizes = DockSizes::of(&ctx);
     let (regular, dense) = (DockGrid::rail(LABELS.len()).resolved(&sizes), DockGrid::rail(LABELS.len()).density(RailDensity::Dense).resolved(&sizes));
     assert!(dense.width(2) < regular.width(2), "the dense grid is narrower: {dense:?} against {regular:?}");
     let shown = |density: RailDensity| {
         let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             ToolRail::new("Tools", &slots, &0, &last).density(density).show_rail(ui, |_, _| {});
         });
         fixture.room(Vec2::new(dense.width(2), 800.0)).settle();
@@ -112,7 +112,7 @@ fn a_dense_rail_and_its_grid_narrow_together() {
 /// and fewer columns need more rows.
 #[trial]
 fn a_tool_rail_measures_its_rows_plus_its_footer_at_a_width() {
-    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Fixture::new(|_| {}).ctx()));
+    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Harness::new_ui(|_| {}).ctx()));
     let mut heights = Vec::new();
     for steps in [1_u16, 2] {
         let (fixture, measured) = rail_in(grid.width(steps), 800.0);
@@ -131,7 +131,7 @@ fn a_tool_rail_measures_its_rows_plus_its_footer_at_a_width() {
 /// above it, down to a room smaller than one scroll region's usual least height.
 #[trial]
 fn in_a_short_room_the_rows_scroll_above_the_footer_that_stays_in_view() {
-    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Fixture::new(|_| {}).ctx()));
+    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Harness::new_ui(|_| {}).ctx()));
     for height in [160.0, 100.0] {
         let (mut fixture, measured) = rail_in(grid.width(1), height);
         let foot = rect(&fixture, "Foot");
@@ -144,9 +144,9 @@ fn in_a_short_room_the_rows_scroll_above_the_footer_that_stays_in_view() {
         let rail = rect(&fixture, "Tools");
         assert!(near(first.center().x, rail.center().x), "{height}: the buttons stay centred in a rail that scrolls: {first:?} in {rail:?}");
 
-        fixture.frame(vec![moved(first.center())]);
+        fixture.send(moved(first.center()));
         for _ in 0..10 {
-            fixture.frame(vec![wheel(-120.0)]);
+            fixture.send(wheel(-120.0));
         }
         fixture.settle();
         let last = rect(&fixture, "Clone Stamp");
@@ -160,10 +160,10 @@ fn in_a_short_room_the_rows_scroll_above_the_footer_that_stays_in_view() {
 /// with `bar_at_rest`.
 #[trial]
 fn a_short_rail_shows_its_bar_at_rest_only_with_bar_at_rest() {
-    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Fixture::new(|_| {}).ctx()));
+    let grid = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Harness::new_ui(|_| {}).ctx()));
     for at_rest in [false, true] {
         let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let rail = ToolRail::new("Tools", &slots, &0, &last);
             let rail = if at_rest { rail.bar_at_rest() } else { rail };
             rail.show_rail(ui, |ui, _| {
@@ -174,7 +174,7 @@ fn a_short_rail_shows_its_bar_at_rest_only_with_bar_at_rest() {
         let (rail, first, foot) = (rect(&fixture, "Tools"), rect(&fixture, "Move"), rect(&fixture, "Foot"));
         assert!(rect(&fixture, "Clone Stamp").bottom() > foot.top(), "at rest {at_rest}: the rows do not fit the room");
         let band = Rect::from_x_y_ranges(first.right()..=rail.right(), rail.top()..=foot.top());
-        fixture.frame(vec![moved(rail.right_bottom() + Vec2::splat(200.0))]);
+        fixture.send(moved(rail.right_bottom() + Vec2::splat(200.0)));
         fixture.settle();
         let shapes = fixture.frame_shapes();
         let paints = shapes.iter().map(egui::Shape::visual_bounding_rect).any(|b| b.is_positive() && band.expand(0.5).contains_rect(b));
@@ -190,7 +190,7 @@ fn the_tool_rail_shows_its_buttons_icons_in_its_glyph_role() {
     use craft_behavior::IconId;
     let glyphs = |rail: bool| {
         let (slots, last) = (Tracked::new(vec![ToolSlot::new(0, tools(&[0, 1]))]), Tracked::new(LastUsed::default()));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             if rail {
                 ToolRail::new("Tools", &slots, &0, &last).show_rail(ui, |_, _| {});
             } else {
@@ -214,14 +214,14 @@ const CAPTION: &str = "Painting, Retouching and Every Other Tool That Puts Pixel
 /// no caption while they are off; the shown caption is cut at the rail's width.
 #[trial]
 fn captions_take_room_only_while_the_rail_shows_them() {
-    let width = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Fixture::new(|_| {}).ctx())).width(1);
+    let width = DockGrid::rail(LABELS.len()).resolved(&DockSizes::of(Harness::new_ui(|_| {}).ctx())).width(1);
     let measured = Rc::new(Cell::new([Vec2::ZERO; 3]));
     let report = Rc::clone(&measured);
     let plain = Tracked::new(slots());
     let captioned =
         Tracked::new(slots().into_iter().enumerate().map(|(at, slot)| if at == 0 { slot.captioned(CAPTION) } else { slot }).collect::<Vec<_>>());
     let last = Tracked::new(LastUsed::default());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         // Three rails measured in one pass, each under an id of its own.
         let none = ToolRail::new("Tools", &plain, &0, &last).id_salt("none").measure_rail(ui, width, |_, _| {});
         let off = ToolRail::new("Tools", &captioned, &0, &last).id_salt("off").measure_rail(ui, width, |_, _| {});
@@ -242,7 +242,7 @@ fn captions_take_room_only_while_the_rail_shows_them() {
 /// and its Move button.
 fn rail_in_scope(width: f32, scope: ThemeScope) -> (usize, Rect, Rect) {
     let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ToolRail::new("Tools", &slots, &0, &last).theme(scope.clone()).show_rail(ui, |_, _| {});
     });
     fixture.density(Size::Comfortable).room(Vec2::new(width, 800.0)).settle();
@@ -254,7 +254,7 @@ fn rail_in_scope(width: f32, scope: ThemeScope) -> (usize, Rect, Rect) {
 /// comfortable root's.
 #[trial]
 fn a_rail_with_a_compact_scope_of_its_own_fills_the_rail_grid_of_that_scope() {
-    let mut probe = Fixture::new(|_| {});
+    let mut probe = Harness::new_ui(|_| {});
     probe.density(Size::Comfortable).settle();
     let compact = ThemeScope::new().density(Size::Compact);
     let grid_in = |scope: &ThemeScope| DockGrid::rail(LABELS.len()).resolved(&StyleCx::with_root_scoped(probe.ctx(), scope, DockSizes::style));
@@ -274,11 +274,11 @@ fn a_rail_with_a_compact_scope_of_its_own_fills_the_rail_grid_of_that_scope() {
 
 /// A searchable drawer over the Drawing (Move, Brush, Pencil) and Retouching (Eraser, Clone Stamp) groups, with the
 /// clone stamp titled "Klonstempel" as a translation would show it, after typing `query` into its search field.
-fn searched(query: &str) -> Fixture {
+fn searched(query: &str) -> Harness {
     use crate::rails::drawer::{DrawerGroup, DrawerKind, ToolbarDrawer};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let groups = [DrawerGroup::new("Drawing", tools(&[0, 1, 2])), DrawerGroup::new("Retouching", tools(&[3, 4]))];
-        let rail = Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(40.0, 400.0));
+        let rail = Rect::from_min_size(craft_ui::geom::Pos2::ZERO, Vec2::new(40.0, 400.0));
         ToolbarDrawer::new(rail, &groups, &[], None).kind(DrawerKind::Searchable).show(ui);
     });
     fixture.command_state(super::stories::StoryTools::Stamp, crate::runtime::commands::CommandState::new().title("Klonstempel"));
@@ -294,7 +294,7 @@ fn searched(query: &str) -> Fixture {
 /// while one of the group's tools matches; an empty query shows every row.
 #[trial]
 fn a_searchable_drawer_keeps_a_heading_only_with_a_matching_tool() {
-    let shown = |fixture: &Fixture, label: &str| fixture.by_label(label).is_some();
+    let shown = |fixture: &Harness, label: &str| fixture.by_label(label).is_some();
 
     let all = searched("");
     for label in ["Drawing", "Move", "Brush", "Pencil", "Retouching", "Eraser", "Klonstempel"] {
@@ -334,11 +334,11 @@ struct Seen {
 }
 
 /// A rail with the Edit Toolbar button, a footer and a tool held in `Seen::current`.
-fn memo_rail() -> (Fixture, Rc<RefCell<Seen>>) {
+fn memo_rail() -> (Harness, Rc<RefCell<Seen>>) {
     let seen = Rc::new(RefCell::new(Seen::default()));
     let shared = Rc::clone(&seen);
     let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let current = shared.borrow().current;
         let footer = &shared;
         let out = ToolRail::new("Tools", &slots, &current, &last).edit_toolbar("Edit Toolbar").show_rail(ui, |ui, _| {
@@ -354,7 +354,7 @@ fn memo_rail() -> (Fixture, Rc<RefCell<Seen>>) {
 }
 
 /// How the slot grid took part in the last frame: (ran, replayed).
-fn grid_runs(fixture: &Fixture) -> (usize, usize) {
+fn grid_runs(fixture: &Harness) -> (usize, usize) {
     let runs = last_frame_memo_runs(fixture.ctx());
     let of = |kind: MemoRun| runs.iter().filter(|(name, _, run)| name.contains("GridProps") && *run == kind).count();
     (of(MemoRun::Ran), of(MemoRun::Replayed))
@@ -365,15 +365,15 @@ fn grid_runs(fixture: &Fixture) -> (usize, usize) {
 fn an_idle_tool_rail_replays_its_slots_and_a_tool_change_runs_them_once() {
     let (mut fixture, seen) = memo_rail();
     let before = seen.borrow().footer_runs;
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!(grid_runs(&fixture), (0, 1), "an idle frame replays the grid");
     assert!(seen.borrow().footer_runs > before, "the footer runs every pass, outside the view");
     seen.borrow_mut().current = 1;
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!(grid_runs(&fixture).0, 1, "a tool change runs the grid once: {:?}", last_frame_memo_runs(fixture.ctx()));
     fixture.settle();
     for _ in 0..3 {
-        fixture.frame(vec![]);
+        fixture.step();
     }
     assert_eq!(grid_runs(&fixture), (0, 1), "then it replays");
 }
@@ -383,7 +383,7 @@ fn an_idle_tool_rail_replays_its_slots_and_a_tool_change_runs_them_once() {
 fn a_replayed_slot_grid_still_reports_the_edit_toolbar_response() {
     let (mut fixture, seen) = memo_rail();
     let shown = seen.borrow().edit_toolbar.expect("the button's response is reported after a run");
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!(grid_runs(&fixture), (0, 1), "the grid replays");
     assert_eq!(seen.borrow().edit_toolbar, Some(shown), "a replayed grid answers the same response");
 }
@@ -405,7 +405,7 @@ fn an_edited_rail_takes_a_drop_off_its_buttons_beside_the_nearest_one() {
     let dropped = Rc::new(RefCell::new(Vec::new()));
     let seen = Rc::clone(&dropped);
     let (slots, blank, last) = (Tracked::new(slots()), Tracked::new(Vec::new()), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().show(ui, |ui, _| {
             for (label, slots, edit) in [("Tools", &slots, "Edit Tools"), ("Blank", &blank, "Edit Blank")] {
                 let out = ToolRail::new(label, slots, &0, &last).edit_toolbar(edit).editing().show_column(ui, |_, _| {});
@@ -434,7 +434,7 @@ fn a_rail_in_another_density_counts_its_columns_in_that_density() {
     let scoped: Rc<Cell<Option<DockGrid>>> = Rc::default();
     let seen = Rc::clone(&scoped);
     let compact = || ThemeScope::new().density(craft_theme::Size::Compact);
-    let mut probe = Fixture::new(move |ui| {
+    let mut probe = Harness::new_ui(move |ui| {
         Stack::new().theme(compact()).show(ui, |ui, _| {
             seen.set(Some(DockGrid::rail(LABELS.len()).resolved(&DockSizes::of_scope(ui))));
         });
@@ -446,7 +446,7 @@ fn a_rail_in_another_density_counts_its_columns_in_that_density() {
     assert_eq!(root.steps_within(width), 1, "the root's rail fits one column in two compact steps: {grid:?}, root {root:?}");
 
     let (slots, last) = (Tracked::new(slots()), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().theme(compact()).show(ui, |ui, _| {
             ToolRail::new("Tools", &slots, &0, &last).show_rail(ui, |ui, _| {
                 Button::new("Foot").show(ui);
@@ -463,7 +463,7 @@ fn a_rail_in_another_density_counts_its_columns_in_that_density() {
 fn an_open_flyout_builds_no_derived_values() {
     let tools = tools(&[1, 2]);
     let shown = 1_u8;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         FlyoutButton::new(&tools, &shown).show(ui);
     });
     fixture.room(Vec2::new(200.0, 200.0)).settle();
@@ -472,7 +472,7 @@ fn an_open_flyout_builds_no_derived_values() {
     fixture.settle();
     assert!(fixture.by_label("Pencil").is_some(), "the right click opened the flyout");
     for _ in 0..3 {
-        fixture.frame(vec![]);
+        fixture.step();
         assert!(last_frame_derived_builds(fixture.ctx()).iter().all(|(_, builds)| *builds == 0), "no derived value is built per pass");
     }
 }
@@ -489,7 +489,7 @@ fn idle_key_bytes(count: u8) -> usize {
         last.set(u32::from(id), id);
     }
     let last = Tracked::new(last);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ToolRail::new("Tools", &slots, &0, &last).hidden(&hidden).show_rail(ui, |_, _| {});
     });
     fixture.room(KEY_BYTES_ROOM).settle().idle(1);
@@ -515,13 +515,13 @@ fn a_tools_own_icon_paints_its_button_and_its_flyout_row() {
     #[derive(crate::contract::MemoProps)]
     struct Artwork;
     impl Glyph for Artwork {
-        fn paint(&self, painter: &crate::primitives::Canvas<'_>, _: &UiTokens, rect: Rect, color: egui::Color32, _: bool) {
+        fn paint(&self, painter: &crate::primitives::Canvas<'_>, _: &UiTokens, rect: Rect, color: craft_ui::Color32, _: bool) {
             painter.circle_filled(rect.center(), rect.width().min(rect.height()) / 2.0, color);
         }
     }
     // Where the glyph painted in the fixture's next frame. A frame that replays a memoized view repeats its shapes, so
     // the shapes of one frame show every place the glyph is on screen.
-    let painted = |fixture: &mut Fixture| -> Vec<Rect> {
+    let painted = |fixture: &mut Harness| -> Vec<Rect> {
         fixture
             .frame_shapes()
             .iter()
@@ -535,7 +535,7 @@ fn a_tools_own_icon_paints_its_button_and_its_flyout_row() {
     let mut group = tools(&[1, 2]);
     group[0] = group[0].clone().icon(IconSpec::glyph(&Artwork));
     let (slots, last) = (Tracked::new(vec![ToolSlot::new(0, group)]), Tracked::new(LastUsed::default()));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ToolRail::new("Tools", &slots, &1, &last).show_rail(ui, |_, _| {});
     });
     fixture.room(Vec2::new(200.0, 400.0)).settle();
