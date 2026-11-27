@@ -166,3 +166,100 @@ fn a_fired_command_reruns_only_the_node_that_takes_it_and_only_once() {
     assert!(app.runs.get() > runs + 1, "the token change reran the taker");
     assert_eq!(app.taken.get(), 1, "the consumed sequence holds: no second take");
 }
+
+/// Where `Labelled` draws its label: a part that senses nothing, which `finish` reads back.
+const LABEL: craft_behavior::PartKey = craft_behavior::PartKey::new("label");
+
+/// A leaf that declares its label rect as a part with no sense and reports it from `finish`, as a list row does.
+#[derive(Component)]
+struct Labelled {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    runs: Rc<Cell<u32>>,
+}
+
+struct LabelledOutput {
+    response: Response,
+    label: Option<Rect>,
+}
+
+impl craft_ui_contract::contract::Outcome for LabelledOutput {
+    type Value = craft_ui_contract::contract::NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl Component for Labelled {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = LabelledOutput;
+
+    fn style(_: &StyleCx<'_>, _: LabelledStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(120.0, 24.0)
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut craft_ui_contract::contract::PartsCx<'_, Self>) {
+        let label = Rect::from_min_max(rect.min + Vec2::new(30.0, 4.0), rect.max - Vec2::new(8.0, 4.0));
+        let _ = cx.part(LABEL, label).sense(craft_behavior::Sense::empty());
+    }
+
+    fn update(&mut self, _: &mut Cx<'_, Self>) {
+        self.runs.set(self.runs.get() + 1);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> LabelledOutput {
+        use craft_ui_contract::contract::Pointer as _;
+        LabelledOutput { response: cx.response.clone(), label: cx.part_if_declared(LABEL).map(|part| part.rect) }
+    }
+}
+
+struct Labelling {
+    chip: Rect,
+    clicks: u32,
+    row: Rect,
+    label: Option<Rect>,
+    runs: Rc<Cell<u32>>,
+}
+
+fn labelling_step(rig: &mut Rig<RecordingRenderer>, app: &mut Labelling, input: Option<Input>) -> StepReport {
+    if let Some(input) = input {
+        let main = rig.main;
+        rig.inject(main, input);
+    }
+    let runs = app.runs.clone();
+    rig.step_with(&mut |_, cx| {
+        window_root_with(cx, WindowEnv::default(), |ui| {
+            let chip = Chip::new("Chip").show(ui);
+            app.chip = chip.rect;
+            app.clicks += u32::from(chip.clicked());
+            let out = Labelled { common: Common::new(), runs: runs.clone() }.show(ui);
+            (app.row, app.label) = (out.response.rect, out.label);
+        })
+    })
+}
+
+#[test]
+fn a_kept_leaf_reports_the_part_rects_its_last_run_declared() {
+    let mut app = Labelling { chip: Rect::NOTHING, clicks: 0, row: Rect::NOTHING, label: None, runs: Rc::new(Cell::new(0)) };
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    settle(&mut rig, &mut app, labelling_step);
+    let ran = app.runs.get();
+    let row = app.row;
+    let label = Rect::from_min_max(row.min + Vec2::new(30.0, 4.0), row.max - Vec2::new(8.0, 4.0));
+    assert_eq!(app.label, Some(label), "a real run reports the rect its `parts` declared");
+    let at = app.chip.center();
+    labelling_step(&mut rig, &mut app, Some(Input::mouse_move(at)));
+    labelling_step(&mut rig, &mut app, Some(Input::mouse_down(at)));
+    app.label = None;
+    labelling_step(&mut rig, &mut app, Some(Input::mouse_up(at)));
+    assert_eq!(app.clicks, 1, "the click reran the window's build");
+    assert_eq!(app.runs.get(), ran, "the leaf is kept");
+    assert_eq!(app.label, Some(label), "the kept leaf's `finish` reads the rect its last run declared");
+}

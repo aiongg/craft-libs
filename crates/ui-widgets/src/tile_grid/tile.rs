@@ -114,6 +114,9 @@ const PILL: PartKey = PartKey::new("pill");
 const MARK: PartKey = PartKey::new("mark");
 const PICTURE: PartKey = PartKey::new("picture");
 const ACTION: PartKey = PartKey::new("action");
+/// Where the caption (or a summary card's title) is drawn: a part that senses nothing, which `finish` reads back as the
+/// tile's caption rect in real and kept runs alike.
+const CAPTION: PartKey = PartKey::new("caption");
 
 const CHECK_REASON: &str = "In a tile grid with checks, Space toggles the lead tile's check";
 const RATING_REASON: &str = "In a tile grid with rating keys, the digits rate the selected tiles";
@@ -479,7 +482,6 @@ pub struct Tile<'a> {
     placed: Option<Placed>,
     #[key(skip)]
     event: Option<TilePartEvent>,
-    caption_rect: Option<Rect>,
 }
 
 impl<'a> Tile<'a> {
@@ -526,7 +528,6 @@ impl<'a> Tile<'a> {
             actions: Vec::new(),
             placed: None,
             event: None,
-            caption_rect: None,
         }
         .label(label)
     }
@@ -1003,6 +1004,15 @@ impl Component for Tile<'_> {
             placed.picture = cx.content_rect;
         }
         let _ = cx.part(PICTURE, placed.picture).sense(Sense::HOVER);
+        let caption = match (&self.summary_action, self.caption) {
+            (Some(action), _) => Some(Self::summary_areas(cx.style, placed.picture, rtl, action.as_str().is_empty()).1),
+            (None, CaptionPlace::Below) => Some(placed.caption),
+            (None, CaptionPlace::Start) => Some(placed.name),
+            (None, CaptionPlace::None) => None,
+        };
+        if let Some(caption) = caption {
+            let _ = cx.part(CAPTION, caption).sense(Sense::empty());
+        }
         if let (Some(state), Some((at, _))) = (self.check, &placed.check) {
             let mut flags = Flags::empty();
             flags.set(Flags::CHECKED, state == ToggleState::On);
@@ -1189,15 +1199,11 @@ impl Component for Tile<'_> {
             ui.face(CHECK, Checkbox::new(Bind::given(value)).quiet(true));
         }
         self.paint_caption(ui, cx, &placed);
-        self.caption_rect = match self.caption {
-            CaptionPlace::Below => Some(placed.caption),
-            CaptionPlace::Start => Some(placed.name),
-            CaptionPlace::None => None,
-        };
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TileOutput {
-        TileOutput { response: cx.response.clone(), event: self.event, caption: self.caption_rect }
+        let caption = cx.part_if_declared(CAPTION).map(|part| part.rect);
+        TileOutput { response: cx.response.clone(), event: self.event, caption }
     }
 }
 
@@ -1205,29 +1211,17 @@ impl Tile<'_> {
     fn paint_summary_card(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed, action: &str) {
         let style = cx.style;
         let picture = placed.picture;
-        let flow = Flow::new(picture, cx.flow.is_rtl());
         let draw = ui.draw();
-        let icon_side = style.face.side.min(picture.width()).min(picture.height());
         let ink = match self.hue {
             Some(hue) => ui.with_style(cx.resolved.variant, |scx| scx.ink_of(hue, Rgba::from(style.placeholder.egui()))),
             None => cx.resolve(&style.face.color),
         };
         let centered = action.is_empty();
-        let icon = if centered {
-            Rect::from_center_size(craft_ui::geom::pos2(picture.center().x, picture.center().y - icon_side / 2.0), Vec2::splat(icon_side))
-        } else {
-            let cell = flow.span(0.0, icon_side);
-            Rect::from_min_size(cell.min, Vec2::splat(icon_side))
-        };
+        let (icon, title_area) = Self::summary_areas(style, picture, cx.flow.is_rtl(), centered);
         if let Some(face) = self.icon.take() {
             draw.icon(icon, &face.color(ink));
         }
         let title = TextRun::new(cx.resolved.label).role(style.name.role).color(cx.resolve(&style.name.color)).elide();
-        let title_area = if centered {
-            Rect::from_min_max(craft_ui::geom::pos2(picture.left(), icon.bottom() + style.sizes.tight), picture.max)
-        } else {
-            flow.take_start(icon_side + style.sizes.tight).1.rect()
-        };
         let title_layout = draw.layout(&title, title_area.width());
         let title_x =
             if centered { title_area.center().x - title_layout.size().x / 2.0 } else { Self::text_x(title_area, title_layout.size().x, cx) };
@@ -1247,7 +1241,20 @@ impl Tile<'_> {
             let layout = draw.layout(&run, picture.width());
             draw.galley(craft_ui::geom::pos2(Self::text_x(picture, layout.size().x, cx), picture.bottom() - layout.size().y), &layout);
         }
-        self.caption_rect = Some(title_area);
+    }
+
+    /// A summary card's icon and title area in its picture: centred under each other with no action, else at the start
+    /// edge, the title beside the icon.
+    fn summary_areas(style: &TileStyle, picture: Rect, rtl: bool, centered: bool) -> (Rect, Rect) {
+        let flow = Flow::new(picture, rtl);
+        let icon_side = style.face.side.min(picture.width()).min(picture.height());
+        if centered {
+            let icon = Rect::from_center_size(craft_ui::geom::pos2(picture.center().x, picture.center().y - icon_side / 2.0), Vec2::splat(icon_side));
+            (icon, Rect::from_min_max(craft_ui::geom::pos2(picture.left(), icon.bottom() + style.sizes.tight), picture.max))
+        } else {
+            let cell = flow.span(0.0, icon_side);
+            (Rect::from_min_size(cell.min, Vec2::splat(icon_side)), flow.take_start(icon_side + style.sizes.tight).1.rect())
+        }
     }
     fn full_name(&self, cx: &Cx<'_, Self>, words: &TileWords) -> String {
         let marks = || self.marks.iter().map(|mark| mark.tip.as_str().to_owned()).filter(|tip| !tip.is_empty());

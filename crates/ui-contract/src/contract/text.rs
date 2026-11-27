@@ -185,6 +185,7 @@ pub(crate) fn selection_parts(core: &mut CxCore<'_>, origin: Pos2) -> Vec<KeptPa
             cursor: Some(craft_behavior::Cursor::System(craft_behavior::CursorIcon::Text)),
             exclusive: None,
             holds: false,
+            inactive: false,
         });
     }
     parts

@@ -230,7 +230,7 @@ pub(crate) fn keep_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, pla
     let (node, kept) = (peeked.node, peeked.local);
     let response = Response::new(kept.id, rect, Some(node), ui.cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(id);
-    let mut core = settled_core(&begun.env, &resolved, &mut stage, &kept.popups, response, &begun.step1, RunIo::settled(context));
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, (&kept.popups, &kept.parts), response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     finish_with(component, &mut core, &begun.style, value)
 }
@@ -436,17 +436,22 @@ pub(crate) struct Ran<'a, C: Component> {
     pub(crate) flow_reveal: &'a mut Option<Pos2>,
 }
 
-/// The `Cx` a kept node's `finish` gets: no input, the kept facts, `is_settled` true.
+/// The `Cx` a kept node's `finish` gets: no input, the kept facts, `is_settled` true. The parts the last run
+/// declared (`parts`, in the coordinates of the response's rect) answer their rects as in that run, idle: a kept
+/// node's `finish` reads back the rects its `parts` declared (a row's label) as its real runs do.
 fn settled_core<'a>(
     begun_env: &'a Env,
     resolved: &'a Resolved<'a>,
     memory: &'a mut MemoryStage,
-    popups: &'a PopupStates,
+    (popups, parts): (&'a PopupStates, &[KeptPart]),
     response: Response,
     begun: &steps::EnvStep,
     run: RunIo<'a>,
 ) -> CxCore<'a> {
-    core_for(begun_env, resolved, memory, popups, response, begun.command.clone(), run)
+    let rect = response.rect;
+    let mut core = core_for(begun_env, resolved, memory, popups, response, begun.command.clone(), run);
+    core.results = part_results(parts, Sense::empty(), &[], (rect.min, rect), false).1;
+    core
 }
 
 /// The output of a kept node: `finish` on a settled `Cx` with the kept facts and no input.
@@ -462,7 +467,8 @@ pub(crate) fn settle<C: Component>(
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context));
+    let mut core =
+        settled_core(&begun.env, &resolved, &mut kept.memory, (&kept.popups, &kept.parts), response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     let out = finish_with(component, &mut core, &begun.style, value);
     // A request the body made while the node was kept: the node runs in this frame to take it.
@@ -484,7 +490,7 @@ pub(crate) fn finish_measured<C: Component>(
     let resolved = begun.resolved(id);
     let mut stage = MemoryStage::open_peek(&context, id);
     let popups = PopupStates::default();
-    let mut core = settled_core(&begun.env, &resolved, &mut stage, &popups, response, &begun.step1, RunIo::measuring(context));
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, (&popups, &[]), response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;
     core.visible = rect;
@@ -642,7 +648,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
     kept.cursor = component.cursor();
-    let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, (rect.min, rect), interact.hovered);
+    let results = part_results(&kept.parts, own, cxx.core.run.input, (rect.min, rect), interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
     cxx.core.toggles = steps::toggles(&parts);
@@ -650,8 +656,8 @@ pub(crate) fn run_shaped<C: Component>(
     cxx.core.state_layer_parts = steps::declared_with(&parts, |extras| extras.state_layer);
     cxx.core.own_reset_parts = steps::declared_with(&parts, |extras| extras.own_reset);
     cxx.core.focus_shapes = steps::focus_shapes(&parts);
-    // The active part follows focus, so a component with parts reads `Focused`.
-    if !cxx.core.results.is_empty() {
+    // The active part follows focus, so a component with parts that sense reads `Focused`.
+    if kept.parts.iter().any(|p| !p.sense.is_empty()) {
         cxx.core.read_focused();
     }
     cxx.core.active = cxx.core.focus.part.filter(|part| cxx.core.results.contains_key(&(part.key, part.index)));
@@ -677,7 +683,12 @@ pub(crate) fn run_shaped<C: Component>(
         };
         crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
     };
-    kept.ime.edit = cxx.core.edit_paint.take();
+    // The text step places the editor in window coordinates; the node paints it in its own.
+    kept.ime.edit = cxx.core.edit_paint.take().map(|mut edit| {
+        edit.origin -= rect.min.to_vec2();
+        edit.clip = edit.clip.translate(Pos2::ZERO - rect.min);
+        edit
+    });
     crate::contract::text::yield_pointer(cxx.core, &mut kept.parts);
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
@@ -987,7 +998,7 @@ pub(crate) fn run_member<I: Component>(
         kept.id = member_part(row, kept.part);
     }
     // 8 sense
-    let results = part_results(&member_parts, &parts, own, &local, (origin, run.rect), now.hovered);
+    let results = part_results(&member_parts, own, &local, (origin, run.rect), now.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
     cxx.core.toggles = steps::toggles(&parts);
@@ -1155,7 +1166,8 @@ fn settle_shaped<C: Component>(
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
     let room = kept.place.room;
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+    let mut core =
+        settled_core(&begun.env, &resolved, &mut kept.memory, (&kept.popups, &kept.parts), response, &begun.step1, RunIo::settled(context.clone()));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     let mut cxx =
         Cx { core: &mut core, style: &*begun.style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
@@ -1294,7 +1306,15 @@ pub(crate) fn reach_layers<C: Component>(
         let node = cx.node();
         let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
         let resolved = begun.resolved(id);
-        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+        let mut core = settled_core(
+            &begun.env,
+            &resolved,
+            &mut kept.memory,
+            (&kept.popups, &kept.parts),
+            response,
+            &begun.step1,
+            RunIo::settled(context.clone()),
+        );
         place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
         core.popups.begin_run(cx);
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
@@ -1345,7 +1365,8 @@ fn reach_painted<C: Component>(
     };
     let response = Response::new(id, rect, Some(node), interact, kept.dragging, InputFacts::default());
     let resolved = begun.resolved(id);
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+    let mut core =
+        settled_core(&begun.env, &resolved, &mut kept.memory, (&kept.popups, &kept.parts), response, &begun.step1, RunIo::settled(context.clone()));
     place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     core.node = true;
     core.faded = begun.facts.faded && !resolved.enabled;
@@ -1566,13 +1587,11 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
     (facts, dragging)
 }
 
-/// The press of the node's own shape and of each declared part, folded from the run's queue: the
-/// last phase on it, drag moves summed. Positions are window coordinates.
-/// The press and hover results of the run's own shape (`rect`) and its kept parts, from its queue: positions in the
-/// queue and the kept shapes are relative to `origin`, the node's top left.
+/// The press and hover results of the run's own shape (`rect`) and its kept parts, from its queue (the last phase on
+/// each, drag moves summed): positions in the queue and the kept shapes are relative to `origin`, the node's top left;
+/// the results are in window coordinates.
 fn part_results(
     kept: &[KeptPart],
-    parts: &steps::PartsStep,
     sense: Sense,
     input: &[NodeInput],
     (origin, rect): (Pos2, Rect),
@@ -1604,9 +1623,13 @@ fn part_results(
     let results = kept
         .iter()
         .map(|p| {
-            let inactive = steps::inactive(parts, p.part);
-            let result =
-                PartResult { rect: bounds(p.shape).translate(origin.to_vec2()), press: press_of(p.id), sense: p.sense, inactive, ..PartResult::IDLE };
+            let result = PartResult {
+                rect: bounds(p.shape).translate(origin.to_vec2()),
+                press: press_of(p.id),
+                sense: p.sense,
+                inactive: p.inactive,
+                ..PartResult::IDLE
+            };
             ((p.part.key, p.part.index), result)
         })
         .collect();

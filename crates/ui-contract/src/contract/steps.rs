@@ -22,7 +22,7 @@ pub(crate) use finish::before_finish;
 pub(crate) use label::scrub_by_label;
 pub(crate) use measure::{MeasureIn, measure, measure_cx, padding, whole};
 pub(crate) use paint::{Fade, UnderVeil, fade, paint_part_layers, surface_ink, surface_items, unfade};
-pub(crate) use parts::{PartsStep, declare_parts, declared_with, focus_shapes, inactive, kept_parts, toggles};
+pub(crate) use parts::{PartsStep, declare_parts, declared_with, focus_shapes, kept_parts, toggles};
 pub(crate) use report::validity_of;
 pub(crate) use sense::part_state;
 pub(crate) use settle::settle;

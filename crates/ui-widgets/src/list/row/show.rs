@@ -31,6 +31,9 @@ pub(super) const TOGGLE: PartKey = PartKey::new("toggle");
 pub(super) const TEXT_CELL: PartKey = PartKey::new("text-cell");
 pub(super) const TOGGLE_CELL: PartKey = PartKey::new("toggle-cell");
 const LABEL_CELL: PartKey = PartKey::new("label-cell");
+/// Where the label and detail are drawn: a part that senses nothing, which `finish` reads back as the row's label rect
+/// in real and kept runs alike.
+const LABEL: PartKey = PartKey::new("label");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
 
 pub(super) const LINK: PartKey = PartKey::new("link");
@@ -214,6 +217,7 @@ impl Component for ListRow<'_> {
         let widths = self.widths(&cx.style.sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
         self.record_cell_bounds(&placed, rect.min);
+        let _ = cx.part(LABEL, placed.label).sense(Sense::empty());
         self.toggle_parts(&placed, cx);
         for (at, position, _) in &placed.texts {
             if self.cell_selects(*at) {
@@ -576,7 +580,6 @@ impl Component for ListRow<'_> {
         }
         let widths = self.widths(sizes, &|run| ui.draw().layout(run, f32::INFINITY).size().x);
         let placed = self.place(sizes, &widths, rect, rtl);
-        self.label_rect = placed.label;
         {
             let draw = ui.draw();
             if self.layer && self.divider_below {
@@ -654,7 +657,8 @@ impl Component for ListRow<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RowOutput {
-        RowOutput { response: cx.response.clone(), event: self.event, open: self.open, menu: self.menu, label: self.label_rect }
+        let label = cx.part_if_declared(LABEL).map_or(Rect::NOTHING, |part| part.rect);
+        RowOutput { response: cx.response.clone(), event: self.event, open: self.open, menu: self.menu, label }
     }
 }
 

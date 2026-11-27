@@ -473,7 +473,6 @@ pub struct ListRow<'a> {
     pub(super) open: Option<OpenChange<()>>,
     /// The row's menu button was clicked: its rect, where the menu hangs.
     pub(super) menu: Option<Rect>,
-    pub(super) label_rect: Rect,
     /// The placed rect of each cell node, by the node's part: the access step reads them as the cells' bounds.
     #[key(skip)]
     pub(super) cell_bounds: Vec<(PartRef, Rect)>,
@@ -574,7 +573,6 @@ impl<'a> ListRow<'a> {
             event: None,
             open: None,
             menu: None,
-            label_rect: Rect::NOTHING,
             cell_bounds: Vec::new(),
         }
         .label(label)

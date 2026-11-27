@@ -92,7 +92,7 @@ For each `show` the bridge decides before running any hook. The node is kept whe
 4. the node carries no `BUILD` mark (no queued input, no changed read);
 5. this is not the first real run after a measuring run that ran it with other facts.
 
-A kept node runs no hook. Its output comes from `finish(self, cx)` with a *settled* `Cx`: the kept facts of its last run (rect, flow, state, flags, command, response) and no input. A kept node whose position moved within an unchanged size takes a new offset (no repaint; renderers translate). Anything else runs the full pipeline in the build, as today.
+A kept node runs no hook. Its output comes from `finish(self, cx)` with a *settled* `Cx`: the kept facts of its last run (rect, flow, state, flags, command, response, and the parts it declared, each answering its rect and an idle press) and no input. An output that names a rect inside the node (a row's label rect, a tile's caption rect) comes from a part `parts` declares, with no sense when it only names the rect, and `finish` reads it back (`Pointer::part_if_declared`), so a kept run reports what the last real run did; paint assigns no output. A kept node whose position moved within an unchanged size takes a new offset (no repaint; renderers translate). Anything else runs the full pipeline in the build, as today.
 
 ### 3.4 The window root and the host
 
@@ -705,6 +705,7 @@ These rules apply the same way in INT-1b (leaf steps), INT-2 (body chrome) and I
    - faces (`face`, `face_in`, `face_faded`) are not children: they record into the host's canvas and stay variants.
    - a node whose outputs are kept keeps the children its last run's paint showed (`Kept::shown`: their ids and rects, in order). When it carries `PATH` because one of them is marked, that child's component exists only in the paint, so the paint runs once on the node's settled `Cx` in the current pointer state: the marked child runs, the others keep their outputs, and what the paint draws is dropped (the kept looks stay; the node does not run). A paint that shows other children on the settled `Cx` than in its run makes the node run in a later round of the frame. With no shown child marked, the children are kept one by one (`BuildCx::keep_keyed`) while the node reaches its layer children;
    - `paint` and `paint_over` give the same result each time they run: they run once per look, so a paint never moves a prop out of the component (no `take()` of a child's props). A child's props are borrowed or rebuilt in each look; a hosted leaf (`Hosted::show`) shows its component in the first look and keeps it in the later ones (`PaintUi::keep_shown`).
+   - an output never comes from `paint`: a kept node's `finish` runs without it, so a rect the output reports is a part `parts` declares and `finish` reads back (section 3's settled `Cx`).
 6. **Access** is built once per run, outside variant recording; reads in `access` follow rule 2.
 
 ### 15.7 Style cache

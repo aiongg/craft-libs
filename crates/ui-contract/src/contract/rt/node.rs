@@ -482,6 +482,8 @@ pub(crate) struct KeptPart {
     pub(crate) exclusive: Option<crate::runtime::windows::WindowHit>,
     /// A press on the part holds a focused text draft (`PartBuilder::holds_drafts`): recorded as a ui-rt hold shape.
     pub(crate) holds: bool,
+    /// The part was declared inactive (`PartBuilder::inactive`): it paints its data dimmed.
+    pub(crate) inactive: bool,
 }
 
 /// The ui-rt part id of `part`: never 0, which names the node's own shape.
@@ -841,6 +843,8 @@ impl Element for ComponentNode {
             }
             match &p.cursor {
                 Some(cursor) => super::cursor::record(kept, cx, p.shape, p.sense, p.id, cursor),
+                // A part that senses nothing only names a rect the run's `finish` reads back (`Pointer::part`).
+                None if p.sense.is_empty() => {}
                 None => cx.hit(p.shape, p.sense, p.id),
             }
         }

@@ -70,6 +70,7 @@ pub(crate) fn kept_parts(parts: &PartsStep, origin: Pos2) -> Vec<KeptPart> {
                 cursor: decl.cursor.clone(),
                 exclusive: extras.exclusive,
                 holds: extras.holds_drafts,
+                inactive: decl.inactive,
             }
         })
         .collect()
@@ -94,9 +95,4 @@ pub(crate) fn toggles(parts: &PartsStep) -> Vec<Toggle> {
             extras.toggles.map(|toggle| Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false })
         })
         .collect()
-}
-
-/// Whether `part` was declared inactive (it paints its data dimmed and senses nothing).
-pub(crate) fn inactive(parts: &PartsStep, part: PartRef) -> bool {
-    parts.decls.iter().any(|(decl, _)| decl.key == part.key && decl.index == part.index && decl.inactive)
 }
