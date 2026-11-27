@@ -27,14 +27,14 @@ pub struct OverlayUi<'a> {
     resolved: &'a Resolved<'a>,
     /// The env the popups' bodies run in (`contain_popups_below` narrows it).
     env: Env,
-    popups: &'a mut PopupStates,
+    /// The node's popups, shared with the hook's `Cx` (`CxCore::popups`): a `PopupHandle` change in the hook is the
+    /// one this pass shows.
+    popups: &'a PopupStates,
     /// The window rects of the owner's toggling parts.
     parts: Vec<(PartRef, Rect)>,
     /// The owner's hooks ran in this build: the open popups' bodies run too, since they show what its props hold.
     /// On a build that only reaches a marked node under a popup, they keep their content.
     owner_ran: bool,
-    /// A popup opened or closed in a build where the owner kept its outputs: the owner runs again in this frame.
-    pub(crate) changed: bool,
 }
 
 /// The component whose overlays are shown: its id, its window rect and the window rects of its parts that toggle a
@@ -51,11 +51,11 @@ impl<'a> OverlayUi<'a> {
         owner: OverlayOwner,
         resolved: &'a Resolved<'a>,
         env: Env,
-        popups: &'a mut PopupStates,
+        popups: &'a PopupStates,
         owner_ran: bool,
     ) -> Self {
         let OverlayOwner { id, anchor, parts } = owner;
-        OverlayUi { host, owner: id, anchor, resolved, env, popups, parts, owner_ran, changed: false }
+        OverlayUi { host, owner: id, anchor, resolved, env, popups, parts, owner_ran }
     }
 
     /// Why `popup` closed in this run, as `show` decided (its dismissal, a close its body asked for) or `update`
@@ -172,22 +172,16 @@ impl<'a> OverlayUi<'a> {
         });
         match shown {
             Err(reason) => {
-                self.close(popup, reason);
+                self.popups.close(popup.id(), reason);
                 None
             }
             Ok((value, closed, layer)) => {
                 self.popups.shown_on(popup.id(), layer);
                 if let Some(reason) = closed {
-                    self.close(popup, reason);
+                    self.popups.close(popup.id(), reason);
                 }
                 Some(value)
             }
-        }
-    }
-
-    fn close(&mut self, popup: PopupHandle, reason: CloseReason) {
-        if self.popups.close(popup.id(), reason) {
-            self.changed = true;
         }
     }
 }
@@ -212,7 +206,10 @@ impl<R> PopupContent<'_, R> {
         if measuring {
             stage = stage.peek_only();
         }
-        let (out, asked) = Env::run_in(ui, self.env.clone(), |ui| {
+        // The owner's env (`contain_popups_below` included) on the layer node's cells: the body's surfaces meet the
+        // popup's frame, and its commands answer to the layer's modal reach.
+        let env = self.env.clone().in_layer(ui.cx, &ui.ctx);
+        let (out, asked) = Env::run_in(ui, env, |ui| {
             let mut bcx = BodyCx::new(self.id, self.env.view(), self.resolved, rect, &mut stage, &mut open, None, None);
             let out = (self.body)(ui, &mut bcx);
             (out, bcx.close_requested())
@@ -261,9 +258,11 @@ impl<C: ShowContainer, R> LayerBody<()> for ContainerContent<'_, C, R> {
     }
 }
 
-/// Step 10 of a run: the `overlay` hook of `component`, with the popups the run holds (`CxCore::popups`), shown on
-/// `host` (the run's `Ui` on the component's node). `parts` are the window rects of the toggling parts. Returns
-/// whether a popup opened or closed here, so a node that kept its outputs runs again in this frame.
+/// Step 10 of a run: the `overlay` hook of `component`, shown on `host` (the run's `Ui` on the component's node). The
+/// hook's `Cx` and its `OverlayUi` share the node's popups (`CxCore::popups`), so a popup the hook opens or closes
+/// through its handle is the one the pass shows. `parts` are the window rects of the toggling parts. Returns whether a
+/// popup's open state differs from the one the run began with: on a node that kept its outputs (only the overlay pass
+/// ran), the node runs again in this frame.
 pub(crate) fn run_overlay<C: Component>(
     component: &mut C,
     cx: &mut Cx<'_, C>,
@@ -272,12 +271,11 @@ pub(crate) fn run_overlay<C: Component>(
     parts: Vec<(PartRef, Rect)>,
     owner_ran: bool,
 ) -> bool {
-    let mut popups = std::mem::take(&mut *cx.core.popups);
+    let popups: &PopupStates = cx.core.popups;
     let owner = OverlayOwner { id: cx.core.id, anchor: cx.core.rect, parts };
     let resolved = cx.core.resolved;
-    let mut overlays = OverlayUi::new(&mut *host, owner, resolved, env.clone(), &mut popups, owner_ran);
+    let mut overlays = OverlayUi::new(&mut *host, owner, resolved, env.clone(), popups, owner_ran);
     component.overlay(&mut overlays, cx);
-    let changed = overlays.changed;
     drop(overlays);
     // A popup that closed fades out: its layer child stays, inert, and the owner builds when the fade ends, which
     // drops it. One that closed after it showed in this build starts its fade in another build of this frame.
@@ -292,6 +290,5 @@ pub(crate) fn run_overlay<C: Component>(
             ui.cx.rebuild();
         }
     });
-    *cx.core.popups = popups;
-    changed
+    popups.any_changed()
 }

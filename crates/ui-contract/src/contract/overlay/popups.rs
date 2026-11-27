@@ -1,5 +1,5 @@
 //! Popup handles and the `Overlays` trait: a component's popups and their open state, kept on its node
-//! (`contract::rt::overlay::PopupStates`, taken into the run's `CxCore::popups`), and hover dwell on build wakes.
+//! (`contract::rt::overlay::PopupStates`, shared by the run's `CxCore::popups` and its `OverlayUi`), and hover dwell on build wakes.
 
 use super::opener::Trigger;
 use crate::contract::cx::CxCore;
