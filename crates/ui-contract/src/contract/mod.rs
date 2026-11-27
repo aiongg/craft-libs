@@ -73,7 +73,7 @@ pub use container::{
     SectionRhythm, ShellPane, Sizing, ThemeScope, WrapWidth,
 };
 #[doc(hidden)]
-pub use context::Context;
+pub use context::{Context, PlatformRequest};
 pub use craft_tracked::{PlainData, Revision, Tracked};
 pub use craft_ui_macros::{CommandSet, Component, Pattern, PlainData, Props, register_contract};
 #[doc(hidden)]

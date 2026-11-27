@@ -16,6 +16,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use craft_behavior::{EditCommand, OwnerClass};
 use craft_keymap::{Active, Chord, CommandRef, Keymap, Lookup};
@@ -24,7 +25,10 @@ use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Reads, Runti
 use super::node::{ComponentNode, Kept, ScopeNode};
 use super::overlay::LayerScope;
 use super::ui::Ui;
-use crate::runtime::commands::{CommandSet, CommandState, FirePhase, FireSource, Fired};
+use crate::primitives::Id;
+use crate::runtime::commands::{
+    CommandChain, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand,
+};
 
 /// What a command does when it runs: called at event time with the store, where it writes the app
 /// state the command changes.
@@ -32,9 +36,16 @@ type Handler = Box<dyn FnMut(&Fired, &mut Store)>;
 
 struct Board {
     keymap: Keymap,
+    /// The linked command sets' definitions: labels, icons, kinds and home scopes for `resolve`.
+    registry: Option<Arc<Registry>>,
+    /// Bumps whenever the keymap is replaced, so a node that shows chords reruns.
+    keymap_cell: Option<State<u64>>,
     /// The commands a focused component takes as `Intent::Edit` (`CommandSet::edits`).
     edits: Vec<(CommandRef, EditCommand)>,
-    states: Vec<(CommandRef, State<CommandState>)>,
+    /// Each command's state cell, per instance of its scope (`None`: the app's, or a command no instance publishes),
+    /// with the value last written to it. Every write goes through the board, so the value is the cell's: code with
+    /// no store at hand (a hook's `Commands::resolve_command`) reads it and logs the cell read for its node.
+    states: Vec<StateEntry>,
     /// Each handler with the node it was registered for (`Ui::on_command`; `None`: the board's own,
     /// `CommandBoard::on`). One handler per owner and command.
     handlers: Vec<(Option<NodeId>, CommandRef, Handler)>,
@@ -42,14 +53,29 @@ struct Board {
     app: Option<Handler>,
 }
 
+struct StateEntry {
+    command: CommandRef,
+    instance: Option<Id>,
+    cell: State<CommandState>,
+    value: CommandState,
+}
+
 /// The app's commands: the keymap, each command's state as a cell and what each command does.
 #[derive(Clone)]
 pub struct CommandBoard(Rc<RefCell<Board>>);
 
 impl CommandBoard {
-    /// A board over `keymap`, with no handlers and every command enabled.
+    /// A board over `keymap` and the linked command sets, with no handlers and every command enabled.
     pub fn new(keymap: Keymap) -> CommandBoard {
-        CommandBoard(Rc::new(RefCell::new(Board { keymap, edits: Vec::new(), states: Vec::new(), handlers: Vec::new(), app: None })))
+        CommandBoard(Rc::new(RefCell::new(Board {
+            keymap,
+            registry: Registry::shared(false).ok(),
+            keymap_cell: None,
+            edits: Vec::new(),
+            states: Vec::new(),
+            handlers: Vec::new(),
+            app: None,
+        })))
     }
 
     /// The board with the edit commands of `S` (`#[command(edit = ...)]`): a focused component that
@@ -58,6 +84,32 @@ impl CommandBoard {
     pub fn with_edits<S: CommandSet>(self) -> CommandBoard {
         self.0.borrow_mut().edits.extend(S::edits().into_iter().map(|(id, edit)| (CommandRef::from(id), edit)));
         self
+    }
+
+    /// The board with the story command sets' definitions (`AppSpec::stories`).
+    #[must_use]
+    pub fn with_stories(self) -> CommandBoard {
+        self.0.borrow_mut().registry = Registry::shared(true).ok();
+        self
+    }
+
+    /// Replaces the keymap (the user changed a binding); the nodes that show chords run again.
+    pub fn set_keymap(&self, cx: &mut impl Writes, keymap: Keymap) {
+        let cell = self.keymap_cell(cx.store_mut());
+        self.0.borrow_mut().keymap = keymap;
+        let generation = *cx.store_mut().peek(cell) + 1;
+        cell.set(cx, generation);
+    }
+
+    fn keymap_cell(&self, store: &mut Store) -> State<u64> {
+        let mut board = self.0.borrow_mut();
+        *board.keymap_cell.get_or_insert_with(|| store.create(0))
+    }
+
+    /// The keymap's generation, read through its cell: a node that shows chords runs when the keymap changes.
+    pub(crate) fn keymap_generation<C: Reads + Writes>(&self, cx: &mut C) -> u64 {
+        let cell = self.keymap_cell(cx.store_mut());
+        cell.get(cx)
     }
 
     /// Runs `handler` when `command` fires and no node on the firing path registered one of its own.
@@ -72,54 +124,50 @@ impl CommandBoard {
         board.handlers.push((owner, command, handler));
     }
 
-    /// Takes the handler `command` runs when fired from `from`: the one registered by the nearest node on
-    /// `from`'s path, else the board's own. Handlers of nodes that left the tree go here.
-    fn take_handler(&self, rt: &Runtime, from: Option<NodeId>, command: &CommandRef) -> Option<(Option<NodeId>, CommandRef, Handler)> {
-        let mut board = self.0.borrow_mut();
-        board.handlers.retain(|(owner, _, _)| owner.is_none_or(|node| rt.window_of(node).is_some()));
+    /// The firing path of a command fired from `from`: `from` and its ancestors, nearest first. Handlers of nodes that
+    /// left the tree go here.
+    pub(crate) fn path(&self, rt: &Runtime, from: Option<NodeId>) -> Vec<NodeId> {
+        self.0.borrow_mut().handlers.retain(|(owner, _, _)| owner.is_none_or(|node| rt.window_of(node).is_some()));
         let mut path = Vec::new();
         let mut at = from;
         while let Some(node) = at {
             path.push(node);
             at = rt.parent(node);
         }
-        let rank = |owner: &Option<NodeId>| match owner {
-            Some(node) => path.iter().position(|n| n == node),
-            None => Some(path.len()),
-        };
-        let at = board
-            .handlers
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, c, _))| c == command)
-            .filter_map(|(at, (owner, _, _))| rank(owner).map(|rank| (rank, at)))
-            .min()
-            .map(|(_, at)| at)?;
-        Some(board.handlers.remove(at))
+        path
     }
 
-    /// Puts back a handler taken to run outside the board's borrow (it may set command states or
-    /// register handlers); one registered for the same owner and command while it ran wins.
-    fn put_back(&self, (owner, command, handler): (Option<NodeId>, CommandRef, Handler)) {
-        let mut board = self.0.borrow_mut();
-        if !board.handlers.iter().any(|(o, c, _)| *o == owner && *c == command) {
-            board.handlers.push((owner, command, handler));
+    /// Runs `fired`'s command along `path` (nearest first) when it is enabled: the handler of the nearest node on the
+    /// path that registered one, else the board's own, else the app scope's. Returns whether a handler ran. Every fire
+    /// goes through here: a key, `Ui::fire`, `Cx::fire`, a component's activation, the harness. The handler runs
+    /// outside the board's borrow, so it may set command states or register handlers.
+    pub(crate) fn run(&self, store: &mut Store, path: &[NodeId], fired: &Fired) -> bool {
+        if !self.enabled(&fired.command) {
+            return false;
         }
-    }
-
-    /// Runs `handler` for every fired command that has no handler of its own: the app scope's
-    /// commands. The app host passes `App::logic` here; a later call replaces the handler.
-    pub fn on_app(&self, handler: impl FnMut(&Fired, &mut Store) + 'static) {
-        self.0.borrow_mut().app = Some(Box::new(handler));
-    }
-
-    /// Runs `taken` (the handler [`CommandBoard::take_handler`] found for `fired`), else the app scope's
-    /// handler. Returns whether one ran. The handler runs outside the board's borrow, so it may set
-    /// command states or register handlers.
-    fn run_taken(&self, taken: Option<(Option<NodeId>, CommandRef, Handler)>, fired: &Fired, store: &mut Store) -> bool {
-        if let Some(mut taken) = taken {
-            (taken.2)(fired, store);
-            self.put_back(taken);
+        let taken = {
+            let mut board = self.0.borrow_mut();
+            let rank = |owner: &Option<NodeId>| match owner {
+                Some(node) => path.iter().position(|n| n == node),
+                None => Some(path.len()),
+            };
+            let at = board
+                .handlers
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, c, _))| *c == fired.command)
+                .filter_map(|(at, (owner, _, _))| rank(owner).map(|rank| (rank, at)))
+                .min()
+                .map(|(_, at)| at);
+            at.map(|at| board.handlers.remove(at))
+        };
+        if let Some((owner, command, mut handler)) = taken {
+            handler(fired, store);
+            let mut board = self.0.borrow_mut();
+            // One registered for the same owner and command while it ran wins.
+            if !board.handlers.iter().any(|(o, c, _)| *o == owner && *c == command) {
+                board.handlers.push((owner, command, handler));
+            }
             return true;
         }
         let app = self.0.borrow_mut().app.take();
@@ -133,34 +181,141 @@ impl CommandBoard {
         true
     }
 
-    /// The cell of `command`'s state, created enabled on first use.
-    fn cell(&self, store: &mut Store, command: &CommandRef) -> State<CommandState> {
+    /// [`CommandBoard::run`] from the node `cx` builds.
+    pub(crate) fn run_from(&self, cx: &mut BuildCx<'_>, fired: &Fired) -> bool {
+        let path = self.path(cx.runtime(), Some(cx.node()));
+        self.run(cx.store_mut(), &path, fired)
+    }
+
+    /// Runs `handler` for every fired command that has no handler of its own: the app scope's
+    /// commands. The app host passes `App::logic` here; a later call replaces the handler.
+    pub fn on_app(&self, handler: impl FnMut(&Fired, &mut Store) + 'static) {
+        self.0.borrow_mut().app = Some(Box::new(handler));
+    }
+
+    /// The cell of `command`'s state for `instance`, created enabled on first use.
+    pub(crate) fn cell(&self, store: &mut Store, command: &CommandRef, instance: Option<Id>) -> State<CommandState> {
         let mut board = self.0.borrow_mut();
-        if let Some((_, cell)) = board.states.iter().find(|(c, _)| c == command) {
-            return *cell;
+        if let Some(entry) = board.states.iter().find(|e| e.command == *command && e.instance == instance) {
+            return entry.cell;
         }
         let cell = store.create(CommandState::new());
-        board.states.push((command.clone(), cell));
+        board.states.push(StateEntry { command: command.clone(), instance, cell, value: CommandState::new() });
         cell
+    }
+
+    /// The value of `command`'s state for `instance`, read without recording (the caller logs the read).
+    fn value(&self, command: &CommandRef, instance: Option<Id>) -> CommandState {
+        let board = self.0.borrow();
+        board.states.iter().find(|e| e.command == *command && e.instance == instance).map_or_else(CommandState::new, |e| e.value.clone())
+    }
+
+    /// The instance of `command`'s scope its state is kept for, seen from `chain`: `Some(None)` for a command that
+    /// resolves at the app, `None` for a scoped command with no instance in `chain`.
+    fn instance_in(&self, chain: &CommandChain, command: &CommandRef) -> Option<Option<Id>> {
+        let (scope, app) = self.scope_of(command);
+        if app { Some(None) } else { chain.innermost(&scope).map(Some) }
     }
 
     /// Sets `command`'s state; the nodes that read it run in the next frame, and only they.
     pub fn set_state(&self, cx: &mut impl Writes, command: impl Into<CommandRef>, state: CommandState) {
-        let command = command.into();
-        let cell = self.cell(cx.store_mut(), &command);
-        cell.set_if_changed(cx, state);
+        self.set_state_of(cx, &command.into(), None, state);
+    }
+
+    /// Sets `command`'s state for `instance` of its scope (`Commands::publish`).
+    pub(crate) fn set_state_of(&self, cx: &mut impl Writes, command: &CommandRef, instance: Option<Id>, state: CommandState) {
+        let cell = self.cell(cx.store_mut(), command, instance);
+        {
+            let mut board = self.0.borrow_mut();
+            let Some(entry) = board.states.iter_mut().find(|e| e.command == *command && e.instance == instance) else { return };
+            if entry.value == state {
+                return;
+            }
+            entry.value = state.clone();
+        }
+        cell.set(cx, state);
+    }
+
+    /// Publishes `command`'s state for the innermost instance of its scope in `chain` (`Commands::publish`): the write
+    /// reaches the cell when the running node's build ends. A scoped command with no instance in `chain` publishes
+    /// nothing.
+    pub(crate) fn publish(&self, chain: &CommandChain, command: &CommandRef, state: CommandState) {
+        if let Some(instance) = self.instance_in(chain, command) {
+            crate::contract::context::log_publish(self.clone(), command.clone(), instance, state);
+        }
     }
 
     /// `command`'s state, read through its cell: a node that reads it runs when it changes.
     pub fn state<C: Reads + Writes>(&self, cx: &mut C, command: impl Into<CommandRef>) -> CommandState {
         let command = command.into();
-        let cell = self.cell(cx.store_mut(), &command);
+        let cell = self.cell(cx.store_mut(), &command, None);
         cell.get(cx)
     }
 
-    /// Whether `command` may fire, read without recording.
-    pub(crate) fn enabled(&self, store: &Store, command: &CommandRef) -> bool {
-        self.0.borrow().states.iter().find(|(c, _)| c == command).is_none_or(|(_, cell)| store.peek(*cell).is_enabled())
+    /// Whether `command` may fire, read without recording: no state of it is disabled.
+    pub(crate) fn enabled(&self, command: &CommandRef) -> bool {
+        self.0.borrow().states.iter().filter(|e| e.command == *command).all(|e| e.value.is_enabled())
+    }
+
+    /// The home scope of `command` (the app scope for a command no linked set defines), and whether it resolves at
+    /// the app: the app scope and the held scopes.
+    fn scope_of(&self, command: &CommandRef) -> (String, bool) {
+        let board = self.0.borrow();
+        let scope = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str())).map(|def| def.scope.as_str().to_owned());
+        let scope = scope.unwrap_or_else(|| CommandScope::APP.name().to_owned());
+        let app = scope == CommandScope::APP.name() || board.registry.as_ref().is_some_and(|registry| registry.is_held_scope(&scope));
+        (scope, app)
+    }
+
+    /// `command` as a surface in `chain` shows it: its label, icon and chord, and its state for the innermost instance
+    /// of its scope in `chain`, read through the state's cell (a node that shows it runs when it changes). `None` for a
+    /// scoped command with no instance in `chain`.
+    pub(crate) fn resolve<C: Reads + Writes>(&self, cx: &mut C, chain: &CommandChain, command: &CommandRef) -> Option<Arc<ResolvedCommand>> {
+        let instance = self.instance_in(chain, command)?;
+        let cell = self.cell(cx.store_mut(), command, instance);
+        let state = cell.get(cx);
+        Some(self.resolved(command, instance, &state))
+    }
+
+    /// [`CommandBoard::resolve`] for code with no store at hand (a hook's `Commands::resolve_command`): the read of the
+    /// state's cell is logged for the node whose build runs.
+    pub(crate) fn resolve_logged(&self, chain: &CommandChain, command: &CommandRef) -> Option<Arc<ResolvedCommand>> {
+        let instance = self.instance_in(chain, command)?;
+        crate::contract::context::log_command_read(self.clone(), command.clone(), instance);
+        Some(self.resolved(command, instance, &self.value(command, instance)))
+    }
+
+    fn resolved(&self, command: &CommandRef, instance: Option<Id>, state: &CommandState) -> Arc<ResolvedCommand> {
+        let board = self.0.borrow();
+        let def = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str()));
+        let chord = board.keymap.shown_chord(command);
+        let chord_text = chord.map(|chord| Arc::from(chord.display(board.keymap.platform())));
+        let flags = state.flags();
+        Arc::new(ResolvedCommand {
+            label: state.title_ref().cloned().unwrap_or_else(|| Arc::from(def.map_or(command.id.as_str(), |def| def.label.as_str()))),
+            catalog_label: def.map(|def| Arc::from(def.label.as_str())),
+            icon: state.icon_ref().cloned().or_else(|| def.and_then(|def| def.icon.clone())),
+            chord,
+            chord_text,
+            enabled: flags.enabled,
+            refused: false,
+            checked: flags.checked,
+            marked: state.is_marked(),
+            hint: state.hint_ref().cloned(),
+            hint_alone: state.is_hint_alone(),
+            kind: def.map_or(CommandKind::Command, |def| def.kind.clone()),
+            edit: board.edits.iter().any(|(c, _)| c == command),
+            command: Arc::new(command.clone()),
+            instance,
+        })
+    }
+
+    /// The command `chord` runs at the app scope, when it is bound to one.
+    pub(crate) fn holder(&self, chord: &Chord) -> Option<CommandRef> {
+        match self.0.borrow().keymap.lookup(chord, false, &Active::NONE) {
+            Lookup::Run(command) => Some(command),
+            _ => None,
+        }
     }
 
     /// The edit command `chord` is bound to, when it is one.
@@ -170,21 +325,11 @@ impl CommandBoard {
         board.edits.iter().find(|(c, _)| *c == command).map(|(_, edit)| *edit)
     }
 
-    /// Runs `command`'s handler as fired by `source` at `time`, when the command is enabled; whether it ran.
-    /// The harness fires commands this way.
+    /// Runs `command`'s handler as fired by `source` at `time` from outside the tree (the harness), when the command
+    /// is enabled; whether a handler ran.
     pub(crate) fn fire(&self, store: &mut Store, command: CommandRef, source: FireSource, time: f64) -> bool {
-        if !self.enabled(store, &command) {
-            return false;
-        }
-        let fired = Fired::new(command.clone(), source, FirePhase::Press, time);
-        let taken = {
-            let mut board = self.0.borrow_mut();
-            board.handlers.iter().position(|(c, _)| *c == command).map(|at| board.handlers.remove(at))
-        };
-        let Some((command, mut handler)) = taken else { return false };
-        handler(&fired, store);
-        self.0.borrow_mut().handlers.push((command, handler));
-        true
+        let fired = Fired::new(command, source, FirePhase::Press, time);
+        self.run(store, &[], &fired)
     }
 
     /// Runs the command a press of `k` is bound to, when it is enabled. `typing`: the focused stop
@@ -193,9 +338,8 @@ impl CommandBoard {
         let chord = Chord::new(k.mods, k.key);
         let lookup = {
             let board = self.0.borrow();
-            let store = cx.runtime().store();
             let active = Active { panel: None, contexts: &[], typing };
-            board.keymap.lookup_where(&chord, false, &active, &[], &|command| self.enabled(store, command))
+            board.keymap.lookup_where(&chord, false, &active, &[], &|command| self.enabled(command))
         };
         let command = match lookup {
             Lookup::Run(command) => command,
@@ -206,19 +350,10 @@ impl CommandBoard {
             },
             _ => return Handled::No,
         };
-        let fired = Fired::new(command.clone(), FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
-        let from = cx.focused();
-        let taken = self.take_handler(cx.runtime(), from, &command);
-        self.run_taken(taken, &fired, cx.store_mut());
+        let fired = Fired::new(command, FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
+        let path = self.path(cx.runtime(), cx.focused());
+        self.run(cx.store_mut(), &path, &fired);
         Handled::Yes
-    }
-
-    /// Runs the handler of `fired`'s command from the node `cx` builds (a component's activation,
-    /// `Cx::fire`, `Ui::fire`): the nearest registration on that node's path, else the board's own.
-    /// Returns whether a handler ran.
-    pub(crate) fn run_from(&self, cx: &mut BuildCx<'_>, fired: &Fired) -> bool {
-        let taken = self.take_handler(cx.runtime(), Some(cx.node()), &fired.command);
-        self.run_taken(taken, fired, cx.store_mut())
     }
 }
 
@@ -275,12 +410,33 @@ impl Ui<'_, '_> {
     /// Fires `command` from this node now: the handler of the nearest node on its path that registered
     /// one, else the board's, runs at once when the command is enabled. True when a handler ran.
     pub fn fire(&mut self, command: impl Into<CommandRef>, source: FireSource) -> bool {
-        let Some(board) = self.cx.provided::<CommandBoard>() else { return false };
-        let command = command.into();
-        if !board.enabled(self.cx.runtime().store(), &command) {
+        if self.is_measuring() {
             return false;
         }
-        let fired = Fired::new(command, source, FirePhase::Press, self.cx.now());
+        let Some(board) = self.cx.provided::<CommandBoard>() else { return false };
+        let fired = Fired::new(command.into(), source, FirePhase::Press, self.cx.now());
         board.run_from(self.cx, &fired)
+    }
+
+    /// `command` as this scope shows it: its label, icon, chord and state for the innermost instance of its scope
+    /// around this cursor, read through the state's cell (this scope runs again when it changes). `None` for a scoped
+    /// command with no instance around, or with no board.
+    pub fn resolve_command(&mut self, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
+        let board = self.cx.provided::<CommandBoard>()?;
+        let chain = self.env.view().command_chain().clone();
+        board.resolve(self.cx, &chain, &command.into())
+    }
+
+    /// The command `chord` runs at the app scope, when it is bound to one.
+    pub fn command_holder(&self, chord: &Chord) -> Option<CommandRef> {
+        self.cx.provided::<CommandBoard>()?.holder(chord)
+    }
+
+    /// The keymap's generation, read through its cell: this scope runs again when the keymap changes. 0 with no board.
+    pub fn keymap_generation(&mut self) -> u64 {
+        match self.cx.provided::<CommandBoard>() {
+            Some(board) => board.keymap_generation(self.cx),
+            None => 0,
+        }
     }
 }

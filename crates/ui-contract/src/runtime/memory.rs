@@ -1,20 +1,24 @@
 //! Ids and memory: `Remember`, the memory stage and saved state. A component's shown and press slots live in its
-//! node (`contract::rt::Memory`), so they go with the node; session and saved slots live in the window's `Context`
-//! by `Id`, and saved slots reach the host's settings.
+//! node (`contract::rt::Memory`), so they go with the node; session and saved slots live in the runtime's memory store
+//! ([`RuntimeMemory`], one per runtime, held by every window's `Context`) by `Id`, and saved slots reach the host's
+//! settings.
 
 use crate::contract::Context;
 use crate::contract::rt::memory::Memory;
 use crate::primitives::Id;
 use crate::runtime::env::Env;
+use craft_behavior::{CancelReason, GestureId};
 use craft_host::Host;
 use craft_settings::Remembered;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::any::{Any, TypeId};
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// A value kept in memory. `Clone` is required because session and saved slots are copied into a stage and back;
@@ -100,11 +104,43 @@ pub trait Remember {
 #[derive(Clone, Default)]
 struct PressSlot<T>(Option<T>);
 
-/// The session and saved slots of a window, by type and `Id`: what outlives the nodes that use it.
+/// The session and saved slots of the runtime, by type and `Id`, and its edit facts: what outlives the nodes that
+/// use it.
 #[derive(Default)]
-struct HostMemory {
+pub(crate) struct HostMemory {
     session: HashMap<(TypeId, Id), Box<dyn Any>>,
     saved: HashMap<(TypeId, Id), Box<dyn Any>>,
+    pub(crate) edits: Edits,
+}
+
+/// The runtime's edit facts: the latest cancel of every running edit and the gesture ids handed out.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Edits {
+    /// Grows with each `Ui::cancel_edits`; 0 before the first.
+    pub(crate) cancel_serial: u64,
+    pub(crate) cancel_reason: Option<CancelReason>,
+    /// The newest gesture id handed out: ids grow in the order gestures begin, across components and windows.
+    pub(crate) newest: GestureId,
+    /// How many times a component reported its gesture running after its apply step (`Ui::watch_gestures`).
+    pub(crate) running: u64,
+}
+
+/// The runtime's memory store: session and saved slots by type and `Id`. The host makes one per runtime and provides
+/// it above every window root, so a panel moved to another window keeps its state; each window's `Context` holds it.
+#[doc(hidden)]
+#[derive(Clone, Default)]
+pub struct RuntimeMemory(Rc<RefCell<HostMemory>>);
+
+impl RuntimeMemory {
+    /// An empty store.
+    pub fn new() -> RuntimeMemory {
+        RuntimeMemory::default()
+    }
+
+    /// Runs `f` on the store. `f` must not reach the store again.
+    pub(crate) fn with<R>(&self, f: impl FnOnce(&mut HostMemory) -> R) -> R {
+        f(&mut self.0.borrow_mut())
+    }
 }
 
 /// How a staged saved slot reaches the host's settings: the serialized form it had when staged, and the typed
@@ -163,6 +199,20 @@ impl MemoryStage {
     #[doc(hidden)]
     pub fn ctx(&self) -> &Context {
         &self.ctx
+    }
+
+    /// Notes that the stage's component has a gesture running after its apply step, for `Ui::watch_gestures`. A
+    /// measuring run's stage notes nothing.
+    pub(crate) fn note_gesture_running(&self) {
+        if !self.peek_only {
+            self.ctx.memory().with(|memory| memory.edits.running += 1);
+        }
+    }
+
+    /// The serial and reason of the latest cancel of every running edit (`Ui::cancel_edits`); serial 0 before the
+    /// first. A gesture that began before the serial it last saw ends with the reason.
+    pub(crate) fn cancel_all(&self) -> (u64, Option<CancelReason>) {
+        self.ctx.memory().with(|memory| (memory.edits.cancel_serial, memory.edits.cancel_reason))
     }
 
     /// A stage over the node memory `memory` of the component `owner`; [`MemoryStage::finish`] hands it back.
@@ -236,7 +286,7 @@ impl MemoryStage {
         self.staged[at].value.downcast_mut::<T>().expect("a staged slot holds the type it was staged with")
     }
 
-    /// The session slot of type `T` under `id`: window-wide, it goes only through `forget`.
+    /// The session slot of type `T` under `id`: runtime-wide, it goes only through `forget`.
     pub(crate) fn session<T: Slot>(&mut self, id: Id) -> &mut T {
         self.staged(id, false, |ctx| (peek_tier::<T>(ctx, id, false), None))
     }
@@ -273,7 +323,7 @@ impl MemoryStage {
             }
         }
         let staged = self.staged;
-        self.ctx.service::<HostMemory, _>(|host| {
+        self.ctx.memory().with(|host| {
             for staged in staged {
                 let map = if staged.saved { &mut host.saved } else { &mut host.session };
                 map.insert((staged.ty, staged.id), staged.value);
@@ -303,7 +353,7 @@ impl MemoryStage {
 
 /// A copy of the window's session (`saved` false) or saved slot of type `T` under `id`, or its default.
 fn peek_tier<T: Slot>(ctx: &Context, id: Id, saved: bool) -> T {
-    ctx.service::<HostMemory, _>(|host| {
+    ctx.memory().with(|host| {
         let map = if saved { &host.saved } else { &host.session };
         map.get(&(TypeId::of::<T>(), id)).and_then(|value| value.downcast_ref::<T>()).cloned().unwrap_or_default()
     })
@@ -312,8 +362,7 @@ fn peek_tier<T: Slot>(ctx: &Context, id: Id, saved: bool) -> T {
 /// The saved value of `key`: the window's copy, else the host's stored value (a value that no longer fits `T`, or
 /// none, loads as `T::default()`). Without a host the tier is session only.
 fn load_saved<T: Savable>(ctx: &Context, key: &SaveKey, host: Option<&Host>) -> T {
-    let kept =
-        ctx.service::<HostMemory, _>(|memory| memory.saved.get(&(TypeId::of::<T>(), key.id())).and_then(|value| value.downcast_ref::<T>()).cloned());
+    let kept = ctx.memory().with(|memory| memory.saved.get(&(TypeId::of::<T>(), key.id())).and_then(|value| value.downcast_ref::<T>()).cloned());
     match (kept, host) {
         (Some(value), _) => value,
         (None, Some(host)) => Remembered::<T>::new(key.as_str()).recall(host).unwrap_or_default(),
@@ -323,7 +372,7 @@ fn load_saved<T: Savable>(ctx: &Context, key: &SaveKey, host: Option<&Host>) -> 
 
 /// Removes the session slots under `id` (all types). The only way a session slot goes.
 pub(crate) fn forget(ctx: &Context, id: Id) {
-    let removed: Vec<Box<dyn Any>> = ctx.service::<HostMemory, _>(|host| {
+    let removed: Vec<Box<dyn Any>> = ctx.memory().with(|host| {
         let keys: Vec<(TypeId, Id)> = host.session.keys().filter(|key| key.1 == id).copied().collect();
         keys.into_iter().filter_map(|key| host.session.remove(&key)).collect()
     });
@@ -334,7 +383,7 @@ pub(crate) fn forget(ctx: &Context, id: Id) {
 /// Removes the saved slots of `key` and the value stored under it. The only way a saved slot goes.
 pub(crate) fn forget_saved(ctx: &Context, key: &SaveKey) {
     let id = key.id();
-    let removed: Vec<Box<dyn Any>> = ctx.service::<HostMemory, _>(|host| {
+    let removed: Vec<Box<dyn Any>> = ctx.memory().with(|host| {
         let keys: Vec<(TypeId, Id)> = host.saved.keys().filter(|k| k.1 == id).copied().collect();
         keys.into_iter().filter_map(|k| host.saved.remove(&k)).collect()
     });

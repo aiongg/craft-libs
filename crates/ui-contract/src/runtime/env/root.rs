@@ -3,6 +3,7 @@
 use super::app_values::AppValues;
 use super::values::{AltCodePages, Scale, WheelSpeed};
 use crate::contract::Context;
+use crate::runtime::env::EnvCells;
 use crate::runtime::focus::TabReach;
 use craft_behavior::MotionMode;
 use craft_i18n::CalendarDate;
@@ -10,7 +11,73 @@ use craft_i18n::Direction;
 use craft_theme::{
     AppSizes, Appearance, ComponentSet, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Size, SystemAppearance, TextSize, ThemeDef, ThemeId,
 };
+use craft_ui_rt::Store;
 use std::sync::Arc;
+
+/// What a window's root env resolves from, in the env cells' `root` cell: the app's root values, the OS appearance
+/// and the app whose theme pins apply. [`EnvCells::set_root`] and [`EnvCells::set_system`] write it, with the tokens,
+/// theme base, direction, density and motion cells it resolves to.
+#[derive(Clone, Default)]
+pub struct RootInputs {
+    /// The app's root values; `None` until the app sets them (the defaults apply).
+    pub root: Option<Arc<RootEnv>>,
+    /// What the OS reports.
+    pub system: SystemAppearance,
+    /// The app whose `[apps.<id>]` theme pins apply over the chosen theme.
+    pub app: Option<craft_theme::AppId>,
+}
+
+impl PartialEq for RootInputs {
+    fn eq(&self, other: &Self) -> bool {
+        let same_root = match (&self.root, &other.root) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) || a.same(b),
+            (None, None) => true,
+            _ => false,
+        };
+        same_root && self.system == other.system && self.app == other.app
+    }
+}
+
+impl EnvCells {
+    /// Sets the window's root values: the tokens and theme base resolve from `root` with the OS appearance, and the
+    /// direction, density and motion cells take its values. Only the readers of a cell that changed run. The app
+    /// calls it from `App::frame` through `LogicCx::env`.
+    pub fn set_root(&self, store: &mut Store, root: &RootEnv) {
+        let inputs = RootInputs { root: Some(Arc::new(root.clone())), ..store.peek(self.root).clone() };
+        self.apply_root(store, inputs);
+    }
+
+    /// Sets what the OS reports (its light or dark mode, contrast, reduced motion): the app's `System` choices
+    /// resolve again from it, through the same path as [`EnvCells::set_root`].
+    pub fn set_system(&self, store: &mut Store, system: SystemAppearance) {
+        let inputs = RootInputs { system, ..store.peek(self.root).clone() };
+        self.apply_root(store, inputs);
+    }
+
+    /// Sets the app whose theme pins apply; the host sets it once from the app's id.
+    pub fn set_app(&self, store: &mut Store, app: Option<craft_theme::AppId>) {
+        let inputs = RootInputs { app, ..store.peek(self.root).clone() };
+        self.apply_root(store, inputs);
+    }
+
+    fn apply_root(&self, store: &mut Store, inputs: RootInputs) {
+        if *store.peek(self.root) == inputs && store.peek(self.theme).is_some() {
+            return;
+        }
+        let root = inputs.root.clone().unwrap_or_default();
+        let resolved = root.resolved_for(inputs.system);
+        let base = super::tokens::theme_base(&super::tokens::TokenInputs::of(&root, resolved, inputs.app.clone()));
+        let theme_moved = store.peek(self.theme).as_deref() != Some(&base);
+        if theme_moved {
+            self.tokens.set(store, base.tokens());
+            self.theme.set(store, Some(Arc::new(base)));
+        }
+        self.direction.set_if_changed(store, root.direction);
+        self.density.set_if_changed(store, root.density);
+        self.motion.set_if_changed(store, resolved.motion);
+        self.root.set_if_changed(store, inputs);
+    }
+}
 
 /// The app's root values each frame.
 #[derive(Clone)]
@@ -108,6 +175,35 @@ impl Default for RootEnv {
 }
 
 impl RootEnv {
+    /// Whether `other` holds the same values: what lets the app hand the root over every frame while only a change
+    /// writes the env cells. Shared parts (sizes, theme definition, app values) compare by identity first.
+    pub(crate) fn same(&self, other: &RootEnv) -> bool {
+        Arc::ptr_eq(&self.sizes, &other.sizes)
+            && self.text_size == other.text_size
+            && self.direction == other.direction
+            && self.motion == other.motion
+            && self.mode == other.mode
+            && self.contrast == other.contrast
+            && self.density == other.density
+            && self.scale == other.scale
+            && self.tab_all_controls == other.tab_all_controls
+            && self.tab_toggles_chrome == other.tab_toggles_chrome
+            && self.escape_leaves_fields == other.escape_leaves_fields
+            && self.shortcuts_repeat == other.shortcuts_repeat
+            && self.dialog_tab == other.dialog_tab
+            && self.canvas_pattern == other.canvas_pattern
+            && self.cursor_follows_zoom == other.cursor_follows_zoom
+            && self.tooltips == other.tooltips
+            && self.theme == other.theme
+            && super::tokens::same_def(&self.theme_def, &other.theme_def)
+            && self.accent == other.accent
+            && self.values.same(&other.values)
+            && self.today == other.today
+            && self.wheel == other.wheel
+            && self.alt_codes == other.alt_codes
+            && self.ctrl_wheel_pinch == other.ctrl_wheel_pinch
+    }
+
     /// The default root of `ctx`, built once so its sizes keep one identity for the token cache.
     pub(crate) fn fallback(ctx: &Context) -> RootEnv {
         #[derive(Default)]

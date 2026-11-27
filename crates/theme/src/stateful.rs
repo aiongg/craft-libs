@@ -128,17 +128,27 @@ impl<T: Copy> Stateful<T> {
 pub trait Mix: Copy {
     /// `self` at `t == 0`, `to` at `t == 1`.
     fn mix(self, to: Self, t: f32) -> Self;
+    /// Whether `self` and `other` are the same look: a blend between them changes nothing.
+    fn same(self, other: Self) -> bool;
 }
 
 impl Mix for f32 {
     fn mix(self, to: f32, t: f32) -> f32 {
         self + (to - self) * t
     }
+
+    fn same(self, other: f32) -> bool {
+        self == other
+    }
 }
 
 impl Mix for ecolor::Color32 {
     fn mix(self, to: ecolor::Color32, t: f32) -> ecolor::Color32 {
         self.lerp_to_gamma(to, t)
+    }
+
+    fn same(self, other: ecolor::Color32) -> bool {
+        self == other
     }
 }
 
@@ -154,6 +164,44 @@ impl<T: Mix> Mix for Option<T> {
                     b
                 }
             }
+        }
+    }
+
+    fn same(self, other: Option<T>) -> bool {
+        match (self, other) {
+            (Some(a), Some(b)) => a.same(b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+/// Which pointer facts a look's value depends on in its current state: what a reader of the hover and press facts
+/// must record, and no more.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PointerDependence {
+    /// The hover look differs from the rest look.
+    pub hover: bool,
+    /// The pressed look differs from the rest or the hover look.
+    pub press: bool,
+}
+
+impl<T: Mix> Stateful<T> {
+    /// The pointer facts the value in `state` with `flags` depends on: none when disabled or when a flag look wins,
+    /// else hover when a hover look differs from its rest look, and press when a pressed look differs from its rest or
+    /// hover look (on and off alike).
+    pub fn pointer_dependence(&self, state: State, flags: Flags) -> PointerDependence {
+        if state == State::Disabled || self.when.iter().any(|(mask, _)| !mask.0.is_empty() && flags.contains(mask.0)) {
+            return PointerDependence::default();
+        }
+        let of = |s: &States<T>| PointerDependence { hover: !s.hover.same(s.rest), press: !s.pressed.same(s.rest) || !s.pressed.same(s.hover) };
+        let off = of(&self.off);
+        match &self.on {
+            Some(on) => {
+                let on = of(on);
+                PointerDependence { hover: off.hover || on.hover, press: off.press || on.press }
+            }
+            None => off,
         }
     }
 }

@@ -18,8 +18,12 @@ use std::time::Duration;
 use craft_ui_rt::{BuildCx, Margin, Os, Rect, State, Vec2, Waker, WindowCommand, WindowId};
 
 use super::rt::EnvCells;
+use super::rt::commands::CommandBoard;
 use crate::primitives::Id;
+use crate::runtime::commands::CommandState;
+use crate::runtime::memory::RuntimeMemory;
 use crate::style::StyleCaches;
+use craft_keymap::CommandRef;
 
 /// A handle to one window's facts and services. Cloning it is cheap; every clone answers for the
 /// same window.
@@ -49,6 +53,8 @@ struct Facts {
     viewport: Vec2,
     safe_area: Margin,
     os: Os,
+    mods: craft_keymap::Mods,
+    caps_lock: bool,
 }
 
 /// The ui-rt cells the facts come from, for read registration.
@@ -57,6 +63,8 @@ struct WindowCells {
     scale: State<f32>,
     focused: State<bool>,
     viewport: State<Vec2>,
+    modifiers: State<craft_keymap::Mods>,
+    caps_lock: State<bool>,
 }
 
 struct Shared {
@@ -66,8 +74,13 @@ struct Shared {
     cells: Cell<Option<WindowCells>>,
     /// The window's style caches (section 15.7).
     styles: StyleCaches,
+    /// The session and saved memory of the runtime: one store above every window root, so a panel moved to another
+    /// window keeps its state.
+    memory: RuntimeMemory,
     /// The window root's env cells, whose tokens and theme-base revisions the style caches are filled at.
     root_cells: Cell<Option<EnvCells>>,
+    /// The command board the window root provides, for code with no build at hand (`Commands`).
+    board: RefCell<Option<CommandBoard>>,
     /// Crate-private services of the window, one value per type: caches and readers that egui kept
     /// in its context memory.
     services: RefCell<HashMap<TypeId, Box<dyn Any>>>,
@@ -77,9 +90,21 @@ struct Shared {
 }
 
 impl Context {
-    /// The context of `window`, with no facts read yet.
-    pub(crate) fn new(window: WindowId, waker: Option<Waker>) -> Context {
-        let facts = Facts { time: 0.0, scale: 1.0, focused: true, viewport: Vec2::ZERO, safe_area: Margin::default(), os: Os::default() };
+    /// The context of `window` over the runtime's memory store, with no facts read yet. The host makes one per window
+    /// and provides it above the window root ([`window_root_with`](crate::runtime::windows::window_root_with)), with
+    /// the same `memory` for every window.
+    #[doc(hidden)]
+    pub fn for_window(window: WindowId, waker: Option<Waker>, memory: RuntimeMemory) -> Context {
+        let facts = Facts {
+            time: 0.0,
+            scale: 1.0,
+            focused: true,
+            viewport: Vec2::ZERO,
+            safe_area: Margin::default(),
+            os: Os::default(),
+            mods: craft_keymap::Mods::NONE,
+            caps_lock: false,
+        };
         Context {
             shared: Rc::new(Shared {
                 window,
@@ -87,7 +112,9 @@ impl Context {
                 facts: Cell::new(facts),
                 cells: Cell::new(None),
                 styles: StyleCaches::default(),
+                memory,
                 root_cells: Cell::new(None),
+                board: RefCell::new(None),
                 services: RefCell::new(HashMap::new()),
                 commands: RefCell::new(Vec::new()),
                 platform: RefCell::new(Vec::new()),
@@ -95,24 +122,51 @@ impl Context {
         }
     }
 
-    /// The context `cx`'s window root keeps: found where the window root provided it, else made,
-    /// kept in a slot of `cx`'s node and provided to everything under it. Its facts are brought up
-    /// to date from the window's cells (read without recording).
+    /// The context of the node `cx` builds: the one its window root provided, brought up to date
+    /// with the window's cells (read without recording). Outside a window root (a bare test build)
+    /// the node's own, as a window root would make it.
     pub(crate) fn of_build(cx: &mut BuildCx<'_>) -> Context {
+        let ctx = match cx.provided::<Context>() {
+            Some(ctx) => ctx,
+            None => Context::enter_root(cx, EnvCells::of(cx)),
+        };
+        ctx.refresh(cx);
+        ctx
+    }
+
+    /// The window root's part (section 15.7): takes the context the host provided above the root,
+    /// else one kept in a slot of the root's node (over the runtime memory store the host
+    /// provided, else a store of its own), and provides it and its style caches to the window.
+    /// The root reads the tokens, theme-base and scale cells, so a theme, contrast, density or
+    /// scale write runs it, and it clears the style caches then, before any child resolves a style.
+    pub(crate) fn enter_root(cx: &mut BuildCx<'_>, cells: Option<EnvCells>) -> Context {
         let ctx = match cx.provided::<Context>() {
             Some(ctx) => ctx,
             None => {
                 let window = cx.window();
                 let waker = cx.provided::<super::rt::JobBoard>().and_then(|jobs| jobs.waker());
-                let kept = cx.slot("craft-context", move || Context::new(window, waker));
-                let ctx = cx.peek_state(kept).clone();
-                ctx.shared.root_cells.set(EnvCells::of(cx));
-                cx.provide(ctx.clone());
-                cx.provide(ctx.styles().clone());
-                ctx
+                let memory = cx.provided::<RuntimeMemory>().unwrap_or_default();
+                let kept = cx.slot("craft-context", move || Context::for_window(window, waker, memory));
+                cx.peek_state(kept).clone()
             }
         };
-        ctx.refresh(cx);
+        ctx.shared.root_cells.set(cells);
+        *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
+        cx.provide(ctx.clone());
+        cx.provide(ctx.styles().clone());
+        let scale = cx.env().scale;
+        let tokens = match cells {
+            Some(cells) => {
+                cells.tokens.get(cx);
+                cells.theme.get(cx);
+                cells.tokens
+            }
+            None => cx.env().tokens,
+        };
+        scale.get(cx);
+        let store = cx.runtime().store();
+        let theme = cells.map_or(0, |cells| cells.theme.version(store));
+        ctx.shared.styles.clear_if_moved((tokens.version(store), theme, scale.version(store)));
         ctx
     }
 
@@ -126,17 +180,17 @@ impl Context {
             viewport: *cx.peek_state(env.viewport),
             safe_area: *cx.peek_state(env.safe_area),
             os: cx.runtime().os(),
+            mods: *cx.peek_state(env.modifiers),
+            caps_lock: *cx.peek_state(env.caps_lock),
         };
         self.shared.facts.set(facts);
-        self.shared.cells.set(Some(WindowCells { scale: env.scale, focused: env.window_focused, viewport: env.viewport }));
-        // A theme, contrast, density or scale write moves one of these: the styles resolved before it go before any
-        // child of this build resolves one.
-        let store = cx.runtime().store();
-        let (tokens, theme) = match self.shared.root_cells.get() {
-            Some(cells) => (cells.tokens.version(store), cells.theme.version(store)),
-            None => (env.tokens.version(store), 0),
-        };
-        self.shared.styles.clear_if_moved((tokens, theme, env.scale.version(store)));
+        self.shared.cells.set(Some(WindowCells {
+            scale: env.scale,
+            focused: env.window_focused,
+            viewport: env.viewport,
+            modifiers: env.modifiers,
+            caps_lock: env.caps_lock,
+        }));
     }
 
     fn facts(&self) -> Facts {
@@ -186,12 +240,10 @@ impl Context {
         self.facts().time
     }
 
-    /// The modifiers held now.
-    ///
-    /// ui-rt keeps no modifier cell yet, so this answers `Mods::NONE` and records no read; a
-    /// component reads the modifiers of its own input from its run's queue.
+    /// The modifiers held at the window's last key, pointer or wheel event. Tracked inside a build.
     pub fn modifiers(&self) -> craft_keymap::Mods {
-        craft_keymap::Mods::NONE
+        self.track(|cells| CellRead::Mods(cells.modifiers));
+        self.facts().mods
     }
 
     /// Whether the window has the platform's key focus. Tracked inside a build.
@@ -200,9 +252,10 @@ impl Context {
         self.facts().focused
     }
 
-    /// Whether caps lock is on. ui-rt reports no lock-key state yet: always false.
+    /// Whether caps lock is on, as the platform last reported it. Tracked inside a build.
     pub fn caps_lock(&self) -> bool {
-        false
+        self.track(|cells| CellRead::Caps(cells.caps_lock));
+        self.facts().caps_lock
     }
 
     /// The operating system the window runs on.
@@ -273,6 +326,16 @@ impl Context {
         &self.shared.styles
     }
 
+    /// The window's command board, when the window root has one.
+    pub(crate) fn board(&self) -> Option<CommandBoard> {
+        self.shared.board.borrow().clone()
+    }
+
+    /// The runtime's session and saved memory.
+    pub(crate) fn memory(&self) -> &RuntimeMemory {
+        &self.shared.memory
+    }
+
     /// Runs `f` on the window's service of type `T`, made with its default on first use. `f` must not
     /// reach another service of the same type.
     pub(crate) fn service<T: Default + 'static, R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
@@ -299,16 +362,24 @@ pub(crate) fn window_id(window: WindowId) -> Id {
 }
 
 /// One entry of the build log: a tracked read or an effect for the scope whose build is running.
-#[derive(Clone, Debug)]
 pub(crate) enum CellRead {
     Scale(State<f32>),
     Focused(State<bool>),
     Viewport(State<Vec2>),
+    Mods(State<craft_keymap::Mods>),
+    Caps(State<bool>),
     /// `Env::of`: every env cell an `Env` copies, plus the window's scale and focus.
     Env(EnvCells, State<f32>, State<bool>),
     /// The scope builds again after this long.
     Wake(Duration),
     Command(WindowCommand),
+    /// A read of a command's state for an instance of its scope (`Commands::resolve_command`).
+    CommandState(CommandBoard, CommandRef, Option<Id>),
+    /// A command's state published for an instance of its scope (`Commands::publish`).
+    Publish(CommandBoard, CommandRef, Option<Id>, CommandState),
+    /// A read made with the node's `BuildCx` when its build ends, for a service whose cell may not exist yet (a
+    /// texture entry read from a hook: `CxCore::texture_state`).
+    Build(Box<dyn FnOnce(&mut BuildCx<'_>)>),
 }
 
 thread_local! {
@@ -365,6 +436,12 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
             CellRead::Viewport(cell) => {
                 cell.get(cx);
             }
+            CellRead::Mods(cell) => {
+                cell.get(cx);
+            }
+            CellRead::Caps(cell) => {
+                cell.get(cx);
+            }
             CellRead::Env(cells, scale, focused) => {
                 focused.get(cx);
                 cells.tokens.get(cx);
@@ -373,10 +450,17 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cells.density.get(cx);
                 cells.motion.get(cx);
                 cells.frame.get(cx);
+                cells.root.get(cx);
                 scale.get(cx);
             }
             CellRead::Wake(after) => wake = Some(wake.map_or(after, |w| w.min(after))),
             CellRead::Command(command) => cx.window_command(command),
+            CellRead::CommandState(board, command, instance) => {
+                let cell = board.cell(cx.store_mut(), &command, instance);
+                cell.get(cx);
+            }
+            CellRead::Publish(board, command, instance, state) => board.set_state_of(cx, &command, instance, state),
+            CellRead::Build(read) => read(cx),
         }
     }
     if let Some(after) = wake {
@@ -385,7 +469,38 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
     }
 }
 
+/// Logs a read of `command`'s state for `instance` for the node whose build is running.
+pub(crate) fn log_command_read(board: CommandBoard, command: CommandRef, instance: Option<Id>) {
+    log(CellRead::CommandState(board, command, instance));
+}
+
+/// Logs a publish of `command`'s state for `instance`: it reaches the cell when the running node's build ends. Outside
+/// a build there is no store to write, and nothing is published.
+pub(crate) fn log_publish(board: CommandBoard, command: CommandRef, instance: Option<Id>, state: CommandState) {
+    log(CellRead::Publish(board, command, instance, state));
+}
+
+/// Logs `read`, run with the `BuildCx` of the node whose build is running when that build ends: how a service read
+/// from a hook (which has no `BuildCx`) registers its cell read for the node, creating the cell if it needs one.
+pub(crate) fn log_build_read(read: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+    log(CellRead::Build(Box::new(read)));
+}
+
 /// Logs an `Env::of` read for the scope whose build is running.
 pub(crate) fn log_env_read(cells: EnvCells, scale: State<f32>, focused: State<bool>) {
     log(CellRead::Env(cells, scale, focused));
+}
+
+impl crate::contract::CxCore<'_> {
+    /// The state of `key`'s picture at `revision` in `store`, read from a hook: the read is tracked through the run's
+    /// read log, so this node runs again when a job answers for `key`, and a leaf reads its own thumbnail with no
+    /// prop. One read path with `TextureStore::state` underneath (the cache side: `TextureStore::state_logged`).
+    pub fn texture_state<K: crate::primitives::textures::TextureKey>(
+        &self,
+        store: &crate::primitives::textures::TextureStore<K>,
+        key: &K,
+        revision: crate::primitives::textures::Revision,
+    ) -> crate::primitives::textures::TextureState {
+        store.state_logged(key, revision)
+    }
 }

@@ -618,7 +618,7 @@ pub(crate) fn run_shaped<C: Component>(
     if let Some(board) = board {
         // Commands the run fired (`Cx::fire`) run after it, in order, from this node.
         for (command, source, mods) in fires {
-            if !board.enabled(cx.runtime().store(), &command) {
+            if !board.enabled(&command) {
                 continue;
             }
             let fired = crate::runtime::commands::Fired::new(command, source, crate::runtime::commands::FirePhase::Press, cx.now()).mods(mods);

@@ -743,7 +743,7 @@ impl<S, R: Renderer> Harness<S, R> {
     /// Whether app-scope `command` may fire: enabled in the command board. `true` with no board.
     pub fn command_enabled(&self, command: impl Into<craft_keymap::CommandRef>) -> bool {
         match &self.commands {
-            Some(board) => board.enabled(self.driver.runtime.store(), &command.into()),
+            Some(board) => board.enabled(&command.into()),
             None => true,
         }
     }

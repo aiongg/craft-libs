@@ -2,6 +2,7 @@
 
 use super::root::{ResolvedRoot, RootEnv};
 use crate::contract::Context;
+use crate::runtime::env::ThemeBase;
 use crate::style::UiTokens;
 use craft_theme::{AppId, AppSizes, Appearance, Contrast, Mode, Rgba, SUITE_DEFAULT, Size, TextSize, ThemeDef, ThemeId, builtins};
 use std::sync::Arc;
@@ -113,6 +114,26 @@ fn resolve_inputs(inputs: &TokenInputs) -> Arc<UiTokens> {
     };
     let accented = inputs.accent.map(|seed| theme.with_accent(seed));
     Arc::new(UiTokens::of_theme(accented.as_ref().unwrap_or(theme), appearance, inputs.app.as_ref(), &inputs.sizes))
+}
+
+/// The theme base `inputs` resolve from: the chosen theme (with the user's accent), the appearance, the app's pins and
+/// sizes. Its tokens are [`resolve_inputs`]'s.
+pub(super) fn theme_base(inputs: &TokenInputs) -> ThemeBase {
+    let appearance =
+        Appearance { mode: inputs.mode, contrast: inputs.contrast, size: inputs.density, text_size: inputs.text_size, reduced_motion: false };
+    let themes = builtins();
+    let theme: &ThemeDef = match &inputs.theme_def {
+        Some(def) => def,
+        None => [inputs.theme.as_str(), SUITE_DEFAULT]
+            .into_iter()
+            .find_map(|id| themes.iter().find(|theme| theme.id.as_str() == id))
+            .unwrap_or(&themes[0]),
+    };
+    let def = match inputs.accent {
+        Some(seed) => Arc::new(theme.with_accent(seed)),
+        None => Arc::new(theme.clone()),
+    };
+    ThemeBase { def, appearance, app: inputs.app.clone(), sizes: inputs.sizes.clone() }
 }
 
 /// What the resolved root tokens depend on. The sizes are compared by identity, as `set_input` does.

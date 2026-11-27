@@ -1,5 +1,6 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
+use super::cache::StyleCaches;
 use super::key::{EnvKey, Ink};
 use super::look::{DataColor, FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackFill, TrackLook};
 use super::paint::{
@@ -9,8 +10,8 @@ use super::paint::{
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
 use crate::contract::Context;
-use crate::fonts::stack_facts;
 use crate::primitives::Id;
+use crate::primitives::Services;
 use crate::runtime::env::{AppValues, MotionPolicy, Scale, StyleValue};
 use crate::runtime::motion::{MotionSpec, Presence};
 use craft_behavior::ControlMetrics;
@@ -72,12 +73,15 @@ pub struct StyleCx<'a> {
     host_muted: Option<&'a Stateful<StyleColor>>,
     /// The line height per point of text of the interface face, as the scope's frame began.
     line_ratio: f32,
-    /// The window's context: the style caches and the frame's facts.
-    ctx: &'a Context,
     values: &'a AppValues,
-    /// The component whose motion memory `exiting` reads, and the motion policy it runs under; set by the collection
-    /// hook for the layout it asks of the component.
-    owner: Option<(Id, MotionPolicy)>,
+    /// The window's style caches (section 15.7): what a face's style and token groups resolve through. `None` outside
+    /// a window (a test without a root), where they resolve uncached.
+    caches: Option<&'a StyleCaches>,
+    /// The text services lent by the run that resolves the style: what `text_width` measures with.
+    services: Option<&'a dyn Services>,
+    /// The component whose motion memory `exiting` reads, the motion policy it runs under and the window that memory
+    /// lives on; set by the collection hook for the layout it asks of the component.
+    owner: Option<(Id, MotionPolicy, &'a Context)>,
 }
 
 /// A variant's look as style parts.
@@ -142,7 +146,6 @@ impl<'a> StyleCx<'a> {
     #[expect(clippy::too_many_arguments, reason = "one argument per input the style cache key covers")]
     #[doc(hidden)]
     pub fn new(
-        ctx: &'a Context,
         tokens: &'a UiTokens,
         values: &'a AppValues,
         size: ControlSize,
@@ -167,28 +170,35 @@ impl<'a> StyleCx<'a> {
             host: None,
             host_muted: None,
             line_ratio,
-            ctx,
             values,
+            caches: None,
+            services: None,
             owner: None,
         }
+    }
+
+    /// The same context resolving through the window's style caches.
+    #[must_use]
+    pub(crate) fn with_caches(self, caches: &'a StyleCaches) -> StyleCx<'a> {
+        StyleCx { caches: Some(caches), ..self }
+    }
+
+    /// The same context measuring text with `services` (the run's text engine).
+    #[must_use]
+    pub(crate) fn with_services(self, services: &'a dyn Services) -> StyleCx<'a> {
+        StyleCx { services: Some(services), ..self }
+    }
+
+    /// The window's style caches this context resolves through, if any.
+    pub(crate) fn caches(&self) -> Option<&'a StyleCaches> {
+        self.caches
     }
 
     /// The style context of the scope `env` describes, in the secondary variant: for code outside a style function
     /// that works out a layout from a component's style or the scope's tokens.
     pub fn of_env(env: &'a crate::runtime::env::Env) -> Self {
-        StyleCx::new(
-            &env.ctx,
-            &env.tokens,
-            &env.values,
-            env.size,
-            Variant::SECONDARY,
-            env.direction,
-            env.scale,
-            env.os,
-            env.active,
-            env.key,
-            env.line_ratio,
-        )
+        StyleCx::new(&env.tokens, &env.values, env.size, Variant::SECONDARY, env.direction, env.scale, env.os, env.active, env.key, env.line_ratio)
+            .with_caches(env.ctx.styles())
     }
 
     /// Runs `f` with the style context of the root scope (`Env::of_root(ctx)`), for code with no `Ui` that reads a
@@ -214,8 +224,8 @@ impl<'a> StyleCx<'a> {
     }
 
     /// The same context scoped to the component `id`, whose keyed presences `exiting` reads under `policy`.
-    pub(crate) fn owned_by(&self, id: Id, policy: MotionPolicy) -> StyleCx<'a> {
-        StyleCx { owner: Some((id, policy)), ..*self }
+    pub(crate) fn owned_by(&self, id: Id, policy: MotionPolicy, window: &'a Context) -> StyleCx<'a> {
+        StyleCx { owner: Some((id, policy, window)), ..*self }
     }
 
     /// The keyed presences of `name` in the motion memory of the component this context is scoped to, for the keys
@@ -224,9 +234,9 @@ impl<'a> StyleCx<'a> {
     /// driving, so a collection's `item_layout` can keep the room of an item that is leaving until its exit ends.
     /// Empty outside a collection's layout.
     pub fn exiting<P: Clone + Send + Sync + 'static>(&self, name: &'static str, spec: MotionSpec, listed: &[impl Hash]) -> Vec<(Presence, P)> {
-        let Some((id, policy)) = self.owner else { return Vec::new() };
+        let Some((id, policy, window)) = self.owner else { return Vec::new() };
         let listed: Vec<Id> = listed.iter().map(crate::runtime::motion::key_id).collect();
-        crate::runtime::motion::peek_exiting(self.ctx, id, policy, name, spec, &listed)
+        crate::runtime::motion::peek_exiting(window, id, policy, name, spec, &listed)
     }
 
     /// The same context with another variant.
@@ -445,9 +455,11 @@ impl<'a> StyleCx<'a> {
     }
 
     /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
-    /// here instead of borrowing an icon or control size.
+    /// here instead of borrowing an icon or control size. Measured with the text engine the resolving run lent
+    /// ([`StyleCx::with_services`]); a context with none (code outside a run) measures with no font installed.
     pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
-        super::text_measure::line_width(self.ctx, self.tokens, stack_facts(self.ctx), self.direction, role, text)
+        let services = self.services.unwrap_or(&crate::primitives::NoServices);
+        super::text_measure::line_width(services, self.tokens, services.fonts(), self.direction, role, text)
     }
 
     /// What a surface of `kind` draws.
@@ -588,7 +600,11 @@ impl<'a> StyleCx<'a> {
     /// over it, built on the first read and cached by `(TypeId::of::<G>(), UiTokens::key)`.
     pub fn token_group<G: TokenGroup>(&self) -> G {
         let cache_key = (TypeId::of::<G>(), self.tokens.key());
-        let caches = self.ctx.styles();
+        let Some(caches) = self.caches else {
+            let mut group = G::derive(self.tokens);
+            group.overlay(self.tokens.groups());
+            return group;
+        };
         let hit = caches.with(|caches| caches.groups.built.get(&cache_key).cloned());
         if let Some(hit) = hit.and_then(|entry| entry.downcast::<G>().ok()) {
             return (*hit).clone();

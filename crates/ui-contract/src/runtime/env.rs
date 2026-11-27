@@ -47,7 +47,7 @@ pub use app_values::{AppValues, EnvValue, StyleValue};
 pub use craft_platform::appearance::SystemReader;
 use host_words::{host_dates, host_format, host_words};
 pub use overrides::{Overrides, ThemeScope, WheelScope, WordsOverride, in_room, with_env};
-pub use root::{ResolvedRoot, RootEnv};
+pub use root::{ResolvedRoot, RootEnv, RootInputs};
 pub use scrub::ScrubDrags;
 pub use system::{SystemState, system_appearance, system_text_scale};
 pub(crate) use tokens::TokenInputs;
@@ -224,7 +224,8 @@ pub struct Scoped {
     /// shares it: they share what the view shows, at least their content size (`layout::view_room`).
     pub(crate) unbounded: (bool, bool),
     /// The view of the innermost scroll area, for the children that run only in view (`contract::Lazy`).
-    pub(crate) lazy: Option<crate::runtime::lazy::View>,
+    /// The layer's rounded frame from the env cells: what a surface on the layer's edge fits its corners to.
+    pub(crate) frame: Option<LayerFrame>,
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
@@ -463,7 +464,7 @@ impl Scoped {
         self.fallback_collection = None;
         self.wheel = WheelScope::Plain;
         self.unbounded = (false, false);
-        self.lazy = None;
+
         self.glyphs = GlyphRole::Control;
         self.item = None;
         self.row = None;
@@ -680,9 +681,14 @@ impl Env {
     /// scale and window focus the window's env cells hold (`values`), or the tokens `root` resolves
     /// to when no build gave cells yet.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, values: Option<&CellValues>) -> Env {
-        let resolved = root.resolved(ctx);
+        let resolved = match values {
+            Some(values) => root.resolved_for(values.inputs.system),
+            None => root.resolved(ctx),
+        };
         // An id that is not a valid `AppId` names no theme pins, so it resolves as no app.
-        let app = host.as_ref().and_then(|host| craft_theme::AppId::parse(host.app().id).ok());
+        let app = values
+            .and_then(|values| values.inputs.app.clone())
+            .or_else(|| host.as_ref().and_then(|host| craft_theme::AppId::parse(host.app().id).ok()));
         let inputs = TokenInputs::of(root, resolved, app);
         let tokens = match values {
             Some(values) => values.tokens.clone(),
@@ -770,7 +776,7 @@ impl Env {
                 scroll_owner: None,
                 fallback_collection: None,
                 unbounded: (false, false),
-                lazy: None,
+                frame: None,
                 item: None,
                 row: None,
                 item_facts: None,
@@ -848,9 +854,10 @@ impl Env {
         self.on_cells(&values)
     }
 
-    /// The window's root env, built again only when the host's root or host moved.
+    /// The window's root env, built again only when the root values the env cells hold
+    /// ([`EnvCells::set_root`]) or the host the host provides moved.
     fn root(cx: &BuildCx<'_>, ctx: &Context, values: &CellValues) -> Env {
-        let root = cx.provided::<Arc<RootEnv>>();
+        let root = values.inputs.root.clone();
         let host = cx.provided::<Arc<Host>>();
         let kept = ctx.service::<RootCache, _>(|cache| {
             let same_root = match (&cache.root, &root) {
@@ -887,7 +894,8 @@ impl Env {
             && self.direction == values.direction
             && self.motion.mode == values.motion
             && self.scale == Scale(values.scale)
-            && self.active == values.active;
+            && self.active == values.active
+            && self.frame == values.frame;
         if same {
             return self;
         }
@@ -896,6 +904,7 @@ impl Env {
                 scoped.text_direction = values.direction;
             }
             scoped.direction = values.direction;
+            scoped.frame = values.frame;
             let inherited = scoped.inherited_mut();
             inherited.motion = MotionPolicy::new(values.motion, values.tokens.tokens().motion);
             inherited.tokens = values.tokens.clone();
@@ -943,7 +952,6 @@ impl Env {
         let reset = |scoped: &mut Scoped| {
             scoped.start_room();
             scoped.bracket = None;
-            scoped.lazy = None;
             scoped.measure = None;
         };
         if self.get::<InBar>().0 {
@@ -1049,6 +1057,8 @@ pub(crate) struct CellValues {
     motion: MotionMode,
     scale: f32,
     active: bool,
+    frame: Option<LayerFrame>,
+    inputs: RootInputs,
 }
 
 impl CellValues {
@@ -1058,16 +1068,27 @@ impl CellValues {
         let window = cx.env();
         let scale = *cx.peek_state(window.scale);
         let active = *cx.peek_state(window.window_focused);
-        let (tokens, theme, direction, density, motion) = match EnvCells::of(cx) {
+        let (tokens, theme, direction, density, motion, frame, inputs) = match EnvCells::of(cx) {
             Some(cells) => {
                 // Through the store, which records no reader and brings a derived cell up to date.
                 let store = cx.store_mut();
-                (cells.tokens.get(store), cells.theme.get(store), cells.direction.get(store), cells.density.get(store), cells.motion.get(store))
+                (
+                    cells.tokens.get(store),
+                    cells.theme.get(store),
+                    cells.direction.get(store),
+                    cells.density.get(store),
+                    cells.motion.get(store),
+                    cells.frame.get(store),
+                    cells.root.get(store),
+                )
             }
-            None => (cx.peek_state(window.tokens).clone(), None, Direction::Ltr, craft_theme::Size::Compact, MotionMode::Full),
+            None => {
+                let tokens = cx.peek_state(window.tokens).clone();
+                (tokens, None, Direction::Ltr, craft_theme::Size::Compact, MotionMode::Full, None, RootInputs::default())
+            }
         };
         let tokens = ui_tokens(ctx, tokens, theme, density);
-        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active }
+        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active, frame, inputs }
     }
 }
 

@@ -52,9 +52,10 @@ impl<'a> EnvView<'a> {
         self.scoped.fallback_collection
     }
 
-    /// The view of the innermost scroll area around the scope.
-    pub(crate) fn lazy_view(&self) -> Option<crate::runtime::lazy::View> {
-        self.scoped.lazy
+    /// The rounded frame of the layer the scope is on, when it has one: a surface on the layer's edge fits its corners
+    /// to it. `Env::of` registered the read of the frame cell.
+    pub fn frame(&self) -> Option<super::LayerFrame> {
+        self.scoped.frame
     }
 
     /// The line length paragraphs wrap at in this scope, if a container around it sets one.

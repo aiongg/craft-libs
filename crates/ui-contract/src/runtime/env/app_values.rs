@@ -53,6 +53,13 @@ struct ValueEntries {
     style_hash: u64,
 }
 
+impl AppValues {
+    /// Whether `other` is this set of values: the same shared entries.
+    pub(crate) fn same(&self, other: &AppValues) -> bool {
+        Arc::ptr_eq(&self.entries, &other.entries)
+    }
+}
+
 impl ValueEntries {
     fn rehash(&mut self) {
         self.style_hash = self

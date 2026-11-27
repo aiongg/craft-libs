@@ -16,9 +16,15 @@ pub(crate) fn style_cx<'a>(env: &'a Env, step: &EnvStep) -> StyleCx<'a> {
 /// Step 2, style: `&C::Style` from the window root's cache, keyed `(TypeId of StyleKey, key, EnvKey,
 /// variant, size)`. Outside a window (a test without a root) the style resolves uncached.
 pub(crate) fn style<C: Component>(cx: &mut BuildCx<'_>, scx: &StyleCx<'_>, key: C::StyleKey) -> Arc<C::Style> {
-    match cx.provided::<StyleCaches>() {
-        Some(caches) => resolve_style(scx, key, caches, C::style),
-        None => Arc::new(C::style(scx, key)),
+    let caches = cx.provided::<StyleCaches>();
+    // Peeked: the env read that gave the style its key already tracks the scale.
+    let scale = *cx.peek_state(cx.env().scale);
+    let (text, images) = cx.paint_services();
+    let services = crate::primitives::FrameServices::new(text, images, scale);
+    let scx = scx.with_services(&services);
+    match &caches {
+        Some(caches) => resolve_style(&scx.with_caches(caches), key, caches, C::style),
+        None => Arc::new(C::style(&scx, key)),
     }
 }
 
