@@ -269,7 +269,8 @@ pub(crate) fn show_shaped<C: Component>(
                     }
                 };
                 let rect = place_in(flow, Some(cx.node()), at, size);
-                if kept_outputs && size == kept.size {
+                // A marked node under one the paint showed is reached only by running that paint.
+                if kept_outputs && size == kept.size && !(state.path && kept.paint_children) {
                     kept.cache(room, size);
                     // Kept, it reports nothing: the column reports its last run captured join the open groups.
                     crate::layout::replay(&context, &kept.column_reports);
@@ -721,6 +722,7 @@ pub(crate) fn run_shaped<C: Component>(
         }
     }
     kept.variants = variants;
+    kept.paint_children = children.is_some();
     kept.parts.extend(crate::contract::text::selection_parts(cxx.core, rect.min));
     crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
