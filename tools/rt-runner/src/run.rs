@@ -2,7 +2,6 @@
 //! frame cost table, and the panel in a window.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use craft_host::target::Os;
 use craft_ui_platform_headless::HeadlessPlatform;
@@ -11,12 +10,11 @@ use craft_ui_rt::{Driver, Platform, Pos2, ReadBack, Rect, Renderer, RgbaImage, S
 use craft_ui_test_kit::rt::{BenchRow, Rig, Scenario, bench_with, compare_pixels, rig::FRAME};
 use serde::{Deserialize, Serialize};
 
-use crate::doc::DocCell;
-use crate::fixture::{Doc, PANEL_HEIGHT, PANEL_WIDTH};
-use crate::look::pro_dark_tokens;
-use crate::mount::mount;
+use craft_rt_layers::DocCell;
+use crate::fixture::{PANEL_HEIGHT, PANEL_WIDTH, doc};
+use craft_rt_layers::pro_dark_tokens;
+use crate::mount::{Host, mount};
 use crate::observe::{Observation, diff, max_bounds_delta, observe_rig};
-use crate::panel::LayersPanel;
 use crate::scenarios::{CHECK_LAYERS, DOC_LAYERS, SETTLE_FRAMES, bench_scenarios, bench_steps, check_scenarios, scenario, states};
 
 /// Frames discarded before measuring, and frames measured (the experiment's).
@@ -31,7 +29,7 @@ pub fn panel_size() -> Vec2 {
 /// access tree's activation, the virtual rows' band) and two settle frames after them.
 pub fn fresh_rig<R: Renderer>(renderer: R, layers: usize, scale: f32) -> (Rig<R>, DocCell) {
     let platform = HeadlessPlatform::with_window(panel_size(), scale);
-    let (runtime, cell) = mount(HeadlessPlatform::MAIN, Doc::new(layers));
+    let (runtime, cell) = mount(HeadlessPlatform::MAIN, doc(layers));
     let mut rig = Rig::from_parts(runtime, platform, renderer);
     for _ in 0..5 {
         rig.frame(FRAME);
@@ -348,9 +346,9 @@ pub fn window<R: Renderer + 'static>(make: fn() -> R, layers: usize, exit_after:
     let result = run(
         move |platform: WinitPlatform| async move {
             let mut d = Driver::new(craft_ui_rt::Runtime::new(pro_dark_tokens()), platform, make());
-            let doc: DocCell = d.runtime.store_mut().create(Arc::new(Doc::new(layers)));
+            let cell = DocCell::create(d.runtime.store_mut(), doc(layers));
             let spec = WindowSpec { size: Some(panel_size()), ..WindowSpec::new("Layers") };
-            d.open_window(&spec, LayersPanel { doc, os: Os::current() });
+            d.open_window(&spec, Host { doc: cell, os: Os::current() });
             if let Some(secs) = exit_after {
                 d.platform.request_frame_at(secs);
             }

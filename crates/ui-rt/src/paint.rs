@@ -218,7 +218,12 @@ impl PaintCx<'_> {
     }
 
     pub fn image(&mut self, key: ImageKey, rect: Rect, tint: Rgba) {
-        self.push(Item::Image { key, rect, uv: FULL_UV, tint });
+        self.image_uv(key, rect, FULL_UV, tint);
+    }
+
+    /// The part `uv` (0..1 of each side) of the image.
+    pub fn image_uv(&mut self, key: ImageKey, rect: Rect, uv: Rect, tint: Rgba) {
+        self.push(Item::Image { key, rect, uv, tint });
     }
 
     /// `color` through the image's alpha (an icon mask).

@@ -1,0 +1,24 @@
+[package]
+name = "craft-rt-layers"
+description = "The v4-rt Layers panel on craft-ui-rt as a library: the panel components and list rules over a document cell, edits sent to the host through an outbox, thumbnails supplied by the host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Not `workspace = true`: the panel code is the experiment's, ported as written.
+[lints.rust]
+unsafe_code = "deny"
+
+[dependencies]
+craft-behavior = { workspace = true }
+craft-host = { workspace = true }
+craft-keymap = { workspace = true }
+craft-theme = { workspace = true }
+craft-svg = { workspace = true, features = ["draw"] }
+craft-ui-rt = { workspace = true }
+accesskit = "0.25"
+kurbo = { workspace = true }
+serde = { workspace = true }

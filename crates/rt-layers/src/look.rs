@@ -204,3 +204,9 @@ pub const THUMB_SIZE_STEP: u32 = 16;
 pub fn thumb_texture_side(pixels: f32) -> u32 {
     ((pixels / THUMB_SIZE_STEP as f32).ceil().max(1.0) as u32) * THUMB_SIZE_STEP
 }
+
+/// The side in pixels of the thumbnail picture a host supplies for rows drawn under `tokens` at `scale`.
+pub fn thumb_side(tokens: &Tokens, scale: f32) -> u32 {
+    let look = Look::of(tokens);
+    thumb_texture_side((look.thumb - 2.0 * look.thin) * scale)
+}

@@ -7,8 +7,8 @@ use craft_ui_rt::{AccessEntry, Renderer, Runtime, WindowId};
 use craft_ui_test_kit::rt::Rig;
 use serde::{Deserialize, Serialize};
 
-use crate::doc::DocCell;
-use crate::fixture::DocSnapshot;
+use craft_rt_layers::DocCell;
+use craft_rt_layers::DocSnapshot;
 
 /// One access node as the vocabulary names it. Bounds are logical points in window coordinates.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -107,7 +107,7 @@ pub fn observe(runtime: &Runtime, window: WindowId, doc: DocCell) -> Observation
         });
     }
     let focus = nodes.iter().find(|n| n.focused).map(|n| n.name.clone()).filter(|n| !n.is_empty());
-    Observation { doc: runtime.store().peek(doc).snapshot(), focus, scroll: scroll.round() as i32, access: nodes }
+    Observation { doc: doc.peek(runtime.store()).snapshot(), focus, scroll: scroll.round() as i32, access: nodes }
 }
 
 /// [`observe`] on a rig's first window.

@@ -5,7 +5,7 @@
 
 use std::ops::Range;
 
-use crate::fixture::LayerId;
+use crate::model::LayerId;
 use crate::list_rules::{Lead, ListOp, Pick, PressPlan};
 use accesskit::{Action, Node, Role};
 use craft_host::target::Os;
@@ -54,7 +54,7 @@ pub struct ListLocal {
 }
 
 impl List {
-    fn selected(doc: &crate::fixture::Doc) -> Vec<usize> {
+    fn selected(doc: &crate::model::Doc) -> Vec<usize> {
         doc.layers.iter().enumerate().filter(|(_, l)| doc.is_selected(l.id)).map(|(i, _)| i).collect()
     }
 
@@ -88,8 +88,10 @@ impl List {
                     let lead = l.lead.get(cx);
                     let id = |row: Option<usize>| row.and_then(|r| doc.layers.get(r)).map(|layer| layer.id);
                     let held = (id(lead.lead), id(lead.anchor));
+                    // The host applies the edit later; the lead's places follow the document the edit makes.
+                    let mut after = (*doc).clone();
+                    after.apply(op.clone());
                     edit(self.doc, cx, op);
-                    let after = self.doc.get(cx);
                     let place = |held: Option<LayerId>, row: Option<usize>| held.and_then(|id| after.index_of(id)).or(row);
                     l.lead.set_if_changed(cx, Lead { lead: place(held.0, lead.lead), anchor: place(held.1, lead.anchor) });
                 }

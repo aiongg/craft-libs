@@ -1,6 +1,6 @@
 //! The Layers panel: the list over the footer bar (look sheet 2, 3.12, 3.14).
 
-use crate::fixture::Op;
+use crate::model::Op;
 use accesskit::{Node, Role};
 use craft_host::target::Os;
 use craft_ui_rt::{AccessCx, BuildCx, Constraints, Element, LayoutCx, PaintCx, Vec2};
