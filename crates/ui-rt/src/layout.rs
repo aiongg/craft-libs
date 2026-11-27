@@ -163,10 +163,11 @@ pub(crate) fn layout_node(rt: &mut Runtime, text: &mut dyn TextEngine, id: NodeI
 }
 
 /// The constraints of a node directly on a layer: the app root fills the window; a layer child
-/// gets what its [`crate::LayerSpec`] asks for.
+/// (on the content layer too: a painted pointer confined to content) gets what its
+/// [`crate::LayerSpec`] asks for.
 fn layer_child_constraints(rt: &Runtime, id: NodeId, layer: Layer, window: WindowId) -> Option<Constraints> {
     let w = rt.windows.get(&window)?;
-    if layer == Layer::Content {
+    if layer == Layer::Content && !w.layered.contains_key(&id) {
         return Some(Constraints::tight(w.viewport));
     }
     let spec = w.layered.get(&id)?;
@@ -209,14 +210,15 @@ pub(crate) fn layout_pass(rt: &mut Runtime, text: &mut dyn TextEngine) {
     }
 }
 
-/// Lays out and places the children of every layer above content, in each window where a layout
-/// ran this frame: anchors may have moved, and a child's size decides which side it fits on.
+/// Lays out and places the children of every layer that have a [`crate::LayerSpec`] (the app root
+/// has none), in each window where a layout ran this frame: anchors may have moved, and a child's
+/// size decides which side it fits on.
 pub(crate) fn place_layers(rt: &mut Runtime, text: &mut dyn TextEngine) {
     let windows: Vec<WindowId> = rt.windows.iter().filter(|(_, w)| w.relayout).map(|(id, _)| *id).collect();
     for window in windows {
         let Some(w) = rt.windows.get(&window) else { continue };
         let (viewport, layers) = (w.viewport, w.layers);
-        for layer_node in &layers[1..] {
+        for layer_node in &layers {
             let children = rt.tree.nodes.get(layer_node).map(|n| n.children.clone()).unwrap_or_default();
             for id in children {
                 let Some(spec) = rt.windows.get(&window).and_then(|w| w.layered.get(&id)).copied() else { continue };

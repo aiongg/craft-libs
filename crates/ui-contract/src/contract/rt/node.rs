@@ -6,7 +6,7 @@ use std::any::Any;
 use craft_behavior::{EditorInput, Intent, PartRef, PressStart};
 use craft_keymap::Chord;
 use craft_ui_rt::{
-    AccessCx, Constraints, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, ImePurpose,
+    AccessCx, Constraints, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, ImePurpose,
     InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rect, Sense, State, Vec2,
 };
 
@@ -461,7 +461,7 @@ pub(crate) struct KeptPart {
     pub(crate) id: u64,
     pub(crate) shape: HitShape,
     pub(crate) sense: Sense,
-    pub(crate) cursor: Option<Cursor>,
+    pub(crate) cursor: Option<craft_behavior::Cursor>,
     /// What the operating system does with a press on the part (a title bar's drag area, a caption
     /// button, a resize edge).
     pub(crate) exclusive: Option<crate::runtime::windows::WindowHit>,
@@ -495,6 +495,8 @@ pub(crate) struct Kept {
     pub(crate) access: Option<accesskit::Node>,
     /// The sub-nodes of the access node; empty with it.
     pub(crate) access_subs: Vec<super::access::BuiltSub>,
+    /// The control folded into the node's access node (`PaintUi::inner`), which the node stands for.
+    pub(crate) access_stands: Option<NodeId>,
     pub(crate) queue: Vec<NodeInput>,
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
@@ -545,7 +547,10 @@ pub(crate) struct Kept {
     /// The command board the host gave the window root (window root only).
     pub(crate) commands: Option<super::commands::CommandBoard>,
     /// The cursor over the node's own shape, from `Component::cursor`.
-    pub(crate) cursor: Option<Cursor>,
+    pub(crate) cursor: Option<craft_behavior::Cursor>,
+    /// The drawings of the painted cursors the node and its parts name, recorded by the last run
+    /// (`cursor::painted_pointers`).
+    pub(crate) pointers: Vec<(craft_behavior::PaintedCursor, craft_ui_rt::PaintedPointer)>,
     /// The distance of one wheel line over the node (`Component::wheel_notch`).
     pub(crate) notch: craft_behavior::WheelNotch,
     /// The node registered as its window's menu bar (`Focus::register_menu_bar`), `Some(true)` when it claims a
@@ -614,6 +619,7 @@ impl Kept {
             parts: Vec::new(),
             access: None,
             access_subs: Vec::new(),
+            access_stands: None,
             type_name: "",
             command: None,
             queue: Vec::new(),
@@ -638,6 +644,7 @@ impl Kept {
             window_root: false,
             commands: None,
             cursor: None,
+            pointers: Vec::new(),
             notch: craft_behavior::WheelNotch::DEFAULT,
             menu_bar: None,
             menu: None,
@@ -811,8 +818,8 @@ impl Element for ComponentNode {
             if p.holds {
                 cx.holds_drafts(p.shape);
             }
-            match p.cursor {
-                Some(cursor) => cx.hit_cursor(p.shape, p.sense, p.id, cursor),
+            match &p.cursor {
+                Some(cursor) => super::cursor::record(kept, cx, p.shape, p.sense, p.id, cursor),
                 None => cx.hit(p.shape, p.sense, p.id),
             }
         }
@@ -964,6 +971,9 @@ impl Element for ComponentNode {
     }
 
     fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
+        if let Some(control) = kept.access_stands {
+            cx.stand_for(control);
+        }
         for s in &kept.access_subs {
             let mut sub = s.node.clone();
             kept.resolve_relations(&mut sub);

@@ -54,9 +54,10 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let member_id = item_id(id, &key);
             let on = enabled && item.common_mut(Internal::new()).enabled.unwrap_or(true);
             let part = ROW.at(key_hash(&key));
-            let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
+            let run = MemberRun { owner: id, id: member_id, part, node: ITEM_NODE.at(key_hash(&key)), rect: row, clip, position, flags, enabled: on };
             let ran = crate::contract::rt::run::run_member(item, ui, &run, cx.core.input());
             cx.core.part_tips.extend(ran.tips);
+            self.sub_nodes.extend(ran.access);
             if let Some(shown) = shown_rows.get_mut(shown) {
                 shown.openers = self.member_openers(ui, (id, ran.looks.part, &ran.looks.parts), cx.core.input(), enabled, openers);
             }

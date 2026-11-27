@@ -81,6 +81,8 @@ pub(crate) struct HitRecord {
     pub(crate) level: Part,
     pub(crate) kind: HitKind,
     pub(crate) cursor: Option<Cursor>,
+    /// The painted pointer over the shape: its index among the node's ([`crate::PaintCx::hit_painted`]).
+    pub(crate) painted: Option<u16>,
 }
 
 /// The topmost shape under a point that passed the filter.

@@ -30,7 +30,7 @@ mod windows;
 
 use crate::skeleton::{IconButton, Stack};
 use craft_behavior::IconId;
-use craft_ui_contract::contract::{MemoView, Ui};
+use craft_ui_contract::contract::{MemoProps, MemoView, Outbox, Ui};
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
@@ -81,21 +81,44 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
             app.label_a = format!("A{}", app.other_clicks);
         }
     }
+    let mut sent = Vec::new();
     let label = app.label_a.clone();
-    let (a, b) = MemoView::new(label).show(ui, |ui, label| {
-        app.view_runs += 1;
-        Stack::new().show(ui, |ui| {
-            let a = IconButton::new(IconId::new("brush"), label).show(ui);
-            if a.clicked() {
+    if let Some(shown) = MemoView::new("ab", AbProps { label, out: Outbox::new(&mut sent) }, ab_view).show(ui) {
+        (app.a, app.b) = shown.value;
+    }
+    for event in sent {
+        match event {
+            AbEvent::Ran => app.view_runs += 1,
+            AbEvent::AClicked => {
                 app.a_clicks += 1;
                 app.clicks_seen_in_step.push(app.step);
             }
-            let b = IconButton::new(IconId::new("eraser"), "B").show(ui);
-            (a.rect, b.rect)
-        })
-    });
-    app.a = a;
-    app.b = b;
+        }
+    }
+}
+
+/// What the view holding A and B sends: each run, and a click on A.
+enum AbEvent {
+    Ran,
+    AClicked,
+}
+
+#[derive(MemoProps)]
+struct AbProps<'a> {
+    label: String,
+    out: Outbox<'a, AbEvent>,
+}
+
+fn ab_view(props: &mut AbProps<'_>, ui: &mut Ui) -> (Rect, Rect) {
+    props.out.send(AbEvent::Ran);
+    Stack::new().show(ui, |ui| {
+        let a = IconButton::new(IconId::new("brush"), props.label.as_str()).show(ui);
+        if a.clicked() {
+            props.out.send(AbEvent::AClicked);
+        }
+        let b = IconButton::new(IconId::new("eraser"), "B").show(ui);
+        (a.rect, b.rect)
+    })
 }
 
 fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {

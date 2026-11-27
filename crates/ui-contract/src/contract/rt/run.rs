@@ -232,8 +232,7 @@ pub(crate) fn show_shaped<C: Component>(
     }
     let context = ui.ctx.clone();
     let Ui { cx, flow, .. } = ui;
-    let node =
-        ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS && steps::takes_focus(&begun.resolved(id)), text: component.text_input() };
+    let node = ComponentNode { key: key.map_or(0, fold), tag, stop: own_stop(&component, &begun.resolved(id)), text: component.text_input() };
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
@@ -491,7 +490,7 @@ pub(crate) fn run_shaped<C: Component>(
     let inbox = InboxIn::read(&cells, cx);
     // A row's facts from its collection, read so that a change runs the row (15.5).
     let row = super::items::row_facts(cx, id);
-    let stop = C::STOPS && steps::takes_focus(&resolved);
+    let stop = own_stop(&component, &resolved);
     // Only a stop can hold focus, so only a stop reads it: a focus move reruns the stops it touches.
     let focused = stop && cx.read_interaction(node, InteractFact::Focused);
     let swept = match (component.sweep_value(), sweep) {
@@ -568,7 +567,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.claim = cxx.core.env.field_label().and_then(|label| label.claim).map(|claim| claim.translate(Pos2::ZERO - rect.min));
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
-    kept.cursor = component.cursor().as_ref().map(super::cursor::platform);
+    kept.cursor = component.cursor();
     let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, (rect.min, rect), interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
@@ -613,7 +612,7 @@ pub(crate) fn run_shaped<C: Component>(
     hooks.updated(&mut component, &mut cxx);
     steps::record_context(cxx.core);
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
-        kept.cursor = Some(super::cursor::platform(&cursor));
+        kept.cursor = Some(cursor);
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     kept.focus.stop = stop.then(|| text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()));
@@ -663,6 +662,9 @@ pub(crate) fn run_shaped<C: Component>(
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
         kept.members = hooks.take_member_looks();
     }
+    let cursors = kept.cursor.iter().chain(kept.parts.iter().chain(kept.members.iter().flat_map(|row| &row.parts)).filter_map(|p| p.cursor.as_ref()));
+    let pointers = super::cursor::painted_pointers(&host, &begun.env, cursors);
+    kept.pointers = pointers;
     let mut flow = host.into_flow();
     super::node::set_drawn(&mut kept.drawn, cx, flow.take_drawn(rect.min));
     kept.placed = flow.placed;
@@ -691,6 +693,8 @@ pub(crate) fn run_shaped<C: Component>(
     let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
     kept.access = access;
     kept.access_subs = subs;
+    // The node stands for the control folded into it: the control's focus and the requests aimed at the node.
+    kept.access_stands = kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(cx, folded.inner));
     for (text, politeness) in std::mem::take(&mut cxx.core.run.announcements) {
         let politeness = match politeness {
             crate::runtime::access::Politeness::Polite => craft_ui_rt::AnnouncePoliteness::Polite,
@@ -940,9 +944,39 @@ pub(crate) fn run_member<I: Component>(
             .collect(),
         parts: member_parts,
     };
+    // 16 the member's access node, only while the window's access tree is on: a sub-node of the collection's node
+    // that the collection's access hook adds (`ShapeHooks::access`).
+    let access = ui.cx.access_enabled().then(|| member_access(&item, &cxx, run)).flatten();
     let output = item.finish(cxx);
     memory.flush();
-    super::items::MemberRan { output, looks, tips }
+    super::items::MemberRan { output, looks, tips, access }
+}
+
+/// A member's own sub-node of the collection's node: the facts its `access` declared, named by its label (the full
+/// text when elided) unless it names itself, with its row's place, flags and bounds.
+fn member_access<I: Component>(item: &I, cx: &Cx<'_, I>, run: &super::items::MemberRun) -> Option<crate::runtime::access::SubNode> {
+    use crate::runtime::access::{Name, SubNode};
+    if matches!(I::ROLE, Role::None) {
+        return None;
+    }
+    let mut access = Access::default();
+    item.access(&mut access, cx);
+    let name = match std::mem::replace(&mut access.name, Name::FromLabel) {
+        Name::FromLabel => Name::Text(cx.core.paint.borrow().elided.clone().unwrap_or_else(|| cx.core.resolved.label.to_owned())),
+        name => name,
+    };
+    let mut sub = SubNode::new(run.node, access.role.unwrap_or(I::ROLE));
+    sub.name = name;
+    sub.description = access.description;
+    sub.value = access.value;
+    sub.numeric = access.numeric;
+    sub.expanded = access.expanded;
+    sub.position = Some(run.position);
+    sub.flags = run.flags;
+    sub.custom_actions = access.custom_actions.into_iter().map(|(id, label)| (id, cx.core.env.resolve(&label))).collect();
+    sub.disabled = !run.enabled;
+    sub.bounds(run.rect);
+    Some(sub)
 }
 
 /// The ui-rt part id of a member's part `part` in the collection's node, for the member whose row part id is
@@ -1042,6 +1076,12 @@ fn settle_shaped<C: Component>(
     out
 }
 
+/// The component's own Tab stop exists only when its own sense holds `FOCUS` (a disabled one with a reason keeps
+/// it); parts that sense only presses, such as selection parts, are no Tab stops.
+pub(crate) fn own_stop<C: Component>(component: &C, resolved: &Resolved<'_>) -> bool {
+    C::STOPS && own_sense(component, resolved).contains(Sense::FOCUS)
+}
+
 /// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop
 /// and senses nothing else; one bound to an edit command keeps the focus where it is on a press.
 fn own_sense<C: Component>(component: &C, resolved: &Resolved<'_>) -> Sense {
@@ -1102,6 +1142,11 @@ fn report<C: Component>(
     }
     component.access(&mut access, cx);
     shape.access(component, &mut access);
+    // Custom action labels name words: the node carries their text in the scope's language.
+    let env = &cx.core.env;
+    for (_, label) in access.custom_actions.iter_mut().chain(access.nodes.iter_mut().flat_map(|sub| sub.custom_actions.iter_mut())) {
+        *label = env.resolve(label);
+    }
     crate::contract::cx::apply_field_label(cx.core, &mut access);
     // A control shown with `PaintUi::inner` folds into its owner's node: it hands the owner its value
     // text and keeps no node of its own. An owner whose `access` set no value carries its control's.

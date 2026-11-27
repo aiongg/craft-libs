@@ -1,16 +1,13 @@
-//! The drag session (8.4): one per context. It holds the payload, the preview, the held modifiers, the operation and the
-//! mark of the drop target that would take the payload, as data. The drop-target registrations of a pass resolve in the
-//! next pass, like the press arena's shapes. The ghost layer paints from this data (`contract::ghost`).
+//! The drag vocabulary the contract shares (8.4): the preview a source offers, the mark a target paints, the drop
+//! targets and zones. ui-rt runs the session; a target's mark paints with its node (`contract::ghost::record_drop_mark`).
 
-use crate::runtime::env::{Env, Label};
+use crate::runtime::env::Label;
 
 use crate::primitives::Id;
-use crate::style::UiTokens;
 use craft_behavior::{CopyKeys, DropOperation};
 use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::any::Any;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 /// What the ghost layer paints beside the pointer during a drag.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -188,15 +185,6 @@ impl DropZone {
     }
 }
 
-/// Where a drop target takes drops beyond its own mark.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct TargetReach {
-    /// The target covers the whole window: any target over a component beats it.
-    pub(crate) window: bool,
-    /// The target takes OS files under a modal layer (`DropTarget::under_modal`).
-    pub(crate) under_modal: bool,
-}
-
 /// A target of payload type `P` seen through the payload's erased type.
 pub(crate) struct Typed<'t, P, T>(&'t T, PhantomData<fn(&P)>);
 
@@ -224,13 +212,4 @@ impl<P: 'static, T: DropTarget<P>> DropTarget<dyn Any + Send + Sync> for Typed<'
     fn copy_keys(&self) -> CopyKeys {
         self.0.copy_keys()
     }
-}
-
-/// What the ghost layer paints: the session's preview and the mark of the target that would take a drop.
-pub(crate) struct Ghost {
-    pub preview: DragPreview,
-    /// The env of the region the drag started in.
-    pub env: Option<Env>,
-    /// The mark of the target that would take a drop, and the tokens of the target's region.
-    pub mark: Option<(DropMark, Arc<UiTokens>)>,
 }

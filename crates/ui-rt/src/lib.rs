@@ -49,6 +49,7 @@ mod window;
 
 pub use access::{AccessCx, AccessEntry, Politeness as AnnouncePoliteness, access_sub_id};
 pub use build::{BuildCx, InlineState, Peek};
+pub use cursor::PaintedPointer;
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,
     StrokeAlign, SurfaceKey, TextHighlight, UPLOAD_BUDGET, Vertex, Wrap,

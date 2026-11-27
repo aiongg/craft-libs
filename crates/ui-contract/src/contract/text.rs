@@ -181,7 +181,7 @@ pub(crate) fn selection_parts(core: &mut CxCore<'_>, origin: Pos2) -> Vec<KeptPa
             id: crate::contract::rt::node::part_id(part),
             shape: craft_ui_rt::HitShape::Rect(hit.translate(Pos2::ZERO - origin)),
             sense,
-            cursor: Some(crate::contract::rt::cursor::platform(&craft_behavior::Cursor::System(craft_behavior::CursorIcon::Text))),
+            cursor: Some(craft_behavior::Cursor::System(craft_behavior::CursorIcon::Text)),
             exclusive: None,
             holds: false,
         });
