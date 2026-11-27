@@ -4,9 +4,8 @@
 
 use super::opener::{Opener, Opening, Trigger, opener_anchor};
 use super::place::{Anchor, Place};
-use super::popups::{HOLD, PopupHandle, dwell};
+use super::popups::{HOLD, PopupHandle, dwell_in};
 use crate::contract::context::log_build_read;
-use crate::contract::cx::CxCore;
 use crate::contract::rt::ids;
 use crate::contract::{Component, Context, Cx};
 use crate::primitives::Id;
@@ -23,20 +22,29 @@ struct OpenerOpen {
     by: Option<(Id, Trigger, Opening)>,
 }
 
-/// The open state of a container with no binding, in the run `core` of the container: the slot of its first opener,
-/// with the triggers of every opener applied once per frame. A held `Trigger::Hold` opener opens it after `HOLD`
-/// seconds; the container builds again at that deadline. A measuring run's stage writes nothing back.
+/// The open state of the layer of a container with no binding hung from `first`, decided in a build of the
+/// container's node `cx` (`stage` is its memory): the slot of its first opener, with the triggers of every opener
+/// applied once per frame. A held `Trigger::Hold` opener opens it after `HOLD` seconds; the node builds again at that
+/// deadline. A disabled opener that opened it closes it. A measuring run's stage writes nothing back.
 ///
-/// An opener that fired here opened the layer by that activation: the caller claims it
-/// ([`Opener::claims_activation`], `dismissal::claim_activation`) so the layer chain the opener sits in stays open.
-pub(crate) fn opener_open(core: &mut CxCore<'_>, first: &Opener) -> bool {
-    let now = core.context().time();
+/// While the layer is closed the node is a zero-size node in the owner's flow (`rt/container.rs` `show_on_layer`), so
+/// the triggers and the hold timer run with no layer child. An opener that fired here opened the layer by that
+/// activation: the caller claims it ([`Opener::claims_activation`], `dismissal::claim_activation`) so the layer chain
+/// the opener sits in stays open.
+pub(crate) fn opener_open(cx: &mut BuildCx<'_>, stage: &mut MemoryStage, first: &Opener) -> bool {
+    let now = stage.ctx().time();
     let held = first.all().find(|opener| opener.trigger == Trigger::Hold).map(|opener| {
         // The dwell is timed under the opener's id in the container's node memory.
-        let started = dwell(core, opener.id, "dwell", opener.pressed, HOLD);
+        let started = match dwell_in(stage, now, opener.id, "dwell", opener.pressed, HOLD) {
+            Ok(started) => started,
+            Err(due) => {
+                cx.request_build_at(Some(due));
+                false
+            }
+        };
         (opener, started)
     });
-    let slot = core.memory.session::<OpenerOpen>(sub(first.id, "opens"));
+    let slot = stage.session::<OpenerOpen>(sub(first.id, "opens"));
     if let Some(opener) = first.all().find(|opener| opener.fired) {
         if slot.applied != Some(now) {
             // A context request opens, also over the open layer: a new right-click moves it to the pointer.
@@ -50,21 +58,32 @@ pub(crate) fn opener_open(core: &mut CxCore<'_>, first: &Opener) -> bool {
         slot.open = true;
         slot.by = Some((opener.id, opener.trigger, Opening::Plain));
     }
+    if slot.open && !first.active(slot.by).0.enabled {
+        slot.open = false;
+    }
     if !slot.open {
         slot.by = None;
     }
     let open = slot.open;
-    if !core.memory.is_peek() {
-        note_open(first.id, open);
+    if !stage.is_peek()
+        && let Some(cell) = open_cell(cx, first.id, open)
+    {
+        cell.set_if_changed(cx, open);
     }
     open
 }
 
+/// Whether the layer of the container hung from the opener `opener` is open, as its slot holds it, with no tracked
+/// read: for the build that decides whether to show the layer.
+pub(crate) fn slot_open(ctx: &Context, opener: Id) -> bool {
+    MemoryStage::peek_session::<OpenerOpen>(ctx, sub(opener, "opens")).open
+}
+
 /// Where the layer of the container hung from `first` hangs, as its slot recorded the opener that opened it: that
-/// opener's own anchor, else the layer's `Pointer` or `Corner` place, else the point a secondary click opened it at,
-/// else the opener's rect (a window rect).
-pub(crate) fn hung_from(stage: &mut MemoryStage, first: &Opener, place: &Place) -> (Id, Anchor) {
-    let by = stage.session::<OpenerOpen>(sub(first.id, "opens")).by;
+/// opener's node and anchor (its own anchor, else the layer's `Pointer` or `Corner` place, else the point a secondary
+/// click opened it at, else the opener's rect, a window rect).
+pub(crate) fn hung_from(ctx: &Context, first: &Opener, place: &Place) -> (Id, Anchor) {
+    let by = MemoryStage::peek_session::<OpenerOpen>(ctx, sub(first.id, "opens")).by;
     let (opener, opening) = first.active(by);
     let anchor = match opener_anchor(opener, opening, place) {
         Anchor::Response => Anchor::Rect(opener.rect),
@@ -105,15 +124,18 @@ fn note_open(opener: Id, open: bool) {
     });
 }
 
-/// Writes the opener's slot: the container closed itself (Escape, a press outside, a row ran).
-pub(crate) fn set_opener_open(stage: &mut MemoryStage, opener: &Opener, open: bool) {
+/// Writes the opener's slot from the owner's build `cx`: the container's layer closed (Escape, a press outside, a row
+/// ran).
+pub(crate) fn set_opener_open(cx: &mut BuildCx<'_>, ctx: &Context, opener: &Opener, open: bool) {
+    let mut stage = MemoryStage::open(ctx, opener.id);
     let slot = stage.session::<OpenerOpen>(sub(opener.id, "opens"));
     slot.open = open;
     if !open {
         slot.by = None;
     }
-    if !stage.is_peek() {
-        note_open(opener.id, open);
+    stage.write_back();
+    if let Some(cell) = open_cell(cx, opener.id, open) {
+        cell.set_if_changed(cx, open);
     }
 }
 

@@ -403,7 +403,7 @@ impl Flow {
 
     /// The size of what the children used, from the region's start.
     pub(crate) fn content_size(&self) -> Vec2 {
-        if self.sizes.is_empty() { Vec2::ZERO } else { (self.extent.max - self.region.min).max(Vec2::ZERO) }
+        if self.extent.is_negative() { Vec2::ZERO } else { (self.extent.max - self.region.min).max(Vec2::ZERO) }
     }
 
     pub(crate) fn dir_ref(&self) -> &Dir {

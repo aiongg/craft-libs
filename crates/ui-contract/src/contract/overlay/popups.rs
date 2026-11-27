@@ -186,7 +186,7 @@ pub(crate) fn dwell(core: &mut CxCore<'_>, id: Id, name: &'static str, held: boo
 
 /// The dwell step on `stage` at time `now`: `Ok(true)` when it fired, `Ok(false)` when not held, `Err(due)` while it
 /// waits for `due`.
-fn dwell_in(stage: &mut MemoryStage, now: f64, id: Id, name: &'static str, held: bool, delay: f64) -> Result<bool, f64> {
+pub(super) fn dwell_in(stage: &mut MemoryStage, now: f64, id: Id, name: &'static str, held: bool, delay: f64) -> Result<bool, f64> {
     let since = stage.shown::<Dwell>(sub(id, name));
     if !held {
         since.0 = None;

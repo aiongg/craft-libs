@@ -18,8 +18,8 @@ mod ui;
 
 pub use crate::contract::rt::dialog::show_dialog;
 pub use container_open::{Popup, opened_from};
-pub(crate) use container_open::{hung_from, opener_open, set_opener_open};
-pub(crate) use dismissal::{ActivationChain, claim_activation, note_activation};
+pub(crate) use container_open::{hung_from, opener_open, set_opener_open, slot_open};
+pub(crate) use dismissal::{ActivationChain, claim_activation, closed_after_show, closes_before_show, note_activation};
 pub(crate) use opener::{LayerFloor, anchor_floor, offers_context_menu};
 pub use opener::{Opener, Trigger};
 pub use place::{Anchor, FloatPlace, OverlayFit, Place, Resize, ResizeEdges, SizeLimits, ViewportShare};

@@ -456,7 +456,7 @@ pub(crate) struct LayerShow {
 }
 
 /// The ui-rt layer of an overlay's rank.
-fn layer_of(overlay: &Overlay) -> Layer {
+pub(crate) fn layer_of(overlay: &Overlay) -> Layer {
     match overlay.rank {
         Rank::Window => Layer::Floating,
         Rank::Toast => Layer::Toast,
@@ -757,6 +757,7 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
         spec = spec.reach(crate::runtime::sampler::reach_of(&Context::of_build(cx), cx, body.as_ref()));
     }
     let element = LayerScope { key, surface, hover };
+    let owner = cx.node();
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
         lk.kept.focus.scope = focus;
         cx.keep_focus_on_empty_presses(focus.trap);
@@ -779,7 +780,8 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
             let closes = spec.escape || matches!(focus.cancel, craft_behavior::CancelRule::Close);
             cx.provide(ScopeEscape { closes, keeps_typing: focus.escape_keeps_typing, modal: layer == Layer::Modal });
         }
-        let run = LayerRun { id, layer, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl, entry, host, on_activate, enter };
+        let run =
+            LayerRun { id, owner, layer, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl, entry, host, on_activate, enter };
         let out = run_layer(lk, state, cx, run, body);
         if state.new {
             super::focus::enter_layer(&lk.kept, cx);
@@ -790,6 +792,8 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
 
 struct LayerRun {
     id: Id,
+    /// The node that shows the layer, which reads its closes.
+    owner: NodeId,
     layer: Layer,
     spec: LayerSpec,
     surface: Surface,
@@ -856,7 +860,7 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     }
     if run.on_activate {
         let mut chain = cx.provided::<ActivationChain>().unwrap_or_default();
-        chain.0.push(lk.closed.clone());
+        chain.0.push((lk.closed.clone(), run.owner));
         cx.provide(chain);
     }
     // A modal's body says what of the canvas below it stays usable while it runs.
