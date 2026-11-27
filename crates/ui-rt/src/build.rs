@@ -571,6 +571,50 @@ impl BuildCx<'_> {
         out
     }
 
+    /// Brings the layer child `node`, with the layer children opened from inside it on the same layer, in front of
+    /// the other children of its layer, as a press on a floating window does. Nothing for a node that is not a layer
+    /// child, or one in front already.
+    pub fn raise_layer_child(&mut self, node: NodeId) {
+        let Some(root) = self.rt.window_node(self.window) else { return };
+        let Some(layer) = self.rt.tree.nodes.get(&node).and_then(|n| n.parent) else { return };
+        if self.rt.tree.nodes.get(&layer).and_then(|n| n.parent) != Some(root) {
+            return;
+        }
+        let Some(children) = self.rt.tree.nodes.get(&layer).map(|n| n.children.clone()) else { return };
+        let tree = &self.rt.tree;
+        // A layer child belongs to the family when its owner chain (parents, and from a layer child its owner) meets `node`.
+        let in_family = |child: NodeId| {
+            let mut at = child;
+            loop {
+                if at == node {
+                    return true;
+                }
+                let Some(n) = tree.nodes.get(&at) else { return false };
+                let up = match n.parent {
+                    Some(parent) if tree.nodes.get(&parent).and_then(|p| p.parent) == Some(root) => n.owner,
+                    parent => parent,
+                };
+                match up {
+                    Some(up) if up != root => at = up,
+                    _ => return false,
+                }
+            }
+        };
+        let (family, rest): (Vec<NodeId>, Vec<NodeId>) = children.iter().partition(|&&child| in_family(child));
+        let raised: Vec<NodeId> = rest.into_iter().chain(family).collect();
+        if raised == children {
+            return;
+        }
+        if let Some(n) = self.rt.tree.nodes.get_mut(&layer) {
+            n.children = raised;
+        }
+        self.rt.tree.mark_layout(layer);
+        self.rt.tree.mark_paint(layer);
+        if let Some(w) = self.rt.windows.get_mut(&self.window) {
+            w.relayout = true;
+        }
+    }
+
     fn list_on_layer(&mut self, layer: NodeId, id: NodeId) {
         if let Some(p) = self.rt.tree.nodes.get_mut(&layer)
             && !p.children.contains(&id)

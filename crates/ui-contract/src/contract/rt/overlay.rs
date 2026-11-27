@@ -32,6 +32,7 @@ use smallvec::SmallVec;
 
 use super::env::{EnvCells, LayerFrame};
 use super::intents::ScopeStep;
+use super::memory::Memory;
 use super::node::Kept;
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
@@ -40,7 +41,6 @@ use crate::contract::{Context, Id, POPUP_PAD};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
-use crate::runtime::memory::MemoryStage;
 use crate::runtime::overlay::{CloseReason, OpenEntry, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
 
@@ -68,9 +68,12 @@ struct PopupEntry {
 /// The popups of one component and whether each is open, kept on its node (`Kept::popups`). The
 /// run takes them into its `CxCore` (`PopupHandle` reads and changes them in `update`), the
 /// overlay pass shows the open ones, and the node keeps them for its next run.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub(crate) struct PopupStates {
     entries: SmallVec<[PopupEntry; 1]>,
+    /// What each popup's body keeps in memory, by popup id: it lasts while the component shows, so a popup closed and
+    /// opened again finds what its body kept.
+    bodies: BodyMemories,
     /// A `Trigger::Context` opener ran in this run: the node's access node offers the context menu.
     context_menu: bool,
     /// The frame time of the run.
@@ -202,6 +205,28 @@ impl PopupStates {
     /// Whether the access node offers `ShowContextMenu` (step 16 reads it).
     pub(crate) fn offers_context_menu(&self) -> bool {
         self.context_menu
+    }
+
+    /// The memory of `popup`'s body, moved out for a run of the body; [`put_body`](Self::put_body) gives it back.
+    pub(crate) fn take_body(&mut self, popup: Id) -> Memory {
+        match self.bodies.0.iter().position(|(id, _)| *id == popup) {
+            Some(at) => self.bodies.0.swap_remove(at).1,
+            None => Memory::default(),
+        }
+    }
+
+    pub(crate) fn put_body(&mut self, popup: Id, memory: Memory) {
+        self.bodies.0.push((popup, memory));
+    }
+}
+
+/// The body memories of a component's popups.
+#[derive(Default)]
+struct BodyMemories(SmallVec<[(Id, Memory); 1]>);
+
+impl std::fmt::Debug for BodyMemories {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.iter().map(|(id, _)| id)).finish()
     }
 }
 
@@ -567,21 +592,22 @@ pub(crate) fn opened_at(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<f64>
 }
 
 /// The content of a layer child: measured before a new layer is placed, then shown at its place.
-/// `memory` is the layer child's own memory, which lasts while it shows.
+/// What it keeps lives with its owner (a popup's body memory on the owner's node, a container's
+/// own node), not with the layer child, so it outlasts a close.
 pub(crate) trait LayerBody<R> {
     /// The size the content takes on `ui`, a measuring cursor at the body's region.
-    fn measure(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage) -> Vec2;
+    fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2;
     /// Shows the content on `ui` at the body's region; a close it decides goes in `closed`.
-    fn show(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage, closed: &BodyClose) -> R;
+    fn show(&mut self, ui: &mut Ui<'_, '_>, closed: &BodyClose) -> R;
 }
 
 impl<R, F: FnMut(&mut Ui<'_, '_>) -> R> LayerBody<R> for F {
-    fn measure(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage) -> Vec2 {
+    fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2 {
         self(ui);
         ui.flow.content_size()
     }
 
-    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage, _: &BodyClose) -> R {
+    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) -> R {
         self(ui)
     }
 }
@@ -613,6 +639,10 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
     let viewport = cx.env().viewport.get(cx);
     let rtl = is_rtl(cx);
     let LayerShow { layer, mut spec, surface, pad, share, anchor, role, hover, sweep, focus, entry, host, on_activate, enter } = show;
+    // A layer child the layer queries list moves the window's open-layer cell when it goes.
+    if entry.is_some() {
+        spec = spec.listed();
+    }
     // The modal reach its body registered on its last run.
     if layer == Layer::Modal {
         spec = spec.reach(cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.reach));
@@ -662,6 +692,11 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
         lk.since = Some(cx.now());
         lk.closed.set(None);
     }
+    // A layer shown inside a dialog host's `stack_place`, or opened from inside one, belongs to that host's dialog.
+    let context = Context::of_build(cx);
+    if let Some(dialog) = context.service::<StackPlace, _>(|place| place.0).or_else(|| running_dialog(cx)) {
+        cx.provide(RunningDialog(dialog));
+    }
     let tokens: Arc<Tokens> = super::env::tokens(cx);
     let gap = tokens.space.gap.stack;
     let constraints = run.spec.constraints(run.viewport, run.anchor);
@@ -673,7 +708,7 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     let size = if state.new || current == Vec2::ZERO {
         let region = Rect::from_min_size(Pos2::new(run.pad, run.pad), room);
         let mut measuring = Ui::new(cx, Flow::new(run.id, Pos2::ZERO, region, gap, tokens.clone()).with_sweep(run.sweep).measuring(None));
-        frame(body.measure(&mut measuring, &mut lk.kept.memory))
+        frame(body.measure(&mut measuring))
     } else {
         current
     };
@@ -697,13 +732,12 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     }
     // A modal's body says what of the canvas below it stays usable while it runs.
     let modal = run.layer == Layer::Modal;
-    let context = Context::of_build(cx);
     if modal {
         crate::runtime::sampler::begin_modal(&context);
     }
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
     ui.flow.scope = lk.scope.take_for_body();
-    let out = body.show(&mut ui, &mut lk.kept.memory, &lk.closed);
+    let out = body.show(&mut ui, &lk.closed);
     let Ui { cx, flow, .. } = ui;
     if run.enter && flow.scope.submit && lk.closed.get().is_none() {
         lk.closed.set(Some(CloseReason::Enter));
@@ -776,4 +810,71 @@ fn popup_radii(tokens: &Arc<Tokens>) -> CornerRadii {
 /// builds again when the direction changes.
 pub(crate) fn is_rtl(cx: &mut BuildCx<'_>) -> bool {
     EnvCells::of(cx).is_some_and(|cells| cells.direction.get(cx) == Direction::Rtl)
+}
+
+/// The dialog of a dialog host whose [`Ui::stack_place`] runs, while it runs: a window service.
+#[derive(Default)]
+struct StackPlace(Option<Id>);
+
+/// The host's dialog a layer child shows for, provided on the layer child to everything it owns, so a layer opened
+/// from inside it belongs to the same dialog in every later build.
+#[derive(Clone, Copy)]
+struct RunningDialog(Id);
+
+/// The dialog of a dialog host the node `cx` builds shows in ([`Ui::stack_place`]).
+pub(crate) fn running_dialog(cx: &BuildCx<'_>) -> Option<Id> {
+    cx.provided::<RunningDialog>().map(|dialog| dialog.0)
+}
+
+/// The layer child of the layer `id` names: the layer's own id, or the id of a container that is its layer's content.
+fn layer_child(cx: &BuildCx<'_>, id: Id) -> Option<NodeId> {
+    let node = super::ids::node_of(cx, id)?;
+    match cx.runtime().local::<LayerScope>(node) {
+        Some(_) => Some(node),
+        None => super::layers::layer_child_of(cx.runtime(), node),
+    }
+}
+
+/// Layer commands (docs/contract-rt.md 15.9).
+impl Ui<'_, '_> {
+    /// Brings the open layer `id`, with the layers opened from inside it, in front of the other layers of its kind, as
+    /// a press on it does.
+    pub fn raise_layer(&mut self, id: Id) {
+        if self.is_measuring() {
+            return;
+        }
+        if let Some(node) = layer_child(self.cx, id) {
+            self.cx.raise_layer_child(node);
+        }
+    }
+
+    /// Closes the layer `id` (a popup, a dialog, a container shown as a layer) for `why`: its owner builds and reads
+    /// the close as one its body asked for, and reports it as the layer's close reason.
+    pub fn close_layer(&mut self, id: Id, why: CloseReason) {
+        if self.is_measuring() {
+            return;
+        }
+        let Some(node) = layer_child(self.cx, id) else { return };
+        let rt = self.cx.runtime();
+        let Some(closed) = rt.local::<LayerScope>(node).map(|lk| lk.closed.clone()) else { return };
+        let owner = rt.owner(node);
+        if closed.get().is_none() {
+            closed.set(Some(why));
+        }
+        if let Some(owner) = owner {
+            self.cx.request_build_of(owner);
+        }
+    }
+
+    /// Runs `show` for the dialog host's `dialog`: the layers it shows, and the layers opened from inside them, belong
+    /// to `dialog` ([`running_dialog`](Self::running_dialog)), so a component inside tells one dialog from the next
+    /// one the host shows with the same ids. The host shows its dialogs bottom first, and the layers stack in that
+    /// order, which is the stack's order (`place`).
+    pub fn stack_place<R>(&mut self, _place: usize, dialog: Id, show: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        let context = self.ctx().clone();
+        let outer = context.service::<StackPlace, _>(|now| now.0.replace(dialog));
+        let out = show(self);
+        context.service::<StackPlace, _>(|now| now.0 = outer);
+        out
+    }
 }

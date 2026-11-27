@@ -1,12 +1,11 @@
 //! The window's open layers as the layer queries read them (docs/contract-rt.md section 15.9): each layer child's
 //! `OpenEntry` (`LayerKept.entry`), bottom first, found in the ui-rt tree. A query is tracked through the window's
-//! open-layer cell, which the layer child's build writes when its entry changes and its owner writes when it stops
-//! showing it, so a reader runs again exactly when the stack changes.
+//! open-layer cell (ui-rt's `Env::layers`), which the layer child's build writes when its entry changes and ui-rt
+//! moves when a listed layer child goes, so a reader runs again exactly when the stack changes.
 
-use craft_ui_rt::{BuildCx, NodeId, Runtime, WindowId, Writes as _};
+use craft_ui_rt::{BuildCx, NodeId, Runtime, WindowId};
 
 use super::overlay::LayerScope;
-use crate::contract::context::Context;
 use crate::primitives::Id;
 use crate::runtime::overlay::{LayerRole, OpenEntry, OpenFilter};
 
@@ -74,22 +73,17 @@ pub(crate) fn in_top_modal(rt: &Runtime, node: NodeId) -> bool {
     layer_child_of(rt, node) == Some(top.node)
 }
 
-/// Registers a read of the window's open-layer cell for the node `cx` builds.
+/// Registers a read of the window's open-layer cell (ui-rt's `Env::layers`) for the node `cx` builds.
 pub(crate) fn track(cx: &mut BuildCx<'_>) {
-    if let Some(ctx) = cx.provided::<Context>() {
-        let cell = ctx.layers_cell(cx.store_mut());
-        cell.get(cx);
-    }
+    cx.env().layers.get(cx);
 }
 
-/// The open layers of the window changed (a layer child's entry was set, changed or left): every layer query reader
-/// runs again.
+/// The open layers of the window changed (a layer child's entry was set or changed): every layer query reader runs
+/// again. ui-rt moves the cell itself when a listed layer child goes.
 pub(crate) fn note_changed(cx: &mut BuildCx<'_>) {
-    if let Some(ctx) = cx.provided::<Context>() {
-        let cell = ctx.layers_cell(cx.store_mut());
-        let revision = *cx.store_mut().peek(cell) + 1;
-        cell.set(cx, revision);
-    }
+    let cell = cx.env().layers;
+    let revision = cx.peek_state(cell).wrapping_add(1);
+    cell.set(cx, revision);
 }
 
 /// The entry of the layer `id` names, among `open`.

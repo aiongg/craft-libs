@@ -51,6 +51,9 @@ pub struct Env {
     pub held_keys: State<Vec<crate::Key>>,
     /// Where the pointer is in the window and which buttons are down.
     pub pointer: State<PointerFacts>,
+    /// A revision of the window's listed layer children ([`crate::LayerSpec::listed`]): it moves when one goes, and
+    /// code that changes what a shown one lists writes it. A reader of the window's layer stack reads it.
+    pub layers: State<u64>,
 }
 
 /// The pointer as a window last saw it: written by the runtime's input handling, read through

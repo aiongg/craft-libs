@@ -7,6 +7,7 @@ use super::placement::PopupRegion;
 use super::popups::PopupHandle;
 use super::props::Overlay;
 use crate::contract::paint_ui::{UiHost, host_ui};
+use crate::contract::rt::memory::Memory;
 use crate::contract::rt::overlay::{BodyClose, LayerBody, LayerShow, PopupStates, Surface, show_layer_with};
 use crate::contract::{BodyCx, Component, Cx, Id, Inner, Resolved, ShowContainer, Ui};
 use crate::runtime::env::Env;
@@ -106,8 +107,13 @@ impl<'a> OverlayUi<'a> {
         mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
     ) -> Option<R> {
         let env = self.env.clone();
-        let mut content = PopupContent { body: &mut body, env: &env, resolved: self.resolved, id: sub(popup.id(), "body") };
-        self.show_layer(popup, &overlay, Surface::Popup, None, &mut content)
+        // The body's memory lives on the owner's node under the popup's id: closing the popup keeps it.
+        let memory = self.popups.take_body(popup.id());
+        let mut content = PopupContent { body: &mut body, env: &env, resolved: self.resolved, id: sub(popup.id(), "body"), memory: Some(memory) };
+        let shown = self.show_layer(popup, &overlay, Surface::Popup, None, &mut content);
+        let memory = content.memory.take().unwrap_or_default();
+        self.popups.put_body(popup.id(), memory);
+        shown
     }
 
     /// Shows `container` as the layer of `popup` while the popup is open: the container is the layer's content and
@@ -186,35 +192,44 @@ impl<'a> OverlayUi<'a> {
     }
 }
 
-/// A popup's body closure as a layer's content: it runs in the popup's env with a `BodyCx` on the layer's memory.
+/// A popup's body closure as a layer's content: it runs in the popup's env with a `BodyCx` on the body's memory, which
+/// the owner's node keeps under the popup's id (`PopupStates::take_body`).
 struct PopupContent<'b, R> {
     body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
     env: &'b Env,
     resolved: &'b Resolved<'b>,
     id: Id,
+    /// The body's memory, between runs of the body.
+    memory: Option<Memory>,
 }
 
 impl<R> PopupContent<'_, R> {
-    fn run(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage) -> (R, Option<CloseReason>) {
+    /// One run of the body; a measuring run writes nothing back to the session or saved tiers.
+    fn run(&mut self, ui: &mut Ui<'_, '_>, measuring: bool) -> (R, Option<CloseReason>) {
         let rect = ui.flow.region;
         let mut open = true;
+        let mut stage = MemoryStage::on_node(ui.ctx(), self.id, self.memory.take().unwrap_or_default());
+        if measuring {
+            stage = stage.peek_only();
+        }
         let (out, asked) = Env::run_in(ui, self.env.clone(), |ui| {
-            let mut bcx = BodyCx::new(self.id, self.env.view(), self.resolved, rect, memory, &mut open, None, None);
+            let mut bcx = BodyCx::new(self.id, self.env.view(), self.resolved, rect, &mut stage, &mut open, None, None);
             let out = (self.body)(ui, &mut bcx);
             (out, bcx.close_requested())
         });
+        self.memory = Some(stage.finish());
         (out, asked.or((!open).then_some(CloseReason::Requested)))
     }
 }
 
 impl<R> LayerBody<R> for PopupContent<'_, R> {
-    fn measure(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage) -> Vec2 {
-        self.run(ui, memory);
+    fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2 {
+        self.run(ui, true);
         ui.flow.content_size()
     }
 
-    fn show(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage, closed: &BodyClose) -> R {
-        let (out, close) = self.run(ui, memory);
+    fn show(&mut self, ui: &mut Ui<'_, '_>, closed: &BodyClose) -> R {
+        let (out, close) = self.run(ui, false);
         if close.is_some() && closed.get().is_none() {
             closed.set(close);
         }
@@ -231,13 +246,13 @@ struct ContainerContent<'b, C: ShowContainer, R> {
 }
 
 impl<C: ShowContainer, R> LayerBody<()> for ContainerContent<'_, C, R> {
-    fn measure(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage) -> Vec2 {
+    fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2 {
         let room = ui.flow.region.size();
         let body = &mut *self.body;
         self.container.as_mut().map_or(Vec2::ZERO, |container| container.measure_in(ui, Proposal::Ideal, |ui, cx| body(ui, cx)).min(room))
     }
 
-    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage, _: &BodyClose) {
+    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) {
         let rect = ui.flow.region;
         let body = &mut *self.body;
         if let Some(container) = self.container.take() {

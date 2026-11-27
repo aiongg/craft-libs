@@ -759,13 +759,13 @@ struct LayerContent<'s, 'b, C: Container, R> {
 }
 
 impl<C: Container, R> LayerBody<()> for LayerContent<'_, '_, C, R> {
-    fn measure(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage) -> Vec2 {
+    fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2 {
         let room = ui.flow.region.size();
         let body = &mut *self.body;
         self.slot.as_mut().map_or(Vec2::ZERO, |container| measure_container(container, ui, craft_behavior::Proposal::Ideal, body).min(room))
     }
 
-    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage, _: &BodyClose) {
+    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) {
         let rect = ui.flow.region;
         let place = Env::of(ui);
         self.shown = Some(show_container(self.slot, ui, (ShowAt::Rect(rect), place), self.body, None));

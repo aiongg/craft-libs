@@ -114,8 +114,6 @@ struct Shared {
     memory: RuntimeMemory,
     /// The window root's env cells, whose tokens and theme-base revisions the style caches are filled at.
     root_cells: Cell<Option<EnvCells>>,
-    /// The window's open-layer cell: its revision moves whenever a layer opens, changes or closes (`rt::layers`).
-    layers: Cell<Option<State<u64>>>,
     /// The window's `FocusedEdits` cell and the value last written to it (every write goes through
     /// [`Context::set_focused_edits`]), for code with no store at hand.
     focused_edits: Cell<Option<State<FocusedEdits>>>,
@@ -162,7 +160,6 @@ impl Context {
                 styles: StyleCaches::default(),
                 memory,
                 root_cells: Cell::new(None),
-                layers: Cell::new(None),
                 focused_edits: Cell::new(None),
                 focused_edits_value: Cell::new(FocusedEdits::NONE),
                 toasts: RefCell::new(super::rt::ToastQueue::new()),
@@ -449,18 +446,6 @@ impl Context {
         let mut services = self.shared.services.borrow_mut();
         let slot = services.entry(TypeId::of::<T>()).or_insert_with(|| Box::new(T::default()));
         f(slot.downcast_mut::<T>().expect("a service holds the type it was made with"))
-    }
-
-    /// The window's open-layer cell, made on first use.
-    pub(crate) fn layers_cell(&self, store: &mut craft_ui_rt::Store) -> State<u64> {
-        match self.shared.layers.get() {
-            Some(cell) => cell,
-            None => {
-                let cell = store.create(0);
-                self.shared.layers.set(Some(cell));
-                cell
-            }
-        }
     }
 
     /// The window's `FocusedEdits` cell, made on first use.

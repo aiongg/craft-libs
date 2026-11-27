@@ -275,6 +275,7 @@ impl Runtime {
             num_lock: self.store.create(false),
             held_keys: self.store.create(Vec::new()),
             pointer: self.store.create(crate::window::PointerFacts::default()),
+            layers: self.store.create(0),
         };
         let w = Window::new(window, env, viewport);
         let mut root = Node::new(None, None, window, 0, None, 0);
@@ -291,6 +292,7 @@ impl Runtime {
             env.num_lock.slot_ref(),
             env.held_keys.slot_ref(),
             env.pointer.slot_ref(),
+            env.layers.slot_ref(),
         ];
         self.tree.nodes.insert(w.root, root);
         for (layer, id) in Layer::ALL.into_iter().zip(w.layers) {
@@ -427,6 +429,11 @@ impl Runtime {
     /// `node`'s parent: its layer for a layer child, the layer's window root for a layer.
     pub fn parent(&self, node: NodeId) -> Option<NodeId> {
         self.tree.nodes.get(&node)?.parent
+    }
+
+    /// The node whose build shows `node` (for a layer child, the node it hangs from in the tree of builds).
+    pub fn owner(&self, node: NodeId) -> Option<NodeId> {
+        self.tree.nodes.get(&node).and_then(|n| n.owner)
     }
 
     /// `node`'s children in order (a layer's children are its layer children, bottom first).
@@ -966,8 +973,14 @@ impl Runtime {
             if let Some(w) = self.windows.get_mut(&node.window) {
                 w.damage.extend(node.abs);
                 w.changes.removed.push(id);
-                if w.layered.remove(&id).is_some() {
+                if let Some(spec) = w.layered.remove(&id) {
                     w.relayout = true;
+                    // A window that goes frees its env cells first.
+                    if spec.listed && self.tree.nodes.contains_key(&w.root) {
+                        let cell = w.env.layers;
+                        let revision = self.store.peek(cell).wrapping_add(1);
+                        cell.set(&mut self.store, revision);
+                    }
                 }
             }
         }
