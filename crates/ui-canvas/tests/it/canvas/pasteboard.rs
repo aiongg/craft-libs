@@ -276,7 +276,7 @@ fn pasteboard_shapes(pages: Vec<PageFrame>, shows_outside: bool) -> (CanvasView,
             let pasteboard = Pasteboard::new("Pasteboard", &pages);
             let _ = if shows_outside { pasteboard.shows_outside() } else { pasteboard }.show_at(ui, body.rect);
             let paint = AppPaint::new(|painter, view: CanvasView| {
-                painter.painter.add(Shape::rect_filled(view.rect, 0.0, PICTURE));
+                painter.painter.rect_filled(view.rect, 0.0, PICTURE);
             });
             RasterDisplay::painted("Picture", PixelSize::new(400, 300), paint).picture().show_at(ui, body.rect);
         });

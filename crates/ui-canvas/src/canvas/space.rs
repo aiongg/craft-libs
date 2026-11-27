@@ -173,7 +173,7 @@ impl CanvasSpace {
     /// paints nothing.
     pub fn paint_picture(&self, ctx: &egui::Context, shapes: Vec<egui::Shape>) {
         if let Some(slot) = self.picture {
-            slot.extend(ctx, shapes);
+            slot.extend_shapes(ctx, shapes);
         }
     }
 

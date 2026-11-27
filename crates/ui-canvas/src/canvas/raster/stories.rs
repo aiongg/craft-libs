@@ -6,13 +6,13 @@ use crate::canvas::testing::canvas_story::{StoryPicture, on_canvas_view, story_v
 use crate::canvas::{AppPaint, PageFrame, Pasteboard, PixelRect};
 use crate::canvas_controls::PixelGrid;
 use crate::contract::Show as _;
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::primitives::{Checker, ContentPainterCx};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point, Rect as Rect64};
 use craft_behavior::{CanvasView, PixelSize};
-use egui::epaint::{Mesh, Vertex};
-use egui::{Color32, Rect, Shape, Ui};
+use egui::{Color32, Rect, Ui};
 
 /// The document's size in pixels.
 const DOCUMENT: PixelSize = PixelSize::new(640, 400);
@@ -51,12 +51,12 @@ fn paint_gradient_moved(painter: &ContentPainterCx<'_>, view: CanvasView, moved:
         mesh.vertices.extend(corners.map(|p| Vertex {
             pos: view.to_screen(moved(p)),
             uv: egui::epaint::WHITE_UV,
-            color: Color32::from_rgb(level(p), 160, u8::MAX - level(p)),
+            color: items::rgba(Color32::from_rgb(level(p), 160, u8::MAX - level(p))),
         }));
         mesh.indices.extend([0, 1, 2, 0, 2, 3]);
-        Shape::mesh(mesh)
+        items::mesh(mesh)
     });
-    painter.data_shapes(shapes);
+    painter.data_items(shapes.into_iter().flatten());
 }
 
 /// The checkerboard cell sizes the stories offer.

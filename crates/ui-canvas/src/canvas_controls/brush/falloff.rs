@@ -3,10 +3,11 @@
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use crate::primitives::PaintShape;
+use crate::primitives::items::{self, Mesh};
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{Input, Metrics};
-use egui::{Color32, Mesh, Pos2, Rect, Response, Shape, vec2};
+use egui::{Color32, Pos2, Rect, Response, vec2};
 
 /// The share of the bad tone's solid colour the preview is tinted with when the app gives no colour.
 const TINT_SHARE: f32 = 0.43;
@@ -89,10 +90,10 @@ impl TipFalloff {
         }
         let n = ((outer * SEGMENTS_PER_POINT) as usize).clamp(LEAST_SEGMENTS, MOST_SEGMENTS);
         let mut mesh = Mesh::default();
-        mesh.colored_vertex(centre, tint);
+        mesh.colored_vertex(centre, items::rgba(tint));
         for (k, &coverage) in self.coverage.iter().enumerate() {
             let d = (self.core + (self.reach - self.core) * k as f64 / Self::RINGS as f64) as f32 * zoom;
-            let colour = if k == Self::RINGS { Color32::TRANSPARENT } else { tint.gamma_multiply(coverage) };
+            let colour = items::rgba(if k == Self::RINGS { Color32::TRANSPARENT } else { tint.gamma_multiply(coverage) });
             for j in 0..n {
                 let a = j as f32 / n as f32 * std::f32::consts::TAU;
                 mesh.colored_vertex(centre + vec2(a.cos(), a.sin()) * d, colour);
@@ -166,7 +167,7 @@ impl Component for FalloffPreview<'_> {
         let zoom = space.view.zoom as f32;
         let tint = self.tint.map_or_else(|| cx.style.tint.egui(), |tint| tint.0);
         if let Some(mesh) = self.falloff.mesh(centre, zoom, tint, painter.painter.clip_rect()) {
-            painter.painter.add(Shape::mesh(mesh));
+            painter.painter.extend(items::mesh(mesh));
         }
         let radius = self.ring as f32 * zoom;
         if radius.is_finite() && radius > 0.0 {

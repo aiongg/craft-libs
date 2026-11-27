@@ -14,7 +14,7 @@ use crate::style::TypeRole;
 use crate::tabs::{Tab, TabKind, TabStrip};
 use crate::tile_grid::{CardText, Tile, TileGrid};
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SelectionChange, keyed};
-use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, vec2};
+use egui::{CornerRadius, Rect, StrokeKind, Ui, vec2};
 use std::borrow::Cow;
 use std::cell::Cell;
 
@@ -386,8 +386,7 @@ fn tile_of<S: DocumentSettings>(card: &DocumentCard<S>, look: PresetCardLook) ->
 /// A page icon inside the tile's picture, in content ink so the tile alone draws the selection ring.
 fn paint_page(painter: &ContentPainterCx<'_>, picture: Rect, (width, height): (f64, f64)) {
     let page = page_rect(picture, width, height);
-    let stroke = Stroke::new(painter.stroke_width(StrokeWidth::Thin), painter.ink());
-    painter.painter.rect_stroke(page, CornerRadius::ZERO, stroke, StrokeKind::Inside);
+    painter.painter.rect_stroke(page, CornerRadius::ZERO, painter.stroke_width(StrokeWidth::Thin), painter.ink(), StrokeKind::Inside);
 }
 
 /// The page's aspect inside `room`, capped at the 30-point size of the original outline.

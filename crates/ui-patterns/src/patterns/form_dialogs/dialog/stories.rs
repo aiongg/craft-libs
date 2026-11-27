@@ -13,7 +13,7 @@ use crate::sections::{DialogRole, FooterButton};
 use crate::style::DataColor;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::load::SizedTexture;
-use egui::{Color32, ColorImage, Rect, Stroke, Ui, Vec2};
+use egui::{Color32, ColorImage, Rect, Ui, Vec2};
 
 const SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","smooth":bool}"#;
 
@@ -241,10 +241,10 @@ fn pager() -> PanePager {
 
 /// The host's drawing over the preview picture: the picture's edge in the surface's ink.
 fn outline(cx: &ContentPainterCx, rect: Rect) {
-    let stroke = Stroke::new(cx.stroke_width(StrokeWidth::Thin), cx.ink());
+    let (width, ink) = (cx.stroke_width(StrokeWidth::Thin), cx.ink());
     let [top_left, top_right, bottom_right, bottom_left] = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()];
     for edge in [[top_left, top_right], [top_right, bottom_right], [bottom_right, bottom_left], [bottom_left, top_left]] {
-        cx.painter.line_segment(edge, stroke);
+        cx.painter.line_segment(edge, width, ink);
     }
 }
 

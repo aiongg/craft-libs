@@ -21,8 +21,8 @@ pub(crate) mod stories;
 pub use detail::{DetailPlan, snap_to_texels};
 
 use super::{AppPaint, PixelRect, RasterSource, canvas_space};
-use crate::contract::MemoProps as _;
 use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
+use crate::primitives::items::{self, Item, Mesh, Vertex};
 use crate::primitives::textures::UNTINTED;
 use crate::primitives::{
     CachedTexture, Checker, CheckerArea, Draw, Revision, RuleKind, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side,
@@ -34,8 +34,7 @@ use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point as Point64, Rect as Rect64};
 use craft_behavior::{CanvasView, Metrics, PixelSize};
 use detail::{texel_extent, texel_origin};
-use egui::epaint::{Mesh, Vertex};
-use egui::{Color32, ColorImage, Context, Id, Pos2, Response, Shape, TextureFilter, TextureOptions, Vec2, pos2};
+use egui::{Color32, ColorImage, Context, Id, Pos2, Response, TextureFilter, TextureOptions, Vec2, pos2};
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
@@ -560,7 +559,7 @@ impl Component for RasterDisplay<'_> {
             // A light cell sits at the picture's top-left corner on screen, wherever the view puts the picture.
             let origin = corners.map_or(shown.view.rect.min, |corners| corners[0]);
             for area in areas.into_iter().flatten() {
-                painter.painter.add(checker.shape(painter.painter, &ui.env.tokens, CheckerArea::Quad(area), origin));
+                painter.painter.extend(checker.items(painter.painter, &ui.env.tokens, CheckerArea::Quad(area), origin));
             }
         }
         // The region's colour past the document, over the checkerboard and under the picture. Only a region reaches
@@ -568,14 +567,14 @@ impl Component for RasterDisplay<'_> {
         if let Some(fill) = self.region_fill {
             for band in ring(shown.bounds, PixelRect::of_size(shown.size)) {
                 let band = Rect64::new(f64::from(band.x0), f64::from(band.y0), f64::from(band.x1), f64::from(band.y1));
-                painter.painter.add(Shape::convex_polygon(shown.view.quad(band).to_vec(), fill, egui::Stroke::NONE));
+                painter.painter.extend(items::convex_polygon(&shown.view.quad(band), fill, None));
             }
         }
         match (&mut self.picture, &shown.textures, &self.mapping) {
             (Picture::Source(_), Some(textures), Some(mapping)) => {
                 let (texture, factor) = textures.base;
                 for offset in shown.tiles.offsets() {
-                    painter.painter.add(mapped_mesh(&shifted(shown.view, offset), texture, factor, shown.size, mapping));
+                    painter.painter.extend(mapped_mesh(&shifted(shown.view, offset), texture, factor, shown.size, mapping));
                 }
             }
             (picture, textures, _) => {
@@ -585,9 +584,9 @@ impl Component for RasterDisplay<'_> {
                         (Picture::Painted { paint, .. }, _) => paint.paint(&painter, view),
                         (Picture::Source(_), Some(textures)) => {
                             let (texture, factor) = textures.base;
-                            painter.painter.add(textured_quad(&view, texture, factor, shown.bounds));
+                            painter.painter.extend(textured_quad(&view, texture, factor, shown.bounds));
                             if let Some((texture, plan)) = textures.detail {
-                                painter.painter.add(textured_quad(&view, texture, plan.factor, plan.region));
+                                painter.painter.extend(textured_quad(&view, texture, plan.factor, plan.region));
                             }
                         }
                         (Picture::Source(_), None) => {}
@@ -633,20 +632,20 @@ fn edge(draw: &Draw<'_>, corners: [Pos2; 4]) {
 
 /// `texture`, which holds `region` of the document from its top left at one texel per `factor` pixels, as a quad on
 /// the view's mapped corners of `region`.
-fn textured_quad(view: &CanvasView, texture: CachedTexture, factor: u32, region: PixelRect) -> Shape {
+fn textured_quad(view: &CanvasView, texture: CachedTexture, factor: u32, region: PixelRect) -> Option<Item> {
     let (texels_x, texels_y) = (texture.size.width as f32 * factor as f32, texture.size.height as f32 * factor as f32);
     let (u, v) = (region.width() as f32 / texels_x, region.height() as f32 / texels_y);
     let corners = view.quad(Rect64::new(f64::from(region.x0), f64::from(region.y0), f64::from(region.x1), f64::from(region.y1)));
     let uv = [pos2(0.0, 0.0), pos2(u, 0.0), pos2(u, v), pos2(0.0, v)];
-    let mut mesh = Mesh::with_texture(texture.id);
-    mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: UNTINTED }));
+    let mut mesh = Mesh::with_texture(texture.key());
+    mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: items::rgba(UNTINTED) }));
     mesh.indices.extend([0, 1, 2, 0, 2, 3]);
-    Shape::mesh(mesh)
+    items::mesh(mesh)
 }
 
 /// `texture`, which holds the whole document at one texel per `factor` pixels, as a mesh of `mapping.cells` squared
 /// cells through the mapping's frame. A cell whose centre lies outside the frame's unit square is left out.
-fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: PixelSize, mapping: &Mapping) -> Shape {
+fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: PixelSize, mapping: &Mapping) -> Option<Item> {
     let n = mapping.cells;
     let (texels_x, texels_y) = (texture.size.width as f32 * factor as f32, texture.size.height as f32 * factor as f32);
     let (u, v) = (size.width as f32 / texels_x, size.height as f32 / texels_y);
@@ -655,12 +654,12 @@ fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: Pix
         let p = mapping.frame.apply(Point64::new(placed.x0 + s * placed.width(), placed.y0 + t * placed.height()));
         view.to_screen(p)
     };
-    let mut mesh = Mesh::with_texture(texture.id);
+    let mut mesh = Mesh::with_texture(texture.key());
     for j in 0..=n {
         for i in 0..=n {
             let (s, t) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
             let uv = pos2(s as f32 * u, t as f32 * v);
-            mesh.vertices.push(Vertex { pos: at(s, t), uv, color: UNTINTED });
+            mesh.vertices.push(Vertex { pos: at(s, t), uv, color: items::rgba(UNTINTED) });
         }
     }
     let row = n + 1;
@@ -676,7 +675,7 @@ fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: Pix
             mesh.add_triangle(a, a + row + 1, a + row);
         }
     }
-    Shape::mesh(mesh)
+    items::mesh(mesh)
 }
 
 impl crate::contract::MemoProps for Picture<'_> {

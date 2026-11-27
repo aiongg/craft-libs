@@ -1,6 +1,5 @@
 //! `HoverMask`: an object's coverage, reduced for the hover tint.
 
-use crate::contract::MemoProps as _;
 use crate::primitives::Serials;
 use craft_behavior::kurbo::Rect;
 use std::sync::Arc;

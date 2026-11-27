@@ -223,7 +223,7 @@ fn paint_slices(painter: &ContentPainterCx<'_>, view: CanvasTransform, picture: 
         let rect = Rect::from_min_max(picture.min + slice.rect.min.to_vec2() * view.scale, picture.min + slice.rect.max.to_vec2() * view.scale);
         let width = if chosen.contains(&slice.number) { thick } else { thin };
         let corners = vec![rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()];
-        painter.painter.add(egui::Shape::closed_line(corners, egui::Stroke::new(width, ink)));
+        painter.painter.closed_line(&corners, width, ink);
         let number = slice.number.to_string();
         let inset = painter.style_cx().tokens.space.gap.tight;
         painter.with_draw(|draw| {

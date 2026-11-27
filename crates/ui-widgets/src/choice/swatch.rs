@@ -8,6 +8,7 @@ use crate::contract::{
     Access, Activation, Common, Component, Cx, DisabledLook, GroupHandle, MeasureCx, Meta as _, Outcome, PaintUi, Pointer as _, Props as _, Role,
     Sizing, Styled as _, WordSetCx as _,
 };
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::primitives::textures::UNTINTED;
 use crate::primitives::{Checker, ContentPainterCx, DataWidth, Draw, FacePaint, IconSpec, PaintShape, StrokeWidth, WellFill};
 use crate::runtime::focus::FocusShape;
@@ -15,7 +16,7 @@ use crate::runtime::requests::ColorRequest;
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{IconId, Metrics, Mixed, Sense, Value};
 use craft_theme::{Hsb, Rgba, Srgba, Stateful, States, over};
-use egui::{Color32, ColorImage, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, pos2};
+use egui::{Color32, ColorImage, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
@@ -661,7 +662,7 @@ impl Face<'_> {
             SwatchFill::Spectrum => {
                 let mesh = spectrum_mesh(well.center(), &self.corners(well));
                 match self.shape {
-                    SwatchShape::Hexagon => painter.data_shapes([Shape::mesh(mesh)]),
+                    SwatchShape::Hexagon => painter.data_items(items::mesh(mesh)),
                     SwatchShape::Square | SwatchShape::Round => painter.mesh_in(well, self.radius(well), mesh),
                 }
             }
@@ -672,15 +673,15 @@ impl Face<'_> {
                 match self.shape {
                     SwatchShape::Hexagon => {
                         let corners = hexagon(well);
-                        let mut mesh = Mesh::with_texture(egui::TextureId::User(texture.0));
+                        let mut mesh = Mesh::with_texture(texture);
                         for &pos in &corners {
                             let at = (pos - well.min) / well.size();
-                            mesh.vertices.push(egui::epaint::Vertex { pos, uv: uv.lerp_inside(at), color: UNTINTED });
+                            mesh.vertices.push(Vertex { pos, uv: uv.lerp_inside(at), color: items::rgba(UNTINTED) });
                         }
                         for k in 1..corners.len() as u32 - 1 {
                             mesh.add_triangle(0, k, k + 1);
                         }
-                        painter.data_shapes([Shape::mesh(mesh)]);
+                        painter.data_items(items::mesh(mesh));
                     }
                     SwatchShape::Square | SwatchShape::Round => painter.picture(texture, well, uv, f32::from(self.radius(well).nw)),
                 }
@@ -718,7 +719,7 @@ fn spectrum_mesh(centre: Pos2, corners: &[Pos2]) -> Mesh {
     let hue = |pos: Pos2| {
         let d = pos - centre;
         let degrees = d.x.atan2(-d.y).to_degrees().rem_euclid(360.0);
-        Color32::from(Srgba::from_hsb(Hsb { h: degrees, s: 1.0, b: 1.0 }))
+        items::rgba(Color32::from(Srgba::from_hsb(Hsb { h: degrees, s: 1.0, b: 1.0 })))
     };
     let rim: Vec<Pos2> = corners
         .iter()

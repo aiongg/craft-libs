@@ -425,12 +425,12 @@ impl Mark {
         let offset = RESTORE_OFFSET * scale;
         match self.caption {
             Caption::Minimize => {
-                painter.line_segment([rect.left_center(), rect.right_center()], stroke);
+                painter.line_segment([rect.left_center(), rect.right_center()], stroke.width, stroke.color);
             }
             // Restore: a front square with the corner of the one behind it.
             Caption::Maximize if self.maximized => {
                 let front = Rect::from_min_max(rect.min + vec2(0.0, offset), rect.max - vec2(offset, 0.0));
-                painter.rect_stroke(front, 0.0, stroke, StrokeKind::Middle);
+                painter.rect_stroke(front, 0.0, stroke.width, stroke.color, StrokeKind::Middle);
                 let back = vec![
                     rect.min + vec2(offset, offset),
                     rect.min + vec2(offset, 0.0),
@@ -438,14 +438,14 @@ impl Mark {
                     rect.max - vec2(0.0, offset),
                     rect.max - vec2(offset, offset),
                 ];
-                painter.line(back, stroke);
+                painter.line(&back, stroke.width, stroke.color);
             }
             Caption::Maximize => {
-                painter.rect_stroke(rect, 0.0, stroke, StrokeKind::Middle);
+                painter.rect_stroke(rect, 0.0, stroke.width, stroke.color, StrokeKind::Middle);
             }
             Caption::Close => {
-                painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-                painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
+                painter.line_segment([rect.left_top(), rect.right_bottom()], stroke.width, stroke.color);
+                painter.line_segment([rect.right_top(), rect.left_bottom()], stroke.width, stroke.color);
             }
             _ => {}
         }
@@ -481,13 +481,13 @@ impl Mark {
             let line = Stroke::new(BREEZE_STROKE * scale, color);
             match self.caption {
                 Caption::Minimize => {
-                    painter.line(BREEZE_MINIMIZE.map(at).to_vec(), line);
+                    painter.line(&BREEZE_MINIMIZE.map(at), line.width, line.color);
                 }
                 Caption::Maximize if self.maximized => {
-                    painter.add(egui::Shape::closed_line(BREEZE_RESTORE.map(at).to_vec(), line));
+                    painter.closed_line(&BREEZE_RESTORE.map(at), line.width, line.color);
                 }
                 Caption::Maximize => {
-                    painter.line(BREEZE_MAXIMIZE.map(at).to_vec(), line);
+                    painter.line(&BREEZE_MAXIMIZE.map(at), line.width, line.color);
                 }
                 Caption::Close => self.cross(painter, BREEZE_CLOSE, at, Stroke::new(BREEZE_CLOSE_STROKE * scale, color)),
                 _ => {}
@@ -502,7 +502,7 @@ impl Mark {
             Caption::Maximize => {
                 let (from, to) = if self.maximized { ADWAITA_RESTORE } else { ADWAITA_MAXIMIZE };
                 let square = Rect::from_min_max(at((from, from)), at((to, to)));
-                painter.rect_stroke(square, 0.0, Stroke::new(ADWAITA_FRAME_STROKE * scale, color), StrokeKind::Inside);
+                painter.rect_stroke(square, 0.0, ADWAITA_FRAME_STROKE * scale, color, StrokeKind::Inside);
             }
             Caption::Close => self.cross(painter, ADWAITA_CLOSE, at, Stroke::new(ADWAITA_CLOSE_STROKE * scale, color)),
             _ => {}
@@ -512,7 +512,7 @@ impl Mark {
     /// The cross whose diagonal runs between the two points of `corners`.
     fn cross(&self, painter: &Canvas<'_>, corners: [(f32, f32); 2], at: impl Fn((f32, f32)) -> Pos2, stroke: Stroke) {
         let [(x0, y0), (x1, y1)] = corners;
-        painter.line_segment([at((x0, y0)), at((x1, y1))], stroke);
-        painter.line_segment([at((x1, y0)), at((x0, y1))], stroke);
+        painter.line_segment([at((x0, y0)), at((x1, y1))], stroke.width, stroke.color);
+        painter.line_segment([at((x1, y0)), at((x0, y1))], stroke.width, stroke.color);
     }
 }

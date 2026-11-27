@@ -9,6 +9,7 @@ use crate::contract::{
 use crate::display::{Progress, Text};
 use crate::layout_components::Row;
 use crate::primitives::ContentPainterCx;
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::runtime::access::Access;
 use crate::runtime::env::{Env, Label, UnitKind};
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
@@ -19,7 +20,7 @@ use craft_behavior::{
 };
 
 use egui::load::SizedTexture;
-use egui::{Mesh, Pos2, Rect, Response, Shape, Ui, Vec2, pos2};
+use egui::{Pos2, Rect, Response, Ui, Vec2, pos2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]
@@ -607,9 +608,18 @@ impl Component for PreviewPane<'_> {
                         match self.tint {
                             // The tint multiplies the mesh's vertex colours; as data, a Disabled pane still dims it.
                             Some(tint) => {
-                                let mut mesh = Mesh::with_texture(texture.id);
-                                mesh.add_rect_with_uv(visible, uv, tint.0);
-                                painter.data_shapes([Shape::mesh(mesh)]);
+                                let mut mesh = Mesh::with_texture(crate::primitives::texture_key(texture.id));
+                                let color = items::rgba(tint.0);
+                                for (pos, uv) in [
+                                    (visible.left_top(), uv.left_top()),
+                                    (visible.right_top(), uv.right_top()),
+                                    (visible.left_bottom(), uv.left_bottom()),
+                                    (visible.right_bottom(), uv.right_bottom()),
+                                ] {
+                                    mesh.vertices.push(Vertex { pos, uv, color });
+                                }
+                                mesh.indices = vec![0, 1, 2, 2, 1, 3];
+                                painter.data_items(items::mesh(mesh));
                             }
                             None => painter.picture(crate::primitives::texture_key(texture.id), visible, uv, 0.0),
                         }

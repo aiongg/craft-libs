@@ -511,7 +511,7 @@ impl Component for Pasteboard<'_> {
                 let look = RuleLook { color: rule, width: if hairline { RuleWidth::Hairline } else { RuleWidth::Points(style.edge) } };
                 let corners = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()];
                 for (from, to) in corners.into_iter().zip(corners.into_iter().cycle().skip(1)) {
-                    edges.painter.extend(Rule::shapes(&look, from, to, edges.pixels_per_point()));
+                    edges.painter.extend(Rule::items(&look, from, to, edges.pixels_per_point()));
                 }
             } else {
                 draw.stroke(&polygon(quad), if hairline { StrokeWidth::Hairline } else { StrokeWidth::Thin }, color);
@@ -530,8 +530,8 @@ impl Component for Pasteboard<'_> {
             match page.fill {
                 Some(PageFill::Color(color)) => draw.data_fill(&polygon(&quad), color),
                 Some(PageFill::Checker(checker)) => {
-                    let grid = checker.shape(edges.painter, &ui.env.tokens, CheckerArea::Quad(quad), page_corner(&view, page));
-                    edges.painter.add(grid);
+                    let grid = checker.items(edges.painter, &ui.env.tokens, CheckerArea::Quad(quad), page_corner(&view, page));
+                    edges.painter.extend(grid);
                 }
                 None => {}
             }

@@ -7,7 +7,6 @@ use crate::canvas::AppPaint;
 use crate::canvas::zoom_motion::{self, Steer};
 use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommands, WheelAction, WheelNavigation, WheelScheme};
 use crate::canvas_data::ProxyColor;
-use crate::contract::MemoProps as _;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi,
     PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,

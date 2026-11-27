@@ -387,6 +387,11 @@ impl<'a> Canvas<'a> {
         self.extend(super::items::polyline(points, false, super::items::stroke(width, color, craft_ui_rt::StrokeAlign::Middle)));
     }
 
+    /// The closed line through `points`, `width` wide, centred on it.
+    pub fn closed_line(&self, points: &[Pos2], width: f32, color: Color32) {
+        self.extend(super::items::polyline(points, true, super::items::stroke(width, color, craft_ui_rt::StrokeAlign::Middle)));
+    }
+
     /// A line segment `width` wide.
     pub fn line_segment(&self, [from, to]: [Pos2; 2], width: f32, color: Color32) {
         self.extend(super::items::segment(from, to, width, color));
@@ -400,9 +405,9 @@ pub fn image_key<K: std::hash::Hash + 'static>(key: &K) -> ImageKey {
 
 /// The display-list name of an egui texture, until the texture store sits on the frame's `ImageStore`: a managed id
 /// keeps its number.
-pub fn texture_key(id: TextureId) -> ImageKey {
+pub fn texture_key(id: egui::TextureId) -> ImageKey {
     match id {
-        TextureId::User(id) | TextureId::Managed(id) => ImageKey(id),
+        egui::TextureId::User(id) | egui::TextureId::Managed(id) => ImageKey(id),
     }
 }
 

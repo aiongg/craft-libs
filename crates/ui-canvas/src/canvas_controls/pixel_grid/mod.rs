@@ -12,13 +12,14 @@ pub(crate) mod stories;
 
 use crate::canvas::{PixelRect, RasterSource, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use crate::primitives::items::Item;
 use crate::primitives::{ContentPainterCx, Revision, Rule};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, RuleLook, RuleWidth, StyleCx};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Input, Metrics};
-use egui::{Color32, ColorImage, Response, Shape};
+use egui::{Color32, ColorImage, Response};
 use std::sync::Arc;
 
 /// One grid line piece in document pixels, axis-aligned, with its colour.
@@ -241,10 +242,10 @@ impl<'a> PixelGrid<'a> {
     }
 }
 
-fn paint_segment(painter: &ContentPainterCx<'_>, view: &CanvasView, segment: &GridSegment) -> Vec<Shape> {
+fn paint_segment(painter: &ContentPainterCx<'_>, view: &CanvasView, segment: &GridSegment) -> Vec<Item> {
     let point = |p: [i32; 2]| view.to_screen(Point::new(f64::from(p[0]), f64::from(p[1])));
     let ppp = painter.pixels_per_point();
-    Rule::shapes(&RuleLook { color: segment.color, width: RuleWidth::Hairline }, point(segment.from), point(segment.to), ppp)
+    Rule::items(&RuleLook { color: segment.color, width: RuleWidth::Hairline }, point(segment.from), point(segment.to), ppp)
 }
 
 impl Component for PixelGrid<'_> {

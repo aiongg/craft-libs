@@ -9,10 +9,9 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::{Checker, Revision};
 use craft_ui::style::DataColor;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Color32, ColorImage, Mesh, PaintCallback, Pos2, Rect, Shape, TextureId, Vec2};
+use egui::{Color32, ColorImage, Mesh, Pos2, Rect, Shape, TextureId, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 /// The canvas the display is shown in, in points.
 const CANVAS: Vec2 = Vec2::new(800.0, 600.0);
@@ -153,21 +152,19 @@ fn the_checkerboard_starts_with_a_light_cell_at_the_document_corner() {
 
 /// A canvas at 800 percent whose body shows, as a document canvas does, the pasteboard with the document's page and
 /// its shadow, a display of `document` with the checkerboard and the edge, and the pixel grid over it. While `painted`
-/// is set the display is a painted one: the app's paint adds a GPU paint callback, as an app with its own compositor
-/// does, and counts its calls in `paints`.
+/// is set the display is a painted one: the app's paint fills the view with [`APP_PAINT`], standing in for an app's own compositor, and counts its calls in `paints`.
 fn document_canvas(document: Rc<Document>, painted: Rc<Cell<bool>>, paints: Rc<Cell<usize>>) -> Fixture {
     let size = document.size;
     let center = Point::new(f64::from(size.width) / 2.0, f64::from(size.height) / 2.0);
     let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), center, 8.0);
     let pages = [PageFrame::new(Rect64::new(0.0, 0.0, f64::from(size.width), f64::from(size.height)))];
-    let callback: Arc<dyn std::any::Any + Send + Sync> = Arc::new(());
     let mut fixture = Fixture::new(move |ui| {
         Canvas::new("Document").view(view).show(ui, |ui, body| {
             let _ = Pasteboard::new("Pasteboard", &pages).show_at(ui, body.rect);
             let display = if painted.get() {
                 let paint = AppPaint::new(|painter, view: CanvasView| {
                     paints.set(paints.get() + 1);
-                    painter.painter.add(Shape::Callback(PaintCallback { rect: view.rect, callback: Arc::clone(&callback) }));
+                    painter.painter.rect_filled(view.rect, 0.0, APP_PAINT);
                 });
                 RasterDisplay::painted("Picture", size, paint)
             } else {
@@ -190,8 +187,8 @@ fn a_painted_display_draws_the_same_surround_as_a_source_display() {
     painted.set(false);
     fixture.settle();
     let from_source = fixture.frame_shapes();
-    let callbacks: Vec<usize> = from_app.iter().enumerate().filter_map(|(at, shape)| matches!(shape, Shape::Callback(_)).then_some(at)).collect();
-    let [at] = callbacks[..] else { panic!("the app's paint is in the frame once: {callbacks:?}") };
+    let app: Vec<usize> = from_app.iter().enumerate().filter_map(|(at, shape)| app_painted(shape).then_some(at)).collect();
+    let [at] = app[..] else { panic!("the app's paint is in the frame once: {app:?}") };
     let (under, over) = (&from_app[..at], &from_app[at + 1..]);
     assert!(!under.is_empty() && !over.is_empty(), "the shadow and the checkerboard paint under the picture, the edge and the grid over it");
     // The document fits one texture at one texel per pixel, so the source's picture is one textured quad.
@@ -220,7 +217,7 @@ fn a_painted_display_paints_once_a_frame() {
 
 /// A canvas looking at `center` at `zoom` that shows a display of `document` with the checkerboard, the edge,
 /// `extent` and, if given, mapped through `frame`: a source display, or, while `painted` is set, a painted one whose
-/// paint adds a GPU paint callback and records the view of each call in `paints`.
+/// paint fills the view with [`APP_PAINT`] and records the view of each call in `paints`.
 fn extent_canvas(
     document: Rc<Document>,
     center: Point,
@@ -231,13 +228,12 @@ fn extent_canvas(
     paints: Rc<RefCell<Vec<CanvasView>>>,
 ) -> Fixture {
     let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), center, zoom);
-    let callback: Arc<dyn std::any::Any + Send + Sync> = Arc::new(());
     let mut fixture = Fixture::new(move |ui| {
         Canvas::new("Document").view(view).show(ui, |ui, body| {
             let display = if painted {
                 let paint = AppPaint::new(|painter, view: CanvasView| {
                     paints.borrow_mut().push(view);
-                    painter.painter.add(Shape::Callback(PaintCallback { rect: view.rect, callback: Arc::clone(&callback) }));
+                    painter.painter.rect_filled(view.rect, 0.0, APP_PAINT);
                 });
                 RasterDisplay::painted("Picture", document.size, paint)
             } else {
@@ -302,7 +298,7 @@ fn pictures(
     };
     let last_picture = shapes
         .iter()
-        .rposition(|shape| matches!(shape, Shape::Callback(_)) || matches!(shape, Shape::Mesh(mesh) if mesh.texture_id != TextureId::default()))
+        .rposition(|shape| app_painted(shape) || matches!(shape, Shape::Mesh(mesh) if mesh.texture_id != TextureId::default()))
         .unwrap_or(0);
     let after = shapes[last_picture + 1..].iter().fold(Rect::NOTHING, |all, shape| all.union(shape.visual_bounding_rect()));
     (placed, checker, after)
@@ -426,13 +422,11 @@ fn region_fill_shapes(document: &Rc<Document>, extent: Extent, fill: Option<Colo
     let center = Point::new(70.0, 45.0);
     let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), center, 2.0);
     let document = Rc::clone(document);
-    let callback: Arc<dyn std::any::Any + Send + Sync> = Arc::new(());
     let mut fixture = Fixture::new(move |ui| {
         Canvas::new("Document").view(view).show(ui, |ui, body| {
             let display = if painted {
-                let callback = Arc::clone(&callback);
                 let paint = AppPaint::new(move |painter, view: CanvasView| {
-                    painter.painter.add(Shape::Callback(PaintCallback { rect: view.rect, callback: Arc::clone(&callback) }));
+                    painter.painter.rect_filled(view.rect, 0.0, APP_PAINT);
                 });
                 RasterDisplay::painted("Picture", document.size, paint)
             } else {
@@ -471,9 +465,8 @@ fn a_region_fill_shows_past_the_document_under_the_picture() {
         let first_fill = shapes.iter().position(filled).expect("a fill");
         let last_fill = shapes.iter().rposition(filled).expect("a fill");
         let checker = shapes.iter().position(|shape| matches!(shape, Shape::Mesh(mesh) if mesh.texture_id != TextureId::default()));
-        let picture = shapes
-            .iter()
-            .rposition(|shape| matches!(shape, Shape::Callback(_)) || matches!(shape, Shape::Mesh(mesh) if mesh.texture_id != TextureId::default()));
+        let picture =
+            shapes.iter().rposition(|shape| app_painted(shape) || matches!(shape, Shape::Mesh(mesh) if mesh.texture_id != TextureId::default()));
         assert!(checker.is_some_and(|c| c < first_fill), "painted {painted}: over the checkerboard");
         assert!(picture.is_some_and(|p| last_fill < p), "painted {painted}: under the picture");
 
@@ -542,6 +535,14 @@ fn a_picture_in_the_canvas_slot_shows_its_own_colour_over_the_pasteboard() {
 /// The picture's own colour.
 const PICTURE: Color32 = Color32::from_rgb(204, 128, 77);
 
+/// The colour a painted display's app paint fills its view with: no other part of the canvas paints it.
+const APP_PAINT: Color32 = Color32::from_rgb(3, 141, 59);
+
+/// Whether `shape` is the app's paint of a painted display.
+fn app_painted(shape: &Shape) -> bool {
+    matches!(shape, Shape::Rect(rect) if rect.fill == APP_PAINT)
+}
+
 /// The shapes of a frame of a canvas whose body shows a pasteboard with `pages` and `uncovered`, then a picture in
 /// the canvas's slot that fills the canvas with [`PICTURE`].
 fn slot_canvas(view: CanvasView, pages: Vec<PageFrame>, uncovered: Vec<Rect64>) -> Vec<Shape> {
@@ -550,7 +551,7 @@ fn slot_canvas(view: CanvasView, pages: Vec<PageFrame>, uncovered: Vec<Rect64>) 
         Canvas::new("Document").view(view).show(ui, |ui, body| {
             let _ = Pasteboard::new("Pasteboard", &pages).uncovered(&uncovered).show_at(ui, body.rect);
             let paint = AppPaint::new(|painter, view: CanvasView| {
-                painter.painter.add(Shape::rect_filled(view.rect, 0.0, PICTURE));
+                painter.painter.rect_filled(view.rect, 0.0, PICTURE);
             });
             RasterDisplay::painted("Picture", size, paint).picture().show_at(ui, body.rect);
         });

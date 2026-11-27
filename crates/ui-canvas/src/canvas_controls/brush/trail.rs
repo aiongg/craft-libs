@@ -2,13 +2,13 @@
 
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::primitives::{Revision, Serials, TextureState, TextureStore, TextureStoreOptions};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Input, Metrics};
-use egui::epaint::{Mesh, Vertex};
-use egui::{Color32, ColorImage, Response, Shape, pos2};
+use egui::{Color32, ColorImage, Response, pos2};
 
 /// The share of the tone's colour a full-coverage texel shows; the texture holds coverage only.
 const LIGHT_SHARE: f32 = 0.25;
@@ -296,10 +296,11 @@ impl Component for StrokeTrail<'_> {
             return;
         }
         let uv = [pos2(0.0, 0.0), pos2(u, 0.0), pos2(u, v), pos2(0.0, v)];
-        let mut mesh = Mesh::with_texture(texture.id);
+        let mut mesh = Mesh::with_texture(crate::primitives::texture_key(texture.id));
+        let tint = items::rgba(tint);
         mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: tint }));
         mesh.indices.extend([0, 1, 2, 0, 2, 3]);
-        painter.painter.add(Shape::mesh(mesh));
+        painter.painter.extend(items::mesh(mesh));
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {

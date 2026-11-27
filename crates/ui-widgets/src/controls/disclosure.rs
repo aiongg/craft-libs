@@ -9,7 +9,7 @@ use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, UiTokens, ink_c
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2};
+use egui::{Color32, Pos2, Rect, Vec2};
 
 /// A quarter turn: closed points to the end, open points down.
 const QUARTER_TURN: f32 = std::f32::consts::FRAC_PI_2;
@@ -176,10 +176,10 @@ impl Glyph for DisclosureGlyph {
                 points[0].x = x;
                 points[2].x = x;
             }
-            painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
+            painter.extend(crate::primitives::items::convex_polygon(&points, color, None));
         } else {
             let width = self.stroke.points(tokens, painter.pixels_per_point());
-            painter.add(Shape::line(points, Stroke::new(width, color)));
+            painter.line(&points, width, color);
         }
     }
 }

@@ -1023,7 +1023,9 @@ fn home_divider(ui: &mut Ui) {
     let scale = ui.ctx().pixels_per_point();
     let room = ui.available_rect_before_wrap();
     let line = Rect::from_min_size(room.min, vec2(room.width(), look.width.points(scale)));
-    let _ = Stack::new().show_at_taking_room(ui, line, |ui, _| ui.painter().extend(Rule::edge(&look, line, RectSide::Top, scale)));
+    let _ = Stack::new().show_at_taking_room(ui, line, |ui, _| {
+        crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| canvas.extend(Rule::edge(&look, line, RectSide::Top, scale)));
+    });
 }
 
 /// Panel dividers can match the canvas surround exactly, so use existing muted ink on that surround.
@@ -1104,7 +1106,7 @@ fn home_selected_bar(ui: &mut Ui, row: Rect) {
     let scale = ui.ctx().pixels_per_point();
     let bar = Rect::from_center_size(row.center(), vec2(row.width(), env.tokens.size.icon.md.min(row.height())));
     let side = if env.direction.is_rtl() { RectSide::Right } else { RectSide::Left };
-    ui.painter().extend(Rule::edge(&look, bar, side, scale));
+    crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| canvas.extend(Rule::edge(&look, bar, side, scale)));
 }
 
 fn home_drop_look(tokens: &Tokens) -> VariantLook {
