@@ -1,12 +1,11 @@
 //! Parts that open and close a popup of their component: declaration, step 9's toggles and their sub-nodes.
 
-use super::popups::{OpenOp, PopupHandle, queue};
-use crate::contract::PartBuilder;
+use super::popups::PopupHandle;
 use crate::contract::cx::CxCore;
-use crate::runtime::focus::{self};
+use crate::contract::{Id, PartBuilder};
+use crate::runtime::overlay::CloseReason;
 use craft_behavior::Intent;
 use craft_behavior::PartRef;
-use egui::Id;
 
 /// What a part declared with `PartBuilder::toggles_at`: the popup it opens and whether it acts on press.
 #[derive(Clone, Copy, Debug)]
@@ -67,7 +66,7 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
     debug_assert!(overlays, "`{name}` hosts a popup but sets `OVERLAYS = false`");
     let mut toggles = std::mem::take(&mut core.toggles);
     let owner = core.id;
-    let active = focus::active_part(&core.ctx, owner);
+    let active = core.active;
     let mut handled = false;
     let mut opened = None;
     for (at, toggle) in toggles.iter().enumerate() {
@@ -81,10 +80,10 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
         };
         while let Some(request) = core.intents.take_access_where(named) {
             if request.action == craft_behavior::AccessAction::Expand {
-                popup.open_in(core);
+                core.popups.set(popup.id, true);
                 opened = Some(at);
             } else {
-                popup.close_in(core);
+                core.popups.close(popup.id, CloseReason::Requested);
             }
             handled = true;
         }
@@ -99,11 +98,11 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
         let by_access = core.intents.take_access_where(clicked).is_some();
         let toggled = by_pointer || by_access || key_activated(core, active, part);
         if toggled {
-            popup.registered(core);
-            if !popup.is_open_in(core) {
+            let was = popup.is_open_in(core);
+            if !was {
                 opened = Some(at);
             }
-            queue(&core.ctx, popup.id, OpenOp::Toggle);
+            core.popups.set(popup.id, !was);
             handled = true;
         }
         // The toggling part took the click, or took its press: the root's pointer activation is not a second toggle.
@@ -121,7 +120,7 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
         let kept = toggles[keeper].handle(owner).id;
         for (at, toggle) in toggles.iter().enumerate() {
             if toggle.handle(owner).id != kept && open[at] {
-                toggle.handle(owner).close_in(core);
+                core.popups.close(toggle.handle(owner).id, CloseReason::Requested);
                 open[at] = false;
             }
         }
@@ -129,7 +128,7 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
     if open.contains(&true) {
         if core.intents.take(Intent::Close) {
             for (toggle, _) in toggles.iter().zip(&open).filter(|(_, open)| **open) {
-                toggle.handle(owner).close_in(core);
+                core.popups.close(toggle.handle(owner).id, CloseReason::Requested);
             }
         }
         // An open popup keeps Alt+Down: nothing opens beside it.
@@ -137,7 +136,7 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
     } else if core.intents.take(Intent::Open) && !handled {
         let target = active.and_then(|part| toggles.iter().find(|toggle| toggle.part == part)).or(toggles.first());
         if let Some(toggle) = target {
-            toggle.handle(owner).open_in(core);
+            core.popups.set(toggle.handle(owner).id, true);
         }
     }
     for toggle in &mut toggles {

@@ -1,15 +1,11 @@
-//! The layer stack (15.2): the record of the egui layers shown, their order and the open-modal fact.
-//!
-//! The stack owns no open state. The overlay host records an entry for each layer it shows; entries recorded in a
-//! pass are read in the next one, and an entry not recorded for a frame is gone.
+//! The overlay values (15.2): ranks, close reasons, layer roles and the entry each shown layer keeps for the layer
+//! queries. The stack itself is ui-rt's: each window's layers and their children, in order (`craft_ui_rt::Layer`).
+//! A layer child keeps its entry while it shows (`contract::rt::overlay::LayerKept`), so an entry goes with its layer.
 
-use crate::runtime::egui::areas::{self, Layer};
-
-use crate::runtime::shift::Shift;
+use crate::primitives::Id;
 use craft_behavior::OwnerClass;
 use craft_behavior::overlay::Side;
-
-use egui::{Id, IdMap, IdSet, Pos2, Rect};
+use craft_ui_rt::{Layer, Rect};
 
 /// A modal's backdrop.
 #[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
@@ -21,7 +17,7 @@ pub enum Backdrop {
     Scrim,
 }
 
-/// An overlay's place in the order. `Rank` is the only place a layer's egui order is chosen.
+/// An overlay's place in the order. `Rank` is the only place a layer's ui-rt layer is chosen.
 #[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Rank {
@@ -47,18 +43,6 @@ impl Rank {
     /// A modal rank with `backdrop`.
     pub const fn modal(backdrop: Backdrop) -> Rank {
         Rank::Modal { backdrop }
-    }
-
-    /// Families of one egui order sort by this class: toast below popup below modal below modal chrome.
-    const fn class(self) -> u8 {
-        match self {
-            Rank::Window => 0,
-            Rank::Toast => 1,
-            Rank::Popup => 2,
-            Rank::Modal { .. } => 3,
-            Rank::ModalChrome => 4,
-            Rank::Tooltip => 5,
-        }
     }
 
     /// Whether a layer of this rank takes keys without a focus scope. Modal chrome takes none: Cancel and Enter stay
@@ -124,7 +108,7 @@ pub enum OpenFilter {
     Asks,
 }
 
-/// One shown egui layer.
+/// One shown layer, as the layer queries read it.
 #[derive(Clone, Debug, PartialEq)]
 #[doc(hidden)]
 pub struct OpenEntry {
@@ -151,51 +135,20 @@ pub struct OpenEntry {
     pub(crate) asked: Option<Side>,
     /// It is fading out: not `top`, not counted by `any_open`, taking no input.
     pub exiting: bool,
-    /// The layer's egui id and the cover under it, listed in the order.
+    /// The ui-rt layer it shows on.
     pub(crate) layer: Layer,
-    pub(crate) cover: Option<Layer>,
     /// The layer has a focus scope.
     pub(crate) scoped: bool,
     /// A press outside its family closes it and goes no further.
     pub(crate) absorbs: bool,
     /// A command run from outside it closes it (`Dismiss::commands`).
     pub(crate) closes_on_commands: bool,
-    /// The entry is an OS window of the integration: it takes its place in the stack's order and facts, and no egui
-    /// layer is shown for it.
-    pub(crate) window: bool,
-    /// The entry stands in its opener's stack for a layer shown in a popup window of its own (with `window`): the
-    /// family, the anchor and the presses in the opener's window are judged here, and the popup's own stack holds the
-    /// layer, so the entry blocks nothing here.
-    pub(crate) popup: bool,
     /// The screen rect the layer is contained in: its scrim, placement, clip and input blocking stop at it.
     pub(crate) region: Option<Rect>,
     /// The layer's place on its dialog stack (`stack_place`): the modal families of one stack stack in its order.
     pub(crate) place: Option<usize>,
     /// The dialog of a dialog host the layer shows for (`stack_place`).
     dialog: Option<Id>,
-}
-
-/// A replay moves the entry's screen rects with its record; the rest stays.
-impl Shift for OpenEntry {
-    fn shifted(&self, by: &egui::RecordShift) -> Self {
-        OpenEntry {
-            anchor: self.anchor.shifted(by),
-            peers: self.peers.shifted(by),
-            rect: self.rect.shifted(by),
-            region: self.region.shifted(by),
-            ..self.clone()
-        }
-    }
-
-    fn snapped(&self, to: &Self, within: f32) -> Self {
-        OpenEntry {
-            anchor: self.anchor.snapped(&to.anchor, within),
-            peers: self.peers.snapped(&to.peers, within),
-            rect: self.rect.snapped(&to.rect, within),
-            region: self.region.snapped(&to.region, within),
-            ..self.clone()
-        }
-    }
 }
 
 impl OpenEntry {
@@ -214,12 +167,9 @@ impl OpenEntry {
             asked: None,
             exiting: false,
             layer,
-            cover: None,
             scoped: false,
             absorbs: false,
             closes_on_commands: true,
-            window: false,
-            popup: false,
             region: None,
             place: None,
             dialog: None,
@@ -230,38 +180,4 @@ impl OpenEntry {
     pub(crate) fn takes_keys(&self) -> bool {
         self.scoped || self.rank.takes_keys()
     }
-}
-
-#[derive(Default)]
-pub(crate) struct Persist {
-    raised: IdMap<u64>,
-    counter: u64,
-    /// The viewport's place in the app's modal stack: the root frame its top live modal layer over the whole window
-    /// first showed in, as of its last finished pass, or `None` without one. A modal viewport blocks the viewports whose
-    /// top modal opened in an earlier frame and those with none (`modal_viewport`). Modals that open in the same frame
-    /// form one level and block none of each other: the screen picker opens a capture window over each monitor in one
-    /// pass, and each must take its click. When the top modal closes, the one under it keeps its own first frame.
-    modal: Option<u64>,
-    /// The layers of the last pass, bottom to top, as `end_pass` handed them to egui.
-    stack: Vec<Id>,
-    /// A press the modal drop removed, for the window host to raise the modal's window.
-    dropped_press: bool,
-    /// The screen rects a press may land in without closing the top menu family: the family and its anchors. `None`
-    /// when the top layer does not absorb outside presses.
-    absorb_zone: Option<Vec<Rect>>,
-    /// An outside press the input hook removed for the running pass.
-    outside_press: Option<Pos2>,
-    /// The top live modal layer of the last finished pass in this viewport.
-    top_modal: Option<TopModal>,
-    /// A popup stands over a modal layer here, as of the last finished pass.
-    popup_over_modal: bool,
-    /// The layers that first showed while the primary button was held, until that press ends.
-    held_open: IdSet,
-    /// The root frame and pass each shown layer first ran its body in, and for a layer of this window that shows in a
-    /// popup window of its own, the pass it first asked for it in; gone with the layer's last entry.
-    appeared: IdMap<(u64, u64)>,
-    /// The roots whose asked raise ran in a pass where a floating window (re)appeared: egui raises every layer that
-    /// shows again, and its area order keeps the old order among the layers raised in one pass, so the raise is asked
-    /// again in the next pass.
-    raise_again: Vec<Id>,
 }

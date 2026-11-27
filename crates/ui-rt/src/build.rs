@@ -483,6 +483,14 @@ impl BuildCx<'_> {
         self.rt.counters.scopes += 1;
     }
 
+    /// For the layer child being built: what its modal block lets through ([`crate::ModalReach`]),
+    /// as its content decided in this build. Its owner's next show of it keeps it in the spec.
+    pub fn set_layer_reach(&mut self, reach: Option<crate::ModalReach>) {
+        if let Some(spec) = self.rt.windows.get_mut(&self.window).and_then(|w| w.layered.get_mut(&self.node)) {
+            spec.reach = reach;
+        }
+    }
+
     /// Shows `el` on `layer` of this node's window, placed by `spec`, above everything on the
     /// layers below. It is this node's child for build and output: it stays while this node shows
     /// it in each build and goes when a build leaves it out or this node goes. Keys name it among

@@ -102,14 +102,37 @@ pub(crate) fn hit_test(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(
 /// The topmost recorded shape under `pos` that passes `accept`, with the record. Same order as
 /// [`hit_test`].
 pub(crate) fn hit_records(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(&HitRecord) -> bool) -> Option<(Hit, HitRecord)> {
+    hit_records_through(tree, window, pos, accept, None)
+}
+
+/// [`hit_test`], except that a shown modal layer lets the hit through to `through` and its subtree
+/// (a [`crate::ModalReach`]): below the modal, the topmost shape counts only when it is `through`'s.
+pub(crate) fn hit_test_through(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(Sense) -> bool, through: Option<NodeId>) -> Option<Hit> {
+    hit_records_through(tree, window, pos, &|h| h.kind == HitKind::Input && accept(h.sense), through).map(|(hit, _)| hit)
+}
+
+fn hit_records_through(
+    tree: &Tree,
+    window: &Window,
+    pos: Pos2,
+    accept: &dyn Fn(&HitRecord) -> bool,
+    through: Option<NodeId>,
+) -> Option<(Hit, HitRecord)> {
     let viewport = Rect::from_min_size(Pos2::ZERO, window.viewport);
+    let mut blocked = false;
     for layer in Layer::ALL.into_iter().rev() {
         let id = window.layer(layer);
         if let Some(hit) = visit(tree, id, Vec2::ZERO, viewport, pos, accept) {
-            return Some(hit);
+            return match through {
+                Some(node) if blocked => tree.owner_chain(hit.0.node).contains(&node).then_some(hit),
+                _ => Some(hit),
+            };
         }
         if layer == Layer::Modal && tree.nodes.get(&id).is_some_and(|n| !n.children.is_empty()) {
-            return None;
+            if through.is_none() {
+                return None;
+            }
+            blocked = true;
         }
     }
     None

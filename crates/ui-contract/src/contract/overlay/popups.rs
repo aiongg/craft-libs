@@ -1,17 +1,11 @@
-//! Free-standing popups: their open slots and the pass's registry, handles, the `Overlays` trait and hover dwell.
+//! Popup handles and the `Overlays` trait: a component's popups and their open state, kept on its node
+//! (`contract::rt::overlay::PopupStates`, taken into the run's `CxCore::popups`), and hover dwell on build wakes.
 
-use super::opener::{Opening, Trigger, secondary_release_in};
+use super::opener::Trigger;
 use crate::contract::cx::CxCore;
-use crate::contract::{BindMut, Component, Cx};
-use crate::runtime::access::PopupShown;
-use crate::runtime::egui::areas::{self};
-use crate::runtime::frame;
+use crate::contract::{BindMut, Component, Cx, Id};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::overlay::{self, CloseReason};
-use crate::runtime::pass_state;
-use craft_behavior::Intent;
-use craft_behavior::{EditEvent, Mixed};
-use egui::{Context, Id, IdMap};
+use craft_behavior::{EditEvent, Intent, Mixed};
 
 /// An id and a name; `Copy`, never a snapshot of the open state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,8 +20,7 @@ impl PopupHandle {
     }
 
     /// The popup of the repeat `index` of this name: a component with one popup per part or per entry gives each its
-    /// own. Index 0 is the handle `cx.popup(name)` returns. `open`, `close`, `is_open` and `trigger` register the
-    /// popup for the pass, so a handle derived in `update` needs no separate registration.
+    /// own. Index 0 is the handle `cx.popup(name)` returns.
     #[must_use]
     pub fn at(self, index: usize) -> PopupHandle {
         match index {
@@ -36,11 +29,7 @@ impl PopupHandle {
         }
     }
 
-    pub(super) fn registered(self, core: &CxCore<'_>) {
-        register(&core.ctx, core.id, self.id);
-    }
-
-    /// The popup's id: its open state's and its entry in the layer stack.
+    /// The popup's id: its open state's and its layer child's.
     pub fn id(self) -> Id {
         self.id
     }
@@ -51,162 +40,19 @@ impl PopupHandle {
     }
 }
 
-/// The open slot of a popup, in its opener's memory stage: the one owner of the popup's open state.
-#[derive(Clone, Copy, Default)]
-struct OpenSlot(bool);
-
-/// The value a popup's open binding held after the last pass, to tell a change made outside from the popup's own.
-#[derive(Clone, Copy, Default)]
-struct BoundOpen(Option<bool>);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum OpenOp {
-    Toggle,
-    Open,
-    Close,
-}
-
-/// Popups registered this pass, the open changes waiting for step 15 and the popups shown this pass.
-#[derive(Default)]
-pub(crate) struct Popups {
-    registered: Vec<(Id, Id)>,
-    pending: Vec<(Id, OpenOp)>,
-    pub(super) shown: Vec<(Id, Id)>,
-    /// Every popup an owner showed or kept closed this pass, for the anchor's access node.
-    pub(super) anchors: Vec<(Id, PopupShown)>,
-    /// The opener that opened each layer with openers, by the layer's first opener: its id and trigger (two
-    /// openers on one response differ by trigger) and how it fired.
-    pub(super) opened_by: IdMap<(Id, Trigger, Opening)>,
-    /// The popups whose layer is a container running now (`OverlayUi::show_container`), innermost last.
-    pub(super) layers: Vec<PopupLayer>,
-}
-
-/// A popup shown as a container's layer, while the container runs: the popup's open state, which the container takes
-/// as its own, and the close the container decided, which `OverlayUi::show_container` records as the popup's.
-#[derive(Clone, Copy)]
-pub(super) struct PopupLayer {
-    pub(super) id: Id,
-    pub(super) open: bool,
-    pub(super) closed: Option<CloseReason>,
-}
-
-/// The open state of the popup whose layer is the container `id`, while `OverlayUi::show_container` runs it; `None`
-/// for a container that is no popup's layer.
-pub(crate) fn popup_layer_open(ctx: &Context, id: Id) -> Option<bool> {
-    with_popups(ctx, |popups| popups.layers.iter().rev().find(|layer| layer.id == id).map(|layer| layer.open))
-}
-
-/// The container `id` closed, and why. When it is a popup's layer, the popup closes for the same reason; any other
-/// container is not recorded.
-pub(crate) fn note_layer_closed(ctx: &Context, id: Id, why: CloseReason) {
-    with_popups(ctx, |popups| {
-        if let Some(layer) = popups.layers.iter_mut().rev().find(|layer| layer.id == id) {
-            layer.closed.get_or_insert(why);
-        }
-    });
-}
-
-pub(super) fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
-    pass_state::with::<Popups, _>(ctx, f)
-}
-
-/// Step 8b, before the text part runs: the popups `owner` registers are registered again.
-pub(crate) fn begin_owner(ctx: &Context, owner: Id) {
-    with_popups(ctx, |popups| {
-        popups.registered.retain(|(registered, _)| *registered != owner);
-        popups.shown.retain(|(shown, _)| *shown != owner);
-        popups.anchors.retain(|(anchor, _)| *anchor != owner);
-    });
-}
-
-fn register(ctx: &Context, owner: Id, popup: Id) {
-    with_popups(ctx, |popups| {
-        if !popups.registered.contains(&(owner, popup)) {
-            popups.registered.push((owner, popup));
-        }
-    });
-}
-
-pub(super) fn queue(ctx: &Context, popup: Id, op: OpenOp) {
-    with_popups(ctx, |popups| popups.pending.push((popup, op)));
-}
-
-fn folded(ctx: &Context, popup: Id, slot: bool) -> bool {
-    with_popups(ctx, |popups| {
-        popups.pending.iter().filter(|(id, _)| *id == popup).fold(slot, |open, (_, op)| match op {
-            OpenOp::Toggle => !open,
-            OpenOp::Open => true,
-            OpenOp::Close => false,
-        })
-    })
-}
-
-/// Whether `popup` is open in this pass: its slot with the changes queued so far applied.
-fn open_now(stage: &mut MemoryStage, popup: Id) -> bool {
-    let slot = stage.shown::<OpenSlot>(popup).0;
-    folded(&stage.ctx().clone(), popup, slot)
-}
-
-/// The popups of `owner` in this pass, open or closed, for the anchor's access node.
-pub(crate) fn popups_shown(ctx: &Context, owner: Id) -> Vec<PopupShown> {
-    with_popups(ctx, |popups| popups.anchors.iter().filter(|(anchor, _)| *anchor == owner).map(|(_, popup)| *popup).collect())
-}
-
-/// Whether a popup of `owner` was shown in this pass; step 12 reads it as the `OPEN` flag.
-pub(crate) fn popup_shown(ctx: &Context, owner: Id) -> bool {
-    with_popups(ctx, |popups| popups.shown.iter().any(|(shown, _)| *shown == owner))
-}
-
-/// Step 10: the open state of every popup `owner` registered, with the closes `request_close` queued applied.
-pub(crate) fn open_map(stage: &mut MemoryStage, owner: Id) -> IdMap<bool> {
-    let ctx = stage.ctx().clone();
-    let popups: Vec<Id> =
-        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
-    popups
-        .into_iter()
-        .map(|popup| {
-            if overlay::take_close(&ctx, popup).is_some() {
-                queue(&ctx, popup, OpenOp::Close);
-            }
-            (popup, open_now(stage, popup))
-        })
-        .collect()
-}
-
-/// Step 10, after the hook: the closes `show` decided become queued changes that step 15 writes.
-pub(crate) fn apply_closes(ctx: &Context, closed: Vec<(Id, CloseReason)>) {
-    for (popup, _) in closed {
-        queue(ctx, popup, OpenOp::Close);
-    }
-}
-
-/// Step 15: writes the open slots of the popups `owner` registered, then forgets the queued changes.
-pub(crate) fn write_open(stage: &mut MemoryStage, owner: Id) {
-    let ctx = stage.ctx().clone();
-    let popups: Vec<Id> =
-        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
-    for popup in popups {
-        let open = open_now(stage, popup);
-        stage.shown::<OpenSlot>(popup).0 = open;
-        with_popups(&ctx, |popups| popups.pending.retain(|(id, _)| *id != popup));
-    }
-}
-
 /// The seconds a press must be held for `Trigger::Hold`.
 pub const HOLD: f64 = 0.5;
 
-/// The `Cx` trait that registers popups.
+/// The `Cx` trait that names popups.
 pub trait Overlays {
-    /// Registers the popup `name` of this component for this pass and returns its handle. A component registers every
-    /// popup its `overlay` hook shows in `update` or earlier; inside `overlay` the call only fetches the handle.
+    /// The handle of the popup `name` of this component. Its open state is kept on the component's node from the
+    /// first time a handle opens it.
     fn popup(&mut self, name: &'static str) -> PopupHandle;
 }
 
 impl Overlays for CxCore<'_> {
     fn popup(&mut self, name: &'static str) -> PopupHandle {
-        let handle = PopupHandle::new(self.id, name);
-        handle.registered(self);
-        handle
+        PopupHandle::new(self.id, name)
     }
 }
 
@@ -217,86 +63,75 @@ impl<C: Component> Overlays for Cx<'_, C> {
 }
 
 impl PopupHandle {
-    /// Toggles or opens the popup from `trigger` at step 9, as the pass's pending open change.
+    /// Toggles or opens the popup from `trigger` at step 9. An opener whose click toggled its popup keeps the layer
+    /// chain it sits in open (`Dismiss::on_activate`).
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
-        self.registered(cx.core);
-        let core = &mut cx.core;
-        let ctx = core.ctx.clone();
+        let core = &mut *cx.core;
         let resting = core.response.hovered() || core.focus.visible;
         if trigger == Trigger::Context {
-            crate::runtime::egui::access::offer_context_menu(&ctx, core.id);
+            core.popups.offer_context_menu();
         }
         let toggled = match trigger {
             Trigger::Click => core.activation.is_some(),
             Trigger::Press => {
                 matches!(core.press.phase, craft_behavior::PressPhase::Down { start, .. } if start.button == craft_behavior::PointerButton::Primary)
-                    || (core.response.enabled() && secondary_release_in(&core.response))
             }
             Trigger::Context => core.intents.take(Intent::ContextMenu) || (core.response.enabled() && core.response.secondary_clicked()),
-            Trigger::Hover => self.dwell(&ctx, core.memory, "dwell", resting, crate::contract::tooltip::DELAY),
-            Trigger::Hold => self.dwell(&ctx, core.memory, "dwell", core.press.phase.is_press(), HOLD),
+            Trigger::Hover => dwell(core, self.id, "dwell", resting, crate::contract::tooltip::DELAY),
+            Trigger::Hold => {
+                let held = core.press.phase.is_press();
+                dwell(core, self.id, "dwell", held, HOLD)
+            }
             Trigger::Manual => false,
         };
+        let open = core.popups.is_open(self.id);
         if toggled {
             if trigger == Trigger::Click {
-                overlay::claim_activation(&ctx, core.id);
+                core.keep_open = true;
             }
-            queue(&ctx, self.id, if matches!(trigger, Trigger::Click | Trigger::Press) { OpenOp::Toggle } else { OpenOp::Open });
+            let toggles = matches!(trigger, Trigger::Click | Trigger::Press);
+            core.popups.set(self.id, if toggles { !open } else { true });
         } else if trigger != Trigger::Manual && core.intents.take(Intent::Open) {
-            queue(&ctx, self.id, OpenOp::Open);
-        } else if trigger == Trigger::Hover && open_now(core.memory, self.id) {
+            core.popups.set(self.id, true);
+        } else if trigger == Trigger::Hover && open {
             // The pointer may cross the gap between the opener and the popup: the popup closes after a grace period
             // with the pointer on neither.
-            let over = resting || pointer_in_popup(&ctx, self.id);
-            if self.dwell(&ctx, core.memory, "leave", !over, crate::contract::tooltip::GRACE) {
-                queue(&ctx, self.id, OpenOp::Close);
+            let over = resting || core.popups.hovered(self.id);
+            if dwell(core, self.id, "leave", !over, crate::contract::tooltip::GRACE) {
+                core.popups.set(self.id, false);
             }
+        }
+        if trigger == Trigger::Hover {
+            core.popups.watch_hover(self.id);
         }
     }
 
-    fn dwell(self, ctx: &Context, stage: &mut MemoryStage, name: &'static str, held: bool, delay: f64) -> bool {
-        dwell(ctx, stage, self.id, name, held, delay)
-    }
-
-    /// Queues an open that step 15 writes. For `Trigger::Manual` this and the binding are the only ways it opens.
+    /// Opens the popup. For `Trigger::Manual` this and the binding are the only ways it opens.
     pub fn open<C: Component>(self, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
-        self.open_in(cx.core);
+        cx.core.popups.set(self.id, true);
     }
 
-    pub(super) fn open_in(self, core: &CxCore<'_>) {
-        self.registered(core);
-        queue(&core.ctx, self.id, OpenOp::Open);
-    }
-
-    /// Queues a close; step 15 writes the slot, so this pass still shows the popup open.
+    /// Closes the popup; `OverlayUi::closing` reports it as `Requested`.
     pub fn close<C: Component>(self, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
-        self.close_in(cx.core);
+        cx.core.popups.close(self.id, crate::runtime::overlay::CloseReason::Requested);
     }
 
-    pub(super) fn close_in(self, core: &CxCore<'_>) {
-        self.registered(core);
-        queue(&core.ctx, self.id, OpenOp::Close);
-    }
-
-    /// Whether a toggle, `open` or `close` queued in this pass leaves the popup's open state different from the
-    /// state the pass began with. Valid from step 9.
+    /// Whether a toggle, `open` or `close` in this run leaves the popup's open state different from the state the run
+    /// began with. Valid from step 9.
     pub fn changed<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
-        self.registered(cx.core);
-        let began = cx.core.memory.shown::<OpenSlot>(self.id).0;
-        open_now(cx.core.memory, self.id) != began
+        cx.core.popups.changed(self.id)
     }
 
-    /// Binds the popup's open state to `open`: call it in `update`, after the toggles and closes the component
-    /// queues. A change of the bound value since the last pass opens or closes the popup through the open slot; an
-    /// open state that differs from the bound value is written to it. A value the bind refuses to take (a given one)
-    /// never forces the popup. Returns whether the popup is open in this pass.
+    /// Binds the popup's open state to `open`: call it in `update`, after the toggles and closes the component makes.
+    /// A change of the bound value since the last run opens or closes the popup; an open state that differs from the
+    /// bound value is written to it. A value the bind refuses to take (a given one) never forces the popup. Returns
+    /// whether the popup is open in this run.
     pub fn bind_open<C: Component>(self, cx: &mut Cx<'_, C>, mut open: BindMut<'_, bool>) -> bool {
-        self.registered(cx.core);
-        let began = cx.core.memory.shown::<OpenSlot>(self.id).0;
-        let seen = cx.core.memory.session::<BoundOpen>(sub(self.id, "bound")).0.unwrap_or(began);
+        let began = cx.core.popups.began(self.id);
+        let seen = cx.core.popups.bound(self.id).unwrap_or(began);
         let held = match open.read(cx) {
             Some(Mixed::Same(held)) => Some(held),
             _ => None,
@@ -304,9 +139,9 @@ impl PopupHandle {
         if let Some(held) = held
             && held != seen
         {
-            queue(&cx.core.ctx, self.id, if held { OpenOp::Open } else { OpenOp::Close });
+            cx.core.popups.set(self.id, held);
         }
-        let now = open_now(cx.core.memory, self.id);
+        let now = cx.core.popups.is_open(self.id);
         let mut seen = held;
         if let Some(held) = held
             && held != now
@@ -316,47 +151,61 @@ impl PopupHandle {
                 seen = Some(now);
             }
         }
-        cx.core.memory.session::<BoundOpen>(sub(self.id, "bound")).0 = seen;
+        cx.core.popups.set_bound(self.id, seen);
         now
     }
 
-    /// Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.
+    /// Whether the popup is open in this run, with the changes made so far.
     pub fn is_open<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
-        self.is_open_in(cx.core)
+        cx.core.popups.is_open(self.id)
     }
 
-    pub(crate) fn is_open_in(self, core: &mut CxCore<'_>) -> bool {
-        self.registered(core);
-        open_now(core.memory, self.id)
+    pub(crate) fn is_open_in(self, core: &CxCore<'_>) -> bool {
+        core.popups.is_open(self.id)
     }
-}
-
-/// Whether the pointer is over the shown layer `popup`: a hover popup stays while the pointer is on it.
-fn pointer_in_popup(ctx: &Context, popup: Id) -> bool {
-    let shown = overlay::entry(ctx, popup);
-    shown.zip(areas::pointer_pos(ctx)).is_some_and(|(entry, at)| entry.rect.contains(at))
 }
 
 #[derive(Clone, Copy, Default)]
 struct Dwell(Option<f64>);
 
-/// Whether `held` has lasted `delay` seconds, timed in the slot `name` of `id`; asks for a pass at the deadline.
-pub(crate) fn dwell(ctx: &Context, stage: &mut MemoryStage, id: Id, name: &'static str, held: bool, delay: f64) -> bool {
-    let now = frame::clock(ctx);
+/// Whether `held` has lasted `delay` seconds, timed in the slot `name` of `id` in the node's memory. While it waits,
+/// the node builds again at the deadline (`CxCore::wake_at`); nothing runs per frame meanwhile.
+pub(crate) fn dwell(core: &mut CxCore<'_>, id: Id, name: &'static str, held: bool, delay: f64) -> bool {
+    let now = core.context().time();
+    let due = dwell_in(core.memory, now, id, name, held, delay);
+    match due {
+        Ok(fired) => fired,
+        Err(at) => {
+            core.wake_at(at);
+            false
+        }
+    }
+}
+
+/// The dwell step on `stage` at time `now`: `Ok(true)` when it fired, `Ok(false)` when not held, `Err(due)` while it
+/// waits for `due`.
+fn dwell_in(stage: &mut MemoryStage, now: f64, id: Id, name: &'static str, held: bool, delay: f64) -> Result<bool, f64> {
     let since = stage.shown::<Dwell>(sub(id, name));
     if !held {
         since.0 = None;
-        return false;
+        return Ok(false);
     }
-    let start = *since.0.get_or_insert(now);
-    let due = start + delay;
+    let due = *since.0.get_or_insert(now) + delay;
     if now >= due {
         since.0 = None;
-        return true;
+        return Ok(true);
     }
-    crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), due - now);
-    false
+    Err(due)
+}
+
+impl CxCore<'_> {
+    /// The node builds again at frame time `at` (the earliest asked in this run wins); the driver applies it after
+    /// the run with `BuildCx::request_build_at`.
+    pub(crate) fn wake_at(&self, at: f64) {
+        let earliest = self.run.build_at.get().map_or(at, |was| was.min(at));
+        self.run.build_at.set(Some(earliest));
+    }
 }
 
 impl From<PopupHandle> for Id {

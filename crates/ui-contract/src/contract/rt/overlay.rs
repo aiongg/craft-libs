@@ -9,13 +9,16 @@
 //! window rects. A popup opening measures its body once first (a measuring run: no node runs);
 //! later runs place it by its kept size and build again in the same frame when that size moved.
 //!
-//! Dismissal comes from ui-rt: a press outside, an Escape no focused node handled, focus leaving.
-//! The layer child keeps the reason and asks its owner to build; the owner's overlay pass reads
-//! it, closes the popup and reports it through [`OverlayUi::closing`]. A modal blocks the layers
-//! below it in its window and, as an app-modal, every other window.
+//! Dismissal comes from ui-rt: a press outside, an Escape no focused node handled, focus leaving,
+//! the user turning to another window or app. The layer child keeps the reason and asks its owner
+//! to build; the owner's overlay pass reads it, closes the popup and reports it through
+//! `OverlayUi::closing`. A close the body asks for takes the same path. A modal blocks the layers
+//! below it in its window and, as an app-modal, every other window; the one input it lets through
+//! is its modal reach (a canvas a dialog samples, `runtime::sampler`).
 
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_behavior::overlay::{Align, MinWidth, Side};
@@ -23,9 +26,8 @@ use craft_i18n::Direction;
 use craft_theme::Tokens;
 use craft_ui_rt::{
     AccessCx, BuildCx, Constraints, CornerRadii, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer,
-    LayerSpec, LayoutCx, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
+    LayerSpec, LayoutCx, ModalReach, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2,
 };
-use egui::Id;
 use smallvec::SmallVec;
 
 use super::env::{EnvCells, LayerFrame};
@@ -33,32 +35,181 @@ use super::intents::ScopeStep;
 use super::node::Kept;
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
-use crate::contract::POPUP_PAD;
-use crate::contract::overlay::{Anchor, Outside, Overlay, OverlayFit, Place};
+use crate::contract::overlay::{ActivationChain, Anchor, Outside, Overlay, OverlayFit, Place};
+use crate::contract::{Context, Id, POPUP_PAD};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
-use crate::runtime::overlay::{CloseReason, Rank};
+use crate::runtime::memory::MemoryStage;
+use crate::runtime::overlay::{CloseReason, OpenEntry, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
 
-/// A popup a component shows from its `overlay` hook: its name among the component's popups.
-/// Its open state is kept on the component's node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PopupHandle {
-    pub(crate) key: u64,
-    /// The name it was made with, for diagnostics.
-    pub name: &'static str,
+/// One popup of a component: its open state and what the run did to it.
+#[derive(Clone, Copy, Debug)]
+struct PopupEntry {
+    id: Id,
+    open: bool,
+    /// The open state the run began with (`PopupHandle::changed`).
+    began: bool,
+    /// The value its open binding held after the last run (`PopupHandle::bind_open`).
+    bound: Option<bool>,
+    /// Why it closed in this run (its dismissal, a close its body asked for).
+    closed: Option<CloseReason>,
+    /// A `Trigger::Hover` opener runs it: its layer reports the pointer entering and leaving.
+    watch_hover: bool,
+    /// The pointer is over its layer, as of the start of the run.
+    hovered: bool,
+    /// The ui-rt layer it showed on last.
+    layer: Option<Layer>,
 }
 
-impl PopupHandle {
-    /// The popup named `name` among its component's popups.
-    pub fn new(name: &'static str) -> PopupHandle {
-        PopupHandle { key: hash_key(&name), name }
+/// The popups of one component and whether each is open, kept on its node (`Kept::popups`). The
+/// run takes them into its `CxCore` (`PopupHandle` reads and changes them in `update`), the
+/// overlay pass shows the open ones, and the node keeps them for its next run.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PopupStates {
+    entries: SmallVec<[PopupEntry; 1]>,
+    /// A `Trigger::Context` opener ran in this run: the node's access node offers the context menu.
+    context_menu: bool,
+}
+
+impl PopupStates {
+    pub(crate) fn new() -> PopupStates {
+        PopupStates::default()
+    }
+
+    /// A run of the node `cx` builds begins: every popup's state is its starting state, no close is reported yet,
+    /// and a popup a hover opener runs reads whether the pointer is over its layer now.
+    pub(crate) fn begin_run(&mut self, cx: &BuildCx<'_>) {
+        for entry in &mut self.entries {
+            entry.began = entry.open;
+            entry.closed = None;
+            entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
+        }
+        self.context_menu = false;
+    }
+
+    /// Whether any popup is open: the component's `OPEN` state.
+    pub(crate) fn any_open(&self) -> bool {
+        self.entries.iter().any(|e| e.open)
+    }
+
+    pub(crate) fn is_open(&self, popup: Id) -> bool {
+        self.entries.iter().any(|e| e.id == popup && e.open)
+    }
+
+    fn entry(&mut self, popup: Id) -> &mut PopupEntry {
+        match self.entries.iter().position(|e| e.id == popup) {
+            Some(at) => &mut self.entries[at],
+            None => {
+                self.entries.push(PopupEntry {
+                    id: popup,
+                    open: false,
+                    began: false,
+                    bound: None,
+                    closed: None,
+                    watch_hover: false,
+                    hovered: false,
+                    layer: None,
+                });
+                self.entries.last_mut().expect("just pushed")
+            }
+        }
+    }
+
+    /// Opens or closes `popup`; whether that changed it.
+    pub(crate) fn set(&mut self, popup: Id, open: bool) -> bool {
+        let entry = self.entry(popup);
+        let changed = entry.open != open;
+        entry.open = open;
+        changed
+    }
+
+    /// Closes an open `popup` for `reason`, reported by `closing` for the rest of the run.
+    pub(crate) fn close(&mut self, popup: Id, reason: CloseReason) -> bool {
+        let entry = self.entry(popup);
+        if !entry.open {
+            return false;
+        }
+        entry.open = false;
+        entry.closed.get_or_insert(reason);
+        true
+    }
+
+    /// Why `popup` closed in this run.
+    pub(crate) fn closing(&self, popup: Id) -> Option<CloseReason> {
+        self.entries.iter().find(|e| e.id == popup).and_then(|e| e.closed)
+    }
+
+    /// Whether the run left `popup` in a different state from the one it began with.
+    pub(crate) fn changed(&self, popup: Id) -> bool {
+        self.entries.iter().find(|e| e.id == popup).is_some_and(|e| e.open != e.began)
+    }
+
+    /// The open state `popup` began the run with.
+    pub(crate) fn began(&self, popup: Id) -> bool {
+        self.entries.iter().find(|e| e.id == popup).is_some_and(|e| e.began)
+    }
+
+    pub(crate) fn bound(&self, popup: Id) -> Option<bool> {
+        self.entries.iter().find(|e| e.id == popup).and_then(|e| e.bound)
+    }
+
+    pub(crate) fn set_bound(&mut self, popup: Id, bound: Option<bool>) {
+        self.entry(popup).bound = bound;
+    }
+
+    /// A `Trigger::Hover` opener runs `popup`: its layer reports hover, which keeps it open while the pointer is on it.
+    pub(crate) fn watch_hover(&mut self, popup: Id) {
+        self.entry(popup).watch_hover = true;
+    }
+
+    pub(crate) fn watches_hover(&self, popup: Id) -> bool {
+        self.entries.iter().any(|e| e.id == popup && e.watch_hover)
+    }
+
+    /// Whether the pointer is over `popup`'s layer.
+    pub(crate) fn hovered(&self, popup: Id) -> bool {
+        self.entries.iter().any(|e| e.id == popup && e.hovered)
+    }
+
+    /// `popup` showed on `layer` in this run.
+    pub(crate) fn shown_on(&mut self, popup: Id, layer: Layer) {
+        self.entry(popup).layer = Some(layer);
+    }
+
+    /// A `Trigger::Context` opener ran: the access node offers `ShowContextMenu`.
+    pub(crate) fn offer_context_menu(&mut self) {
+        self.context_menu = true;
+    }
+
+    /// Whether the access node offers `ShowContextMenu` (step 16 reads it).
+    pub(crate) fn offers_context_menu(&self) -> bool {
+        self.context_menu
     }
 }
 
-/// The popups of one component and whether each is open, kept on its node.
-pub(crate) type PopupStates = SmallVec<[(u64, bool); 1]>;
+/// A close a layer's body decided (a container's `request_close_as`, a popup body's close), kept
+/// with the layer child until its owner's overlay pass reads it.
+pub(crate) type BodyClose = Rc<Cell<Option<CloseReason>>>;
+
+/// Provided to a container shown as a layer's content (`OverlayUi::show_container`): the
+/// container `id` is the body of that layer already, so it fills the layer's region and makes no
+/// layer of its own, and it reports its close through `closed`.
+#[derive(Clone)]
+pub(crate) struct LayerHost {
+    pub(crate) id: Id,
+    pub(crate) closed: BodyClose,
+}
+
+impl LayerHost {
+    /// The container closed for `why`: its popup closes in its owner's overlay pass.
+    pub(crate) fn close(&self, why: CloseReason) {
+        if self.closed.get().is_none() {
+            self.closed.set(Some(why));
+        }
+    }
+}
 
 /// What a layer child paints under its content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,11 +235,19 @@ pub(crate) struct LayerKept {
     pub(crate) frame: DisplayList,
     /// The size and tokens `frame` was recorded for.
     frame_for: Option<(Vec2, usize, bool)>,
-    /// The cell the body's `Paint::frame` reads: the popup's own rounded frame in window
-    /// coordinates, written before the body runs.
+    /// The env cell of the layer frame the body's surfaces meet (`LayerFrame`): the popup's own
+    /// rounded frame in window coordinates, written before the body runs.
     frame_cell: Option<State<Option<LayerFrame>>>,
     /// The Enter and Escape its scope took for its body, and whether its body has content to clear.
     pub(crate) scope: super::intents::ScopeIntents,
+    /// A close its body decided, read by its owner's overlay pass.
+    pub(crate) closed: BodyClose,
+    /// The frame time it opened at, for `Dismiss::timeout`.
+    pub(crate) since: Option<f64>,
+    /// What its modal block lets through, as its body's last run registered it (`runtime::sampler`).
+    pub(crate) reach: Option<ModalReach>,
+    /// Its entry in its window's layer stack, for the layer queries.
+    pub(crate) entry: Option<OpenEntry>,
 }
 
 /// A layer child: a popup, menu, dialog, tooltip, toast stack.
@@ -116,6 +275,10 @@ impl Element for LayerScope {
             frame_for: None,
             frame_cell: None,
             scope: Default::default(),
+            closed: BodyClose::default(),
+            since: None,
+            reach: None,
+            entry: None,
         }
     }
 
@@ -195,6 +358,15 @@ pub(crate) struct LayerShow {
     pub(crate) sweep: Option<State<Sweep>>,
     /// Its focus scope: whether it traps Tab, takes focus when it appears and gives it back.
     pub(crate) focus: FocusPolicy,
+    /// Its entry in the window's layer stack (`runtime::overlay::OpenEntry`); `None` for a layer
+    /// the layer queries do not list (a tooltip, the toast stack).
+    pub(crate) entry: Option<OpenEntry>,
+    /// A container shown as its content takes it as its own layer (`LayerHost`): the id it shows under.
+    pub(crate) host: Option<Id>,
+    /// An activation inside closes it (`Dismiss::on_activate`).
+    pub(crate) on_activate: bool,
+    /// An Enter its body leaves untaken closes it (`Dismiss::enter`).
+    pub(crate) enter: bool,
 }
 
 /// The ui-rt layer of an overlay's rank.
@@ -289,6 +461,10 @@ impl LayerShow {
         if matches!(overlay.rank, Rank::Modal { .. }) {
             spec = spec.app_modal();
         }
+        // A popup or menu goes when the user turns to another window or app, as a press outside it would.
+        if overlay.rank == Rank::Popup && overlay.dismiss.outside != Outside::Keep {
+            spec = spec.dismiss_on_away();
+        }
         let surface = match overlay.rank {
             Rank::Tooltip => Surface::Tip,
             Rank::Popup | Rank::Toast => Surface::Popup,
@@ -307,11 +483,31 @@ impl LayerShow {
             _ if surface == Surface::Tip => accesskit::Role::Tooltip,
             _ => accesskit::Role::Dialog,
         };
-        LayerShow { layer, spec, surface, pad, share, anchor, role, hover: false, sweep: None, focus: overlay.focus }
+        let mut entry = OpenEntry::new(Id::NULL, overlay.rank, overlay.keys, Rect::NOTHING, layer);
+        entry.role = overlay.role;
+        entry.anchor = anchor;
+        let (on_activate, enter) = (overlay.dismiss.on_activate, overlay.dismiss.enter && overlay.focus != FocusPolicy::NONE);
+        LayerShow {
+            layer,
+            spec,
+            surface,
+            pad,
+            share,
+            anchor,
+            role,
+            hover: false,
+            sweep: None,
+            focus: overlay.focus,
+            entry: Some(entry),
+            host: None,
+            on_activate,
+            enter,
+        }
     }
 }
 
-/// The close a ui-rt dismissal means.
+/// The close a ui-rt dismissal means. A press in another window or the app losing focus is a
+/// press outside.
 pub(crate) fn close_reason(reason: DismissReason) -> CloseReason {
     match reason {
         DismissReason::Escape => CloseReason::Escape,
@@ -326,6 +522,44 @@ pub(crate) fn dismissed(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<Dism
     cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.dismissed)
 }
 
+/// Why the layer child `key` on `layer` of the node being built closes: its dismissal from ui-rt,
+/// else a close its body decided. Taken: the next read answers `None`.
+pub(crate) fn layer_closed(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<CloseReason> {
+    let peek = cx.peek_layer::<LayerScope>(layer, key)?;
+    peek.local.dismissed.map(close_reason).or_else(|| peek.local.closed.take())
+}
+
+/// Whether the pointer is over the layer child `key` on `layer` of the node being built (one that
+/// reports hover).
+pub(crate) fn layer_hovered(cx: &BuildCx<'_>, layer: Layer, key: u64) -> bool {
+    cx.peek_layer::<LayerScope>(layer, key).is_some_and(|p| p.local.hovered)
+}
+
+/// The frame time the layer child `key` on `layer` of the node being built opened at.
+pub(crate) fn opened_at(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<f64> {
+    cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.since)
+}
+
+/// The content of a layer child: measured before a new layer is placed, then shown at its place.
+/// `memory` is the layer child's own memory, which lasts while it shows.
+pub(crate) trait LayerBody<R> {
+    /// The size the content takes on `ui`, a measuring cursor at the body's region.
+    fn measure(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage) -> Vec2;
+    /// Shows the content on `ui` at the body's region; a close it decides goes in `closed`.
+    fn show(&mut self, ui: &mut Ui<'_, '_>, memory: &mut MemoryStage, closed: &BodyClose) -> R;
+}
+
+impl<R, F: FnMut(&mut Ui<'_, '_>) -> R> LayerBody<R> for F {
+    fn measure(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage) -> Vec2 {
+        self(ui);
+        ui.flow.content_size()
+    }
+
+    fn show(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage, _: &BodyClose) -> R {
+        self(ui)
+    }
+}
+
 /// Shows a layer child of the node `cx` builds, keyed `key`, with `body` as its content: keeps it
 /// when nothing reaches for it (`rerun` false, no mark, not new), otherwise runs the body at its
 /// place. `id` is the craft `Id` its content is keyed under.
@@ -337,9 +571,26 @@ pub(crate) fn show_layer<R: Clone + 'static>(
     rerun: bool,
     body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
 ) -> R {
+    show_layer_with(cx, id, key, show, rerun, body)
+}
+
+/// [`show_layer`] with any [`LayerBody`]: a container shown as a layer's content measures and
+/// shows through its own entry points.
+pub(crate) fn show_layer_with<R: Clone + 'static>(
+    cx: &mut BuildCx<'_>,
+    id: Id,
+    key: u64,
+    show: LayerShow,
+    rerun: bool,
+    body: &mut dyn LayerBody<R>,
+) -> R {
     let viewport = cx.env().viewport.get(cx);
     let rtl = is_rtl(cx);
-    let LayerShow { layer, spec, surface, pad, share, anchor, role, hover, sweep, focus } = show;
+    let LayerShow { layer, mut spec, surface, pad, share, anchor, role, hover, sweep, focus, entry, host, on_activate, enter } = show;
+    // The modal reach its body registered on its last run.
+    if layer == Layer::Modal {
+        spec = spec.reach(cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.reach));
+    }
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
         lk.kept.focus.scope = focus;
@@ -348,7 +599,8 @@ pub(crate) fn show_layer<R: Clone + 'static>(
             cx.keep_children();
             return value;
         }
-        let out = run_layer(lk, state, cx, LayerRun { id, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl }, body);
+        let run = LayerRun { id, layer, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl, entry, host, on_activate, enter };
+        let out = run_layer(lk, state, cx, run, body);
         if state.new {
             super::focus::enter_layer(&lk.kept, cx);
         }
@@ -358,6 +610,7 @@ pub(crate) fn show_layer<R: Clone + 'static>(
 
 struct LayerRun {
     id: Id,
+    layer: Layer,
     spec: LayerSpec,
     surface: Surface,
     pad: f32,
@@ -369,18 +622,20 @@ struct LayerRun {
     sweep: Option<State<Sweep>>,
     /// The owner's flow direction: the popup frame mirrors with it.
     rtl: bool,
+    entry: Option<OpenEntry>,
+    host: Option<Id>,
+    on_activate: bool,
+    enter: bool,
 }
 
-fn run_layer<R: Clone + 'static>(
-    lk: &mut LayerKept,
-    state: InlineState,
-    cx: &mut BuildCx<'_>,
-    run: LayerRun,
-    body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
-) -> R {
+fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mut BuildCx<'_>, run: LayerRun, body: &mut dyn LayerBody<R>) -> R {
     cx.count_scope();
     cx.hover_events(run.hover);
     lk.dismissed = None;
+    if state.new {
+        lk.since = Some(cx.now());
+        lk.closed.set(None);
+    }
     let tokens: Arc<Tokens> = super::env::tokens(cx);
     let gap = tokens.space.gap.stack;
     let constraints = run.spec.constraints(run.viewport, run.anchor);
@@ -392,8 +647,7 @@ fn run_layer<R: Clone + 'static>(
     let size = if state.new || current == Vec2::ZERO {
         let region = Rect::from_min_size(Pos2::new(run.pad, run.pad), room);
         let mut measuring = Ui::new(cx, Flow::new(run.id, Pos2::ZERO, region, gap, tokens.clone()).with_sweep(run.sweep).measuring(None));
-        body(&mut measuring);
-        frame(measuring.flow.content_size())
+        frame(body.measure(&mut measuring, &mut lk.kept.memory))
     } else {
         current
     };
@@ -407,10 +661,34 @@ fn run_layer<R: Clone + 'static>(
         cells.frame = frame_cell;
         cx.provide(cells);
     }
+    if let Some(id) = run.host {
+        cx.provide(LayerHost { id, closed: lk.closed.clone() });
+    }
+    if run.on_activate {
+        let mut chain = cx.provided::<ActivationChain>().unwrap_or_default();
+        chain.0.push(lk.closed.clone());
+        cx.provide(chain);
+    }
+    // A modal's body says what of the canvas below it stays usable while it runs.
+    let modal = run.layer == Layer::Modal;
+    let context = Context::of_build(cx);
+    if modal {
+        crate::runtime::sampler::begin_modal(&context);
+    }
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
     ui.flow.scope = lk.scope.take_for_body();
-    let out = body(&mut ui);
+    let out = body.show(&mut ui, &mut lk.kept.memory, &lk.closed);
     let Ui { cx, flow, .. } = ui;
+    if run.enter && flow.scope.submit && lk.closed.get().is_none() {
+        lk.closed.set(Some(CloseReason::Enter));
+    }
+    if modal {
+        let reach = crate::runtime::sampler::end_modal(&context, cx);
+        if lk.reach != reach {
+            lk.reach = reach;
+            cx.set_layer_reach(reach);
+        }
+    }
     lk.scope.clearable = flow.scope.clearable;
     let real = frame(flow.content_size());
     if real != size && !state.new {
@@ -429,6 +707,7 @@ fn run_layer<R: Clone + 'static>(
     }
     lk.kept.id = run.id;
     lk.kept.note_id(cx, run.id);
+    lk.entry = run.entry.map(|entry| OpenEntry { id: run.id, rect: Rect::from_min_size(at, real), ..entry });
     if lk.kept.access.is_none() {
         lk.kept.access = Some(accesskit::Node::new(run.role));
     }
@@ -463,96 +742,6 @@ fn popup_radii(tokens: &Arc<Tokens>) -> CornerRadii {
 
 /// Whether the flow direction of the node `cx` builds is right to left. A tracked read: the node
 /// builds again when the direction changes.
-fn is_rtl(cx: &mut BuildCx<'_>) -> bool {
+pub(crate) fn is_rtl(cx: &mut BuildCx<'_>) -> bool {
     EnvCells::of(cx).is_some_and(|cells| cells.direction.get(cx) == Direction::Rtl)
-}
-
-/// What the `overlay` hook gets: the component's popups and their open state, shown as layer
-/// children of its node.
-pub struct OverlayUi<'u, 'c> {
-    pub(crate) cx: &'u mut BuildCx<'c>,
-    /// The craft `Id` of the component.
-    pub(crate) owner: Id,
-    /// The component's window rect in this frame.
-    pub(crate) anchor: Rect,
-    pub(crate) popups: &'u mut PopupStates,
-    /// The component's own hooks ran in this build: its popups' bodies run too, since they show
-    /// what its props hold. On a pass that only reaches a marked node under a popup, they don't.
-    pub(crate) owner_ran: bool,
-    pub(crate) rtl: bool,
-    pub(crate) tokens: Arc<Tokens>,
-    /// The window's toggle sweep record, passed to the popups' flows.
-    pub(crate) sweep: Option<State<Sweep>>,
-    closed: SmallVec<[(u64, CloseReason); 1]>,
-    /// A popup opened or closed in a pass where the component kept its outputs: it runs again in
-    /// this frame to show its new state.
-    pub(crate) changed: bool,
-}
-
-impl<'u, 'c> OverlayUi<'u, 'c> {
-    pub(crate) fn new(
-        cx: &'u mut BuildCx<'c>,
-        owner: Id,
-        anchor: Rect,
-        popups: &'u mut PopupStates,
-        owner_ran: bool,
-        tokens: Arc<Tokens>,
-        sweep: Option<State<Sweep>>,
-    ) -> Self {
-        let rtl = is_rtl(cx);
-        OverlayUi { cx, owner, anchor, popups, owner_ran, rtl, tokens, sweep, closed: SmallVec::new(), changed: false }
-    }
-
-    /// Whether `popup` is open.
-    pub fn is_open(&self, popup: PopupHandle) -> bool {
-        self.popups.iter().any(|&(key, open)| key == popup.key && open)
-    }
-
-    /// Opens or closes `popup`.
-    pub fn set_open(&mut self, popup: PopupHandle, open: bool) {
-        if self.is_open(popup) == open {
-            return;
-        }
-        match self.popups.iter_mut().find(|(key, _)| *key == popup.key) {
-            Some(entry) => entry.1 = open,
-            None => self.popups.push((popup.key, open)),
-        }
-        self.changed = true;
-    }
-
-    /// Opens a closed `popup`, closes an open one.
-    pub fn toggle(&mut self, popup: PopupHandle) {
-        let open = self.is_open(popup);
-        self.set_open(popup, !open);
-    }
-
-    /// Why `popup` closed in this pass (its dismissal, or a close its body asked for); `None`
-    /// while it stays open.
-    pub fn closing(&self, popup: PopupHandle) -> Option<CloseReason> {
-        self.closed.iter().find(|(key, _)| *key == popup.key).map(|(_, reason)| *reason)
-    }
-
-    /// Closes `popup` from its body's result, reporting `reason` through [`closing`](Self::closing).
-    pub fn close(&mut self, popup: PopupHandle, reason: CloseReason) {
-        if self.is_open(popup) {
-            self.set_open(popup, false);
-            self.closed.push((popup.key, reason));
-        }
-    }
-
-    /// Shows `popup` while it is open, placed and dismissed as `overlay` says, with `body` as its
-    /// content; `None` while it is closed (its node is gone). A popup ui-rt dismissed since the
-    /// last pass closes here and shows nothing.
-    pub fn show<R: Clone + 'static>(&mut self, popup: PopupHandle, overlay: &Overlay, mut body: impl FnMut(&mut Ui<'_, '_>) -> R) -> Option<R> {
-        if !self.is_open(popup) {
-            return None;
-        }
-        let show = LayerShow { sweep: self.sweep, ..LayerShow::of(overlay, self.cx.node(), self.anchor, self.rtl, &self.tokens) };
-        if let Some(reason) = dismissed(self.cx, show.layer, popup.key) {
-            self.close(popup, close_reason(reason));
-            return None;
-        }
-        let id = self.owner.with(("craft-popup", popup.key));
-        Some(show_layer(self.cx, id, popup.key, show, self.owner_ran, &mut body))
-    }
 }

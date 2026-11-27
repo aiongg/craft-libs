@@ -129,6 +129,9 @@ pub struct Runtime {
     /// pinch depend on it.
     pub(crate) os: Os,
     pub(crate) wheel: WheelOptions,
+    /// A window lost key focus since the last frame: if none has it at the next frame, the app
+    /// lost it, and layer children that go when the user turns away get [`crate::DismissReason::Away`].
+    pub(crate) away_check: bool,
 }
 
 impl Reads for Runtime {
@@ -172,6 +175,7 @@ impl Runtime {
             cursor_requests: Vec::new(),
             os: Os::current(),
             wheel: WheelOptions::default(),
+            away_check: false,
         }
     }
 
@@ -486,6 +490,7 @@ impl Runtime {
                 env.window_focused.set_if_changed(&mut self.store, *focused);
                 // The IME session follows the window with key focus.
                 w.input.focus_moved = true;
+                self.away_check = !*focused;
                 if *focused {
                     self.raise(window);
                 } else {
@@ -730,6 +735,9 @@ impl Runtime {
     fn run_frame(&mut self, text: &mut dyn TextEngine, mut roots: Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>) -> FrameReport {
         let mut report = FrameReport::default();
         self.counters = Counters::default();
+        if std::mem::take(&mut self.away_check) && !self.windows.values().any(|w| *self.store.peek(w.env.window_focused)) {
+            self.dismiss_away(None);
+        }
         let mut held = Vec::new();
         for _ in 0..MAX_ROUNDS {
             self.apply_marks();
