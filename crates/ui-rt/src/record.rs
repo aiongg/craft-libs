@@ -187,6 +187,7 @@ impl RecordingRenderer {
                     | Item::Mesh(_)
                     | Item::Shadow { .. }
                     | Item::Surface { .. }
+                    | Item::Slot(_)
                     | Item::VGradient { .. }
                     | Item::PushOpacity { .. }
                     | Item::PopOpacity => {}

@@ -92,6 +92,9 @@ pub(crate) struct Node {
     /// Values this node provides to itself and what it owns ([`crate::BuildCx::provide`]).
     pub(crate) provided: Vec<(std::any::TypeId, std::rc::Rc<dyn Any>)>,
     pub(crate) outbox: Option<Box<dyn Any>>,
+    /// The items of its paint slots by key, in local coordinates ([`crate::BuildCx::fill_slot`]): kept while its
+    /// display lists reserve the slot, put in place of each [`crate::Item::Slot`] when it paints.
+    pub(crate) slot_lists: Vec<(u64, std::sync::Arc<crate::display::DisplayList>)>,
     /// Recorded by the last paint, in local coordinates, in paint order.
     pub(crate) hits: Vec<HitRecord>,
     /// The cursor its last paint named for itself and its descendants.
@@ -131,6 +134,7 @@ impl Node {
             slots: Vec::new(),
             provided: Vec::new(),
             outbox: None,
+            slot_lists: Vec::new(),
             hits: Vec::new(),
             cursor: None,
             access: AccessData::default(),
@@ -167,6 +171,13 @@ impl Tree {
             cur = n.owner.or(n.parent);
         }
         None
+    }
+
+    /// The nearest value of type `T` provided by a node above `node` (its owner, else its parent, and on up),
+    /// passing over what `node` provides itself.
+    pub(crate) fn provided_above<T: Clone + 'static>(&self, node: NodeId) -> Option<T> {
+        let n = self.nodes.get(&node)?;
+        self.provided::<T>(n.owner.or(n.parent)?)
     }
 
     pub(crate) fn has_work(&self) -> bool {

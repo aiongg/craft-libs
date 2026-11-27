@@ -81,6 +81,23 @@ fn queue(intent: Intent, k: &KeyInput) -> Taken {
     Taken::Queue(NodeInput::Intent { intent, horizontal: matches!(k.key, Key::Left | Key::Right), shift: k.mods.shift })
 }
 
+/// The page or end move a key a focused descendant left makes on the scroll owner it bubbled to (Page Up, Page
+/// Down, Home, End), as that owner's next run takes it (`Focus::take_scroll_moves`).
+pub(crate) fn scroll_move(cx: &EventCx<'_>, k: &KeyInput) -> Option<NodeInput> {
+    if !k.down {
+        return None;
+    }
+    match intent(cx.runtime().os(), k.key, k.mods, KeyRole::new()) {
+        Some(Intent::Move(mv @ (NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End), mods)) => {
+            match queue(Intent::Move(mv, mods), k) {
+                Taken::Queue(input) => Some(input),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// What the focused node with `focus` does with `k`.
 pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
     let Some(keys) = focus.stop.as_ref() else { return Taken::No };

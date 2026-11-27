@@ -97,6 +97,7 @@ impl Focus for CxCore<'_> {
         if self.is_measuring() {
             return moves;
         }
+        self.run.scroll_owner.set(true);
         while let Some(mv) = self.intents.take_move_where(scrolls) {
             moves.push(mv);
         }

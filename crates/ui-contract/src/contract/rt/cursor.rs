@@ -34,6 +34,7 @@ pub(crate) fn platform(cursor: &craft_behavior::Cursor) -> craft_ui_rt::Cursor {
             PaintedCursor::Badged { base, .. } => *base,
             _ => CursorIcon::Crosshair,
         },
+        _ => CursorIcon::Default,
     };
     craft_ui_rt::Cursor::Icon(icon)
 }

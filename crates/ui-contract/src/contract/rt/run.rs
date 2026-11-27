@@ -55,6 +55,17 @@ impl<C: Component> Begun<C> {
     pub(crate) fn resolved(&self, id: Id) -> Resolved<'_> {
         steps::resolved(id, &self.step1, &self.common)
     }
+
+    /// The node `id` is an instance of its `Common::command_scope`: its steps, and what it shows, run with the
+    /// instance on the env's command chain, so the scope's commands reach it while it holds key focus. Style
+    /// resolved before this, under the env its parent placed it in.
+    pub(crate) fn enter_instance(&mut self, id: Id) {
+        if let Some(scope) = self.common.command_scope
+            && self.env.view().command_chain().innermost(scope.name()) != Some(id)
+        {
+            self.env = self.env.derive_local(|scoped| scoped.inherited_mut().commands = scoped.commands.pushed(scope, id));
+        }
+    }
 }
 
 /// Steps 1 and 2 under the env the node's parent places it in. `Env::of` registers its reads for the
@@ -194,8 +205,9 @@ pub(crate) fn show_shaped<C: Component>(
     tip: Option<TipFn<'_>>,
     hooks: &mut dyn ShapeHooks<C>,
 ) -> C::Output {
-    let begun = begin_in(&mut component, ui, place);
+    let mut begun = begin_in(&mut component, ui, place);
     let (id, child) = ui.flow.child(type_key::<C>(), begun.common.id.clone());
+    begun.enter_instance(id);
     let key = component_key(&component);
     let room = ui.flow.room();
     let tag = sweep_tag(&component, &ui.flow);
@@ -493,6 +505,7 @@ pub(crate) fn run_shaped<C: Component>(
             ime_history: kept.ime.history(),
             ime_body: kept.ime.body.clone().into(),
             hover_point: cx.hover_point(node),
+            drag_over: kept.drag_over.clone(),
             ..RunIo::new(&input, context.clone())
         },
     );
@@ -532,7 +545,7 @@ pub(crate) fn run_shaped<C: Component>(
         let items =
             hooks.geometry(&component, &steps::measure_cx::<C>(&input, style, &resolved, cxx.shown.as_deref()), (rect, cxx.core.content_rect), rtl);
         let mut extra = |c: &mut C, r: Rect, pcx: &mut crate::contract::PartsCx<'_, C>| hooks.parts(c, r, pcx);
-        steps::declare_parts(&mut component, &mut cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
+        steps::declare_parts(&mut component, &cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
     }
     kept.parts = steps::kept_parts(&parts, rect.min);
     kept.sense = sense;
@@ -632,7 +645,8 @@ pub(crate) fn run_shaped<C: Component>(
     kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), cx)).flatten();
+    let mut built =
+        cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, cx)).flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
         (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
         _ => Vec::new(),
@@ -659,6 +673,8 @@ pub(crate) fn run_shaped<C: Component>(
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
     super::node::MenuBar::register(kept.menu_bar, cx);
+    kept.scroll_owner = cxx.core.run.scroll_owner.get();
+    kept.drop_types = cxx.core.run.drop_types.take();
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
@@ -855,6 +871,7 @@ fn report<C: Component>(
     sense: Sense,
     parts: &[KeptPart],
     row: Option<&crate::runtime::env::ItemFacts>,
+    fold_entry: &mut Option<fold::FoldEntry>,
     build: &mut BuildCx<'_>,
 ) -> Option<super::access::Built> {
     let Role::Node(role) = C::ROLE else { return None };
@@ -879,6 +896,7 @@ fn report<C: Component>(
     let ctx = cx.core.context();
     if let Some(owner) = fold::owner_of(ctx, cx.core.id) {
         fold::offer(ctx, owner, fold::Folded { inner: cx.core.id, value: access.value.take() });
+        fold_entry.get_or_insert_with(|| fold::entry(ctx, cx.core.id));
         return None;
     }
     if access.value.is_none() {
@@ -968,6 +986,8 @@ fn record_variants<C: Component>(
         };
         let ((variant, children), read) = crate::style::pointer_reads(|| {
             steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
+            // Each look reserves its paint slots from key 0, so a slot names the same place in every look.
+            cxx.core.paint.borrow_mut().slots = 0;
             let canvas = Canvas::new(host, cxx.core.rect.min, Rect::EVERYTHING);
             let fade = steps::fade(&canvas, &begun.env, cxx.core);
             if let Some(items) = steps::surface_items(&begun.env, cxx.core, &*begun.style, scale) {

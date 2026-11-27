@@ -275,6 +275,9 @@ pub(crate) struct RunIo<'a> {
     /// claims Alt alone; the driver keeps it, and the window root routes F10, a lone Alt and Alt mnemonics to the
     /// node as `NodeInput::Menu`.
     pub(crate) menu_bar: Cell<Option<bool>>,
+    /// The run took its page and end moves (`Focus::take_scroll_moves`): the node owns a scroll, and the driver keeps
+    /// it as the scroll owner the page and end keys its focused descendants leave bubble to.
+    pub(crate) scroll_owner: Cell<bool>,
     /// The run asks to run again in the next frame (a wheel ease paying out); the driver asks the node's build.
     pub(crate) wake: Cell<bool>,
     /// The run gives up key focus (`CxCore::surrender_focus`); the driver asks ui-rt after the run.
@@ -300,6 +303,12 @@ pub(crate) struct RunIo<'a> {
     pub(crate) ime_body: RefCell<Option<std::sync::Arc<std::sync::Mutex<crate::contract::rt::ime::BodyReport>>>>,
     /// The pointer's place (window coordinates) over the node or a node under it when the run began (`CxCore::hover_point`).
     pub(crate) hover_point: Option<craft_ui_rt::Pos2>,
+    /// The drag over the node for the payload types its last run asked for, when the run began: its payload, the
+    /// pointer in window coordinates and the keys held (`Pointer::dragging`).
+    pub(crate) drag_over: Option<(craft_ui_rt::DragData, craft_ui_rt::Pos2, craft_ui_rt::Mods)>,
+    /// The payload types the run asked for (`Pointer::drop_target`; `true` for `window_drop_target`); the driver
+    /// keeps them, and the node takes their drags in ui-rt's routing.
+    pub(crate) drop_types: RefCell<smallvec::SmallVec<[(std::any::TypeId, bool); 1]>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -319,6 +328,7 @@ impl<'a> RunIo<'a> {
             swept: None,
             inbox: Default::default(),
             menu_bar: Cell::new(None),
+            scroll_owner: Cell::new(false),
             wake: Cell::new(false),
             surrender: Cell::new(false),
             wheel_taken: Cell::new(false),
@@ -330,6 +340,8 @@ impl<'a> RunIo<'a> {
             ime_history: (false, false),
             ime_body: RefCell::new(None),
             hover_point: None,
+            drag_over: None,
+            drop_types: RefCell::new(smallvec::SmallVec::new()),
         }
     }
 

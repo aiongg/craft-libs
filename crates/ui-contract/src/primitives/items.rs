@@ -130,7 +130,7 @@ pub fn translate(item: &mut Item, by: Vec2) {
         Item::Text { origin, .. } => *origin += by,
         Item::PushClip(clip) => clip.rect = clip.rect.translate(by),
         Item::PushOpacity { bounds, .. } => *bounds = bounds.translate(by),
-        Item::PopClip | Item::PopOpacity => {}
+        Item::Slot(_) | Item::PopClip | Item::PopOpacity => {}
     }
 }
 
@@ -168,7 +168,7 @@ pub(crate) fn map_colors(item: &mut Item, map: impl Fn(Rgba) -> Rgba) {
                 highlight.fill = map(highlight.fill);
             }
         }
-        Item::Surface { .. } | Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => {}
+        Item::Surface { .. } | Item::Slot(_) | Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => {}
     }
 }
 

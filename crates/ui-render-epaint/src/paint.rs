@@ -212,6 +212,8 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                 opacity *= f;
             }
             Item::PopOpacity => opacity = opacities.pop().unwrap_or(1.0),
+            // ui-rt puts a slot's items in its place; an unfilled slot paints nothing.
+            Item::Slot(_) => {}
             Item::Rect { rect: r, radii, fill, stroke: s } => {
                 let r = rect(*r, shift);
                 match s {

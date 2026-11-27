@@ -21,6 +21,8 @@ pub struct PaintRecord {
     pub faces: Vec<FaceRecord>,
     /// Child edits adopted with `cx.adopt`, read at step 15.
     pub adopted: Vec<Adopted>,
+    /// The paint slots the look being recorded reserved so far: the next one's key ([`super::PaintSlot`]).
+    pub(crate) slots: u64,
     /// The corners of the component's surface, which a faded component's veil takes; square without a surface.
     pub(crate) surface_radius: egui::CornerRadius,
     /// Where a faded component's veil sits in its layer's paint list, so a later paint range of the component moves

@@ -4,7 +4,8 @@
 //!
 //! The owner asks for the fold in its paint, before the control runs; the control's run offers its
 //! value text before the owner reports. Both live in the window's `Folds` service, keyed by craft
-//! `Id`, so a kept control's text still reaches an owner that runs again without it.
+//! `Id`, so a kept control's text still reaches an owner that runs again without it. A folded control's
+//! node holds a [`FoldEntry`], which takes the control's entries out when the node goes.
 
 use std::collections::HashMap;
 
@@ -50,4 +51,26 @@ pub(crate) fn offer(ctx: &Context, owner: Id, folded: Folded) {
 /// What the control folded into `owner` last offered.
 pub(crate) fn offered(ctx: &Context, owner: Id) -> Option<Folded> {
     ctx.service::<Folds, _>(|folds| folds.offered.get(&owner).cloned())
+}
+
+/// A folded control's place in its window's `Folds`, held by the control's node: dropped with the node, it
+/// removes the control's owner and the text it offered.
+pub(crate) struct FoldEntry {
+    ctx: Context,
+    inner: Id,
+}
+
+/// The entry the folded control `inner` keeps on its node.
+pub(crate) fn entry(ctx: &Context, inner: Id) -> FoldEntry {
+    FoldEntry { ctx: ctx.clone(), inner }
+}
+
+impl Drop for FoldEntry {
+    fn drop(&mut self) {
+        let inner = self.inner;
+        self.ctx.service::<Folds, _>(|folds| {
+            folds.owners.remove(&inner);
+            folds.offered.retain(|_, folded| folded.inner != inner);
+        });
+    }
 }
