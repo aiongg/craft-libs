@@ -69,7 +69,12 @@ impl InboxIn {
 
     /// The next command of `S` fired at the node that it has not taken, which `filter` accepts. `None`
     /// when there is none; a set with no cell yet asks for one.
-    pub(crate) fn take<S: CommandSet, T>(&mut self, memory: &mut MemoryStage, id: Id, filter: impl Fn(&CommandRef) -> Option<T>) -> Option<(T, Fired)> {
+    pub(crate) fn take<S: CommandSet, T>(
+        &mut self,
+        memory: &mut MemoryStage,
+        id: Id,
+        filter: impl Fn(&CommandRef) -> Option<T>,
+    ) -> Option<(T, Fired)> {
         let set = TypeId::of::<S>();
         let Some((_, inbox)) = self.read.iter().find(|(s, _)| *s == set) else {
             if !self.wants.iter().any(|w| w.set == set) {

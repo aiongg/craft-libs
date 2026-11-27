@@ -5,11 +5,13 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use craft_ui_contract::contract::rt::access::{Access, AccessAction, Numeric, Politeness};
-use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Container, Cx, MeasureCx, MemoView, NodeInput, Paint, Response, Ui, show_container, show_leaf, window_root,
+use craft_ui_contract::contract::{
+    Access, AccessAction, Common, Component, Container, ContainerProps, Cx, Gap, MeasureCx, MemoView, NodeInput, Numeric, PaintUi, Politeness, Response,
+    Role, Scroll, Show as _, ShowContainer as _, Sizing, Styled as _, Ui,
 };
-use craft_ui_contract::contract::{ContainerProps, Gap, IdSource, MemoKey, Scroll, Sizing};
+use craft_ui_contract::runtime::windows::window_root;
+use craft_ui_contract::style::StyleCx;
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_contract::primitives::PaintShape;
 use craft_ui_contract::style::{StyleColor, UiTokens, rgba_color};
 use craft_ui_platform_headless::{HeadlessPlatform, Input};
@@ -18,29 +20,33 @@ use craft_ui_rt::{Platform, Pos2, Rect, Runtime, Sense, StepReport, Vec2, Window
 use craft_ui_test_kit::rt::{Rig, test_tokens};
 
 /// A leaf that names itself by `label`, counts its `access` calls and what reached it.
+#[derive(Component)]
 struct Item {
+    #[common]
+    common: Common,
     label: String,
+    /// `number`'s bits, which the key holds.
+    bits: Option<u64>,
+    #[key(skip)]
     number: Option<f64>,
+    #[key(skip)]
     runs: Rc<Cell<u32>>,
+    #[key(skip)]
     accessed: Rc<Cell<u32>>,
+    #[key(skip)]
     seen: Rc<std::cell::RefCell<Vec<AccessAction>>>,
 }
 
-impl ComponentKey for Item {
-    fn key(&self, key: &mut MemoKey) {
-        key.feed_hash(&(self.label.as_str(), self.number.map(f64::to_bits)));
-    }
-}
-
 impl Component for Item {
-    const ROLE: accesskit::Role = accesskit::Role::Button;
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn id_source(&self) -> IdSource {
-        IdSource::Auto
+    fn style(_: &StyleCx<'_>, _: ItemStyleKey) -> PlainStyle {
+        PlainStyle::default()
     }
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::new(60.0, 20.0)
     }
 
@@ -57,12 +63,10 @@ impl Component for Item {
         }
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        let bounds = paint.bounds();
-        let ink = paint.tokens.color.text.faint;
-        match paint.pointer() {
-            craft_ui_contract::contract::rt::Pointer::Rest => {}
-            _ => paint.draw().fill(&PaintShape::Rect(bounds, UiTokens::corner(0.0)), StyleColor(rgba_color(ink))),
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let ink = ui.env.tokens.theme().color.text.faint;
+        if cx.state().state != craft_theme::State::Rest {
+            ui.draw().fill(&PaintShape::Rect(cx.rect, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
         }
     }
 
@@ -75,7 +79,7 @@ impl Component for Item {
         access.custom_action(7, "Reset");
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
@@ -114,7 +118,16 @@ impl App {
 }
 
 fn item(ui: &mut Ui<'_, '_>, app: &App, label: &str, number: Option<f64>) -> Response {
-    show_leaf(Item { label: label.into(), number, runs: app.runs.clone(), accessed: app.accessed.clone(), seen: app.seen.clone() }, ui)
+    Item {
+        common: Common::new(),
+        label: label.into(),
+        bits: number.map(f64::to_bits),
+        number,
+        runs: app.runs.clone(),
+        accessed: app.accessed.clone(),
+        seen: app.seen.clone(),
+    }
+    .show(ui)
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
@@ -292,34 +305,36 @@ fn an_announcement_is_one_live_status_node_cleared_in_the_next_frame() {
 }
 
 /// A vertical scroll container.
+#[derive(Component)]
+#[component(container, unregistered)]
 struct Pane {
+    #[common]
+    common: Common,
+    #[container]
     props: ContainerProps,
 }
 
-impl ComponentKey for Pane {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
 impl Component for Pane {
-    const ROLE: accesskit::Role = accesskit::Role::List;
+    const ROLE: Role = Role::LIST;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn style(_: &StyleCx<'_>, _: PaneStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
 
-impl Container for Pane {
-    fn props(&self) -> &ContainerProps {
-        &self.props
-    }
-}
+impl Container for Pane {}
 
 fn rows_ui(ui: &mut Ui<'_, '_>, app: &App) {
     let mut props = ContainerProps::new();
     props.body_gap = Gap::None;
     let props = props.scroll(Scroll::vertical()).sizing(Sizing::Fill);
-    show_container(Pane { props }, ui, |ui| {
+    Pane { common: Common::new(), props }.show(ui, |ui, _| {
         for i in 0..300 {
             item(ui, app, &format!("row {i}"), None);
         }

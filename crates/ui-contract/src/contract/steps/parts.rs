@@ -74,7 +74,9 @@ pub(crate) fn toggles(parts: &PartsStep) -> Vec<Toggle> {
     parts
         .decls
         .iter()
-        .filter_map(|(decl, extras)| extras.toggles.map(|toggle| Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false }))
+        .filter_map(|(decl, extras)| {
+            extras.toggles.map(|toggle| Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false })
+        })
         .collect()
 }
 

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use craft_behavior::{CursorIcon, IconId, MotionMode};
 use craft_i18n::Direction;
-use craft_ui_contract::contract::rt::skeleton::IconButton;
+use crate::skeleton::IconButton;
 use craft_ui_contract::contract::rt::{
     Component, ComponentKey, Cx, EnvCells, EnvScope, JobBoard, LayerFrame, MeasureCx, MemoView, Paint, TextureCache, TextureLook, ThemeBase, Ui,
     WindowEnv, spec, window_root_with,

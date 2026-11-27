@@ -1,11 +1,11 @@
 //! Step 1, env: enabled, read-only and the resolved props.
 
+use crate::contract::Id;
 use crate::contract::{Common, Component, Resolved};
 use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, GlyphRole, accepted_variant};
 use craft_theme::{ControlSize, Variant};
-use crate::contract::Id;
 use std::sync::Arc;
 
 /// What step 1 resolves.

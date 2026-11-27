@@ -92,12 +92,8 @@ pub(crate) fn show_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, at:
         return finish_measured(component, id, rect, &begun, value);
     }
     let Ui { cx, flow, .. } = ui;
-    let node = ComponentNode {
-        key: key.map_or(0, fold),
-        tag,
-        stop: C::STOPS && steps::takes_focus(&begun.resolved(id)),
-        text: component.text_input(),
-    };
+    let node =
+        ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS && steps::takes_focus(&begun.resolved(id)), text: component.text_input() };
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
@@ -118,7 +114,12 @@ pub(crate) fn show_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, at:
                 return settle(component, kept, cx, rect, &begun, value);
             }
             let tokens = super::env::tokens(cx);
-            run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep, begun: &begun, value, tip })
+            run(
+                component,
+                kept,
+                cx,
+                Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep, begun: &begun, value, tip },
+            )
         })
     })
 }
@@ -157,14 +158,27 @@ pub(crate) struct Ran<'a, C: Component> {
 }
 
 /// The `Cx` a kept node's `finish` gets: no input, the kept facts, `is_settled` true.
-fn settled_core<'a>(begun_env: &'a Env, resolved: &'a Resolved<'a>, memory: &'a mut MemoryStage, response: Response, begun: &steps::EnvStep) -> CxCore<'a> {
+fn settled_core<'a>(
+    begun_env: &'a Env,
+    resolved: &'a Resolved<'a>,
+    memory: &'a mut MemoryStage,
+    response: Response,
+    begun: &steps::EnvStep,
+) -> CxCore<'a> {
     let mut core = core_for(begun_env, resolved, memory, response, begun.command.clone());
     core.settled = true;
     core
 }
 
 /// The output of a kept node: `finish` on a settled `Cx` with the kept facts and no input.
-pub(crate) fn settle<C: Component>(component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, rect: Rect, begun: &Begun<C>, value: ValueStep<ValueOf<C>>) -> C::Output {
+pub(crate) fn settle<C: Component>(
+    component: C,
+    kept: &mut Kept,
+    cx: &mut BuildCx<'_>,
+    rect: Rect,
+    begun: &Begun<C>,
+    value: ValueStep<ValueOf<C>>,
+) -> C::Output {
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
@@ -241,7 +255,15 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     core.faded = facts.faded && !resolved.enabled;
     core.focus = super::focus::facts(&kept.focus, focused, cx.interaction(node).focus_visible);
     core.intents = super::intents::of_queue(&core.input, || rtl);
-    let mut cxx = Cx { core: &mut core, style, shown: value.value, mixed: value.mixed, events: value.cancelled.into_iter().collect(), applied: 0, validity: Validity::Ok };
+    let mut cxx = Cx {
+        core: &mut core,
+        style,
+        shown: value.value,
+        mixed: value.mixed,
+        events: value.cancelled.into_iter().collect(),
+        applied: 0,
+        validity: Validity::Ok,
+    };
 
     // 7 parts: declared in node coordinates and kept as hit shapes until the next run.
     let sense = own_sense(&component, &resolved);
@@ -360,7 +382,9 @@ fn activation_of(resolved: &Resolved<'_>, input: &[NodeInput], sense: Sense) -> 
     }
     input.iter().rev().find_map(|i| match i {
         NodeInput::Intent { intent: Intent::Activate, .. } => Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE }),
-        NodeInput::Access(a) if a.action == accesskit::Action::Click && a.sub.is_none() => Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE }),
+        NodeInput::Access(a) if a.action == accesskit::Action::Click && a.sub.is_none() => {
+            Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE })
+        }
         NodeInput::Pointer { gesture: Gesture::Up { click: true, .. }, button: PointerButton::Primary, part: 0, mods, .. } if sense.takes_press() => {
             Some(Activation { by_key: false, mods: *mods })
         }
@@ -594,7 +618,13 @@ fn part_results(
         .iter()
         .map(|p| {
             let inactive = steps::inactive(parts, p.part);
-            let result = PartResult { rect: bounds(p.shape).translate(rect.min.to_vec2()), press: press_of(p.id), sense: p.sense, inactive, ..PartResult::IDLE };
+            let result = PartResult {
+                rect: bounds(p.shape).translate(rect.min.to_vec2()),
+                press: press_of(p.id),
+                sense: p.sense,
+                inactive,
+                ..PartResult::IDLE
+            };
             ((p.part.key, p.part.index), result)
         })
         .collect();

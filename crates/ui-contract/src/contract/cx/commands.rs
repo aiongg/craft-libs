@@ -19,6 +19,11 @@ impl<C: Component> CommandAccess for Cx<'_, C> {
     fn command_owner(&self) -> Option<Id> {
         Some(self.core.id)
     }
+
+    fn command_inbox(&mut self) -> Option<(&mut crate::runtime::commands::InboxIn, &mut crate::runtime::memory::MemoryStage, Id)> {
+        let core = &mut *self.core;
+        (!core.settled).then(|| (&mut core.inbox, &mut *core.memory, core.id))
+    }
 }
 
 impl<C: Component> Commands for Cx<'_, C> {}

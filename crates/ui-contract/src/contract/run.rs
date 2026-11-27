@@ -268,7 +268,15 @@ pub(crate) fn paint_face<C: Show>(
     core.content_rect = flow.inset(face.padding(rect, &style));
     core.flow = flow;
     core.visible = rect;
-    let cx = super::Cx::<C> { core: &mut core, style: &style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
+    let cx = super::Cx::<C> {
+        core: &mut core,
+        style: &style,
+        shown: value.value,
+        mixed: value.mixed,
+        events: Vec::new(),
+        applied: 0,
+        validity: Validity::Ok,
+    };
     // A face shows its own inputs as the state step reads them for a component.
     let flags = part_state.flags | source.flags | steps::value_flags(&face, &cx);
     let on = f32::from(u8::from(flags.intersects(crate::style::Flags::ON)));

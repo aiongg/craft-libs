@@ -26,8 +26,13 @@ impl StateSet {
         self.state == State::Disabled
     }
 
-    /// The value of `look` in this state.
+    /// The value of `look` in this state. While a paint look is recorded, resolving an enabled state
+    /// reads the pointer: the run then records the hover look, and the press look for a node that
+    /// takes presses (contract-rt 15.6).
     pub fn resolve<T: Mix>(&self, look: &Stateful<T>) -> T {
+        if self.state != State::Disabled {
+            note_pointer_read(true, true);
+        }
         look.resolve(self.state, self.flags, self.t)
     }
 }
@@ -36,4 +41,36 @@ impl Default for StateSet {
     fn default() -> Self {
         StateSet::new(State::Rest, Flags::empty(), StateMix::REST)
     }
+}
+
+/// The pointer facts a paint look's recording read (`Hovered`, `Pressed`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PointerReads {
+    pub hover: bool,
+    pub press: bool,
+}
+
+thread_local! {
+    /// The reads of the look being recorded on this thread; `None` outside a recording.
+    static POINTER_READS: std::cell::Cell<Option<PointerReads>> = const { std::cell::Cell::new(None) };
+}
+
+/// Runs `f` (one look's state and paint) and returns the pointer facts it read.
+pub(crate) fn pointer_reads<R>(f: impl FnOnce() -> R) -> (R, PointerReads) {
+    let outer = POINTER_READS.with(|reads| reads.replace(Some(PointerReads::default())));
+    let out = f();
+    let read = POINTER_READS.with(|reads| reads.replace(outer)).unwrap_or_default();
+    (out, read)
+}
+
+/// Notes a read of the hover and press facts by the look being recorded (`Styled::state`, a face's
+/// part state). Outside a recording it does nothing.
+pub(crate) fn note_pointer_read(hover: bool, press: bool) {
+    POINTER_READS.with(|reads| {
+        if let Some(mut read) = reads.get() {
+            read.hover |= hover;
+            read.press |= press;
+            reads.set(Some(read));
+        }
+    });
 }

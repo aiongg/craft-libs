@@ -3,7 +3,7 @@
 
 use craft_behavior::{IconId, NavShape};
 use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};
+use crate::skeleton::{IconButton, Stack};
 use craft_ui_contract::contract::rt::{
     Component, ComponentKey, Cx, MeasureCx, MemoView, OverlayUi, PopupHandle, Response, Ui, show_dialog, show_leaf, window_root,
 };

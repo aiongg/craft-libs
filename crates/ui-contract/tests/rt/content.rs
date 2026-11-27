@@ -4,36 +4,41 @@
 use std::cell::Cell;
 
 use craft_behavior::IconId;
-use craft_ui_contract::contract::rt::skeleton::IconButton;
-use craft_ui_contract::contract::rt::{Component, ComponentKey, Cx, MeasureCx, Response, Ui, show_leaf, window_root};
-use craft_ui_contract::contract::{MemoKey, MemoProps, Versioned};
+use crate::skeleton::IconButton;
+use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, Response, Role, Show as _, Ui, Versioned};
+use craft_ui_contract::runtime::windows::window_root;
+use craft_ui_contract::style::StyleCx;
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::rt::Rig;
 
 /// A leaf whose content is a closure the key cannot read: it holds the closure's version instead.
+#[derive(Component)]
 struct Painted<'a> {
+    #[common]
+    common: Common,
     content: Versioned<()>,
+    #[key(skip)]
     runs: &'a Cell<u32>,
 }
 
-impl ComponentKey for Painted<'_> {
-    fn key(&self, key: &mut MemoKey) {
-        self.content.key(key);
-    }
-}
-
 impl Component for Painted<'_> {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+    fn style(_: &StyleCx<'_>, _: PaintedStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         self.runs.set(self.runs.get() + 1);
         Vec2::new(40.0, 10.0)
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
@@ -48,7 +53,7 @@ fn step(rig: &mut Rig<RecordingRenderer>, probe: &mut Probe) -> bool {
     rig.step_with(&mut |_, cx| {
         window_root(cx, |ui: &mut Ui<'_, '_>| {
             probe.other = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
-            show_leaf(Painted { content: probe.content, runs: &probe.runs }, ui);
+            Painted { common: Common::new(), content: probe.content, runs: &probe.runs }.show(ui);
         })
     })
     .ran

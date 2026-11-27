@@ -1,5 +1,6 @@
 //! Step 4, value: the shown value and its copies.
 
+use crate::contract::Id;
 use crate::contract::cx::gesture_key;
 use crate::contract::values::reuse_arc;
 use crate::contract::{BindMut, Component, ValueOf};
@@ -7,7 +8,6 @@ use crate::runtime::commands::{CommandKind, ResolvedCommand};
 use crate::runtime::memory::MemoryStage;
 use crate::runtime::motion::StateTweens;
 use craft_behavior::{CancelReason, EditEvent, Gesture, Mixed, Value};
-use crate::contract::Id;
 use std::sync::Arc;
 
 /// What a component showed last pass, in one shown slot under its id: the shown copy of its value, the
@@ -170,4 +170,3 @@ fn resolve_value<V: Value>(comp: &mut dyn ValueSource<V>, stage: &mut MemoryStag
     }
     out
 }
-

@@ -4,7 +4,7 @@
 use accesskit::Role;
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::harness::{FRAME, Harness};
-use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};
+use crate::skeleton::{IconButton, Stack};
 use craft_ui_contract::contract::rt::{Component, ComponentKey, Cx, MeasureCx, Paint, Response, show_leaf, spec};
 use craft_ui_contract::contract::{MemoKey, MemoProps};
 use craft_ui_rt::Vec2;
