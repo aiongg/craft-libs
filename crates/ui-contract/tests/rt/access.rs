@@ -6,17 +6,17 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use craft_ui_contract::contract::{
-    Access, AccessAction, Common, Component, Container, ContainerProps, Cx, Gap, MeasureCx, MemoView, NodeInput, Numeric, PaintUi, Politeness, Response,
-    Role, Scroll, Show as _, ShowContainer as _, Sizing, Styled as _, Ui,
+    Access, AccessAction, Common, Component, Container, ContainerProps, Cx, Gap, MeasureCx, MemoView, NodeInput, Numeric, PaintUi, Politeness,
+    Response, Role, Scroll, Show as _, ShowContainer as _, Sizing, Styled as _, Ui,
 };
+use craft_ui_contract::primitives::PaintShape;
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_contract::style::StyleCx;
-use craft_ui_test_kit::contract::PlainStyle;
-use craft_ui_contract::primitives::PaintShape;
 use craft_ui_contract::style::{StyleColor, UiTokens, rgba_color};
 use craft_ui_platform_headless::{HeadlessPlatform, Input};
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Platform, Pos2, Rect, Runtime, Sense, StepReport, Vec2, WindowId, WindowSpec};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::{Rig, test_tokens};
 
 /// A leaf that names itself by `label`, counts its `access` calls and what reached it.

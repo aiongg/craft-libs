@@ -2,6 +2,7 @@
 //! constants, the run's `CxCore` and `PaintUi`, and the face run. The driver that runs the steps in
 //! order lives in `contract/rt/run.rs` (docs/contract-rt.md section 15).
 
+use super::cx::RunIo;
 use super::steps;
 use super::{Component, CxCore, Internal, PaintUi, Resolved, Show, Validity};
 use crate::contract::Id;
@@ -18,6 +19,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub(crate) use crate::contract::rt::container::{measure_container, show_container, show_container_taking};
 pub(crate) use crate::contract::rt::show_leaf;
 
 /// Where a component is placed.
@@ -38,6 +40,7 @@ pub(crate) fn core_for<'a>(
     memory: &'a mut MemoryStage,
     response: crate::contract::Response,
     command: Option<Arc<ResolvedCommand>>,
+    run: RunIo<'a>,
 ) -> CxCore<'a> {
     let rect = Rect::NOTHING;
     CxCore {
@@ -108,20 +111,20 @@ pub(crate) fn core_for<'a>(
         value_text: RefCell::new(None),
         submitted: false,
         escaped: false,
-        // Moved from the rt `Cx` (contract-rt 15.1).
-        input: Vec::new(),
-        settled: false,
-        swept: None,
-        holds_escape: Default::default(),
-        level: Default::default(),
-        ime_caret: Default::default(),
-        inbox: Default::default(),
+        run,
     }
 }
 
 /// The `PaintUi` of one recorded look: content paint into `canvas` (in window coordinates, recorded
 /// in the node's), the state step's ink and flags, the parts' results and the look's pointer state.
-pub(crate) fn paint_ui<'a>(canvas: &'a Canvas<'a>, env: &'a Env, core: &'a CxCore<'_>, style: &'a dyn StyleView, look: Pointer) -> PaintUi<'a> {
+pub(crate) fn paint_ui<'a>(
+    host: &'a mut (dyn crate::contract::paint_ui::UiHost + 'a),
+    canvas: &'a Canvas<'a>,
+    env: &'a Env,
+    core: &'a CxCore<'_>,
+    style: &'a dyn StyleView,
+    pointer: Pointer,
+) -> PaintUi<'a> {
     let focus = core.active.map(|part| (part, core.state.flags.contains(crate::style::Flags::FOCUS_VISIBLE)));
     PaintUi {
         env,
@@ -131,7 +134,6 @@ pub(crate) fn paint_ui<'a>(canvas: &'a Canvas<'a>, env: &'a Env, core: &'a CxCor
         rect: core.rect,
         record: &core.paint,
         results: &core.results,
-        response: &core.response,
         active: focus.filter(|_| core.state.flags.contains(crate::style::Flags::FOCUSED)),
         // Only a composite with parts paints faces, so the others skip the look list.
         text: if core.results.is_empty() { None } else { style.texts().first().map(|text| &text.color) },
@@ -143,8 +145,10 @@ pub(crate) fn paint_ui<'a>(canvas: &'a Canvas<'a>, env: &'a Env, core: &'a CxCor
         fade: core.fade,
         node: core.node,
         canvas,
-        look,
-        host: None,
+        host_canvas: None,
+        pointer,
+        showed_child: std::cell::Cell::new(false),
+        host,
     }
 }
 
@@ -190,13 +194,25 @@ impl TypeFacts {
 }
 
 /// Measures `comp` as `show` would in `ui`'s room, without a node: steps 1, 2, 4 (read only) and 5
-/// (`Show::measure_in`, a composite's `MeasureCx::child`).
-pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &mut crate::contract::Ui<'_, '_>, proposal: Proposal) -> Vec2 {
+/// (`Show::measure_in`, a composite's `MeasureCx::child` and `face`). `id` is the id the show would
+/// give it (`None`: one under `ui`'s scope); `under` is the composite's resolved `enabled`, `size`
+/// and inside label a child or face of it shows under.
+pub(crate) fn measure_under<C: Component>(
+    comp: &mut C,
+    ui: &mut crate::contract::Ui<'_, '_>,
+    id: Option<Id>,
+    proposal: Proposal,
+    under: Option<&crate::contract::cx::Under>,
+) -> Vec2 {
     let env = Env::of(ui);
+    let env = match under {
+        Some(under) => crate::contract::cx::child_env(&env, under),
+        None => env,
+    };
     let common = std::mem::take(comp.common_mut(Internal::new()));
-    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| Some(ui.resolve_command(command.clone())));
+    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
     let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), comp.style_key());
-    let id = ui.id().with("measure");
+    let id = id.unwrap_or_else(|| ui.id().with("measure"));
     let resolved = steps::resolved(id, &step1, &common);
     let mut stage = MemoryStage::default();
     let value = steps::value(comp, &mut stage, id, step1.command.as_deref());

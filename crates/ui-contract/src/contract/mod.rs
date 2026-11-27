@@ -7,7 +7,6 @@ pub(crate) mod context;
 mod cx;
 pub(crate) mod editor;
 pub use editor::{EditorHandle, EditorStep};
-mod context;
 mod entry;
 mod faces;
 pub(crate) mod footer_slot;
@@ -52,8 +51,6 @@ pub use crate::runtime::keys::MenuKey;
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
-#[doc(hidden)]
-pub use context::Context;
 pub use body::REORDER_BAND;
 #[doc(hidden)]
 pub use body::grip_band;
@@ -75,6 +72,8 @@ pub use container::{
     LeastWidth, Mount, MoveBandCursor, Notch, POPUP_PAD, Pad, PadEdges, PaneEdge, QuietHeader, Scroll, ScrollAnchor, ScrollAxes, ScrollIndicator,
     SectionRhythm, ShellPane, Sizing, ThemeScope, WrapWidth,
 };
+#[doc(hidden)]
+pub use context::Context;
 pub use craft_tracked::{PlainData, Revision, Tracked};
 pub use craft_ui_macros::{CommandSet, Component, Pattern, PlainData, Props, register_contract};
 #[doc(hidden)]
@@ -121,7 +120,6 @@ pub use values::{
 };
 
 pub use crate::primitives::{Id, IdSalt};
-pub use context::Context;
 pub use craft_ui_rt::ImePurpose;
 pub use rt::drag::{DragSource, DropRule};
 #[doc(hidden)]
@@ -146,11 +144,6 @@ pub use craft_behavior::DropOperation;
 pub use craft_behavior::MiddleButton;
 pub use craft_behavior::ReorderKeys;
 pub(crate) use run::measure_under;
-#[cfg(feature = "testing")]
-pub(crate) use steps::queue_reveal;
-pub use steps::scroll_step;
-pub(crate) use steps::{child_reveal, peek_reveal, queue_child_reveal, take_reveal};
-pub(crate) use steps::{draft, keeping_ids};
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
@@ -837,25 +830,22 @@ pub trait Show: Component + Meta<Shape = shape::Leaf> + sealed::Show {
 
     /// Shows the component at `rect`, with no allocation.
     fn show_at(self, ui: &mut Ui, rect: Rect) -> Self::Output {
-        let place = Env::of(ui);
-        run::show_leaf(&mut Some(self), ui, (ShowAt::Rect(rect), place), None)
+        run::show_leaf(self, ui, ShowAt::Rect(rect), None)
     }
 
     /// Shows the component with rich tooltip content from the same call.
     fn show_with_tip(self, ui: &mut Ui, tip: impl FnOnce(&mut Ui)) -> Self::Output {
-        let place = Env::of(ui);
-        run::show_leaf(&mut Some(self), ui, (ShowAt::Flow, place), Some(Box::new(tip)))
+        run::show_leaf(self, ui, ShowAt::Flow, Some(Box::new(tip)))
     }
 
     /// Shows the component at `rect` with rich tooltip content.
     fn show_at_with_tip(self, ui: &mut Ui, rect: Rect, tip: impl FnOnce(&mut Ui)) -> Self::Output {
-        let place = Env::of(ui);
-        run::show_leaf(&mut Some(self), ui, (ShowAt::Rect(rect), place), Some(Box::new(tip)))
+        run::show_leaf(self, ui, ShowAt::Rect(rect), Some(Box::new(tip)))
     }
 
     /// Measures without allocating: steps 1 to 5 under the id `show` would use next. It registers no id, opens no
     /// memory stage and reads memory through a peek that moves no slot.
-    fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2 {
+    fn measure_in(&mut self, ui: &mut Ui, proposal: Proposal) -> Vec2 {
         run::measure_under(self, ui, None, proposal, None)
     }
 }
@@ -883,7 +873,7 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
     /// Measures the container with `body` without allocating: steps 1 to 5 under the id `show` would use next, with
     /// the body, header, footer and end regions run once in an invisible sizing pass, laid out as `show` lays them
     /// out. The size comes from this pass's content alone; along an axis the body scrolls on it is at most the room.
-    fn measure_in<R>(&mut self, ui: &Ui, proposal: Proposal, mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Vec2 {
+    fn measure_in<R>(&mut self, ui: &mut Ui, proposal: Proposal, mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Vec2 {
         run::measure_container(self, ui, proposal, &mut body)
     }
 

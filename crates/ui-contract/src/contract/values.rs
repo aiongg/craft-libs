@@ -46,6 +46,11 @@ impl Response {
         Response { id, rect, node, interact, dragging, facts, joined: Vec::new() }
     }
 
+    /// Reports a key or part activation of the run as a click (step 17).
+    pub(crate) fn note_activation(&mut self, activated: bool) {
+        self.facts.clicked |= activated;
+    }
+
     /// The response of `id` with no node, input or interaction: what a component that shows nothing this frame (a
     /// closed layer, a measuring run) reports.
     pub(crate) fn inert(id: Id, rect: Rect) -> Response {

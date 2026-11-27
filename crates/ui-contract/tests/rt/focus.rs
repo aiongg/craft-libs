@@ -1,9 +1,9 @@
 //! Count trials of focus and keys on craft-ui-rt: Tab, roving moves and keys run only what they
 //! must, the stops are kept with their nodes, and traps hold. Relations only, no times.
 
+use crate::skeleton::{IconButton, Stack};
 use craft_behavior::{IconId, NavShape};
 use craft_ui_contract::contract::overlay::Overlay;
-use crate::skeleton::{IconButton, Stack};
 use craft_ui_contract::contract::rt::{
     Component, ComponentKey, Cx, MeasureCx, MemoView, OverlayUi, PopupHandle, Response, Ui, show_dialog, show_leaf, window_root,
 };

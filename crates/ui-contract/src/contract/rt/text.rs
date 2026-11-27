@@ -12,9 +12,9 @@ use craft_ui_rt::{ImePurpose, Pos2, Rect, Sense, Vec2};
 
 use super::access::Access;
 use super::key::ComponentKey;
-use super::response::EditResponse;
 use super::run::{Component, Cx, MeasureCx, Paint, show_leaf};
 use super::ui::Ui;
+use crate::contract::EditResponse;
 use crate::contract::{Bind, BindMut, IdSource, Input, MemoKey, MemoProps};
 use crate::primitives::{PaintShape, TextRun};
 use crate::runtime::focus::{KeepKeys, KeyUse};

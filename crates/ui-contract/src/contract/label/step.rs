@@ -517,7 +517,7 @@ pub(crate) fn show_leaf_in_flow<C: Show>(mut child: C, ui: &mut Ui) -> C::Output
     let named_by_scope = env.arena.is_none() && scope::in_label(ui.ctx());
     let shows = C::LABELLED_AFTER && child.shows_label() && child.common(crate::contract::Internal::new()).label != Label::Empty && !named_by_scope;
     if !shows {
-        return crate::contract::run::show_leaf(&mut Some(child), ui, (crate::contract::run::ShowAt::Flow, env), None);
+        return crate::contract::run::show_leaf(child, ui, crate::contract::run::ShowAt::Flow, None);
     }
     let label = std::mem::take(&mut child.common_mut(crate::contract::Internal::new()).label);
     let facts = crate::contract::run::TypeFacts::of::<C>();

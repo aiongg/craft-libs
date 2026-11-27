@@ -82,7 +82,7 @@ impl<C: Component> MeasureCx<'_, C> {
     /// its scope is above the component.
     pub fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<std::sync::Arc<ResolvedCommand>> {
         let command: CommandRef = command.into();
-        Some(self.with_ui(|ui| ui.resolve_command(command)))
+        self.with_ui(|ui| ui.resolve_command(command))
     }
 
     /// The width a component whose height follows its width (wrapped text, a square plot) sizes at: the room the
@@ -214,7 +214,7 @@ impl<C: Component> MeasureCx<'_, C> {
         let id = self.id.with("face");
         let proposal = if self.proposal == Proposal::Min { Proposal::Min } else { Proposal::Ideal };
         let under = self.under();
-        self.with_ui(|ui| crate::contract::run::measure_face(&mut face, ui, id, proposal, &under))
+        self.with_ui(|ui| crate::contract::measure_under(&mut face, ui, Some(id), proposal, Some(&under)))
     }
 
     /// The icon side of the component's size.

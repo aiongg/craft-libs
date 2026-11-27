@@ -387,7 +387,7 @@ fn run_layer<R: Clone + 'static>(
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
     ui.flow.scope = lk.scope.take_for_body();
     let out = body(&mut ui);
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
     lk.scope.clearable = flow.scope.clearable;
     let real = frame(flow.content_size());
     if real != size && !state.new {

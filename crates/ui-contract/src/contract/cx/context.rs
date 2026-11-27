@@ -260,6 +260,9 @@ pub(crate) struct RunIo<'a> {
     pub(crate) swept: Option<bool>,
     /// Live announcements the run made (`Accessible::announce`); the driver gives them to the node's access entry.
     pub(crate) announcements: Vec<(String, crate::runtime::access::Politeness)>,
+    /// The node's command inboxes as of the run, and the sets a take asked a cell for (`take_command`); the
+    /// driver registers the asked cells after the run.
+    pub(crate) inbox: crate::runtime::commands::InboxIn,
 }
 
 impl<'a> RunIo<'a> {
@@ -277,6 +280,7 @@ impl<'a> RunIo<'a> {
             fires: Vec::new(),
             announcements: Vec::new(),
             swept: None,
+            inbox: Default::default(),
         }
     }
 

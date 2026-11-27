@@ -3,7 +3,6 @@
 //! `PaintUi` records one paint variant (docs/contract-rt.md 15.1, 15.6).
 
 use super::label::{self, LeafLabel};
-use super::rt::env::EnvSnapshot;
 use super::rt::node::Pointer;
 use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn, Ui};
@@ -53,8 +52,6 @@ pub struct PaintUi<'a> {
     pub(crate) host: &'a mut (dyn UiHost + 'a),
     #[doc(hidden)]
     pub env: &'a Env,
-    /// The env cells the run read, registered by the run when the paint reads one.
-    pub(crate) snapshot: &'a EnvSnapshot,
     /// The ink of the component's own surface, which `draw` paints text and rules in.
     pub(crate) ink: Ink,
     /// How `draw` paints data colours: dimmed while the component paints its Disabled state.
@@ -88,8 +85,6 @@ pub struct PaintUi<'a> {
     pub(crate) host_canvas: Option<&'a Canvas<'a>>,
     /// The pointer state this variant shows; the pointer facts a paint reads answer it.
     pub(crate) pointer: Pointer,
-    /// The paint read `Hovered` or `Pressed`: the run records a variant per pointer state (15.6 rule 3).
-    pub(crate) pointer_read: Cell<bool>,
     /// The paint showed a child: the run records one paint, with the current pointer state (15.6 rule 5).
     pub(crate) showed_child: Cell<bool>,
 }

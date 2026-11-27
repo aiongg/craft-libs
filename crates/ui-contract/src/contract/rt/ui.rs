@@ -12,8 +12,9 @@ use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, Sense, State, Vec2, WindowId};
 
 use super::key::Ordinals;
 use super::node::Placed;
-use super::response::{InputFacts, Response};
+use super::response::InputFacts;
 use super::sweep::Sweep;
+use crate::contract::Response;
 use crate::contract::context::Context;
 use crate::contract::{IdSource, MemoKey, MemoProps};
 use crate::layout::CellAlign;
@@ -305,6 +306,14 @@ impl Flow {
             }
         }
         room
+    }
+
+    /// Places `node` at `rect` with no allocation (`show_at`): the cursor and the extent stay.
+    pub(crate) fn place_at(&mut self, node: Option<NodeId>, rect: Rect) -> Rect {
+        if let Some(node) = node {
+            self.placed.push(Placed { node, offset: rect.min - self.origin, size: rect.size() });
+        }
+        rect
     }
 
     /// Lays out the next child with `size` and returns its window rect; `node` is `None` in a

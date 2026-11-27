@@ -1,10 +1,10 @@
 //! Count trials of the test `Harness` on craft-ui-rt: input reaches the view through the platform,
 //! `run` stops when no frame is asked for, and motion is off unless a test turns it on.
 
+use crate::skeleton::{IconButton, Stack};
 use accesskit::Role;
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::harness::{FRAME, Harness};
-use crate::skeleton::{IconButton, Stack};
 use craft_ui_contract::contract::rt::{Component, ComponentKey, Cx, MeasureCx, Paint, Response, show_leaf, spec};
 use craft_ui_contract::contract::{MemoKey, MemoProps};
 use craft_ui_rt::Vec2;

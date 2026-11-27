@@ -3,6 +3,7 @@
 
 mod access;
 mod content;
+mod env;
 mod focus;
 mod harness;
 mod id;
@@ -10,15 +11,14 @@ mod input;
 mod items;
 mod layout;
 mod overlay;
-mod env;
 mod pipeline;
 mod services;
 mod skeleton;
 mod text;
 mod windows;
 
-use craft_behavior::IconId;
 use crate::skeleton::{IconButton, Stack};
+use craft_behavior::IconId;
 use craft_ui_contract::contract::{MemoView, Ui};
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_platform_headless::Input;

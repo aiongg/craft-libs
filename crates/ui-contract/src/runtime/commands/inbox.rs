@@ -101,7 +101,14 @@ impl InboxIn {
 /// nearest-owner dispatch on the firing path routes it and an app handler never replaces it. One
 /// registration per node and set: a later run finds the cell; the board drops the handlers when the
 /// node leaves.
-pub(crate) fn register(wants: Vec<Want>, node: NodeId, id: Id, memory: &mut MemoryStage, board: &crate::runtime::commands::CommandBoard, store: &mut Store) {
+pub(crate) fn register(
+    wants: Vec<Want>,
+    node: NodeId,
+    id: Id,
+    memory: &mut MemoryStage,
+    board: &crate::runtime::commands::CommandBoard,
+    store: &mut Store,
+) {
     for want in wants {
         let cells = memory.shown::<InboxCells>(crate::runtime::memory::sub(id, "inbox"));
         if cells.0.iter().any(|c| c.set == want.set) {

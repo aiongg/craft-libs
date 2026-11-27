@@ -159,7 +159,7 @@ pub(crate) fn rows_view<R>(
         return None;
     }
     let (id, tokens) = (ui.flow.id, ui.flow.tokens.clone());
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
     let (out, node) = match scroll {
         Some(scroll) => cx.keyed(Region::Rows, |cx| {
             cx.inline(ScrollNode { scroll }, |sk: &mut ScrollKept, _, cx| {
@@ -201,7 +201,7 @@ fn content_node<R>(
             let facts = RowFacts::of(cx);
             let mut ui = Ui::new(cx, flow);
             let out = build(&mut ui, &facts);
-            let Ui { cx, flow: built } = ui;
+            let Ui { cx, flow: built, .. } = ui;
             flow = built;
             facts.drop_unshown();
             // The content is as large as the whole layout, though only the band is built: the scroll

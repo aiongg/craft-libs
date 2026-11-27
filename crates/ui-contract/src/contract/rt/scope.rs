@@ -72,7 +72,7 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
         let flow = Flow::new(Id::NULL.with(("craft-window", window)), Pos2::ZERO, region, gap, tokens).with_sweep(Some(sweep));
         let mut ui = Ui::new(cx, flow);
         let out = f(&mut ui);
-        let Ui { cx, flow } = ui;
+        let Ui { cx, flow, .. } = ui;
         end_reads(reads, cx);
         if kept.placed != flow.placed || kept.size != viewport {
             kept.placed = flow.placed;
@@ -158,7 +158,7 @@ pub(crate) fn show_scope<R: Clone + 'static>(
         ui.flow.allocate(None, size, false);
         return Some(Shown { value, fresh: true });
     }
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
     let key = scope.memo.unwrap_or(0);
     cx.keyed(child, |cx| {
         cx.inline(ScopeNode { key }, |kept, state, cx| {
@@ -192,7 +192,7 @@ pub(crate) fn show_scope<R: Clone + 'static>(
             let reads = scope.memo.map(|_| begin_reads(false));
             let mut inner = Ui::new(cx, Flow::new(id, start, region, gap, tokens).in_view(flow.view).with_sweep(flow.sweep));
             let value = content(&mut inner);
-            let Ui { cx, flow: inner } = inner;
+            let Ui { cx, flow: inner, .. } = inner;
             if let Some(reads) = reads {
                 end_reads(reads, cx);
             }

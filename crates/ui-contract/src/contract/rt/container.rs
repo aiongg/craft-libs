@@ -458,10 +458,10 @@ pub(crate) fn show_container<C: Container, R>(
     body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
-    // Rich tip content of a container: the leaf driver's `Ran` carries none yet (report, INT-2).
-    drop(tip);
     let mut component = slot.take().expect("a container is shown once");
-    let common = component.common(Internal::new()).clone();
+    let begun = super::run::begin(&mut component, ui);
+    let common = &begun.common;
+    let command = begun.step1.command.clone();
     let (id, child) = ui.flow.child(type_key::<C>(), common.id.clone());
     let key = component_key(&component);
     let props = component.props(Internal::new()).clone();
@@ -478,8 +478,7 @@ pub(crate) fn show_container<C: Container, R>(
     let (scope, roving) = (props.focus, props.roving);
     let body_id = sub(id, "body");
     let ctx = ui.ctx().clone();
-    let step1 = steps::env(&ctx, &place, &common, steps::variants::<C>(common.variant, &place));
-    let resolved = steps::resolved(id, &step1, &common);
+    let resolved = begun.resolved(id);
     let measuring = ui.flow.measuring;
     let stage = if measuring.is_some() { MemoryStage::open_peek(&ctx, body_id) } else { MemoryStage::open(&ctx, body_id) };
     let mut frame = Frame { body_id, env: &place, resolved: &resolved, stage, open: true, open_at_read: true, close: None, ran: false };
@@ -501,12 +500,14 @@ pub(crate) fn show_container<C: Container, R>(
             ShowAt::Flow => ui.flow.allocate(None, size, fills),
             ShowAt::Rect(rect) => Rect::from_min_size(rect.min, size),
         };
-        let output = finish_measured(component, id, rect, &tokens);
+        let value = steps::value(&mut component, &mut MemoryStage::default(), id, command.as_deref());
+        let output = finish_measured(component, id, rect, &begun, value, ctx.clone());
         return Inner { output, inner: inner_value, settle: None };
     }
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
     let output = cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS, text: component.text_input() }, |kept, state, cx| {
+            let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             let open = read_open(&mut component, &props, kept.body.open);
             (frame.open, frame.open_at_read) = (open, open);
             shape.closed = !open;
@@ -532,10 +533,24 @@ pub(crate) fn show_container<C: Container, R>(
             if own_kept && size == kept.size {
                 kept.cache(room, size);
                 // The body reconciled the children; the layer children are reached the same way.
-                reach_layers(&mut component, kept, cx, rect, &tokens, sweep);
-                return settle(component, kept, cx, rect, &tokens);
+                reach_layers(&mut component, kept, cx, rect, &begun, &tokens, sweep, ctx.clone());
+                return settle(component, kept, cx, rect, &begun, value, ctx.clone());
             }
-            let output = run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep });
+            let ran = Ran {
+                id,
+                key,
+                place: Place { room },
+                size,
+                rect,
+                tokens: &tokens,
+                sweep,
+                begun: &begun,
+                value,
+                tip,
+                context: ctx.clone(),
+                flow_reveal: &mut flow.reveal,
+            };
+            let output = run(component, kept, cx, ran);
             // The props' scope and roving group, where the component's hooks name none.
             if scope != crate::runtime::focus::FocusPolicy::NONE {
                 kept.focus.scope = scope;
@@ -568,11 +583,10 @@ pub(crate) fn show_container_taking<C: Container, R>(
 
 /// A container's size for `proposal` without showing it, from what `ui` lets a measure read: the
 /// kept size of the node the next `show` reaches answers from its size cache in a build that
-/// already showed it; otherwise the size its props alone give (padding and least width). Running the
-/// body needs a mutable `Ui` (report, INT-2: section 15's `measure_in(&mut self, ui: &Ui, ..)`).
+/// already showed it; otherwise the size its props alone give (padding and least width).
 pub(crate) fn measure_container<C: Container, R>(
     comp: &mut C,
-    ui: &Ui<'_, '_>,
+    ui: &mut Ui<'_, '_>,
     proposal: craft_behavior::Proposal,
     _body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
 ) -> Vec2 {
@@ -847,7 +861,7 @@ fn region(
             }
             let mut ui = Ui::new(cx, flow());
             hook(&mut ui);
-            let Ui { cx, flow } = ui;
+            let Ui { cx, flow, .. } = ui;
             let size = flow.content_size();
             if rk.placed != flow.placed || rk.size != size {
                 rk.placed = flow.placed;
@@ -948,7 +962,7 @@ fn run_body(
     };
     let mut ui = Ui::new(cx, flow);
     call(&mut ui);
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
     let stale = match &plan {
         Some(plan) => !same_sizes(&plan.sizes, &flow.sizes),
         None => flow.fills > 0,

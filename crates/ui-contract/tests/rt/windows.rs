@@ -5,10 +5,10 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::skeleton::IconButton;
 use craft_behavior::placement::Defaults;
 use craft_behavior::{IconId, PartKey};
 use craft_ui_contract::contract::overlay::Overlay;
-use crate::skeleton::IconButton;
 use craft_ui_contract::contract::rt::windows::{WindowRegistry, caption_regions};
 use craft_ui_contract::contract::rt::{
     Component, ComponentKey, Cx, EnvCells, JobBoard, MeasureCx, MemoView, Outcome, Pending, Response, Ui, WindowEnv, show_dialog, show_leaf,

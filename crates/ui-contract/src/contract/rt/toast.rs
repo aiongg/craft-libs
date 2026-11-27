@@ -8,9 +8,9 @@ use craft_ui_rt::{Align, Layer, LayerSpec, Placement, Rect, Side, Vec2, hash_key
 use super::access::Access;
 use super::key::ComponentKey;
 use super::overlay::{LayerShow, Surface, show_layer};
-use super::response::Response;
 use super::run::{Component, Cx, MeasureCx, Paint, show_leaf};
 use super::ui::Ui;
+use crate::contract::Response;
 use crate::contract::{MemoKey, MemoProps, POPUP_PAD};
 use crate::primitives::TextRun;
 use crate::runtime::toast::{MAX_CARDS, Toast, ToastEnd, ToastId};

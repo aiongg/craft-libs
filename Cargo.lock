@@ -4711,6 +4711,7 @@ name = "craft-ui-contract"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "ahash",
  "craft-behavior",
  "craft-codepage",
  "craft-font-catalog",
@@ -4731,6 +4732,7 @@ dependencies = [
  "craft-ui-rt",
  "craft-ui-test-kit",
  "craft-window",
+ "ecolor",
  "egui",
  "egui_kittest",
  "epaint",

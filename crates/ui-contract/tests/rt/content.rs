@@ -3,15 +3,15 @@
 
 use std::cell::Cell;
 
-use craft_behavior::IconId;
 use crate::skeleton::IconButton;
+use craft_behavior::IconId;
 use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, Response, Role, Show as _, Ui, Versioned};
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_contract::style::StyleCx;
-use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Rect, Vec2};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::Rig;
 
 /// A leaf whose content is a closure the key cannot read: it holds the closure's version instead.

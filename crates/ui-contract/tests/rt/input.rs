@@ -1,9 +1,9 @@
 //! Count trials of the input half: presses on nested content, value gestures, the wheel, toggle
 //! sweeps and interaction reads from responses.
 
+use crate::skeleton::{IconButton, ScrollArea, Slider, Stack, Toggle};
 use craft_behavior::IconId;
 use craft_ui_contract::contract::Bind;
-use crate::skeleton::{IconButton, ScrollArea, Slider, Stack, Toggle};
 use craft_ui_contract::contract::{MemoView, Ui};
 use craft_ui_contract::runtime::windows::window_root;
 use craft_ui_platform_headless::Input;

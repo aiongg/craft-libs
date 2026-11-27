@@ -18,7 +18,7 @@ mod value;
 
 pub(crate) use apply::{ValueEdit, apply_values};
 pub(crate) use env::{EnvStep, env, resolved, variants};
-pub(crate) use finish::{before_finish, value_changed};
+pub(crate) use finish::before_finish;
 pub(crate) use label::scrub_by_label;
 pub(crate) use measure::{MeasureIn, measure, measure_cx, padding, whole};
 pub(crate) use paint::{Fade, UnderVeil, fade, paint_part_layers, surface_ink, surface_items, unfade};

@@ -647,15 +647,15 @@ impl CommandChain {
 /// How the contexts reach the board. Sealed: only the pipeline's contexts implement it.
 #[doc(hidden)]
 pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
-    /// The egui context.
-    fn command_ctx(&self) -> &Context;
+    /// The window's context.
+    fn command_ctx(&self) -> &crate::contract::Context;
     /// The instances above this context.
     fn command_chain(&self) -> &CommandChain;
     /// The component this context belongs to, when it has an id of its own.
-    fn command_owner(&self) -> Option<Id>;
+    fn command_owner(&self) -> Option<crate::primitives::Id>;
     /// The run's command inboxes and the node memory the takes record in; `None` for a context
     /// without a node of its own (a settled or measuring `Cx`), which takes nothing.
-    fn command_inbox(&mut self) -> Option<(&mut InboxIn, &mut crate::runtime::memory::MemoryStage, Id)> {
+    fn command_inbox(&mut self) -> Option<(&mut InboxIn, &mut crate::runtime::memory::MemoryStage, crate::primitives::Id)> {
         None
     }
 }

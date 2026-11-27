@@ -20,10 +20,13 @@ use super::access::Access;
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, KeptPart, NodeInput, Place, Pointer, Variant, part_id};
 use super::overlay::OverlayUi;
-use super::response::{self, InputFacts, Response};
+use super::response::{self, InputFacts};
 use super::sweep;
 use super::tip;
 use super::ui::{Flow, Ui};
+use crate::contract::Context;
+use crate::contract::Response;
+use crate::contract::cx::RunIo;
 use crate::contract::run::{ShowAt, TypeFacts, core_for, paint_ui};
 use crate::contract::steps::{self, MeasureIn, ValueStep};
 use crate::contract::{Activation, Common, Component, Cx, CxCore, Id, Internal, Meta, Resolved, TipFn, Validity, ValueOf};
@@ -55,7 +58,7 @@ impl<C: Component> Begun<C> {
 pub(crate) fn begin<C: Component>(component: &mut C, ui: &mut Ui<'_, '_>) -> Begun<C> {
     let env = Env::of(ui);
     let common = std::mem::take(component.common_mut(Internal::new()));
-    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| Some(ui.resolve_command(command.clone())));
+    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
     let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), component.style_key());
     Begun { env, common, step1, style, facts: TypeFacts::of::<C>() }
 }
@@ -89,8 +92,9 @@ pub(crate) fn show_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, at:
         let value = steps::value(&mut component, &mut stage, id, command.as_deref());
         let size = cached.unwrap_or_else(|| measure(&mut component, &begun, id, room, &value, ui.cx));
         let rect = place(&mut ui.flow, None, at, size);
-        return finish_measured(component, id, rect, &begun, value);
+        return finish_measured(component, id, rect, &begun, value, ui.ctx.clone());
     }
+    let context = ui.ctx.clone();
     let Ui { cx, flow, .. } = ui;
     let node =
         ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS && steps::takes_focus(&begun.resolved(id)), text: component.text_input() };
@@ -107,18 +111,31 @@ pub(crate) fn show_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, at:
                 kept.cache(room, size);
                 if state.path {
                     // A node in one of its layer children is marked: reach them.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep);
+                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep, context.clone());
                 } else {
                     cx.keep_children();
                 }
-                return settle(component, kept, cx, rect, &begun, value);
+                return settle(component, kept, cx, rect, &begun, value, context);
             }
             let tokens = super::env::tokens(cx);
             run(
                 component,
                 kept,
                 cx,
-                Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep, begun: &begun, value, tip },
+                Ran {
+                    id,
+                    key,
+                    place: Place { room },
+                    size,
+                    rect,
+                    tokens: &tokens,
+                    sweep: flow.sweep,
+                    begun: &begun,
+                    value,
+                    tip,
+                    context,
+                    flow_reveal: &mut flow.reveal,
+                },
             )
         })
     })
@@ -155,6 +172,9 @@ pub(crate) struct Ran<'a, C: Component> {
     pub(crate) begun: &'a Begun<C>,
     pub(crate) value: ValueStep<ValueOf<C>>,
     pub(crate) tip: Option<TipFn<'a>>,
+    pub(crate) context: Context,
+    /// The reveal the enclosing flow hands its scroll body (`Ui::scroll_to_rect`).
+    pub(crate) flow_reveal: &'a mut Option<Pos2>,
 }
 
 /// The `Cx` a kept node's `finish` gets: no input, the kept facts, `is_settled` true.
@@ -164,10 +184,9 @@ fn settled_core<'a>(
     memory: &'a mut MemoryStage,
     response: Response,
     begun: &steps::EnvStep,
+    run: RunIo<'a>,
 ) -> CxCore<'a> {
-    let mut core = core_for(begun_env, resolved, memory, response, begun.command.clone());
-    core.settled = true;
-    core
+    core_for(begun_env, resolved, memory, response, begun.command.clone(), run)
 }
 
 /// The output of a kept node: `finish` on a settled `Cx` with the kept facts and no input.
@@ -178,22 +197,30 @@ pub(crate) fn settle<C: Component>(
     rect: Rect,
     begun: &Begun<C>,
     value: ValueStep<ValueOf<C>>,
+    context: Context,
 ) -> C::Output {
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1);
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     finish_with(component, &mut core, &begun.style, value)
 }
 
 /// The output of a component a measuring run reached: `finish` on a settled `Cx` with no node
 /// behind it, so its response has no interaction state and logs no reads.
-pub(crate) fn finish_measured<C: Component>(component: C, id: Id, rect: Rect, begun: &Begun<C>, value: ValueStep<ValueOf<C>>) -> C::Output {
+pub(crate) fn finish_measured<C: Component>(
+    component: C,
+    id: Id,
+    rect: Rect,
+    begun: &Begun<C>,
+    value: ValueStep<ValueOf<C>>,
+    context: Context,
+) -> C::Output {
     let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
     let resolved = begun.resolved(id);
     let mut stage = MemoryStage::default();
-    let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1);
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;
     core.visible = rect;
@@ -220,7 +247,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     cx.count_run();
     cx.mark_changed();
     let node = cx.node();
-    let Ran { id, key, place, size, rect, tokens, sweep, begun, value, tip } = ran;
+    let Ran { id, key, place, size, rect, tokens, sweep, begun, value, tip, context, flow_reveal } = ran;
     let resolved = begun.resolved(id);
     let facts = begun.facts;
     let style = &*begun.style;
@@ -246,15 +273,14 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
     };
-    let mut core = core_for(&begun.env, &resolved, &mut kept.memory, response, begun.step1.command.clone());
+    let mut core = core_for(&begun.env, &resolved, &mut kept.memory, response, begun.step1.command.clone(), RunIo::new(&input, context));
     place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
-    core.inbox = inbox;
-    core.input = input;
-    core.swept = swept;
+    core.run.inbox = inbox;
+    core.run.swept = swept;
     core.parted = true;
     core.faded = facts.faded && !resolved.enabled;
     core.focus = super::focus::facts(&kept.focus, focused, cx.interaction(node).focus_visible);
-    core.intents = super::intents::of_queue(&core.input, || rtl);
+    core.intents = super::intents::of_queue(core.run.input, || rtl);
     let mut cxx = Cx {
         core: &mut core,
         style,
@@ -277,7 +303,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
     kept.cursor = component.cursor().map(Into::into);
-    let results = part_results(&kept.parts, &parts, sense, &cxx.core.input, rect, interact.hovered);
+    let results = part_results(&kept.parts, &parts, sense, cxx.core.run.input, rect, interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
     cxx.core.toggles = steps::toggles(&parts);
@@ -286,7 +312,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     cxx.core.own_reset_parts = steps::declared_with(&parts, |extras| extras.own_reset);
     cxx.core.focus_shapes = steps::focus_shapes(&parts);
     cxx.core.active = cxx.core.focus.part.filter(|part| cxx.core.results.contains_key(&(part.key, part.index)));
-    cxx.core.activation = activation_of(&resolved, &cxx.core.input, sense);
+    cxx.core.activation = activation_of(&resolved, cxx.core.run.input, sense);
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
     steps::gesture_gate(&component, &mut cxx);
@@ -295,7 +321,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     steps::scrub_by_label(&component, &mut cxx);
     component.update(&mut cxx);
     steps::record_context(cxx.core);
-    if let Some((cursor, _)) = cxx.core.cursor {
+    if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
         kept.cursor = Some(cursor.into());
     }
     let ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
@@ -303,8 +329,8 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.focus.stop = stop.then(|| component.keys());
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
-    kept.focus.holds_escape = cxx.core.holds_escape.get();
-    kept.ime.caret = cxx.core.ime_caret.get().map(|caret| caret.translate(Pos2::ZERO - rect.min));
+    kept.focus.holds_escape = cxx.core.run.holds_escape.get();
+    kept.ime.caret = cxx.core.run.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - rect.min));
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
@@ -338,7 +364,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.access_subs = subs;
     tip::show(&mut kept.tip, tip_text(&resolved), true, cx, id, rect, tokens);
     let _ = tip;
-    if let Some((target, spec)) = cxx.core.level.take() {
+    if let Some((target, spec)) = cxx.core.run.level.take() {
         super::motion::Level::aim(kept.level.get_mut(), target, spec);
     }
     response::end_reads(reads, cx);
@@ -346,9 +372,9 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     // 17 finish: the activation fires the bound command once, at event time on the board's handler.
     let activated = component.activated(&cxx) && resolved.enabled;
     let injected = cxx.core.injected.take().filter(|_| resolved.enabled);
-    let changed = steps::value_changed(&cxx.events);
-    steps::before_finish(cxx.core, activated || injected.is_some(), injected, changed, board.as_ref(), cx);
-    let wants = std::mem::take(&mut cxx.core.inbox.wants);
+    steps::before_finish(cxx.core, activated || injected.is_some(), injected, board.as_ref(), cx);
+    let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
+    let fires = std::mem::take(&mut cxx.core.run.fires);
     kept.id = id;
     kept.key = if wrote { component_key(&component) } else { key };
     kept.place = place;
@@ -357,11 +383,21 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
     let out = component.finish(cxx);
-    if let Some(rect) = reveal {
-        // Item 6: the reveal bubbles to the nearest scroll owner, which glides to it.
-        super::scroll::reveal(cx, rect);
+    if let Some(rect) = reveal
+        && flow_reveal.is_none()
+    {
+        // Item 6: the nearest scroll body around glides to it, as for `Ui::scroll_to_rect`.
+        *flow_reveal = Some(rect.min);
     }
     if let Some(board) = board {
+        // Commands the run fired (`Cx::fire`) run after it, in order, from this node.
+        for (command, source, mods) in fires {
+            if !board.enabled(cx.runtime().store(), &command) {
+                continue;
+            }
+            let fired = crate::runtime::commands::Fired::new(command, source, crate::runtime::commands::FirePhase::Press, cx.now()).mods(mods);
+            board.run_from(cx, &fired);
+        }
         let node = cx.node();
         register_inboxes(wants, node, id, &mut kept.memory, &board, cx.store_mut());
     }
@@ -444,13 +480,14 @@ pub(crate) fn reach_layers<C: Component>(
     begun: &Begun<C>,
     tokens: &Arc<Tokens>,
     sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
+    context: Context,
 ) {
     let id = kept.id;
     if C::OVERLAYS {
         let node = cx.node();
         let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
         let resolved = begun.resolved(id);
-        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1);
+        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context));
         place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
         let mut overlays = OverlayUi::new(cx, id, rect, &mut kept.popups, false, tokens.clone(), sweep);
@@ -496,13 +533,18 @@ fn record_variants<C: Component>(
                 canvas.extend(items);
             }
             steps::paint_part_layers(&canvas, &begun.env, cxx.core);
-            component.paint(&mut paint_ui(&canvas, &begun.env, cxx.core, &*begun.style, look), cxx);
+            let mut pui = paint_ui(host, &canvas, &begun.env, cxx.core, &*begun.style, look);
+            component.paint(&mut pui, cxx);
+            let mut children = pui.showed_child.get();
+            drop(pui);
             if look == Pointer::Rest {
                 component.content_env(cxx, values);
             }
-            component.paint_over(&mut paint_ui(&canvas, &begun.env, cxx.core, &*begun.style, look), cxx);
+            let mut pui = paint_ui(host, &canvas, &begun.env, cxx.core, &*begun.style, look);
+            component.paint_over(&mut pui, cxx);
+            children |= pui.showed_child.get();
+            drop(pui);
             steps::unfade(&canvas, cxx.core, fade);
-            let children = cxx.core.paint.borrow().children_shown;
             let (content, overlay) = canvas.finish();
             (Variant { look, content, overlay }, children)
         });
@@ -596,7 +638,7 @@ fn part_results(
     input: &[NodeInput],
     rect: Rect,
     hovered: bool,
-) -> (PartResult, crate::contract::cx::PartResults) {
+) -> (PartResult, crate::primitives::sensing::PartResults) {
     let press_of = |id: u64| {
         let mut state = PressState::IDLE;
         for i in input {

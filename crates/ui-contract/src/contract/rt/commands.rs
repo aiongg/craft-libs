@@ -105,7 +105,6 @@ impl CommandBoard {
         }
     }
 
-
     /// The cell of `command`'s state, created enabled on first use.
     fn cell(&self, store: &mut Store, command: &CommandRef) -> State<CommandState> {
         let mut board = self.0.borrow_mut();
@@ -132,7 +131,7 @@ impl CommandBoard {
     }
 
     /// Whether `command` may fire, read without recording.
-    fn enabled(&self, store: &Store, command: &CommandRef) -> bool {
+    pub(crate) fn enabled(&self, store: &Store, command: &CommandRef) -> bool {
         self.0.borrow().states.iter().find(|(c, _)| c == command).is_none_or(|(_, cell)| store.peek(*cell).is_enabled())
     }
 
