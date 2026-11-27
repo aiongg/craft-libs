@@ -1,38 +1,31 @@
 //! `Arrangement` and `arrange`: a custom placement of keyed children measured with `measure_in` and shown once.
 
-use crate::contract::{Outcome, Props, Show, measure_under};
-use crate::runtime::egui::{alloc, response};
+use crate::contract::{Id, Outcome, Props, Response, Show, Ui};
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use craft_behavior::{Arrangement, Flow, Proposal};
-use egui::{Id, Rect, Response, Ui, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-/// What `arrange` needs of a child: its size under an id, and a show at a rect under the same id. The contract's
+/// What `arrange` needs of a child: its size, and a show at a rect under its id. The contract's
 /// `Show` is not object safe, so each child sits behind this.
 trait Arranged {
-    fn measure_in(&mut self, ui: &mut Ui, id: Id, proposal: Proposal) -> Vec2;
+    fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2;
 
-    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Response;
+    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Option<Response>;
 }
 
 /// A child shown once: `show_at` takes the component.
 struct Child<C>(Option<C>);
 
 impl<C: Show> Arranged for Child<C> {
-    fn measure_in(&mut self, ui: &mut Ui, id: Id, proposal: Proposal) -> Vec2 {
-        match self.0.as_mut() {
-            Some(child) => measure_under(child, ui, Some(id), proposal, None),
-            None => Vec2::ZERO,
-        }
+    fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2 {
+        self.0.as_mut().map_or(Vec2::ZERO, |child| child.measure_in(ui, proposal))
     }
 
-    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Response {
-        match self.0.take() {
-            Some(child) => Outcome::response(&Props::id(child, id).show_at(ui, rect)).clone(),
-            None => response::inert(ui, id),
-        }
+    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Option<Response> {
+        self.0.take().map(|child| Outcome::response(&Props::id(child, id).show_at(ui, rect)).clone())
     }
 }
 
@@ -64,15 +57,14 @@ pub fn arrange(ui: &mut Ui, layout: &dyn Arrangement, children: &mut [Placed<'_>
     let room = ui.available_rect_before_wrap();
     let base = ui.scope_id();
     let ids: Vec<Id> = children.iter().map(|placed| (placed.id)(base)).collect();
-    let sizes: Vec<Vec2> = children.iter_mut().zip(&ids).map(|(placed, id)| placed.child.measure_in(ui, *id, Proposal::Ideal)).collect();
+    let sizes: Vec<Vec2> = children.iter_mut().map(|placed| placed.child.measure_in(ui, Proposal::Ideal)).collect();
     let mut rects = Vec::with_capacity(sizes.len());
     let taken = layout.place(room, &sizes, &mut rects);
     let flow = if layout.mirrors() { Flow::new(room, rtl) } else { Flow::new(room, false) };
     for ((placed, id), rect) in children.iter_mut().zip(&ids).zip(&rects) {
-        placed.response = Some(placed.child.show_at(ui, *id, flow.to_physical(*rect)));
+        placed.response = placed.child.show_at(ui, *id, flow.to_physical(*rect));
     }
     let whole = flow.to_physical(Rect::from_min_size(room.min, taken));
-    super::close_flow_start(ui.ctx(), &env);
-    alloc::advance_past(ui, whole);
+    ui.advance_cursor_after_rect(whole);
     whole
 }

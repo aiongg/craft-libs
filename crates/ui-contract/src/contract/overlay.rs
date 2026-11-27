@@ -16,6 +16,7 @@ mod props;
 mod toggles;
 mod ui;
 
+pub use crate::contract::rt::dialog::show_dialog;
 pub use container_open::{Popup, opened_from};
 pub(crate) use container_open::{opener_open, set_opener_open};
 pub use host::paint_frame_layers;

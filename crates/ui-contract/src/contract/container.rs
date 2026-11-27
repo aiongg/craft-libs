@@ -13,7 +13,7 @@ use crate::style::{GlyphRole, SurfaceKind};
 use craft_behavior::{CanvasTransform, Roving};
 use craft_theme::ControlSize;
 use craft_theme::variant::Tone;
-use egui::Rect;
+use craft_ui_rt::Rect;
 
 pub use crate::runtime::env::{InBar, PaneEdge, ThemeScope};
 pub use crate::style::BandFill;
@@ -27,7 +27,7 @@ pub enum Mount {
     Inline,
     /// One of `AppShell`'s panes.
     Pane(ShellPane),
-    /// On an egui layer through the overlay host.
+    /// On a layer of its window through the overlay host.
     Layer(Overlay),
     /// Over the whole window.
     FullWindow,
@@ -905,9 +905,9 @@ pub enum Bracket {
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
 /// `crates/ui-macros/src/props.rs` too.
 ///
-/// A container body may run more than once per pass: a measuring run first, then the real run. It builds or borrows
+/// A container body may run more than once per build: a measuring run first, then the real run. It builds or borrows
 /// what it shows on every run and consumes nothing (no `Option::take`, no "has run" flag); it changes state and
-/// reports only through `measure::effect`. A pattern around a container never guards against a second run.
+/// reports only where `Ui::is_measuring` is false. A pattern around a container never guards against a second run.
 #[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ContainerProps {
@@ -975,11 +975,11 @@ pub struct ContainerProps {
     /// region, the view, so what it shows never paints over the container's padding (a canvas's rulers).
     pub scroll_owner: bool,
     /// A collection that receives moves the focused control in this region leaves unused.
-    pub fallback_collection: Option<egui::Id>,
+    pub fallback_collection: Option<crate::contract::Id>,
     /// The container's value is a gate that disables its content while off.
     #[doc(hidden)]
     pub gates: bool,
-    /// The body is shown through this transform on its own egui layer.
+    /// The body is shown through this transform on a surface of its own.
     pub transform: Option<CanvasTransform>,
     /// Another theme definition, mode, contrast or density for the container itself (its surface, header, rules,
     /// scroll bars, pads and focus ring), everything it shows, and every layer opened from inside it.
@@ -1010,7 +1010,7 @@ pub struct ContainerProps {
     pub bracket: Option<Bracket>,
     /// The component whose memory holds the container's shown memory and its layer's bookkeeping, when it is another:
     /// the body of a popup an `overlay` hook shows belongs to the component that shows it.
-    pub(crate) owner: Option<egui::Id>,
+    pub(crate) owner: Option<crate::contract::Id>,
 }
 
 impl Default for ContainerProps {
@@ -1281,12 +1281,12 @@ impl ContainerProps {
     }
 
     /// Sends unused moves from this region's focused control to the named collection.
-    pub fn fallback_collection(mut self, collection: egui::Id) -> Self {
+    pub fn fallback_collection(mut self, collection: crate::contract::Id) -> Self {
         self.fallback_collection = Some(collection);
         self
     }
 
-    /// Shows the body through `transform` on its own egui layer.
+    /// Shows the body through `transform` on a surface of its own.
     pub const fn transform(mut self, transform: CanvasTransform) -> Self {
         self.transform = Some(transform);
         self

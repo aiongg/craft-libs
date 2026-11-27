@@ -137,6 +137,8 @@ pub(crate) struct Flow {
     pub(crate) clip: Rect,
     /// The opacity content built through this cursor paints at.
     pub(crate) opacity: f32,
+    /// What a container body's flow does beyond its `Dir` (right-to-left mirroring).
+    pub(crate) body: super::container::BodyFlow,
 }
 
 impl Flow {
@@ -167,6 +169,7 @@ impl Flow {
             scope: super::intents::ScopeIntents::default(),
             clip: Rect::EVERYTHING,
             opacity: 1.0,
+            body: super::container::BodyFlow::default(),
         }
     }
 
@@ -340,6 +343,7 @@ impl Flow {
         if filled {
             self.fills += 1;
         }
+        let rect = self.body.place(rect, self.region);
         self.extent = self.extent.union(rect);
         self.sizes.push((size, filled));
         if let Some(node) = node {

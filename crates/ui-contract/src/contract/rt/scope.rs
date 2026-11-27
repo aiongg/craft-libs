@@ -1,17 +1,18 @@
-//! Scopes (docs/contract-rt.md section 2.3): the window root and `MemoView`. A scope runs its
-//! closure only when it must; otherwise it returns its kept value and keeps its subtree.
+//! Scopes (docs/contract-rt.md section 2.3): the window root, and the keyed scopes `MemoView` and `Lazy` show
+//! ([`show_scope`]). A memo scope runs its closure only when it must; otherwise it returns its kept value and keeps
+//! its subtree. Inside a scroll body either scope out of view keeps only its extent.
 
 use craft_ui_rt::{BuildCx, Pos2, Rect, Vec2};
-use egui::Id;
 
 use super::env::EnvCells;
-use super::key::{fold, type_key};
 use super::node::{Place, ScopeNode};
 use super::pending::JobBoard;
 use super::response::{begin_reads, end_reads};
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
-use crate::contract::{IdSource, MemoKey, MemoProps};
+use crate::contract::{Id, IdSource, Shown};
+use crate::contract::{MemoKey, MemoProps};
+use crate::runtime::shift::RecordShift;
 
 /// The content of a window's inline root: call it from the closure passed to
 /// `Driver::step_with`/`Runtime::frame_with`. The root scope runs whenever ui-rt runs that closure:
@@ -82,90 +83,165 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
     })
 }
 
-/// A memoized view: its closure runs only when its props key or its place moved, a read in its last
-/// run changed, or a node under it was marked. Otherwise `show` returns the last run's value and the
-/// subtree stays as it is, at the cost of a key check.
-pub struct MemoView<P> {
-    id: IdSource,
-    props: P,
+/// What a keyed scope is: a `MemoView` (its closure runs only when its key, place or reads moved, or a node under it
+/// is marked) or a `Lazy` (its closure runs whenever its owner's build reaches it in view).
+pub(crate) struct ScopeShow {
+    /// The scope's craft `Id` source and its ui-rt type key.
+    pub(crate) id: IdSource,
+    pub(crate) type_key: u64,
+    /// The memo key (props, `fn`, scope); `None` for a `Lazy`.
+    pub(crate) memo: Option<u64>,
+    /// The extent down the scroll axis before the first run.
+    pub(crate) estimate: f32,
+    /// The scroll body glides until the scope starts at the view's start.
+    pub(crate) reveal: bool,
+    /// Out of a scroll body's view the scope keeps only its extent (`MemoView`, `Lazy`); an env scope always shows.
+    pub(crate) lazy: bool,
 }
 
-impl<P: MemoProps> MemoView<P> {
-    /// A view keyed by `props`.
-    pub fn new(props: P) -> MemoView<P> {
-        MemoView { id: IdSource::Auto, props }
-    }
+/// How a kept value moves with its scope (`Shift::shifted`); `None` keeps it as it is.
+pub(crate) type ShiftFn<R> = Option<fn(&R, &RecordShift) -> R>;
 
-    /// Where the view's id comes from.
-    pub fn id_source(mut self, id: IdSource) -> MemoView<P> {
-        self.id = id;
-        self
-    }
+/// What a memo scope keeps of its last run: the value and where the scope started, so a keep at another position
+/// returns the value moved (`Shift`).
+struct KeptValue<R> {
+    value: R,
+    origin: Pos2,
+}
 
-    /// Runs `view` with the props, or returns its kept value. In a measuring run a kept view
-    /// answers with its kept size and value; one that must run runs `view` as a measuring run.
-    pub fn show<R: Clone + 'static>(self, ui: &mut Ui<'_, '_>, mut view: impl FnMut(&mut Ui<'_, '_>, &P) -> R) -> R {
-        let (id, child) = ui.flow.child(type_key::<MemoView<P>>(), self.id);
-        let mut key = MemoKey::new();
-        key.feed_hash(&P::identity());
-        self.props.key(&mut key);
-        let key = fold(key.finish());
-        let place = Place { room: ui.flow.room() };
-        let origin = ui.flow.next_min();
-        if let Some(under) = ui.flow.measuring {
-            let peeked = under.and_then(|u| ui.cx.peek::<ScopeNode>(u, child));
-            let node = peeked.as_ref().map(|p| p.node);
-            let kept = peeked
-                .filter(|p| !p.state.path && !p.state.marked && p.local.place == place)
-                .and_then(|p| p.local.value.as_ref().and_then(|v| v.downcast_ref::<R>()).map(|v| (v.clone(), p.local.size)));
-            if let Some((value, size)) = kept {
-                ui.flow.allocate(None, size, false);
-                return value;
-            }
-            let tokens = ui.flow.tokens.clone();
-            let gap = tokens.space.gap.stack;
-            let mut inner =
-                Ui::new(ui.cx, Flow::new(id, origin, Rect::from_min_size(origin, place.room), gap, tokens).in_view(ui.flow.view).measuring(node));
-            let out = view(&mut inner, &self.props);
-            let size = inner.flow.content_size();
-            ui.flow.absorb(&inner.flow);
-            ui.flow.allocate(None, size, false);
-            return out;
+/// Shows a keyed scope in the flow of `ui` (module docs). `None` when it is out of the view of the scroll body it is
+/// in: it keeps its extent then, and its nodes go. `Shown::fresh` is true when `content` ran in this build.
+pub(crate) fn show_scope<R: Clone + 'static>(
+    ui: &mut Ui<'_, '_>,
+    scope: ScopeShow,
+    shift: ShiftFn<R>,
+    content: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
+) -> Option<Shown<R>> {
+    let (id, child) = ui.flow.child(scope.type_key, scope.id);
+    let start = ui.flow.next_min();
+    let room = ui.flow.room();
+    let place = Place { room };
+    if scope.reveal {
+        ui.flow.reveal = Some(start);
+    }
+    let estimate = Vec2::new(room.x, scope.estimate);
+    let in_view = |extent: Vec2, view: Option<Rect>| !scope.lazy || view.is_none_or(|v| v.intersects(Rect::from_min_size(start, extent)));
+    // A memo scope's content is a layout room of its own (its place's room); a lazy one runs in the column below it.
+    let region = match scope.memo {
+        Some(_) => Rect::from_min_size(start, room),
+        None => Rect::from_min_size(start, Vec2::new(room.x, f32::INFINITY)),
+    };
+    let gap = ui.flow.tokens.space.gap.stack;
+    if let Some(under) = ui.flow.measuring {
+        let peeked = under.and_then(|u| ui.cx.peek::<ScopeNode>(u, child));
+        let node = peeked.as_ref().map(|p| p.node);
+        let shown = peeked.as_ref().filter(|p| p.local.id != Id::NULL).map(|p| p.local.size);
+        let extent = shown.unwrap_or(estimate);
+        if !in_view(extent, ui.flow.view) {
+            ui.flow.allocate(None, extent, false);
+            return None;
         }
-        let Ui { cx, flow } = ui;
-        cx.keyed(child, |cx| {
-            cx.inline(ScopeNode { key }, |kept, state, cx| {
-                let value = kept.value.as_ref().and_then(|v| v.downcast_ref::<R>());
-                if let Some(value) = value.filter(|_| !state.must_run() && !state.path && kept.place == place) {
-                    cx.keep_children();
-                    flow.allocate(Some(cx.node()), kept.size, false);
-                    return value.clone();
-                }
-                cx.count_scope();
-                if state.new {
-                    cx.mark_changed();
-                }
-                let tokens = super::env::tokens(cx);
-                let gap = tokens.space.gap.stack;
-                let region = Rect::from_min_size(origin, place.room);
-                let reads = begin_reads(false);
-                let mut inner = Ui::new(cx, Flow::new(id, origin, region, gap, tokens).in_view(flow.view).with_sweep(flow.sweep));
-                let out = view(&mut inner, &self.props);
-                let Ui { cx, flow: inner } = inner;
-                end_reads(reads, cx);
-                let size: Vec2 = inner.content_size();
-                flow.absorb(&inner);
-                flow.allocate(Some(cx.node()), size, false);
-                if kept.placed != inner.placed || kept.size != size {
-                    kept.placed = inner.placed;
-                    kept.size = size;
+        // A kept memo scope answers with its kept size and value.
+        let kept = peeked
+            .filter(|p| scope.memo.is_some() && p.local.key == scope.memo.map(u128::from))
+            .filter(|p| !p.state.path && !p.state.marked && p.local.place == place)
+            .and_then(|p| kept_value::<R>(p.local, start, shift).map(|v| (v, p.local.size)));
+        if let Some((value, size)) = kept {
+            ui.flow.allocate(None, size, false);
+            return Some(Shown { value, fresh: false });
+        }
+        let flow = Flow::new(id, start, region, gap, ui.flow.tokens.clone()).in_view(ui.flow.view).measuring(node);
+        let mut inner = Ui::new(ui.cx, flow);
+        let value = content(&mut inner);
+        let size = inner.flow.content_size();
+        ui.flow.absorb(&inner.flow);
+        ui.flow.allocate(None, size, false);
+        return Some(Shown { value, fresh: true });
+    }
+    let Ui { cx, flow } = ui;
+    let key = scope.memo.unwrap_or(0);
+    cx.keyed(child, |cx| {
+        cx.inline(ScopeNode { key }, |kept, state, cx| {
+            let shown = kept.id != Id::NULL;
+            let extent = if shown { kept.size } else { estimate };
+            if !in_view(extent, flow.view) {
+                flow.limited = true;
+                flow.allocate(Some(cx.node()), extent, false);
+                if !kept.placed.is_empty() {
+                    kept.placed.clear();
                     cx.request_layout();
                 }
-                kept.id = id;
-                kept.place = place;
-                kept.value = Some(Box::new(out.clone()));
-                out
-            })
+                return None;
+            }
+            if scope.memo.is_some()
+                && shown
+                && !state.must_run()
+                && !state.path
+                && kept.place == place
+                && let Some(value) = kept_value::<R>(kept, start, shift)
+            {
+                cx.keep_children();
+                flow.allocate(Some(cx.node()), kept.size, false);
+                return Some(Shown { value, fresh: false });
+            }
+            cx.count_scope();
+            if state.new {
+                cx.mark_changed();
+            }
+            let tokens = if scope.memo.is_some() { super::env::tokens(cx) } else { flow.tokens.clone() };
+            let reads = scope.memo.map(|_| begin_reads(false));
+            let mut inner = Ui::new(cx, Flow::new(id, start, region, gap, tokens).in_view(flow.view).with_sweep(flow.sweep));
+            let value = content(&mut inner);
+            let Ui { cx, flow: inner } = inner;
+            if let Some(reads) = reads {
+                end_reads(reads, cx);
+            }
+            let size: Vec2 = inner.content_size();
+            flow.absorb(&inner);
+            flow.allocate(Some(cx.node()), size, false);
+            if kept.placed != inner.placed || kept.size != size || !shown {
+                kept.placed = inner.placed;
+                kept.size = size;
+                cx.mark_changed();
+                cx.request_layout();
+            }
+            kept.id = id;
+            kept.place = place;
+            if scope.memo.is_some() {
+                kept.key = Some(u128::from(key));
+                kept.value = Some(Box::new(KeptValue { value: value.clone(), origin: start }));
+            }
+            Some(Shown { value, fresh: true })
         })
+    })
+}
+
+/// A memo scope's kept value, moved to `start` when the scope starts elsewhere than where it ran.
+fn kept_value<R: Clone + 'static>(kept: &super::node::Kept, start: Pos2, shift: ShiftFn<R>) -> Option<R> {
+    let kept = kept.value.as_ref()?.downcast_ref::<KeptValue<R>>()?;
+    let offset = start - kept.origin;
+    Some(match shift {
+        Some(shift) if offset != Vec2::ZERO => shift(&kept.value, &RecordShift::by(offset)),
+        _ => kept.value.clone(),
+    })
+}
+
+/// A memo scope keyed by `props` with no out-of-view rule: an env scope's subtree. Its closure runs only when the
+/// props key or the place moved, a read in its last run changed, or a node under it was marked.
+pub(crate) fn memo<P: MemoProps, R: Clone + 'static>(ui: &mut Ui<'_, '_>, props: &P, mut content: impl FnMut(&mut Ui<'_, '_>, &P) -> R) -> R {
+    let mut key = MemoKey::new();
+    key.feed_hash(&P::identity());
+    props.key(&mut key);
+    let scope = ScopeShow {
+        id: IdSource::Auto,
+        type_key: super::key::type_key::<P>(),
+        memo: Some(super::key::fold(key.finish())),
+        estimate: 0.0,
+        reveal: false,
+        lazy: false,
+    };
+    match show_scope(ui, scope, None, &mut |ui| content(ui, props)) {
+        Some(shown) => shown.value,
+        None => unreachable!("a scope with no out-of-view rule always shows"),
     }
 }

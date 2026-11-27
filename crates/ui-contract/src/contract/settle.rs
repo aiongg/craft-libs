@@ -1,7 +1,7 @@
 //! `Inner::settle`: the body's memory, handed to the caller once after the real run.
 
+use crate::contract::{Context, Id};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
-use egui::{Context, Id};
 
 /// Where a real run left the body's memory. Set only when a real run called the body.
 #[derive(Debug)]
