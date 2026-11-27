@@ -657,8 +657,10 @@ pub(crate) fn run_shaped<C: Component>(
     kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let mut built =
-        cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, cx)).flatten();
+    let mut built = cx
+        .access_enabled()
+        .then(|| report::<C>((&component, &*hooks), &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, cx))
+        .flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
         (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
         _ => Vec::new(),
@@ -1028,7 +1030,7 @@ fn activation_of(resolved: &Resolved<'_>, input: &[NodeInput], sense: Sense) -> 
 /// then the component's own `access`, then the side label of its label scope; the label, the
 /// state flags and the actions its sense and popups give. Built once per run.
 fn report<C: Component>(
-    component: &C,
+    (component, shape): (&C, &dyn ShapeHooks<C>),
     cx: &Cx<'_, C>,
     resolved: &Resolved<'_>,
     sense: Sense,
@@ -1053,6 +1055,7 @@ fn report<C: Component>(
         access.access_key(key);
     }
     component.access(&mut access, cx);
+    shape.access(component, &mut access);
     crate::contract::cx::apply_field_label(cx.core, &mut access);
     // A control shown with `PaintUi::inner` folds into its owner's node: it hands the owner its value
     // text and keeps no node of its own. An owner whose `access` set no value carries its control's.

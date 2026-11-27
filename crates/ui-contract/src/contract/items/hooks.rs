@@ -40,6 +40,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         true
     }
 
+    fn access(&self, _comp: &C, access: &mut crate::runtime::access::Access) {
+        self.access_nodes(access);
+    }
+
     /// A collection that keeps focus on press senses the press without taking focus.
     fn sense(&self, comp: &C, own: Sense) -> Sense {
         if comp.items().focus_on_press { own } else { own.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS) }
@@ -351,6 +355,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let follow = self.drags.edge_rate != 0.0;
         // A drag's or marquee's edge scroll is a glide of the rows view: ui-rt moves the rows in layout each frame and
         // runs nothing until the glide brings unbuilt rows into the band or the rate changes.
+        self.middle_scroll(comp, ui, cx);
         if let Some(velocity) = self.glide.take() {
             crate::contract::rt::scroll::glide(ui.build_cx(), id, velocity);
         }
@@ -610,9 +615,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             shown: std::mem::take(&mut self.shown),
             activation_clicks: self.activation_clicks,
             pending_drop: self.drags.pending.clone(),
-            hovered: self.hovered.take(),
             menu: self.drags.menu.clone().filter(|request| self.index_of(&request.key).is_some()),
-            auto_scrolling: false,
+            auto_scrolling: self.auto_scrolling(),
         }));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());

@@ -310,6 +310,13 @@ pub(super) struct Drags<K> {
     /// The request the collection last made for a row's menu: the row shows as the menu's row, and the response
     /// reports the request (`CollectionResponse::menu`), while a menu hung from the collection is open.
     pub(super) menu: Option<ContextMenuRequest<K>>,
+    /// The middle-button auto-scroll latch (`MiddleButton::AutoScroll`).
+    pub(super) middle: craft_behavior::MiddleScroll,
+    /// While latched: the velocity the rows view glides at, the window's wheel revision when the latch began and
+    /// whether the middle button was down at the last run (a middle press elsewhere ends the latch).
+    middle_rate: Vec2,
+    middle_wheels: u64,
+    middle_held: bool,
 }
 
 /// A press that opens a rename when it ends as a click on the item's label and no second press follows within the
@@ -342,6 +349,10 @@ impl<K> Default for Drags<K> {
             slow: None,
             part_press: None,
             menu: None,
+            middle: craft_behavior::MiddleScroll::default(),
+            middle_rate: Vec2::ZERO,
+            middle_wheels: 0,
+            middle_held: false,
         }
     }
 }
@@ -439,7 +450,72 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Whether the rows view glides: a drag's or marquee's edge scroll, or the middle-button auto-scroll. Its offset
     /// is then the glide's, which a bound offset follows rather than sets.
     pub(super) fn glides(&self) -> bool {
-        self.drags.edge_rate != 0.0 || self.auto_scroll.is_some()
+        self.drags.edge_rate != 0.0 || self.drags.middle.active()
+    }
+
+    /// Step 13's middle-button auto-scroll (`MiddleButton::AutoScroll`): a middle press on the rows latches an anchor,
+    /// and while it holds, the rows view glides at the latch's velocity for the window's pointer. The pointer, the
+    /// window's focus and its wheel revision are read tracked only while latched, so the collection runs when the
+    /// pointer moves and nothing runs per frame. Escape (taken ahead of focus: a middle press moves no focus), a
+    /// wheel anywhere in the window, the window losing focus, the pointer leaving it or a second middle press ends
+    /// the latch; a release after a held drag past the dead zone ends it too, a click keeps it.
+    pub(super) fn middle_scroll(&mut self, comp: &C, ui: &mut crate::contract::Ui, cx: &mut Cx<'_, C>) {
+        use crate::contract::cx::Focus as _;
+        let props = comp.items();
+        if props.middle_button != craft_behavior::MiddleButton::AutoScroll || ui.is_measuring() {
+            return;
+        }
+        let escape = craft_keymap::Chord::plain(craft_keymap::Key::Escape);
+        let phase = cx.core.press.phase;
+        let middle = |start: &craft_behavior::PressStart| start.button == PointerButton::Middle;
+        let was = self.drags.middle.active();
+        let swallowed = self.drags.middle.swallows(phase);
+        let build = ui.build_cx();
+        let env = build.env();
+        match phase {
+            PressPhase::Down { start, .. } if middle(&start) && !swallowed => {
+                self.drags.middle.press(start.origin, self.rows_rect(cx).contains(start.origin));
+                if self.drags.middle.active() {
+                    self.drags.middle_wheels = env.wheels.get(build);
+                    self.drags.middle_held = true;
+                }
+            }
+            PressPhase::Release { start, .. } if middle(&start) => self.drags.middle.release(),
+            PressPhase::Cancel { start, .. } if middle(&start) => self.drags.middle.cancel(),
+            _ => {}
+        }
+        let mut rate = Vec2::ZERO;
+        if self.drags.middle.active() {
+            let pointer = env.pointer.get(build);
+            let focused = env.window_focused.get(build);
+            let wheeled = env.wheels.get(build) != self.drags.middle_wheels;
+            let held = pointer.held(PointerButton::Middle);
+            let elsewhere = held && !self.drags.middle_held;
+            self.drags.middle_held = held;
+            match pointer.pos {
+                Some(at) if focused && !wheeled && !elsewhere && !cx.core.take_claimed(escape) => {
+                    rate = self.drags.middle.velocity(at, held, props.invert_middle);
+                }
+                _ => self.drags.middle.cancel(),
+            }
+        }
+        let active = self.drags.middle.active();
+        if active || was {
+            let keys: &[craft_keymap::Key] = if active { &[craft_keymap::Key::Escape] } else { &[] };
+            ui.build_cx().capture_keys(keys);
+        }
+        if active {
+            cx.core.claim(escape);
+        }
+        if rate != self.drags.middle_rate {
+            self.drags.middle_rate = rate;
+            self.glide = Some(rate);
+        }
+    }
+
+    /// Whether the middle-button auto-scroll is latched (`CollectionResponse::auto_scrolling`).
+    pub(super) fn auto_scrolling(&self) -> bool {
+        self.drags.middle.active()
     }
 
     /// `at` in the layout's logical coordinates, relative to the rows' rect.

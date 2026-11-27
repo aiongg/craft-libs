@@ -790,6 +790,8 @@ fn show_plain<C: Container, R>(
     hosted: Option<LayerHost>,
 ) -> Inner<C::Output, R> {
     let mut component = slot.take().expect("a container is shown once");
+    component.common_mut(Internal::new()).command_scope =
+        component.props(Internal::new()).command_scope.or(component.common(Internal::new()).command_scope);
     let begun = super::run::begin(&mut component, ui);
     let common = &begun.common;
     let command = begun.step1.command.clone();
