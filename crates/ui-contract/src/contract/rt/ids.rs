@@ -177,7 +177,7 @@ pub(crate) fn request_focus(cx: &mut BuildCx<'_>, target: FocusTarget) -> bool {
 }
 
 /// The component node `owner` names and its kept facts, when it is one.
-fn component<'a>(cx: &'a BuildCx<'_>, owner: Id) -> Option<craft_ui_rt::Peek<'a, Kept>> {
+pub(crate) fn component<'a>(cx: &'a BuildCx<'_>, owner: Id) -> Option<craft_ui_rt::Peek<'a, Kept>> {
     let node = node_of(cx, owner)?;
     let parent = cx.runtime().parent(node)?;
     cx.peek::<ComponentNode>(parent, owner.value())

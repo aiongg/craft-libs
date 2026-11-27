@@ -1362,6 +1362,15 @@ impl crate::build::BuildCx<'_> {
         }
     }
 
+    /// The part of `node` the pointer hovers (as `PaintCx::hovered_part` reads it for its own node),
+    /// recording a build read that flips only when `node`'s hovered part changes.
+    pub fn read_hovered_part(&mut self, node: NodeId) -> Option<u64> {
+        match self.runtime_mut().hovered_part_cell(node) {
+            Some(cell) => cell.get(self),
+            None => None,
+        }
+    }
+
     /// Moves key focus to this node (a field that takes focus when it opens).
     pub fn request_focus(&mut self) {
         let (node, window) = (self.node(), self.window());

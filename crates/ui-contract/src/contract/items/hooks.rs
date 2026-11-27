@@ -156,10 +156,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Vec2::new(width, height)
     }
 
-    /// The surface the props name, under the header and the rows, as a container's lies under its regions.
+    /// The surface the props name, under the header and the rows, as a container's lies under its regions, and a live
+    /// marquee over the rows.
     fn paint(&self, comp: &C, ui: &mut PaintUi<'_>, rect: Rect) {
         if let Some(kind) = comp.props(Internal::new()).surface {
             ui.draw().surface(rect, kind, crate::style::Corners::All);
+        }
+        if let Some(layout) = self.layout.as_deref() {
+            let offset = ScrollPos { x: self.offset_x, y: self.offset };
+            self.paint_marquee(ui, layout, (self.below_header(rect), offset, ui.env.direction.is_rtl()));
         }
     }
 
@@ -232,8 +237,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
+        self.edge_glide();
         if props.hover_lead != HoverLead::Off {
-            self.hover_lead(comp, cx, &layout, props.hover_lead);
+            self.hover_lead(comp, cx, &layout, at, props.hover_lead);
         }
         self.navigate(comp, cx, &layout, view, header_held);
         self.switch_page(comp, cx, &props, &layout);
@@ -256,7 +262,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.requested_rename(comp, cx, &props, &layout);
         self.requested_reveal(comp, &layout);
         self.type_ahead(comp, cx, &layout, lead_at);
-        self.rest_lead(cx, &layout);
         request::record_lead(cx.context(), cx.core.id, self.lead.key.as_ref().and_then(|key| self.index_of(key)));
         if let Some(at) = self.page_reveal.take().filter(|&at| layout.shown(at)) {
             cx.core.reveal = Some(self.screen(&layout, rect, at, ScrollPos::default(), rtl));
@@ -284,6 +289,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     /// build reaches it, as a container's body does, so the item fn sees the app's rows; a row whose key and facts
     /// hold keeps its node and runs nothing.
     fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues) {
+        // The lead as this run left it: the rest timer reads the lead row's hover, which only the build's Id map reaches.
+        self.rest_lead(ui, cx);
         let Some(mut layout) = self.layout.take() else { return };
         let (id, ctx) = (cx.core.id, ui.ctx().clone());
         let rect = self.rows_rect(cx);
@@ -309,6 +316,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // band: their key handling and editor live on their nodes.
         let (_, order) = self.held_rows(&layout, band);
         self.visible = order.iter().copied().min().unwrap_or(0)..order.iter().copied().max().map_or(0, |last| last + 1);
+        // A section row the component declares as its own `section_part` reports its own node; any other one is the
+        // collection's sub-node: a heading named by the row's text.
+        self.sub_nodes.clear();
+        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
+            if crate::contract::cx::Pointer::part_if_declared(cx, super::section_part(&self.source.key(at))).is_none() {
+                let row = self.screen(&layout, rect, at, view.offset, rtl);
+                self.report_section_node(at, row, cx.core.resolved.enabled);
+            }
+        }
         self.header.paint(ui, cx, comp, env, id, rtl);
         let len = self.source.len();
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);
@@ -327,8 +343,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let extent = Vec2::new(size.x as f32, size.y as f32);
         // The rows view scrolls along the axis the rows overflow; a sheet's sideways scroll is shared with its header.
         let scroll = self.scrolls.then(|| if self.overflow == Axis::X { Scroll::horizontal() } else { Scroll::vertical() });
-        // A bound offset is the app's, and a drag's edge scroll moved the offset in this run: both set the rows view's.
-        let jump = (self.scrolls && (self.scroll_bound || self.drags.edge_at.is_some())).then(|| Vec2::new(self.offset_x as f32, self.offset as f32));
+        // A bound offset is the app's: it sets the rows view's.
+        let jump = (self.scrolls && self.scroll_bound).then(|| Vec2::new(self.offset_x as f32, self.offset as f32));
+        // A drag's or marquee's edge scroll is a glide of the rows view: ui-rt moves the rows in layout each frame and
+        // runs nothing until the glide brings unbuilt rows into the band or the rate changes.
+        if let Some(velocity) = self.glide.take() {
+            crate::contract::rt::scroll::glide(ui.build_cx(), id, velocity);
+        }
         let mut place_rows = |ui: &mut Ui, facts: Option<&RowFacts>| {
             for at in order {
                 if self.source.section_stop(at) {
@@ -465,11 +486,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         moved = true;
                     }
                 }
-                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
+                self.report_toggle_cells(&ctx, item_id, (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
                 let label = out.label_rect().unwrap_or(row);
                 self.slow_click_label(&key, label);
                 if let Some(shown) = shown_rows.last_mut() {
-                    shown.openers = self.item_openers(ui, &ctx, id, cx.core.resolved.enabled, openers);
+                    shown.openers = self.item_openers(ui, cx.core.input(), cx.core.resolved.enabled, openers);
                 }
                 self.report_item_output(&ctx, id, &key, out);
                 if state.renaming {
@@ -499,7 +520,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             self.header.apply_fit(ui, &cx.core.env, fit_widest);
             self.take_column_events();
         }
-        self.paint_marquee(ui, env, &layout, (rect, view.offset, rtl));
         self.shown = shown_rows;
         cx.core.grid = crate::contract::GridPlace::grid(len, columns.len());
         self.content = extent;
@@ -578,7 +598,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             self.drags.menu = None;
         }
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
-        self.header.report(cx.context(), id, cx);
+        self.header.report(cx, &mut self.sub_nodes);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         cx.core.collection_events = Some(Box::new(ItemsOut {

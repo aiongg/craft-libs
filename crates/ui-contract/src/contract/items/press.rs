@@ -209,18 +209,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             _ => self.drags.part_press = None,
         }
         // A click on a row's thumbnail is also a click on the row: the item reports the thumbnail's click and an unmodified click picks
-        // in the same pass.
-        if let (Some(PressPhase::Release { click: true, start, .. }), Some(target)) = (outcome.phase, outcome.target)
-            && start.button == craft_behavior::PointerButton::Primary
-            && target.part.is_some()
-            && target.sense.contains(Sense::PICKS_ITEM)
-            && local(start.origin).y >= 0.0
-            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
+        // in the same pass. A click ends within slop of where it went down, so the release point finds the row the press began on.
+        if let Some((part, craft_ui_rt::Gesture::Up { click: true, clicks }, pos, sense)) = descendant
+            && part.part.is_some()
+            && sense.contains(Sense::PICKS_ITEM)
+            && local(pos).y >= 0.0
+            && let Some(at) = layout.hit(local(pos), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
         {
             // A modified click is a command on the thumbnail (load as selection, and so on), not a pick.
             let mods = super::press_mods(cx.core.input());
             if !(mods.shift || mods.cmd || mods.alt) {
-                if !self.keeps_pick(at, start.clicks) {
+                if !self.keeps_pick(at, clicks) {
                     self.click_pick(comp, at, false, false, mods);
                 }
             } else if props.command_click && mods.cmd {
@@ -377,7 +376,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         if let Some(rect) = output.menu_request() {
             let _ = (ctx, id);
-            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1d");
+            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1f");
             self.ask_menu(ContextMenuRequest { key: key.clone(), at: self.on_screen(rect.left_bottom()), column: None, part: None });
         }
         if let Some(event) = output.into_event() {
@@ -388,25 +387,48 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// The response of each part an item asked to open a menu from (`ItemCx::part_opener`).
     pub(super) fn item_openers(
         &self,
-        ui: &Ui,
-        ctx: &Context,
-        id: Id,
+        ui: &mut Ui,
+        input: &[crate::contract::rt::NodeInput],
         enabled: bool,
         openers: Vec<ItemOpener>,
     ) -> Vec<(ItemOpener, crate::contract::Response)> {
-        item_openers(ui, ctx, id, enabled, openers)
+        item_openers(ui, input, enabled, openers)
     }
 }
 
-/// Resolves the item opener responses without duplicating the sensing and response code per collection type.
-fn item_openers(ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<ItemOpener>) -> Vec<(ItemOpener, crate::contract::Response)> {
+/// The response of each opener part on its item's node, found through the Id map: the part's kept hit shape gives its
+/// rect, the node's hovered part and held press give hover and press (tracked reads, so the collection reruns only when
+/// the opener's own facts flip), and the press a descendant ended this run (`NodeInput::DescendantPress`) gives the
+/// click. An item without a node this frame (a member row, or a row not yet laid out) has no opener response.
+fn item_openers(
+    ui: &mut Ui,
+    input: &[crate::contract::rt::NodeInput],
+    enabled: bool,
+    openers: Vec<ItemOpener>,
+) -> Vec<(ItemOpener, crate::contract::Response)> {
+    use crate::contract::rt::ids;
     if openers.is_empty() {
         return Vec::new();
     }
-    let _ = (ui, ctx, id, enabled);
-    todo!(
-        "item opener responses: the opener part's rect and hover/press/click facts on the item's node through the Id map (rt/ids.rs node_of), INT-4c Left 1"
-    )
+    let descendant = super::descendant_press(input);
+    let cx = ui.build_cx();
+    openers
+        .into_iter()
+        .filter_map(|opener| {
+            let node = ids::node_of(cx, opener.item)?;
+            let origin = cx.runtime().window_rect(node)?.min;
+            let part_id = crate::contract::rt::node::part_id(opener.part);
+            let shape = ids::component(cx, opener.item)?.local.parts.iter().find(|kept| kept.id == part_id)?.shape;
+            let rect = shape.bounds().translate(origin.to_vec2());
+            let hovered = cx.read_hovered_part(node) == Some(part_id);
+            let pressed = cx.read_interaction(node, craft_ui_rt::InteractFact::Pressed) && ids::pressed_part(cx, opener.item) == Some(opener.part);
+            let on_part = |hit: &super::HitPart| hit.owner == opener.item && hit.part == Some(opener.part);
+            let clicked = enabled && matches!(descendant, Some((hit, craft_ui_rt::Gesture::Up { click: true, .. }, ..)) if on_part(&hit));
+            let interact = craft_ui_rt::Interact { hovered, pressed: enabled && pressed, ..craft_ui_rt::Interact::default() };
+            let facts = crate::contract::rt::response::InputFacts { clicked, ..Default::default() };
+            Some((opener, crate::contract::Response::new(opener_id(opener.item, opener.part), rect, None, interact, false, facts)))
+        })
+        .collect()
 }
 
 /// The id of the response `CollectionResponse::opener` gives for the part `part` of the item `item`.

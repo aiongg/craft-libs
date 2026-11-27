@@ -489,6 +489,8 @@ pub struct SubNode {
     pub(crate) steps: bool,
     pub(crate) bounds: Option<craft_ui_rt::Rect>,
     pub(crate) run: Option<RunFacts>,
+    /// The sub-node is disabled though its component is not (a toggle cell of a disabled row).
+    pub(crate) disabled: bool,
 }
 
 impl SubNode {
@@ -520,6 +522,7 @@ impl SubNode {
             steps: false,
             bounds: None,
             run: None,
+            disabled: false,
         }
     }
 

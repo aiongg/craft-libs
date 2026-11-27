@@ -81,7 +81,7 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         if let Some(b) = sub.bounds {
             node.set_bounds(accesskit::Rect::new(f64::from(b.min.x), f64::from(b.min.y), f64::from(b.max.x), f64::from(b.max.y)));
         }
-        if !facts.enabled {
+        if !facts.enabled || sub.disabled {
             node.set_disabled();
         } else if facts.pressable.contains(&sub.part) {
             node.add_action(Action::Click);
