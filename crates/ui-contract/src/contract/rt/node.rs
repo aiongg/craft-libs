@@ -594,6 +594,8 @@ pub(crate) struct Kept {
     /// The node's last run read the context requests of the nodes under it (`Cx::context_requests`): its watch takes
     /// them from its next build on.
     pub(crate) context_watch: bool,
+    /// The chords the node captures ahead of the focused node, as its last run asked (`Focus::capture`).
+    pub(crate) captures: super::keys::KeyCaptures,
     /// The node's control folds into its owner's access node: its entries leave the window's folds with the node.
     pub(crate) fold: Option<crate::runtime::access::fold::FoldEntry>,
 }
@@ -658,6 +660,7 @@ impl Kept {
             column_reports: Vec::new(),
             watch: None,
             context_watch: false,
+            captures: Default::default(),
             fold: None,
             scroll_owner: false,
             drop_types: smallvec::SmallVec::new(),
@@ -989,12 +992,18 @@ impl ComponentNode {
     /// A key on this node's path: taken when the node is focused and its kept `KeyUse` says so,
     /// then by its roving group or its trapping scope.
     fn key(&self, kept: &mut Kept, cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
-        if cx.target() == cx.node() {
+        // A chord the node captures (ui-rt routes it here ahead of the focused node).
+        let captured = kept.captures.take(k);
+        if cx.target() == cx.node() || !matches!(captured, Taken::No) {
             // While the input method composes, its keys are the composition's.
             if kept.ime.composing() {
                 return Handled::Yes;
             }
-            match super::keys::take(&kept.focus, cx, k) {
+            let taken = match captured {
+                Taken::No => super::keys::take(&kept.focus, cx, k),
+                captured => captured,
+            };
+            match taken {
                 Taken::Queue(input) => {
                     kept.queue.push(input);
                     cx.request_build();

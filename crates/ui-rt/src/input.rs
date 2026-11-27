@@ -96,6 +96,13 @@ struct Press {
     long_pressed: bool,
 }
 
+/// The chords a node takes ahead of the focused node (`BuildCx::capture_keys`).
+struct KeyCapture {
+    chords: smallvec::SmallVec<[craft_keymap::Chord; 2]>,
+    /// The capture reaches the whole window, not only while focus is inside the node.
+    window: bool,
+}
+
 /// One window's input state: its press, hover, key focus and IME session.
 #[derive(Default)]
 pub(crate) struct InputState {
@@ -138,9 +145,9 @@ pub(crate) struct InputState {
     /// The last Space press went to the node a modal lets input through to ([`crate::ModalReach`]): its release goes
     /// there too.
     space_to_reach: Option<NodeId>,
-    /// The node that takes some of the window's keys ahead of the focused node while it holds a
-    /// mode (`BuildCx::capture_keys`), and those keys: a key it does not handle goes on to focus.
-    key_capture: Option<(NodeId, smallvec::SmallVec<[Key; 2]>)>,
+    /// The nodes that take some of the window's chords ahead of the focused node
+    /// (`BuildCx::capture_keys`), each with its chords: a chord it does not handle goes on to focus.
+    key_captures: smallvec::SmallVec<[(NodeId, KeyCapture); 2]>,
     pub(crate) touches: Touches,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
@@ -1176,7 +1183,8 @@ impl Runtime {
             self.cancel_press(window, PressCancel::Escape);
             return;
         }
-        if let Some(node) = self.input(window).and_then(|i| i.key_capture.as_ref()).filter(|(_, keys)| keys.contains(&k.key)).map(|(node, _)| *node)
+        if k.down
+            && let Some(node) = self.capturer(window, craft_keymap::Chord::new(k.mods, k.key))
             && self.deliver(node, node, &Event::Key(k)) == Handled::Yes
         {
             return;
@@ -1222,6 +1230,21 @@ impl Runtime {
         if !handled && k.down && k.key == Key::Escape {
             self.dismiss_on_escape(window);
         }
+    }
+
+    /// The node that captures `chord` in `window` ahead of the focused node: one whose capture reaches the whole window
+    /// (a mode, such as a middle-button auto-scroll latch), else the outermost node on the focus chain that captures it.
+    fn capturer(&self, window: WindowId, chord: craft_keymap::Chord) -> Option<NodeId> {
+        let captures = &self.input(window)?.key_captures;
+        let takes = |capture: &KeyCapture| capture.chords.contains(&chord);
+        if let Some((node, _)) = captures.iter().find(|(_, capture)| capture.window && takes(capture)) {
+            return Some(*node);
+        }
+        if captures.is_empty() {
+            return None;
+        }
+        let focused = self.focused(window).or_else(|| self.key_root(window))?;
+        chain(&self.tree, focused).into_iter().rev().find(|node| captures.iter().any(|(held, capture)| held == node && takes(capture)))
     }
 
     /// Where a key goes with nothing focused in `window`: the root, or for an inline root
@@ -1381,8 +1404,8 @@ impl Runtime {
         self.interact_facts.remove(&id);
         self.hovered_parts.remove(&id);
         self.part_hovers.remove(&id);
-        if let Some(input) = self.input_mut(window).filter(|i| i.key_capture.as_ref().is_some_and(|(node, _)| *node == id)) {
-            input.key_capture = None;
+        if let Some(input) = self.input_mut(window) {
+            input.key_captures.retain(|(node, _)| *node != id);
         }
         self.hover_points.remove(&id);
         self.forget_drag_node(id);
@@ -1664,17 +1687,16 @@ impl crate::build::BuildCx<'_> {
         }
     }
 
-    /// This node takes `keys` in its window ahead of the focused node while it holds a mode (a
-    /// middle-button auto-scroll latch, which Escape ends whatever has focus); a key it does not
-    /// handle goes on to focus. No keys releases the capture if this node holds it; a node that
-    /// goes releases it too.
-    pub fn capture_keys(&mut self, keys: &[Key]) {
-        let (node, window) = (self.node(), self.window());
-        let Some(input) = self.runtime_mut().input_mut(window) else { return };
-        if !keys.is_empty() {
-            input.key_capture = Some((node, keys.iter().copied().collect()));
-        } else if input.key_capture.as_ref().is_some_and(|(held, _)| *held == node) {
-            input.key_capture = None;
+    /// This node takes `chords` ahead of the focused node, from the next key on, until it captures others: while focus
+    /// is inside it, or with `window` anywhere in its window (a mode the node holds, such as a middle-button auto-scroll
+    /// latch, which Escape ends whatever has focus). A chord it does not handle goes on to focus. No chords releases
+    /// the capture; a node that goes releases it too.
+    pub fn capture_keys(&mut self, chords: &[craft_keymap::Chord], window: bool) {
+        let (node, win) = (self.node(), self.window());
+        let Some(input) = self.runtime_mut().input_mut(win) else { return };
+        input.key_captures.retain(|(held, _)| *held != node);
+        if !chords.is_empty() {
+            input.key_captures.push((node, KeyCapture { chords: chords.iter().copied().collect(), window }));
         }
     }
 

@@ -717,6 +717,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.menu_bar = cxx.core.run.menu_bar.get();
     super::node::MenuBar::register(kept.menu_bar, cx);
     super::node::LoneAltClaims::register(cxx.core.run.lone_alt_claim.get(), cx);
+    super::keys::KeyCaptures::keep(&mut kept.captures, std::mem::take(&mut cxx.core.captures), cx);
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.drop_types = cxx.core.run.drop_types.take();
     kept.drop_under_modal = cxx.core.run.drop_under_modal.get();

@@ -124,12 +124,25 @@ fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Option<Input>) -
 }
 
 fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
-    for _ in 0..6 {
-        if !step(rig, app, None).ran {
-            return;
+    assert!(settled(rig, &mut |rig| step(rig, app, None)), "the rig did not settle");
+}
+
+/// Steps `rig` until a step runs nothing. The rig's clock stands still, so a step that only repaints (a fade reading
+/// the frame time) moves it on by a frame first, as frames do in an app; a build wake waits for the clock.
+fn settled(rig: &mut Rig<RecordingRenderer>, step: &mut dyn FnMut(&mut Rig<RecordingRenderer>) -> StepReport) -> bool {
+    let mut fading = false;
+    for _ in 0..16 {
+        if fading {
+            rig.driver.platform.advance(1.0 / 30.0);
         }
+        let report = step(rig);
+        if !report.ran {
+            return true;
+        }
+        let f = &report.frame;
+        fading = f.runs == 0 && f.scopes == 0 && f.built == 0 && f.painted > 0;
     }
-    panic!("the rig did not settle");
+    false
 }
 
 fn setup() -> (Rig<RecordingRenderer>, App) {
@@ -234,11 +247,7 @@ fn toast_step(rig: &mut Rig<RecordingRenderer>, app: &mut Toasts) -> StepReport 
 fn a_waiting_toast_runs_nothing_until_its_timeout_ends_it() {
     let mut app = Toasts { queue: Default::default(), posted: None, root_runs: 0, drawn: 0 };
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
-    for _ in 0..6 {
-        if !toast_step(&mut rig, &mut app).ran {
-            break;
-        }
-    }
+    assert!(settled(&mut rig, &mut |rig| toast_step(rig, &mut app)), "the rig did not settle");
     let id = app.posted.expect("the root posted its card");
     assert!(app.drawn >= 1, "the card was drawn");
     let (runs, drawn) = (app.root_runs, app.drawn);
@@ -413,12 +422,7 @@ fn layer_children(rig: &Rig<RecordingRenderer>) -> Vec<craft_ui_rt::NodeId> {
 /// Runs `rig` past the end of every fade and every wake it asked for.
 fn past_fades(rig: &mut Rig<RecordingRenderer>, step: &mut dyn FnMut(&mut Rig<RecordingRenderer>) -> StepReport) {
     rig.driver.platform.advance(1.0);
-    for _ in 0..6 {
-        if !step(rig).ran {
-            return;
-        }
-    }
-    panic!("the rig did not settle");
+    assert!(settled(rig, step), "the rig did not settle");
 }
 
 /// Clicks at `at` through `frame`, which injects an input and steps.
@@ -437,7 +441,8 @@ fn a_fading_popup_takes_no_click_or_key_and_is_gone_after_its_wake() {
     let [down, up] = Input::key_press(Key::Escape, Mods::NONE);
     step(&mut rig, &mut app, Some(down));
     step(&mut rig, &mut app, Some(up));
-    settle(&mut rig, &mut app);
+    // The clock stands still, so the close fade is still running: settling would move the clock past it.
+    step(&mut rig, &mut app, None);
     assert!(!app.menu.open.get(), "Escape closed the menu");
     let fading = layer_children(&rig);
     assert_eq!(fading.len(), 1, "the closed menu stays while it fades out");

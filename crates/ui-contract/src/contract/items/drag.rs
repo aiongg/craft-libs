@@ -468,7 +468,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let escape = craft_keymap::Chord::plain(craft_keymap::Key::Escape);
         let phase = cx.core.press.phase;
         let middle = |start: &craft_behavior::PressStart| start.button == PointerButton::Middle;
-        let was = self.drags.middle.active();
         let swallowed = self.drags.middle.swallows(phase);
         let build = ui.build_cx();
         let env = build.env();
@@ -499,13 +498,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 _ => self.drags.middle.cancel(),
             }
         }
-        let active = self.drags.middle.active();
-        if active || was {
-            let keys: &[craft_keymap::Key] = if active { &[craft_keymap::Key::Escape] } else { &[] };
-            ui.build_cx().capture_keys(keys);
-        }
-        if active {
-            cx.core.claim(escape);
+        if self.drags.middle.active() {
+            cx.core.capture_in_window(escape);
         }
         if rate != self.drags.middle_rate {
             self.drags.middle_rate = rate;
