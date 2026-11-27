@@ -3,10 +3,12 @@
 
 use super::{ItemsHooks, key_hash};
 use super::{header, rows};
+use crate::contract::Ui;
 use crate::contract::body::EnvFacts;
 use crate::contract::collection::RowState;
 use crate::contract::run::{Measuring, ShowAt};
 use crate::contract::{Collection, Internal, ItemCx, Props, Show as _};
+use crate::primitives::Id;
 use crate::runtime::access::SetPosition;
 use crate::runtime::env::ArenaId;
 use crate::runtime::env::{Env, EnvView, ItemFacts, ScrollOwner};
@@ -16,7 +18,9 @@ use crate::style::{Flags, SurfaceKind};
 use crate::style::{StyleCx, UiTokens};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{ItemLayout as _, Proposal, ScrollPos, SelectionModel as _};
-use egui::{Id, Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 
 impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// Whether the collection takes its width from its widest row: `Sizing::Content`. A row's width holds its
@@ -77,8 +81,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     pub(super) fn largest_in(&mut self, comp: &C, (ui, env): (&Ui, &Env), id: Id, room: Vec2) -> Vec2 {
         let ctx = ui.ctx().clone();
         let key = sub(id, "largest");
-        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
-        let found = |ctx: &egui::Context| {
+        let tolerance = measure_tolerance(ctx.pixels_per_point());
+        let found = |ctx: &crate::contract::Context| {
             // The collection's width comes from its rows here: it is not given the width.
             layout_memory::measured(ctx, key).filter(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
         };
@@ -132,7 +136,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// The length of the rows side by side at their ideal widths, as the last measure of the largest row in the room
     /// `room` found them (`largest_in`); 0 before one.
     pub(super) fn run_in(&self, ui: &Ui, id: Id, room: Vec2) -> f32 {
-        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ui.ctx()));
+        let tolerance = measure_tolerance(ui.pixels_per_point());
         layout_memory::measured(ui.ctx(), run_id(id))
             .filter(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
             .map_or(0.0, |found| found.took.x)
@@ -249,7 +253,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             return;
         }
         let ctx = measuring.ui.ctx().clone();
-        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
+        let tolerance = measure_tolerance(ctx.pixels_per_point());
         let props = comp.items();
         let (row, max_rows, striped) = (props.row_height.of(measuring.scx), props.max_rows, props.striped);
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);

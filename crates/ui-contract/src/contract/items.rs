@@ -4,15 +4,17 @@ pub(super) mod rows;
 
 use super::collection::{CollectionEvent, ColumnLayout, LeadSource, ShownRow};
 use super::{Collection, ItemFn};
-use crate::runtime::egui::areas;
+use crate::contract::Ui;
 use craft_behavior::{Axis, GestureId, ItemSource, ScrollPos, TypeAhead};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 use std::ops::Range;
 use std::sync::Arc;
 
 /// Runs `body` with the item facts of the item at `at` of a set installed and the id that position gives the item, so
 /// measuring and showing an item see one id and one environment.
-fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body: impl FnOnce(&mut Ui, egui::Id) -> R) -> R {
+fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body: impl FnOnce(&mut Ui, crate::primitives::Id) -> R) -> R {
     use crate::runtime::env::{Env, ItemFacts};
     // The id comes from the position so two items of one set never share one, and an item keeps its id while its
     // position holds.
@@ -123,14 +125,6 @@ const ITEM_NODE: craft_behavior::PartKey = craft_behavior::PartKey::new("item_no
 /// and the collection keeps their press, keys and node.
 pub fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
     SECTION.at(key_hash(key))
-}
-
-#[derive(Clone, Default)]
-struct Scrolled {
-    y: f64,
-    x: f64,
-    /// The same position named by content: the offset follows it while the heights of rows before its row change.
-    anchor: Option<crate::runtime::lazy::Anchor>,
 }
 
 #[derive(Clone)]
@@ -252,9 +246,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     offset_at_read: f64,
     offset_x: f64,
     offset_x_at_read: f64,
-    /// The scroll position named by content, kept with an offset the framework holds (`Scrolled`).
-    anchor: Option<crate::runtime::lazy::Anchor>,
-    anchor_at_read: Option<crate::runtime::lazy::Anchor>,
+    /// The app holds the offset (`Component::scroll`); otherwise the rows view does (`rt/items.rs`).
+    scroll_bound: bool,
     /// The bound column layout as the read step found it; `None` while the header keeps its own memory.
     column_layout_at_read: Option<ColumnLayout>,
     lead: Lead<C::Key>,
@@ -329,8 +322,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             offset_at_read: 0.0,
             offset_x: 0.0,
             offset_x_at_read: 0.0,
-            anchor: None,
-            anchor_at_read: None,
+            scroll_bound: false,
             column_layout_at_read: None,
             lead: Lead::default(),
             renaming: Renaming::default(),
@@ -362,8 +354,8 @@ impl crate::style::StyleCx<'_> {
     /// The size `face` has, measured from the `Ui` the collection hook fills this context from, so a collection's
     /// `item_layout` measures a button's label and icon in the pass it lays out in. Zero in a context no collection
     /// filled, which has nothing to measure in.
-    pub fn face<S: crate::contract::Show>(&self, mut face: S) -> egui::Vec2 {
-        let Some(ui) = self.measuring else { return egui::Vec2::ZERO };
+    pub fn face<S: crate::contract::Show>(&self, mut face: S) -> craft_ui_rt::Vec2 {
+        let Some(ui) = self.measuring else { return craft_ui_rt::Vec2::ZERO };
         crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None)
     }
 }

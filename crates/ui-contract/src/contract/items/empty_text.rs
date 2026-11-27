@@ -1,15 +1,19 @@
 //! The empty-state text of a collection: faint body text at the reading start, a stack gap above and
 //! below, that is its own label node: the inline empty state of the source apps' panels and lists.
 
+use crate::contract::Response;
+use crate::contract::Ui;
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _, Styled as _};
 use crate::fonts::stack_facts;
+use crate::primitives::Id;
 use crate::primitives::TextEnv;
 use crate::primitives::{TextRun, Wrap};
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, Insets, StyleCx, TextLook, TypeRole, UiTokens, control_metrics, ink_color};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::Stateful;
-use egui::{Id, Rect, Response, Ui, Vec2};
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 
 /// The style of the empty-state text.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]

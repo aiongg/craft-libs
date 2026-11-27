@@ -2,11 +2,14 @@
 //! it touches become the selection the drag started from, changed the way the held modifiers say.
 
 use super::ItemsHooks;
+use crate::contract::Ui;
 use crate::contract::collection::{CollectionProps, SelectMode};
 use crate::contract::{Collection, Cx};
 use crate::runtime::env::Env;
 use craft_behavior::{ItemLayout, MarqueeSelect, PointerButton, PressPhase, ScrollPos, SelectionChange};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 
 /// A marquee in progress. Its corners are in the layout's logical content coordinates, so a scroll during the drag
 /// moves the rectangle with the rows.
@@ -47,7 +50,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let local = Self::logical(layout, rect, rtl, origin);
                 if rect.contains(origin) && layout.hit(local, seen).is_none() {
                     let selected: Vec<C::Key> = self.selected_keys(&self.selection_at_read);
-                    let mods = crate::runtime::pointer::frame_raw(&cx.core.ctx).mods;
+                    let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
                     let select = MarqueeSelect::begin(content_point(local, seen), mods, selected.clone());
                     self.drags.marquee = Some(MarqueeDrag { select, last: selected, live: false });
                 }

@@ -202,6 +202,8 @@ pub(crate) struct Kept {
     /// The node's input method state: the composition and the caret rect the platform places its
     /// candidate window at.
     pub(crate) ime: super::ime::ImeKept,
+    /// A members collection's rows: one sub-list per row and pointer look (`rt/items.rs`).
+    pub(crate) members: Vec<super::items::MemberLooks>,
 }
 
 impl Kept {
@@ -242,6 +244,7 @@ impl Kept {
             level: Default::default(),
             focus: FocusKept::default(),
             ime: Default::default(),
+            members: Vec::new(),
         }
     }
 

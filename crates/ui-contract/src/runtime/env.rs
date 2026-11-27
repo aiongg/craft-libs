@@ -364,7 +364,7 @@ pub(crate) struct RowLine {
 
 /// What a collection records for one of its items in a pass: the row flags the item folds into its state (step 12)
 /// and its place in the set (step 16). The collection owns the record; a component reads it from its env.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[doc(hidden)]
 pub struct ItemFacts {
     pub(crate) item: Id,

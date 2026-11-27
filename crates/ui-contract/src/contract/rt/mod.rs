@@ -36,6 +36,7 @@ pub(crate) mod focus;
 pub(crate) mod harness;
 pub(crate) mod ime;
 pub(crate) mod intents;
+pub(crate) mod items;
 pub(crate) mod key;
 pub(crate) mod keys;
 pub(crate) mod memory;

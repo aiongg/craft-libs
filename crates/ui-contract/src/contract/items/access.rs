@@ -1,13 +1,15 @@
 //! AccessKit nodes and requests of item rows, section rows and toggle cells.
 
 use super::{ITEM_NODE, ItemsHooks, Placement, SECTION, TOGGLE_CELL, key_hash, section_part};
+use crate::contract::Context;
 use crate::contract::collection::{ActivateOn, CollectionEvent, LeadSource, OpenChange};
 use crate::contract::cx::Pointer as _;
 use crate::contract::{Collection, Cx};
+use crate::primitives::Id;
 use crate::runtime::access::{self, Role};
 use crate::runtime::focus;
 use craft_behavior::ColumnKey;
-use egui::{Context, Id, Rect};
+use craft_ui_rt::Rect;
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// The access sub-node of each toggle cell of row `(at, key)`, named by its cell, else by its column's header, and carrying its state,
@@ -114,7 +116,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if self.lead.key.as_ref() != Some(&key) {
                         self.move_lead(at, LeadSource::Keys);
                     }
-                    focus::request_now(&cx.core.ctx, focus::FocusTarget::Id(cx.core.id));
+                    focus::request_now(cx.context(), focus::FocusTarget::Id(cx.core.id));
                     if request.action == AccessAction::Click {
                         if self.source.section_stop(at) {
                             self.events.push(CollectionEvent::Activate(key));

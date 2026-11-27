@@ -7,6 +7,7 @@ mod focus;
 mod harness;
 mod id;
 mod input;
+mod items;
 mod layout;
 mod overlay;
 mod env;
