@@ -26,10 +26,13 @@ reads = [
 suite = ["testing", "craft-ui-contract/suite"]
 default = []
 # `craft_ui::testing` with the story helpers that show components.
-testing = ["craft-ui-contract/testing"]
+testing = ["craft-ui-contract/testing", "dep:craft-ui-platform-headless"]
 
 [dependencies]
 craft-ui-contract = { workspace = true }
+craft-ui-rt = { workspace = true }
+# `testing::pointer`: the inputs the headless platform takes.
+craft-ui-platform-headless = { workspace = true, optional = true }
 craft-behavior = { workspace = true }
 craft-keymap = { workspace = true, features = ["egui"] }
 craft-ui-rt = { workspace = true }

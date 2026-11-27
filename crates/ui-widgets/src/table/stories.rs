@@ -4,7 +4,7 @@ use super::{Table, sort_rows};
 use crate::contract::{Bind, CollectionEvent, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ShowCollection as _, ToggleColumn};
 use crate::list::{ListRow, ToggleCell};
 use crate::testing::pointer::{moved, secondary};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection};
 use craft_i18n::{AgeStyle, FileSize, SizeUnit};
@@ -152,10 +152,11 @@ fn table_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// A secondary click on the Name header, which opens the header menu.
-fn open_header_menu(fixture: &mut Harness) {
+fn open_header_menu(fixture: &mut StoryHarness) {
     let Some(header) = fixture.by_label("Name") else { return };
     let at = header.center();
-    fixture.frame(vec![moved(at), secondary(at, true)]);
+    fixture.send(moved(at));
+    fixture.send(secondary(at, true));
     fixture.send(secondary(at, false)).settle();
 }
 

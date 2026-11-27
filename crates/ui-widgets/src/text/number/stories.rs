@@ -6,7 +6,7 @@ use crate::display::Text;
 use crate::form::{Field, FieldGroup};
 use crate::layout_components::Row;
 use crate::runtime::env::{Env, LengthUnits, Message, UnitKind, with_env};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, pointer, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, pointer, story};
 use craft_behavior::{Mixed, NumberCodec, Reader};
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -126,9 +126,9 @@ fn number_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens its list or slider with Alt+Down.
-fn open_popup(fixture: &mut Harness) {
+fn open_popup(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -155,7 +155,7 @@ fn number_field_step_arrows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// Presses the up arrow and keeps it down, short of the repeat delay: one step, then the held arrow. The repeat is
 /// the step-arrow trial's: every repeated step is an edit of its own, and a drive ends its edit once.
-fn hold_up(fixture: &mut Harness) {
+fn hold_up(fixture: &mut StoryHarness) {
     fixture.settle();
     let at = fixture.root_id().and_then(|root| fixture.part_rect(root, NumberField::STEP_UP)).map(|rect| rect.center());
     if let Some(at) = at {
@@ -256,7 +256,7 @@ fn number_field_inline(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the first field with Tab: its whole run selected.
-fn focus_first(fixture: &mut Harness) {
+fn focus_first(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.idle(2);
 }

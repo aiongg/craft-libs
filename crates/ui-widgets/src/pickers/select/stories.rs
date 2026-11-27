@@ -6,7 +6,7 @@ use crate::contract::{Bind, Entry, Props, Role, Show as _, ShowContainer as _, S
 use crate::form::{Field, FieldGroup};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -110,8 +110,8 @@ fn select_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Select::new("Blend mode", bind, &entries).show(ui).into()
 }
 
-fn open_listbox(fixture: &mut Harness) {
-    if let Some(field) = fixture.by_role(Role::COMBO_BOX).first().copied() {
+fn open_listbox(fixture: &mut StoryHarness) {
+    if let Some(field) = fixture.by_role(egui::Role::ComboBox).first().cloned() {
         fixture.click(&field);
     }
 }

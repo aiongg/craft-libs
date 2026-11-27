@@ -239,12 +239,10 @@ pub struct StripLayout {
     left: Vec<f32>,
     wide: Vec<f32>,
     report: Arc<Mutex<Report>>,
-    /// A measuring run computes the fit and leaves the report to the real pass (`measure::effect`).
-    ctx: craft_ui::Context,
 }
 
 impl StripLayout {
-    fn new(count: usize, size: Vec2, tab_gap: f32, fitting: Fitting, report: Arc<Mutex<Report>>, ctx: craft_ui::Context) -> Self {
+    fn new(count: usize, size: Vec2, tab_gap: f32, fitting: Fitting, report: Arc<Mutex<Report>>) -> Self {
         let (width, height) = (size.x, size.y);
         let each = if count == 0 { 0.0 } else { width / count as f32 };
         let mut layout = StripLayout {
@@ -259,7 +257,6 @@ impl StripLayout {
             left: Vec::new(),
             wide: Vec::new(),
             report,
-            ctx,
         };
         layout.refit();
         layout
@@ -306,7 +303,7 @@ impl StripLayout {
     fn refit(&mut self) {
         let count = self.ideal.len();
         let (ends_room, ends) = self.fit_ends();
-        let StripLayout { ideal, min, width, height, tab_gap, fitting, shown, left, wide, report, ctx, .. } = self;
+        let StripLayout { ideal, min, width, height, tab_gap, fitting, shown, left, wide, report, .. } = self;
         let tab_gap = *tab_gap;
         let Fitting { selected, mode, kept, ghosts, departed, .. } = &*fitting;
         let mut lane = Vec::with_capacity(count + ghosts.len());
@@ -371,10 +368,8 @@ impl StripLayout {
                 _ => None,
             })
             .collect();
-        if !crate::runtime::measure::active(ctx) {
-            *report.lock().unwrap_or_else(PoisonError::into_inner) =
-                Report { hidden, tabs_end: at, overflow: fit.overflow_width, placed, ends, ends_room, ghosts: slots };
-        }
+        *report.lock().unwrap_or_else(PoisonError::into_inner) =
+            Report { hidden, tabs_end: at, overflow: fit.overflow_width, placed, ends, ends_room, ghosts: slots };
     }
 }
 
@@ -838,7 +833,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component for TabStrip<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static + crate::contract::MemoProps> Component for TabStrip<'_, K> {
     const ROLE: Role = Role::TAB_LIST;
     type Style = TabStripStyle;
     type Output = TabStripOutput<K>;
@@ -1042,7 +1037,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection for TabStrip<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static + crate::contract::MemoProps> Collection for TabStrip<'_, K> {
     type Key = K;
     type ItemLayout = StripLayout;
     type Selection = Selection<K>;
@@ -1091,7 +1086,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
         let fitting = Fitting { selected, mode: self.kind.fit_mode_in(look), kept, ends, gap: cx.tokens.space.gap.inline, ghosts, departed };
         // Shrinking document tabs stand apart by the inline gap; the other kinds and looks touch.
         let tab_gap = if self.kind.shrinks_in(look) { cx.tokens.space.gap.inline } else { 0.0 };
-        StripLayout::new(count, Vec2::new(width, cx.tokens.size.bar.tab), tab_gap, fitting, self.report.clone(), cx.frame_ctx().clone())
+        StripLayout::new(count, Vec2::new(width, cx.tokens.size.bar.tab), tab_gap, fitting, self.report.clone())
     }
 
     /// Every tab takes the strip's kind, panel look and size.

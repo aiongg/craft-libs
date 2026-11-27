@@ -3,12 +3,10 @@
 
 use crate::contract::BodyCx;
 use crate::runtime::edit::OuterEdit;
-use crate::runtime::edit::{RemovalWatch, next_gesture_id};
-use crate::runtime::frame::note_outer_edit;
+use crate::runtime::edit::RemovalWatch;
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::overlay;
 use craft_behavior::GestureId;
-use craft_ui::{Context, Id};
+use craft_ui::{Context, Id, Ui};
 use std::sync::Arc;
 
 /// How a container's close ends its outer gesture.
@@ -48,18 +46,18 @@ fn slot(body: Id) -> Id {
 /// it fades out opens anew; the discard passes of that frame find the gesture open). The container calls it from a
 /// region hook of its body (the header), so the gesture begins before any field of the body edits.
 #[doc(hidden)]
-pub fn keep(ctx: &Context, cx: &mut BodyCx<'_>) {
-    if !overlay::opening(ctx, cx.resolved.id) {
+pub fn keep(ui: &mut Ui, cx: &mut BodyCx<'_>) {
+    if !ui.layer_opening(cx.resolved.id) {
         return;
     }
     let outer = cx.memory.shown::<Outer>(slot(cx.id));
     if outer.stage != Stage::Idle {
         return;
     }
-    let id = next_gesture_id(ctx);
+    let id = ui.next_gesture_id();
     outer.stage = Stage::Open(id);
-    outer.watch.arm(ctx, id);
-    note_outer_edit(ctx, OuterEdit::Begin { id, label: Arc::from(cx.resolved.label), doc_key: cx.resolved.doc_key });
+    outer.watch.arm(ui.ctx(), id);
+    ui.ctx().note_outer_edit(OuterEdit::Begin { id, label: Arc::from(cx.resolved.label), doc_key: cx.resolved.doc_key });
 }
 
 /// Settles the outer gesture of the container `id` at its finish. `shown`: its body ran in this pass. `closed`: it
@@ -79,11 +77,8 @@ pub fn settle(ctx: &Context, memory: &mut MemoryStage, id: Id, shown: bool, clos
     let Stage::Open(gesture) = outer.stage else { return };
     outer.stage = Stage::Idle;
     outer.watch.disarm();
-    note_outer_edit(
-        ctx,
-        match end {
-            OuterEnd::Commit => OuterEdit::Commit { id: gesture },
-            OuterEnd::Cancel => OuterEdit::Cancel { id: gesture },
-        },
-    );
+    ctx.note_outer_edit(match end {
+        OuterEnd::Commit => OuterEdit::Commit { id: gesture },
+        OuterEnd::Cancel => OuterEdit::Cancel { id: gesture },
+    });
 }

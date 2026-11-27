@@ -146,7 +146,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> Component for Table<'_, K> {
     const ROLE: Role = Role::TABLE;
     const PARTS: bool = false;
     type Style = TableStyle;
@@ -176,7 +176,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
         } else {
             Vec::new()
         };
-        let ctx = cx.core.ctx.clone();
         let words = cx.words::<TableWords>();
         let mut picks = Vec::new();
         let layer = crate::menu::layer(false).anchor(Anchor::Point(at));
@@ -199,7 +198,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
                     Divider::horizontal().show(ui);
                 }
                 for (command, enabled) in &commands {
-                    let label = crate::runtime::commands::resolve(&ctx, *command).label.clone();
+                    let label = ui.resolve_command(*command).label.clone();
                     if MenuItem::new(label.to_string()).enabled(*enabled).show(ui).ran {
                         picks.push(ColumnRequest::Command(*command));
                     }
@@ -216,7 +215,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> Collection for Table<'_, K> {
     type Key = K;
     type ItemLayout = SpanLayout;
     type Selection = Selection<K>;

@@ -4,7 +4,7 @@ use super::{StripEnd, TabKind, TabStrip};
 use crate::contract::{CollectionEvent, Entry, ReorderRule, ShowCollection as _};
 use crate::runtime::commands::{CommandRef, EditCommands};
 use crate::tabs::{PanelTabLook, Tab, TabRole};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, SelectionChange};
 use craft_ui::Ui;
 use craft_ui::input::{Key, Mods};
@@ -67,9 +67,9 @@ fn tab_strip_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     strip(ui, data, TabStrip::new("Documents").shown(3).reorder(ReorderRule::new()), &TITLES, TITLES.len(), TabKind::Document)
 }
 
-fn open_overflow(fixture: &mut Harness) {
+fn open_overflow(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(TabStrip<'static, usize>, covers = [Open], drive = Drive::Custom(open_overflow))]
@@ -202,12 +202,14 @@ fn tab_strip_ribbon_end_buttons(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
 }
 
 /// The contextual tab is listed for the first frames and then dropped by the source: it fades out at its slot. The
-/// story reads the frame it is in rather than counting its runs, so a measuring run or a second pass of one frame
-/// lists the same tabs as the frame's other runs.
+/// story counts the builds that are not measuring runs, so a measuring run of a frame lists the same tabs as the
+/// frame's real run.
 #[story(TabStrip<'static, usize>, covers = [], drive = Drive::Never)]
 fn tab_strip_ribbon_contextual_leaves(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let frame = ui.ctx().cumulative_frame_nr();
-    let first = *data.value("first_frame", frame);
-    let open: &[usize] = if frame.saturating_sub(first) < TABLE_FRAMES { &WITH_TABLE } else { &PLAIN };
+    let frames = data.value("frames", 0u64);
+    if !ui.is_measuring() {
+        *frames += 1;
+    }
+    let open: &[usize] = if *frames <= TABLE_FRAMES { &WITH_TABLE } else { &PLAIN };
     ribbon(ui, data, TabStrip::new("Ribbon"), open)
 }

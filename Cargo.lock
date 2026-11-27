@@ -5002,6 +5002,7 @@ dependencies = [
  "craft-theme",
  "craft-ui-contract",
  "craft-ui-macros",
+ "craft-ui-platform-headless",
  "craft-ui-rt",
  "craft-ui-test-kit",
  "craft-ui-widgets",

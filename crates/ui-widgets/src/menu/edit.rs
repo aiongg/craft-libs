@@ -61,5 +61,7 @@ pub(crate) fn text_menu<C: Component>(ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, C>
     }
     let name = cx.words::<MenuWords>().edit.clone();
     let layer = super::layer(false).opened_by(&cx.core.response, Trigger::Context);
-    ui.show(popup, layer, |ui, _| Menu::inline(name.clone()).show(ui, |ui, _| EditMenu.show(ui)));
+    ui.show(popup, layer, |ui, _| {
+        Menu::inline(name.clone()).show(ui, |ui, _| EditMenu.show(ui));
+    });
 }

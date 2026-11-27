@@ -76,7 +76,7 @@ impl AltText {
 }
 
 /// The description box's text form: the description as typed, with the decorative flag kept.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, crate::contract::MemoProps)]
 struct AltCodec;
 
 impl Codec for AltCodec {

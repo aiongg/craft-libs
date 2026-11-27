@@ -7,7 +7,7 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity,
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -49,9 +49,9 @@ fn date_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens the calendar with Alt+Down.
-fn open_calendar(fixture: &mut Harness) {
+fn open_calendar(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -97,7 +97,7 @@ fn calendar_popover_at_rect(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the opener and presses Enter, which opens the popover.
-fn open_popover(fixture: &mut Harness) {
+fn open_popover(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.key(Key::Enter, Mods::NONE);
     fixture.idle(4);

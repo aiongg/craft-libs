@@ -291,7 +291,7 @@ impl<'a, K: Value + Eq + Hash + 'static> TreePicker<'a, K> {
     }
 }
 
-impl<K: Value + Eq + Hash + 'static> Component for TreePicker<'_, K> {
+impl<K: Value + Eq + Hash + 'static + crate::contract::MemoProps> Component for TreePicker<'_, K> {
     const ROLE: Role = Role::COMBO_BOX;
     type Style = TreePickerStyle;
     type Output = EditResponse<Option<K>>;

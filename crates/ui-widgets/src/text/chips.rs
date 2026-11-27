@@ -57,7 +57,7 @@ craft_ui::words! {
 ///
 /// A draft names one chip per piece between separators (comma, semicolon, new line), trimmed; a piece the list
 /// already holds, and an empty piece, add nothing.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ChipCodec;
 

@@ -7,10 +7,8 @@
 pub mod outer;
 
 use crate::runtime::edit::OuterEdit;
-use crate::runtime::edit::cancel_all;
-use crate::runtime::frame::FrameOutput;
 use craft_behavior::{CancelReason, DocKey, EditEvent, GestureId, Mixed, Value};
-use craft_ui::Context;
+use craft_ui::Ui;
 use std::any::Any;
 use std::sync::Arc;
 
@@ -74,7 +72,7 @@ struct Outer<U: UndoMarks> {
 ///
 /// The `Update`, `Commit` and `Cancel` of a gesture the host has ended are ignored.
 ///
-/// An outer gesture ([`OuterEdit`], from `FrameOutput::outer_edits`) is one undo step over every gesture the host
+/// An outer gesture ([`OuterEdit`], from `Context::take_outer_edits`) is one undo step over every gesture the host
 /// handles while it is open: a dialog whose `outer_edit` is on opens one with its body and ends it with its close, so the
 /// app takes one undo step for the dialog, named by the dialog's title. Its `Begin` takes an undo mark; the gestures of
 /// the body's fields then run as above inside it, and a `Begin` reverts only the field gesture still under way, never the
@@ -147,11 +145,11 @@ impl<U: UndoMarks> GestureHost<U> {
     }
 
     /// Applies the frame's outer-gesture steps, then ends the gesture of this host whose component was evicted while it
-    /// ran, as a `Cancel` with `CancelReason::Removed` does. The app passes each frame's `FrameOutput` to every host it
-    /// keeps: each host opens an outer gesture against its own document, and one whose document the dialog did not edit
+    /// ran, as a `Cancel` with `CancelReason::Removed` does. The app passes each frame's `Context::take_outer_edits` and
+    /// `Context::take_removed_gestures` to every host it keeps: each host opens an outer gesture against its own document, and one whose document the dialog did not edit
     /// keeps no step. A host ignores the removals of gestures it does not own.
-    pub fn handle_output(&mut self, output: &FrameOutput, doc: &mut U) {
-        for edit in &output.outer_edits {
+    pub fn handle_output(&mut self, outer_edits: &[OuterEdit], removed_gestures: &[GestureId], doc: &mut U) {
+        for edit in outer_edits {
             match edit {
                 OuterEdit::Begin { id, label, doc_key } => {
                     self.revert(doc);
@@ -175,7 +173,7 @@ impl<U: UndoMarks> GestureHost<U> {
                 }
             }
         }
-        for id in &output.removed_gestures {
+        for id in removed_gestures {
             self.cancel(doc, *id, CancelReason::Removed);
             if let Some(outer) = self.take_outer(*id) {
                 self.undo_outer(doc, outer);
@@ -195,8 +193,8 @@ impl<U: UndoMarks> GestureHost<U> {
 
     /// The app's undo or redo command: cancels every running gesture of the UI and takes back the one under way and an
     /// open outer gesture, then the app changes the document. The component's later `Cancel` is ignored.
-    pub fn before_undo(&mut self, ctx: &Context, doc: &mut U) {
-        cancel_all(ctx, CancelReason::UndoDuringGesture);
+    pub fn before_undo(&mut self, ui: &mut Ui, doc: &mut U) {
+        ui.cancel_edits(CancelReason::UndoDuringGesture);
         self.revert(doc);
         self.revert_outer(doc);
     }

@@ -9,10 +9,10 @@ use craft_ui::Ui;
 
 #[story(SelectFace<'static>, covers = [Default])]
 fn face_with_thumbnail_and_name(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SelectFace::new("Soft light").thumb(ThumbAspect::SQUARE, StoryPictures::of(ui.ctx()).thumb(1)).show(ui).into()
+    SelectFace::new("Soft light").thumb(ThumbAspect::SQUARE, StoryPictures::of(ui).thumb(1)).show(ui).into()
 }
 
 #[story(SelectFace<'static>, covers = [])]
 fn face_with_thumbnail_alone(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SelectFace::new("Soft light").thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui.ctx()).thumb(1)).name(false).show(ui).into()
+    SelectFace::new("Soft light").thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui).thumb(1)).name(false).show(ui).into()
 }

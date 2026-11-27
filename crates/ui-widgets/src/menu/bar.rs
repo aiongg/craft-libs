@@ -511,11 +511,10 @@ impl<'a> MenuBar<'a> {
                 }
             }
         } else if cx.is_focused() {
-            focus::give_back_bar(&cx.core.ctx);
+            cx.core.give_back_bar();
         } else {
             let target = slots.first().map_or(FocusTarget::Id(cx.id), |slot| FocusTarget::Part(cx.id, Self::slot_part(*slot)));
-            focus::take_for_bar(&cx.core.ctx, cx.id, target);
-            cx.core.sync_focus();
+            cx.core.take_for_bar(cx.id, target);
         }
     }
 
@@ -533,8 +532,11 @@ impl Component for MenuBar<'_> {
     const ROLE: Role = Role::MENU_BAR;
     // Enter and Down open the focused title's menu; Space does not. Space is a canvas's momentary Hand, so it goes on
     // to the app's shortcuts, and a shortcut pressed on the bar gives the keyboard back to where it was.
-    const KEYS: crate::runtime::focus::KeyUse =
-        crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves().with_activate(crate::runtime::focus::ActivateKeys::Enter);
+    const KEYS: crate::runtime::focus::KeyUse = {
+        let mut keys = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
+        keys.activate = crate::runtime::focus::ActivateKeys::Enter;
+        keys
+    };
     type Style = MenuBarStyle;
     type Output = MenuBarOutput;
 
@@ -592,7 +594,7 @@ impl Component for MenuBar<'_> {
             Vec::new()
         };
         if opened.is_none() && !cx.is_focused() {
-            focus::forget_bar_return(&cx.core.ctx);
+            cx.core.forget_bar_return();
         }
         for key in keys {
             match key {
@@ -613,7 +615,7 @@ impl Component for MenuBar<'_> {
             }
         }
         if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Cancel) {
-            focus::give_back_bar(&cx.core.ctx);
+            cx.core.give_back_bar();
         }
         let mut state = cx.memory::<BarState>().clone();
         let hovered = slots.iter().find_map(|slot| cx.hover_pos(Self::slot_part(*slot)).map(|pos| (*slot, pos)));
@@ -773,6 +775,14 @@ impl Component for MenuBar<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
+        // A title in the overflow menu has no part rect, so it records nothing.
+        for (at, title) in self.titles.iter().enumerate().take(found.shown) {
+            if let (false, Some(result), Some((text, _))) =
+                (title.holds.is_empty(), cx.part_if_declared(Self::slot_part(Open::Title(at))), texts.get(at))
+            {
+                ui.hold_commands(result.rect, &title.holds, Label::from(text.clone()));
+            }
+        }
         let words = cx.env.words::<MenuWords>();
         let underlined = cx.modifiers().alt || cx.is_focused();
         for slot in Self::slots(found) {
@@ -783,8 +793,7 @@ impl Component for MenuBar<'_> {
             };
             let open = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
             // Under the pointer a title is the active row, as it is while its menu is open or the keyboard is on it.
-            let lit =
-                open || cx.part_if_declared(part).is_some_and(|result| result.hovered) || cx.part_state(part).flags.contains(Flags::FOCUS_VISIBLE);
+            let lit = open || cx.part_if_declared(part).is_some_and(|result| result.hovered) || cx.part_state(part).has(Flags::FOCUS_VISIBLE);
             let mnemonic = match slot {
                 Open::Title(at) if underlined => texts[at].1.and_then(|(_, index)| index),
                 _ => None,
@@ -795,15 +804,6 @@ impl Component for MenuBar<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuBarOutput {
         let found = declared(&cx);
-        let texts = self.texts(&cx.env);
-        // A title in the overflow menu has no part rect, so it records nothing.
-        for (at, title) in self.titles.iter().enumerate().take(found.shown) {
-            if let (false, Some(result), Some((text, _))) =
-                (title.holds.is_empty(), cx.part_if_declared(Self::slot_part(Open::Title(at))), texts.get(at))
-            {
-                commands::holds(cx.context(), cx.response.layer_id, result.rect, &title.holds, Label::from(text.clone()));
-            }
-        }
         let rects = Self::slots(found).into_iter().filter_map(|slot| cx.part_if_declared(Self::slot_part(slot)).map(|result| result.rect));
         let start = if cx.flow.is_rtl() { cx.rect.right_top() } else { cx.rect.left_top() };
         let titles = rects.reduce(Rect::union).unwrap_or_else(|| Rect::from_min_size(start, Vec2::ZERO));
