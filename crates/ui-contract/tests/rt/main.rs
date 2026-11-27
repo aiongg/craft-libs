@@ -9,6 +9,7 @@ mod input;
 mod layout;
 mod overlay;
 mod services;
+mod text;
 
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};

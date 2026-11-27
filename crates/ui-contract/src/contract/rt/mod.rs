@@ -15,10 +15,16 @@
 //! `Slider`, `Toggle` and `ScrollArea` stand-ins.
 //!
 //! Focus and keys: stops, focus scopes and roving groups kept with the node; Tab, F6 and roving
-//! moves walk the kept nodes; a key goes to the focused node's queue when its kept `KeyUse` takes
-//! it, else up its path to the scopes and the window root (`focus`, `keys`).
+//! moves walk the kept nodes; a key goes to the focused node's queue as an intent when its kept
+//! `KeyUse` takes it, else up its path to the scopes (a dialog's Submit, the cancel rule) and the
+//! window root, which runs the command the key is bound to (`focus`, `keys`, `intents`,
+//! `commands`).
+//!
+//! Text: typed text and the platform's input method reach the focused text input through one IME
+//! engine (`ime`); `text` has the editor state and the stand-in `TextField`.
 
 pub mod access;
+mod commands;
 mod container;
 mod cursor;
 mod dialog;
@@ -26,6 +32,8 @@ mod drag;
 mod env;
 mod focus;
 pub mod harness;
+mod ime;
+mod intents;
 mod key;
 mod keys;
 mod lazy;
@@ -40,17 +48,18 @@ mod scope;
 mod scroll;
 pub mod skeleton;
 mod sweep;
+pub mod text;
 pub mod textures;
 mod tip;
 mod toast;
 mod ui;
 
+pub use commands::CommandBoard;
 pub use container::{Container, show_container};
 pub use dialog::show_dialog;
 pub use drag::{DragSource, DropRule};
 pub use env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
 pub use key::ComponentKey;
-pub use keys::KeyPress;
 pub use lazy::Lazy;
 pub use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
 pub use node::{NodeInput, Pointer};

@@ -8,10 +8,10 @@
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, EditEvents, GestureId, GesturePhase, Mixed, PartRef, PressPhase, PressState};
+use craft_behavior::{EditEvent, EditEvents, EditorInput, GestureId, GesturePhase, Intent, Mixed, PartRef, PressPhase, PressState};
 use craft_i18n::Direction;
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, Cursor, Gesture, HitShape, InlineState, Interact, PointerButton, Pos2, Rect, Sense, Vec2};
+use craft_ui_rt::{BuildCx, Cursor, Gesture, HitShape, ImePurpose, InlineState, Interact, PointerButton, Pos2, Rect, Sense, Vec2};
 use egui::Id;
 use smallvec::SmallVec;
 
@@ -29,7 +29,8 @@ use super::tip;
 use super::ui::{Flow, Ui};
 use crate::contract::{BindMut, IdSource};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord, PartResult};
-use crate::runtime::focus::{FocusPolicy, KeyUse, Roving};
+use crate::runtime::focus::{FocusPolicy, KeepKeys, KeyUse, Roving};
+use crate::runtime::keys::Intents;
 use crate::runtime::memory::Slot;
 use crate::style::{Ink, UiTokens};
 
@@ -77,6 +78,8 @@ pub struct Cx<'a, C: Component> {
     env: &'a EnvSnapshot,
     level: Cell<Option<(f32, MotionSpec)>>,
     holds_escape: Cell<bool>,
+    intents: Intents,
+    ime_cursor: Cell<Option<Rect>>,
 }
 
 /// The value a run shows and the edits it made.
@@ -103,6 +106,25 @@ impl<'a, C: Component> Cx<'a, C> {
     /// The inputs queued since the last run, oldest first.
     pub fn input(&self) -> &[NodeInput] {
         self.input
+    }
+
+    /// The intents queued for the node since its last run (activation, moves, edits, typed text,
+    /// Submit, Cancel ...), each taken once. Horizontal moves are read in the node's direction.
+    pub fn intents(&mut self) -> &mut Intents {
+        &mut self.intents
+    }
+
+    /// The node's editor input since its last run, in arrival order: IME preedits and commits, and
+    /// the intents an editor reads (text, moves `keep` keeps, deletes, edits, Enter, Tab, Escape)
+    /// that no taker took, taken.
+    pub fn editor_input(&mut self, keep: KeepKeys) -> Vec<EditorInput> {
+        super::intents::editor_input(self.input, &mut self.intents, keep)
+    }
+
+    /// Reports the caret rect (window coordinates) of the node's editor: the platform places the
+    /// input method's candidate window there while the node has focus.
+    pub fn ime_cursor(&self, caret: Rect) {
+        self.ime_cursor.set(Some(caret));
     }
 
     /// Takes the next Escape while the node has focus (an open draft, a running gesture): the key
@@ -451,6 +473,12 @@ pub trait Component: ComponentKey + Sized {
         None
     }
 
+    /// The component takes text input while focused, with this purpose: ui-rt runs a platform IME
+    /// session for it ([`super::ime`]). Kept with the node, as `keys` is.
+    fn text_input(&self) -> Option<ImePurpose> {
+        None
+    }
+
     /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
     fn finish(self, cx: &Cx<'_, Self>) -> Self::Output;
 }
@@ -488,32 +516,35 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
     }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop: component.keys().is_some() }, |kept, state, cx| {
-            let kept_outputs = holds(kept, key, state);
-            let size = match kept.cached(room).filter(|_| kept_outputs) {
-                Some(size) => size,
-                None => {
-                    let tokens = if kept_outputs { flow.tokens.clone() } else { super::env::tokens(cx) };
-                    let env = EnvSnapshot::peek(cx);
-                    let size = component.measure(&MeasureCx { room, tokens: &tokens, env: &env });
-                    env.register(cx);
-                    size
+        cx.inline(
+            ComponentNode { key: key.map_or(0, fold), tag, stop: component.keys().is_some(), text: component.text_input() },
+            |kept, state, cx| {
+                let kept_outputs = holds(kept, key, state);
+                let size = match kept.cached(room).filter(|_| kept_outputs) {
+                    Some(size) => size,
+                    None => {
+                        let tokens = if kept_outputs { flow.tokens.clone() } else { super::env::tokens(cx) };
+                        let env = EnvSnapshot::peek(cx);
+                        let size = component.measure(&MeasureCx { room, tokens: &tokens, env: &env });
+                        env.register(cx);
+                        size
+                    }
+                };
+                let rect = flow.allocate(Some(cx.node()), size, false);
+                if kept_outputs && size == kept.size {
+                    kept.cache(room, size);
+                    if state.path {
+                        // A node in one of its layer children is marked: reach them.
+                        reach_layers(&mut component, kept, cx, rect, &flow.tokens, flow.sweep);
+                    } else {
+                        cx.keep_children();
+                    }
+                    return settle(component, kept, cx, rect, &flow.tokens);
                 }
-            };
-            let rect = flow.allocate(Some(cx.node()), size, false);
-            if kept_outputs && size == kept.size {
-                kept.cache(room, size);
-                if state.path {
-                    // A node in one of its layer children is marked: reach them.
-                    reach_layers(&mut component, kept, cx, rect, &flow.tokens, flow.sweep);
-                } else {
-                    cx.keep_children();
-                }
-                return settle(component, kept, cx, rect, &flow.tokens);
-            }
-            let tokens = super::env::tokens(cx);
-            run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep })
-        })
+                let tokens = super::env::tokens(cx);
+                run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep })
+            },
+        )
     })
 }
 
@@ -560,6 +591,8 @@ fn finish_settled<C: Component>(mut component: C, id: Id, rect: Rect, tokens: &T
         env: &env,
         level: Cell::new(None),
         holds_escape: Cell::new(false),
+        intents: Intents::default(),
+        ime_cursor: Cell::new(None),
     };
     component.finish(&rcx)
 }
@@ -591,6 +624,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
         _ => None,
     };
     let response = Response::new(ran.id, ran.rect, Some(node), interact, dragging, facts);
+    let intents = super::intents::of_queue(&input, || env.direction() == Direction::Rtl);
     let mut rcx = Cx {
         id: ran.id,
         rect: ran.rect,
@@ -606,8 +640,11 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
         env: &env,
         level: Cell::new(None),
         holds_escape: Cell::new(false),
+        intents,
+        ime_cursor: Cell::new(None),
     };
     component.update(&mut rcx);
+    kept.ime.caret = rcx.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - ran.rect.min));
     let wrote = !rcx.edit.events.is_empty();
     if wrote && let Some(mut bind) = component.bind() {
         for event in rcx.edit.events.iter() {
@@ -682,8 +719,8 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                 }
             }
             NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
-            NodeInput::Key(k) => facts.clicked |= k.activates,
-            NodeInput::DragEnd(_) | NodeInput::Drop(_) => {}
+            NodeInput::Intent { intent: Intent::Activate, .. } => facts.clicked = true,
+            _ => {}
         }
     }
     (facts, dragging)

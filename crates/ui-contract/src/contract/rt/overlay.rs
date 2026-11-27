@@ -22,12 +22,13 @@ use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_i18n::Direction;
 use craft_theme::Tokens;
 use craft_ui_rt::{
-    AccessCx, BuildCx, Constraints, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Key, Layer, LayerSpec,
-    LayoutCx, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
+    AccessCx, BuildCx, Constraints, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer, LayerSpec, LayoutCx,
+    NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
 };
 use egui::Id;
 use smallvec::SmallVec;
 
+use super::intents::ScopeStep;
 use super::node::Kept;
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
@@ -38,7 +39,6 @@ use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
 use crate::runtime::overlay::{CloseReason, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
-use craft_behavior::CancelRule;
 
 /// A popup a component shows from its `overlay` hook: its name among the component's popups.
 /// Its open state is kept on the component's node.
@@ -83,6 +83,8 @@ pub(crate) struct LayerKept {
     pub(crate) frame: DisplayList,
     /// The size and tokens `frame` was recorded for.
     frame_for: Option<(Vec2, usize)>,
+    /// The Enter and Escape its scope took for its body, and whether its body has content to clear.
+    pub(crate) scope: super::intents::ScopeIntents,
 }
 
 /// A layer child: a popup, menu, dialog, tooltip, toast stack.
@@ -102,7 +104,7 @@ impl Element for LayerScope {
     }
 
     fn init(&self, _: &mut BuildCx<'_>) -> LayerKept {
-        LayerKept { kept: Kept::new(), dismissed: None, hovered: false, frame: DisplayList::default(), frame_for: None }
+        LayerKept { kept: Kept::new(), dismissed: None, hovered: false, frame: DisplayList::default(), frame_for: None, scope: Default::default() }
     }
 
     fn layout(&self, lk: &mut LayerKept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
@@ -136,15 +138,21 @@ impl Element for LayerScope {
                 cx.request_owner_build();
                 Handled::Yes
             }
-            // The cancel rule: an Escape nothing inside took closes a layer child whose scope cancels.
-            Event::Key(k) if k.down && k.key == Key::Escape && lk.kept.focus.scope.cancel != CancelRule::Ignore => {
-                if lk.dismissed.is_none() {
-                    lk.dismissed = Some(DismissReason::Escape);
-                    cx.request_owner_build();
+            // The scope's rules for what its content left: Enter submits, Escape clears or closes.
+            Event::Key(k) => match super::intents::scope_key(&mut lk.scope, lk.kept.focus.scope, k) {
+                ScopeStep::Queued => {
+                    cx.request_build();
+                    Handled::Yes
                 }
-                Handled::Yes
-            }
-            Event::Key(k) => super::focus::trap_tab(&lk.kept, true, cx, k),
+                ScopeStep::Close => {
+                    if lk.dismissed.is_none() {
+                        lk.dismissed = Some(DismissReason::Escape);
+                        cx.request_owner_build();
+                    }
+                    Handled::Yes
+                }
+                ScopeStep::No => super::focus::trap_tab(&lk.kept, true, cx, k),
+            },
             // A press on the frame between its rows ends there.
             Event::Pointer(_) if self.surface != Surface::Tip => Handled::Yes,
             _ => Handled::No,
@@ -377,8 +385,10 @@ fn run_layer<R: Clone + 'static>(
     let at = run.spec.place(size, run.viewport, run.anchor, Vec2::ZERO).to_pos2();
     let region = Rect::from_min_size(at + Vec2::splat(run.pad), room);
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
+    ui.flow.scope = lk.scope.take_for_body();
     let out = body(&mut ui);
     let Ui { cx, flow } = ui;
+    lk.scope.clearable = flow.scope.clearable;
     let real = frame(flow.content_size());
     if real != size && !state.new {
         cx.rebuild();

@@ -84,7 +84,7 @@ impl<A> World<A> {
 
     fn frame(&mut self, dt: f64) -> StepReport {
         let (app, view) = (&mut *self.app, self.view);
-        let host = WindowEnv { cells: Some(self.cells), jobs: Some(self.board.clone()) };
+        let host = WindowEnv { cells: Some(self.cells), jobs: Some(self.board.clone()), commands: None };
         let rev = self.rev;
         self.rig.frame_with(dt, &mut |_, cx| {
             window_root_with(cx, host.clone(), |ui| {

@@ -229,7 +229,7 @@ impl<S, R: Renderer> Harness<S, R> {
         }
         let now = self.driver.platform.now();
         let (state, view) = (&mut self.state, &mut self.view);
-        let host = WindowEnv { cells: Some(self.cells), jobs: None };
+        let host = WindowEnv { cells: Some(self.cells), jobs: None, commands: None };
         let report = self.driver.step_with(now, &mut |_, cx| window_root_with(cx, host.clone(), |ui| view(ui, state)));
         self.last = report;
         self.steps += 1;

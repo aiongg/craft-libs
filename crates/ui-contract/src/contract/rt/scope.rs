@@ -29,6 +29,8 @@ pub struct WindowEnv {
     pub cells: Option<EnvCells>,
     /// The background jobs of the window.
     pub jobs: Option<JobBoard>,
+    /// The app's commands: the window root runs the command a key no node took is bound to.
+    pub commands: Option<super::commands::CommandBoard>,
 }
 
 /// [`window_root`] with the host's env cells and job board.
@@ -52,6 +54,10 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
         cx.provide(cells);
         if let Some(jobs) = host.jobs {
             cx.provide(jobs);
+        }
+        if let Some(commands) = host.commands {
+            cx.provide(commands.clone());
+            kept.commands = Some(commands);
         }
         let reads = begin_reads(true);
         let viewport = cx.env().viewport.get(cx);

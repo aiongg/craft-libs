@@ -724,7 +724,7 @@ impl Runtime {
             self.cancel_press(window, PressCancel::Escape);
             return;
         }
-        let Some(target) = self.focused(window).or_else(|| self.root(window)) else {
+        let Some(target) = self.focused(window).or_else(|| self.key_root(window)) else {
             return;
         };
         let mut handled = self.dispatch(target, &Event::Key(k), true).is_some();
@@ -750,6 +750,18 @@ impl Runtime {
         }
         if !handled && k.down && k.key == Key::Escape {
             self.dismiss_on_escape(window);
+        }
+    }
+
+    /// Where a key goes with nothing focused in `window`: the root, or for an inline root
+    /// (`Runtime::set_inline_root`) the content its build made, where the window's key stage lives.
+    fn key_root(&self, window: WindowId) -> Option<NodeId> {
+        let root = self.root(window)?;
+        let node = self.tree.nodes.get(&root)?;
+        let inline = node.element.as_ref().is_some_and(|e| e.as_any().is::<crate::element::ElementBox<crate::element::InlineRoot>>());
+        match node.children.first() {
+            Some(&content) if inline => Some(content),
+            _ => Some(root),
         }
     }
 

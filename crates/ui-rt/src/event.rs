@@ -349,6 +349,12 @@ impl EventCx<'_> {
         self.rt.access_dirty(node);
     }
 
+    /// The nearest value of type `T` this node or a node above it provides
+    /// ([`crate::BuildCx::provide`]): a key stage finds the services its window root gives.
+    pub fn provided<T: Clone + 'static>(&self) -> Option<T> {
+        self.rt.tree.provided::<T>(self.node)
+    }
+
     /// The runtime, read only: the tree and the nodes' `Local`s, for a service that walks them
     /// (the craft focus service finds its stops this way).
     pub fn runtime(&self) -> &Runtime {

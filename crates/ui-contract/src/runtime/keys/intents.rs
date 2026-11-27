@@ -246,6 +246,56 @@ impl Intents {
     }
 }
 
+impl Intents {
+    /// The intents a craft-ui-rt node queued since its last run (`contract::rt::intents`), oldest first: each with its
+    /// place in the node's queue, whether a horizontal arrow sent it (read in the node's direction, `rtl`) and whether
+    /// Shift was held. `chords` are the presses a recorder or a claim took; `nudge` the last arrow nudge.
+    pub(crate) fn queued(items: Vec<(Intent, usize, bool, bool)>, chords: Vec<Chord>, nudge: Option<(Vec2, Mods)>, rtl: bool) -> Intents {
+        let flip = |mv| match (rtl, mv) {
+            (true, NavMove::Back) => NavMove::Forward,
+            (true, NavMove::Forward) => NavMove::Back,
+            (_, mv) => mv,
+        };
+        let sources = items.iter().map(|(_, place, _, shift)| Some(super::Source { place: *place, shift: *shift })).collect();
+        let items = items
+            .into_iter()
+            .map(|(intent, _, horizontal, _)| match intent {
+                Intent::Move(mv, mods) if horizontal => (Intent::Move(flip(mv), mods), false),
+                intent => (intent, false),
+            })
+            .collect();
+        Intents {
+            items,
+            sources,
+            took_arrows: Vec::new(),
+            nudge: nudge.map(|(direction, mods)| Nudge { direction, mods, held: Vec::new() }),
+            chords,
+            set_value: None,
+            whole_reset: false,
+        }
+    }
+
+    /// Takes the intent at the queue place `place` as editor input when it is one the editor keeps (the rule of
+    /// [`take_editor_input`](Self::take_editor_input)) and no taker took it: an editor reads its intents and IME input
+    /// in the order they arrived.
+    pub(crate) fn take_editor_at(&mut self, place: usize, keep: focus::KeepKeys) -> Option<EditorInput> {
+        let at = self.sources.iter().position(|s| s.is_some_and(|s| s.place == place))?;
+        let (item, taken) = &self.items[at];
+        let kept = match item {
+            Intent::Move(NavMove::Up | NavMove::Down, _) => matches!(keep, focus::KeepKeys::BlockArrows | focus::KeepKeys::Tab),
+            Intent::Move(..) => keep != focus::KeepKeys::None,
+            _ => true,
+        };
+        if *taken || !kept {
+            return None;
+        }
+        let shift = self.sources[at].is_some_and(|s| s.shift);
+        let input = editor_input_of(item, shift)?;
+        self.items[at].1 = true;
+        Some(input)
+    }
+}
+
 /// The editor input of `intent`, from a press with Shift held when `shift`.
 fn editor_input_of(intent: &Intent, shift: bool) -> Option<EditorInput> {
     match intent {
