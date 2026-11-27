@@ -94,7 +94,7 @@ pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
         return if k.repeat { Taken::Held } else { Taken::Queue(NodeInput::Chord(chord)) };
     }
     if k.key == Key::Escape {
-        return if focus.holds_escape { queue(Intent::Cancel, k) } else { Taken::No };
+        return if focus.holds_escape && scope_escape(cx, k) { queue(Intent::Cancel, k) } else { Taken::No };
     }
     // The edit chords the component lists reach it as edits, ahead of the commands around it.
     if keys.edits != crate::runtime::focus::EditSet::NONE
@@ -126,6 +126,17 @@ pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
             _ => Taken::No,
         },
     }
+}
+
+/// Whether an Escape press is the scopes' escape (an open draft's Cancel, a layer's dismissal): a
+/// plain Escape, or one with Shift or Alt that the window's keymap binds to no enabled command,
+/// which is that command's chord (a place cursor's Shift+Escape). Cmd and Ctrl chords with Escape
+/// are commands' keys.
+pub(crate) fn scope_escape(cx: &EventCx<'_>, k: &KeyInput) -> bool {
+    if k.mods.cmd || k.mods.ctrl {
+        return false;
+    }
+    k.mods.is_none() || cx.provided::<CommandBoard>().is_none_or(|board| board.command_for(&Chord::new(k.mods, k.key), false, false).is_none())
 }
 
 fn nudge_direction(key: Key) -> Vec2 {

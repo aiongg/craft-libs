@@ -711,6 +711,12 @@ impl<S, R: Renderer> Harness<S, R> {
         self
     }
 
+    /// The app's root values, as `App::frame` sets them through `EnvCells::set_root`.
+    pub fn root_env(&mut self, root: &crate::runtime::env::RootEnv) -> &mut Self {
+        self.cells.set_root(self.driver.runtime.store_mut(), root);
+        self
+    }
+
     /// The motion mode (the egui fixture's name; [`Harness::set_motion`] takes a flag).
     pub fn motion(&mut self, motion: MotionMode) -> &mut Self {
         self.cells.motion.set(self.driver.runtime.store_mut(), motion);

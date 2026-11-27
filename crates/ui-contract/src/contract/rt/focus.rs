@@ -284,17 +284,89 @@ fn plain_tab(k: &KeyInput) -> bool {
     k.down && k.key == Key::Tab && !(k.mods.cmd || k.mods.ctrl || k.mods.alt)
 }
 
-/// The window root's key stage, the last claimant on every key's path: Tab and Shift+Tab move
-/// along the window's order, F6 and Shift+F6 between panes. Escape and the other keys go on (an
-/// unclaimed Escape dismisses the topmost layer child that asks, in ui-rt).
+/// The window root's key stage, the last claimant on every key's path: a bare Tab or Shift+Tab
+/// toggles the window's panels or moves along the window's order ([`window_tab_key`]); the keys the
+/// keymap binds to Next Pane and Previous Pane (F6 and Shift+F6 by default; an app command that
+/// binds the chord takes it) move between panes. Escape and the other keys go on to the command
+/// stage (an unclaimed Escape dismisses the topmost layer child that asks, in ui-rt).
 pub(crate) fn window_keys(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) -> Handled {
     if plain_tab(k) {
-        return window_tab(root, cx, !k.mods.shift);
+        return window_tab_key(root, cx, k);
     }
-    if k.down && k.key == Key::F6 && !(k.mods.cmd || k.mods.ctrl || k.mods.alt) {
-        return pane_step(root, cx, !k.mods.shift);
+    match pane_key(root, k) {
+        Some(forward) => pane_step(root, cx, forward),
+        None => Handled::No,
     }
-    Handled::No
+}
+
+/// The pane move a press of `k` asks for (`true` forward): the press of a chord the window's
+/// keymap binds to Next Pane or Previous Pane; F6 and Shift+F6 with no command board.
+fn pane_key(root: &Kept, k: &KeyInput) -> Option<bool> {
+    if !k.down {
+        return None;
+    }
+    let Some(board) = root.commands.as_ref() else {
+        return (k.key == Key::F6 && !(k.mods.cmd || k.mods.ctrl || k.mods.alt)).then_some(!k.mods.shift);
+    };
+    use crate::runtime::commands::{CommandSet as _, NavCommand};
+    let command = board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, false)?;
+    match NavCommand::from_ref(&command)? {
+        NavCommand::NextPane => Some(true),
+        NavCommand::PreviousPane => Some(false),
+        _ => None,
+    }
+}
+
+/// A bare Tab or Shift+Tab no node took. Where the window's chrome toggle is on ([`tab_toggles`]),
+/// the command the chord is bound to runs (Show or Hide Panels, or an app command the toggle
+/// yielded the chord to), once per press: a repeat neither runs it again nor moves focus. Elsewhere,
+/// or with the chord bound to no command that runs, Tab moves focus.
+fn window_tab_key(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) -> Handled {
+    if let Some(board) = root.commands.clone()
+        && tab_toggles(root, cx)
+        && let Some(command) = board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, false)
+    {
+        if !k.repeat {
+            board.run_key(cx, command, k);
+        }
+        return Handled::Yes;
+    }
+    window_tab(root, cx, !k.mods.shift)
+}
+
+/// Whether a bare Tab toggles the window's panels instead of moving focus (spec 1.8). Never with the
+/// app's switch (`RootEnv::tab_toggles_chrome`) off, nor while a trapping layer child (a modal
+/// dialog, a popup) is open: Tab moves focus inside it. In a window with a document canvas (a stop
+/// with `KeyUse::chrome_key`) it is on when nothing is focused, the canvas is, or a press focused a
+/// component other than a text field, as clicking a panel's row and pressing Tab hides the panels in
+/// Photoshop; read-only text a press focused to select from (a press-only stop) is no text field. Tab
+/// moves focus from a text field however it got the focus, and from a component the keyboard or a
+/// request focused. Without a canvas it is on only with a canvas focused, which then cannot be.
+fn tab_toggles(root: &Kept, cx: &mut EventCx<'_>) -> bool {
+    let Some(cells) = root.env else { return false };
+    let enabled = cx.store_mut().peek(cells.root).root.as_ref().is_some_and(|env| env.tab_toggles_chrome);
+    if !enabled {
+        return false;
+    }
+    let Some(walk) = window_walk(root, cx) else { return false };
+    if walk.top_trap().is_some() {
+        return false;
+    }
+    let rt = cx.runtime();
+    let own = Some((cx.node(), root));
+    let keys_of = |node: NodeId| kept_of(rt, node, own).and_then(|(kept, _)| kept.focus.stop.map(|keys| (keys, kept.focus.press_only)));
+    let canvas = walk.stops.iter().any(|s| keys_of(s.node).is_some_and(|(keys, _)| keys.chrome_key));
+    let focused = cx.focused().and_then(keys_of);
+    let on_canvas = focused.is_some_and(|(keys, _)| keys.chrome_key);
+    let pressed_control =
+        rt.focus_pressed(cx.window()) && focused.is_some_and(|(keys, press_only)| keys.owner != craft_behavior::OwnerClass::Text || press_only);
+    if canvas { focused.is_none() || on_canvas || pressed_control } else { on_canvas }
+}
+
+/// Whether a modal dialog is open in the window of the root `root` that handles a key: a command whose
+/// modal rule blocks it there does not run.
+pub(crate) fn dialog_open(root: &Kept, cx: &EventCx<'_>) -> bool {
+    window_walk(root, cx).is_some_and(|walk| walk.scopes.iter().any(|s| s.layer && s.policy.kind == ScopeKind::Dialog))
 }
 
 fn window_walk(root: &Kept, cx: &EventCx<'_>) -> Option<Walk> {
@@ -337,15 +409,20 @@ pub(crate) fn trap_tab(own: &Kept, is_layer: bool, cx: &mut EventCx<'_>, k: &Key
     Handled::Yes
 }
 
-/// F6: the next pane after the one focus is in, at its stop that had focus last (else its first).
+/// A pane move: the next pane after the one focus is in, at its stop that had focus last (else its first).
 fn pane_step(root: &Kept, cx: &mut EventCx<'_>, forward: bool) -> Handled {
     let Some(walk) = window_walk(root, cx) else { return Handled::No };
+    // Inside a trapping scope (a modal dialog, a popup), also with nothing in it focused, F6 moves
+    // nothing: a pane move would carry focus out of it, which only closing it may do.
+    let focused = cx.focused();
+    if walk.top_trap().is_some() || walk.stops.iter().any(|s| Some(s.node) == focused && walk.trapped(s.scope, None)) {
+        return Handled::Yes;
+    }
     let panes: Vec<usize> =
         (0..walk.scopes.len()).filter(|&i| walk.scopes[i].policy.kind == ScopeKind::Pane && !walk.trapped(Some(i), None)).collect();
     if panes.is_empty() {
         return Handled::No;
     }
-    let focused = cx.focused();
     let here = walk.stops.iter().find(|s| Some(s.node) == focused).and_then(|s| panes.iter().rposition(|&p| walk.within(s.scope, p)));
     let len = panes.len();
     for step in 1..=len {
