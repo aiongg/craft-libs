@@ -699,6 +699,7 @@ pub(crate) fn run_shaped<C: Component>(
     super::node::MenuBar::register(kept.menu_bar, cx);
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.drop_types = cxx.core.run.drop_types.take();
+    kept.drop_under_modal = cxx.core.run.drop_under_modal.get();
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());

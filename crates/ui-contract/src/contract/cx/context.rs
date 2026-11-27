@@ -321,6 +321,9 @@ pub(crate) struct RunIo<'a> {
     /// Where a drop of the drag over the node would land, as the run's drop target accepted it
     /// (`Pointer::drop_target`, `window_drop_target`); the driver paints it over the node's content.
     pub(crate) drop_mark: Cell<Option<crate::runtime::drag::DropMark>>,
+    /// A target the run asked for takes OS file drops under a modal layer (`DropTarget::under_modal`); kept as
+    /// `Kept::drop_under_modal`, so the node's drop shapes let them through.
+    pub(crate) drop_under_modal: Cell<bool>,
 }
 
 impl<'a> RunIo<'a> {
@@ -358,6 +361,7 @@ impl<'a> RunIo<'a> {
             context_asks: RefCell::new(Vec::new()),
             context_made: Cell::new(None),
             drop_mark: Cell::new(None),
+            drop_under_modal: Cell::new(false),
         }
     }
 

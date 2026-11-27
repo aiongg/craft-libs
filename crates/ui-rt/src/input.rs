@@ -1144,7 +1144,7 @@ impl Runtime {
         self.forget_drag_node(id);
         self.forget_touch_node(window, id);
         if let Some(w) = self.windows.get_mut(&window) {
-            w.window_drops.retain(|&n| n != id);
+            w.window_drops.retain(|&(n, _)| n != id);
             w.close_guards.retain(|&n| n != id);
         }
         let Some(input) = self.input_mut(window) else { return };

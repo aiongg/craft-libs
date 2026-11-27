@@ -31,7 +31,8 @@ pub struct PaintCx<'a> {
     opacity: f32,
     hits: Vec<HitRecord>,
     cursor: Option<Cursor>,
-    window_drop: bool,
+    /// The node takes window drops (`Some`), and OS file drops under a modal layer too (`Some(true)`).
+    window_drop: Option<bool>,
     close_guard: bool,
 }
 
@@ -82,6 +83,13 @@ impl PaintCx<'_> {
         self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::Drop, cursor: None });
     }
 
+    /// [`PaintCx::drop_target`] for a shape that takes OS file drags while a modal layer above it
+    /// holds input (an app whose alerts let files through). Other drop shapes under a modal take
+    /// no drag.
+    pub fn drop_target_under_modal(&mut self, shape: impl Into<HitShape>, part: u64) {
+        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::DropUnderModal, cursor: None });
+    }
+
     /// Records a place the operating system acts on in local coordinates: a press there moves the
     /// window, resizes it or is a caption button, as the host's `tag` says
     /// ([`crate::Runtime::window_zones`]). It takes no pointer input of the runtime's.
@@ -92,7 +100,12 @@ impl PaintCx<'_> {
     /// The node takes drops anywhere in its window that no [`PaintCx::drop_target`] shape takes,
     /// and drops of OS files that come with no position. The node that registered last asks first.
     pub fn window_drop_target(&mut self) {
-        self.window_drop = true;
+        self.window_drop.get_or_insert(false);
+    }
+
+    /// [`PaintCx::window_drop_target`], also for OS file drags while a modal layer holds input.
+    pub fn window_drop_target_under_modal(&mut self) {
+        self.window_drop = Some(true);
     }
 
     /// The node answers its window's close requests: the window's close button, Alt+F4 and Quit
@@ -309,7 +322,7 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             opacity: 1.0,
             hits: Vec::new(),
             cursor: None,
-            window_drop: false,
+            window_drop: None,
             close_guard: false,
         };
         el.paint(&mut cx);
@@ -363,13 +376,14 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             if pointer_look {
                 w.input.cursor_check = true;
             }
-            let listed = w.window_drops.iter().position(|&n| n == id);
+            let listed = w.window_drops.iter().position(|&(n, _)| n == id);
             match (window_drop, listed) {
-                (true, None) => w.window_drops.push(id),
-                (false, Some(i)) => {
+                (Some(under_modal), None) => w.window_drops.push((id, under_modal)),
+                (Some(under_modal), Some(i)) => w.window_drops[i].1 = under_modal,
+                (None, Some(i)) => {
                     w.window_drops.remove(i);
                 }
-                (true, Some(_)) | (false, None) => {}
+                (None, None) => {}
             }
             let guarded = w.close_guards.iter().position(|&n| n == id);
             match (close_guard, guarded) {

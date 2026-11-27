@@ -477,6 +477,8 @@ pub(crate) struct Kept {
     /// The payload types the node's last run asked for (`Pointer::drop_target`, `window_drop_target`: `true` for a
     /// window-wide target): the node records drop shapes for them and takes their drags in ui-rt's routing.
     pub(crate) drop_types: smallvec::SmallVec<[(std::any::TypeId, bool); 1]>,
+    /// A target of the node's last run takes OS file drops under a modal layer (`DropTarget::under_modal`).
+    pub(crate) drop_under_modal: bool,
     /// The drag over the node for those types, as the last offer left it: its payload, the pointer in window
     /// coordinates and the keys held. Cleared when it leaves or drops.
     pub(crate) drag_over: Option<(DragData, Pos2, Mods)>,
@@ -546,6 +548,7 @@ impl Kept {
             fold: None,
             scroll_owner: false,
             drop_types: smallvec::SmallVec::new(),
+            drop_under_modal: false,
             drag_over: None,
         }
     }
@@ -694,11 +697,17 @@ impl Element for ComponentNode {
             }
         }
         if kept.drop.is_some() || kept.drop_types.iter().any(|(_, window)| !window) {
-            let bounds = cx.bounds();
-            cx.drop_target(HitShape::Rect(bounds), 0);
+            let shape = HitShape::Rect(cx.bounds());
+            match kept.drop_under_modal {
+                true => cx.drop_target_under_modal(shape, 0),
+                false => cx.drop_target(shape, 0),
+            }
         }
         if kept.drop_types.iter().any(|(_, window)| *window) {
-            cx.window_drop_target();
+            match kept.drop_under_modal {
+                true => cx.window_drop_target_under_modal(),
+                false => cx.window_drop_target(),
+            }
         }
         // The ring reads only the focus-visible fact: a focus move repaints the node, a hover does not.
         if let Some(ring) = kept.focus.ring

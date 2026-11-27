@@ -222,6 +222,9 @@ impl Pointer for CxCore<'_> {
 
     fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         self.run.drop_types.borrow_mut().push((TypeId::of::<P>(), true));
+        if target.under_modal() {
+            self.run.drop_under_modal.set(true);
+        }
         if target.requires_pointer() && self.dragging::<P>().is_none() {
             return None;
         }
@@ -297,6 +300,9 @@ impl CxCore<'_> {
     /// and the pointer what a drop on it does, and gets the drop in the run it lands in.
     pub(crate) fn drop_target_of<T: DropTarget<dyn Any + Send + Sync>>(&mut self, payload_type: TypeId, target: &T) -> Option<T::Drop> {
         self.run.drop_types.borrow_mut().push((payload_type, false));
+        if target.under_modal() {
+            self.run.drop_under_modal.set(true);
+        }
         let Some((payload, at, mods)) = self.dropped(payload_type) else {
             // The drag over the node: the mark of what a drop here would do, painted over the node's content.
             if let Some((payload, at, mods)) = self.over(payload_type) {
