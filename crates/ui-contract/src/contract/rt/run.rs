@@ -344,7 +344,7 @@ fn measure<C: Component>(
     let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, room, tokens, Some(node)), ctx.clone(), begun.env.clone());
     let mut lent: &RunHost<'_, '_> = &host;
     let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
-    let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(room.x), host: &cell };
+    let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: (!begun.env.content_column).then_some(room.x), host: &cell };
     let content = component.measure(&steps::measure_cx::<C>(&input, &begun.style, &resolved, value.value.as_deref()));
     let extent = match hooks.shaped() {
         true => {

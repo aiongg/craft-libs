@@ -29,6 +29,10 @@ pub(crate) const LABELS: ColumnKey = ColumnKey::new("labels");
 /// The column the label step puts glyph labels (an icon or a short text such as "W") in.
 pub(crate) const GLYPHS: ColumnKey = ColumnKey::new("glyphs");
 
+/// The column a held child reports its least width in ([`report_held`]): its group is the content-sized column whose
+/// first measuring sweep is open ([`held_sweep`]).
+const HELD: ColumnKey = ColumnKey::new("held");
+
 /// A width per column key.
 pub(crate) type Columns = HashMap<ColumnKey, f32>;
 
@@ -64,6 +68,10 @@ enum Frame {
     Barrier,
     /// A component in a cell of a grid: its rows read and report the group of the cell's column.
     Cell { group: Id },
+    /// The first measuring sweep of a body's children ([`held_sweep`]): the narrowest width a held child reported in
+    /// it, when the body is a content-sized column; any other body's sweep only keeps its children's held reports
+    /// from the column around it.
+    Held { body: Id, column: bool, narrowest: f32 },
 }
 
 /// Whether `column` is one the label step puts labels in.
@@ -82,6 +90,7 @@ impl Open {
                 Frame::Field if labels(column) => return None,
                 Frame::Field => {}
                 Frame::Barrier => return None,
+                Frame::Held { .. } => {}
             }
         }
         None
@@ -90,6 +99,19 @@ impl Open {
     /// Adds `report` to its group when that group is open, and to the innermost capture; returns the group's widest
     /// width in the column so far.
     fn add(&mut self, report: Report) -> Option<f32> {
+        if report.column == HELD {
+            let held = self.frames.iter_mut().rev().find_map(|frame| match frame {
+                Frame::Held { body, column, narrowest } if *body == report.group => Some((*column, narrowest)),
+                _ => None,
+            });
+            if let Some((true, narrowest)) = held {
+                *narrowest = narrowest.min(report.width);
+            }
+            if let Some(capture) = self.captures.last_mut() {
+                capture.push(report);
+            }
+            return None;
+        }
         let widest = self.frames.iter_mut().rev().find_map(|frame| match frame {
             Frame::Group { id, widest, .. } if *id == report.group => {
                 let width = widest.entry(report.column.clone()).or_insert(0.0);
@@ -135,6 +157,35 @@ fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f
     let width = kept.map_or(so_far, |kept| kept.max(so_far));
     ctx.service::<Open, _>(|open| open.read(group, column, width));
     width
+}
+
+/// Runs `sweep`, the first measuring sweep of the body `body`'s children, and returns its result with the narrowest
+/// width a held child reported in it ([`report_held`]); `INFINITY` when none did or the body is no content-sized
+/// column (`column` false), whose sweep keeps its children's reports from the column around it, as the body's own
+/// room starts there.
+pub(crate) fn held_sweep<R>(ctx: &Context, body: Id, column: bool, sweep: impl FnOnce() -> R) -> (R, f32) {
+    ctx.service::<Open, _>(|open| open.frames.push(Frame::Held { body, column, narrowest: f32::INFINITY }));
+    let out = sweep();
+    let narrowest = ctx.service::<Open, _>(|open| match open.frames.pop() {
+        Some(Frame::Held { narrowest, .. }) => narrowest,
+        _ => f32::INFINITY,
+    });
+    (out, narrowest)
+}
+
+/// Reports a held child of the innermost first measuring sweep (`HeldKind`): it measured at `least`, its own width, for
+/// want of room. Captured like a column report, so a kept child that answers from its size cache reports it again.
+pub(crate) fn report_held(ctx: &Context, kind: super::HeldKind, least: f32) {
+    let super::HeldKind::Picture = kind;
+    ctx.service::<Open, _>(|open| {
+        let body = open.frames.iter().rev().find_map(|frame| match frame {
+            Frame::Held { body, .. } => Some(*body),
+            _ => None,
+        });
+        if let Some(body) = body {
+            open.add(Report { group: body, column: HELD, width: least });
+        }
+    });
 }
 
 /// Starts capturing the reports made in the build or run of the node about to run (module docs).

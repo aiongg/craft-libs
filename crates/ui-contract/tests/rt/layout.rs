@@ -794,3 +794,98 @@ fn an_outer_edit_reaches_the_host_once_per_step() {
     let (_, taken) = step(&mut rig, &mut shell);
     assert!(matches!(taken[..], [OuterEdit::Commit { .. }]), "the close notes one Commit: {taken:?}");
 }
+
+/// A leaf `w` wide and `w / 4` high.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Wide {
+    #[common]
+    common: Common,
+    w: u32,
+}
+
+impl Component for Wide {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: WideStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(self.w as f32, self.w as f32 / 4.0)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A square picture: as wide as the room it is offered, from 20 to 400 points, and as high as it is wide.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Square {
+    #[common]
+    common: Common,
+}
+
+impl Component for Square {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: SquareStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        cx.picture_size(20.0, 400.0, |width| width)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A row whose unit is a content-sized column holding a `Wide` leaf and a `Square` under it.
+struct Held {
+    wide: u32,
+    column: Rect,
+    square: Rect,
+}
+
+fn held_ui(ui: &mut Ui, held: &mut Held) {
+    let measures = Rc::new(Cell::new(0));
+    let (wide, column, square) = (held.wide, &mut held.column, &mut held.square);
+    let _ = Boxed::new(props(|p| p.layout(BodyLayout::row())), &measures).show(ui, |ui, _| {
+        *column = Boxed::new(props(|p| p), &measures)
+            .show(ui, |ui, _| {
+                Wide { common: Common::new(), w: wide }.show(ui);
+                *square = Square { common: Common::new() }.show(ui).rect;
+            })
+            .output
+            .rect;
+    });
+}
+
+#[test]
+fn a_held_picture_shows_at_its_columns_width_and_never_holds_it_across_a_shrink() {
+    let mut held = Held { wide: 120, column: Rect::NOTHING, square: Rect::NOTHING };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, held: &mut Held| rig.step_with(&mut |_, cx| root(cx, |ui| held_ui(ui, held)));
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    // The column takes its width from the wide leaf; the picture, which needs no width of its own, shows across it
+    // and the column is as tall as the picture shows.
+    assert_eq!(held.column.width(), 120.0, "the picture does not set the column's width: {:?}", held.column);
+    assert_eq!(held.square.width(), 120.0, "the picture shows at the column's width: {:?}", held.square);
+    assert!(held.column.height() >= 30.0 + 120.0 - 0.5, "the column measured the picture as tall as it shows: {:?}", held.column);
+
+    // The wide leaf narrows: the column follows it, and the picture's earlier width holds nothing.
+    held.wide = 80;
+    rig.driver.runtime.mark_root(main);
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    assert_eq!(held.column.width(), 80.0, "{:?}", held.column);
+    assert_eq!(held.square.width(), 80.0, "{:?}", held.square);
+}
