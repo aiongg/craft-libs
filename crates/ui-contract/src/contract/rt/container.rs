@@ -744,7 +744,7 @@ pub(crate) fn show_container<C: Container, R>(
         let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
         return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
-    if let Mount::Pane(pane) = props.mount
+    if let Mount::Pane(pane) = mount
         && pane.at.is_none()
         && pane.edge != PaneEdge::Center
         && hosted.is_none()
