@@ -10,6 +10,8 @@ use craft_ui_contract::contract::rt::{
     Component, ComponentKey, Container, Cx, MeasureCx, MemoView, NodeInput, Paint, Ui, show_container, show_leaf, window_root,
 };
 use craft_ui_contract::contract::{ContainerProps, Gap, IdSource, MemoKey, Scroll, Sizing};
+use craft_ui_contract::primitives::PaintShape;
+use craft_ui_contract::style::{StyleColor, UiTokens, rgba_color};
 use craft_ui_platform_headless::{HeadlessPlatform, Input};
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Platform, Pos2, Rect, Runtime, Sense, StepReport, Vec2, WindowId, WindowSpec};
@@ -61,12 +63,12 @@ impl Component for Item {
         }
     }
 
-    fn paint(&mut self, paint: &mut Paint<'_>, _: &Cx<'_>) {
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_>) {
         let bounds = paint.bounds();
         let ink = paint.tokens.color.text.faint;
         match paint.pointer() {
             craft_ui_contract::contract::rt::Pointer::Rest => {}
-            _ => paint.rect(bounds, 0.0, ink, None),
+            _ => paint.draw().fill(&PaintShape::Rect(bounds, UiTokens::corner(0.0)), StyleColor(rgba_color(ink))),
         }
     }
 
