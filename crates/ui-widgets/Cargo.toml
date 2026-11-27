@@ -35,7 +35,6 @@ craft-ui-rt = { workspace = true }
 craft-ui-platform-headless = { workspace = true, optional = true }
 craft-behavior = { workspace = true }
 craft-keymap = { workspace = true, features = ["egui"] }
-craft-ui-rt = { workspace = true }
 craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 egui = { workspace = true }
