@@ -469,6 +469,13 @@ impl BuildCx<'_> {
         self.rt.interrupt_ime(node);
     }
 
+    /// Asks the platform for the clipboard's text; it arrives as [`crate::Event::Paste`] at the
+    /// focused node of this node's window (an editor's Paste).
+    pub fn request_paste(&mut self) {
+        let window = self.window;
+        self.rt.clipboard.push((window, crate::input::ClipboardRequest::Read));
+    }
+
     /// Ends `window`'s open press as the host did (`PressCancel::Host`): its owner gets the cancel.
     pub fn cancel_press(&mut self, reason: craft_behavior::PressCancel) {
         let window = self.window;

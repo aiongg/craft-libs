@@ -8,7 +8,6 @@ use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn, Ui};
 use super::{InsideLabel, SideLabel};
 use crate::primitives::sensing::PartResults;
-use crate::primitives::text_adapter;
 use crate::primitives::{Canvas, ContentPainterCx, DataMode, Draw, DrawEnv, Id, PaintRecord, PaintSlot, TextRun};
 use crate::runtime::access;
 use crate::runtime::env::{Env, Label};
@@ -134,10 +133,9 @@ impl PaintUi<'_> {
         }
         let (layout, at) = self.draw().place_text(rect, run);
         self.record.borrow_mut().baseline.get_or_insert(at.y + layout.first_baseline);
-        let widget = super::text::selection_id(self.id, part);
-        let ink = crate::style::ink_color(&self.env.tokens, self.ink);
-        let selectable = text_adapter::Selectable { widget, owner: self.id, rect, layout: &layout, at, run, enabled: self.enabled, ink };
-        host_ui(self.host, |ui| text_adapter::show_selectable(ui, selectable));
+        // The selection behind the characters and the pointer's selecting come from the part's engine state
+        // (`text::run_selections`), which this paint does not read yet (INT-1g Left).
+        self.draw().text(rect, run);
     }
 
     /// The content-paint API for painting `part`: as [`draw`](Self::draw), and when the part was declared

@@ -237,6 +237,7 @@ pub(crate) fn core_for<'a>(
         text_invalid: false,
         text_unparsed: None,
         text_takes_pointer: false,
+        edit_paint: None,
         grid: crate::runtime::access::GridPlace::default(),
         escape_to_list: false,
         text_access: RefCell::new(None),

@@ -535,6 +535,17 @@ pub(crate) fn run_shaped<C: Component>(
     hooks.sensed(&mut component, &mut cxx);
     // 8b the editor part takes the run's input in queue order.
     crate::contract::editor::run(&mut cxx, &mut parts.text, component.keys());
+    // 8b the text part runs the editing engine over the same queue; selection parts take their edit commands.
+    let scope = cx.provided::<crate::primitives::text_adapter::ScopeEscape>().unwrap_or_default();
+    let access = cx.access_enabled();
+    let text_keys = {
+        let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
+        let text_in =
+            crate::contract::text::TextIn { services: &host, keys: component.keys(), rtl, scrubs: own.contains(Sense::DRAG), scope, access };
+        crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
+    };
+    crate::contract::text::run_selections(cxx.core, &parts.text.selections);
+    kept.ime.edit = cxx.core.edit_paint.take();
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
     steps::gesture_gate(&component, &mut cxx);
@@ -549,7 +560,7 @@ pub(crate) fn run_shaped<C: Component>(
         kept.cursor = Some(super::cursor::platform(&cursor));
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
-    kept.focus.stop = stop.then(|| cxx.core.editor.as_ref().map_or_else(|| component.keys(), |editor| editor.keys));
+    kept.focus.stop = stop.then(|| text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()));
     kept.focus.press_only = facts.text() && resolved.read_only;
     kept.focus.role = hooks.key_role(&component);
     kept.focus.scope = component.focus_scope();

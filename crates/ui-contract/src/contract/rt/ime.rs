@@ -80,6 +80,8 @@ pub(crate) struct ImeKept {
     /// The text run sub-nodes the last access report wrote, for mapping a selection request back
     /// (`runtime::access::text`).
     pub(crate) text_runs: Vec<crate::runtime::access::text::Entry>,
+    /// The text part's engine paint (`craft_ui_rt::text_edit::EditPaint`), replayed by the node's paint.
+    pub(crate) edit: Option<craft_ui_rt::text_edit::EditPaint>,
 }
 
 impl ImeKept {
@@ -172,6 +174,9 @@ pub(crate) fn event(text_input: bool, kept: &mut Kept, cx: &mut EventCx<'_>, ev:
             }
             kept.ime.preedit = None;
             commit(kept, committed);
+        }
+        Event::Paste(pasted) if kept.focus.stop.as_ref().is_some_and(|keys| keys.owner == craft_behavior::OwnerClass::Text) => {
+            kept.queue.push(NodeInput::Paste(std::sync::Arc::from(pasted.as_str())));
         }
         Event::Text(typed) | Event::Paste(typed) => {
             let Some(Intent::Text(typed)) = super::keys::text_intent(kept.focus.stop.as_ref(), typed) else { return Handled::No };

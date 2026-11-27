@@ -218,6 +218,8 @@ pub struct CxCore<'a> {
     /// The text part takes the pointer this pass: the field is in edit, or the press under way began in edit. A body
     /// scrub (`Scrub::on_field`) leaves such a press to the text.
     pub(crate) text_takes_pointer: bool,
+    /// The text part's engine paint of this run, kept on the node (`ImeKept::edit`) and replayed by its paint.
+    pub(crate) edit_paint: Option<craft_ui_rt::text_edit::EditPaint>,
     /// The row and column counts of the collection, which the item step records for its node.
     pub(crate) grid: crate::runtime::access::GridPlace,
     /// The text part's completion list is open: Escape belongs to its popup, not to the component's gesture.

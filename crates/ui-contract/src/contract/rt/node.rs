@@ -69,6 +69,8 @@ pub enum NodeInput {
     },
     /// A press a recorder (`OwnerClass::Recorder`) or a claim (`KeyUse::claims`) took, as a chord.
     Chord(Chord),
+    /// Text the clipboard delivered to the focused text part (an editor's Paste).
+    Paste(std::sync::Arc<str>),
     /// An arrow press as a nudge of the node's content (`KeyUse::nudge`): its unit direction.
     Nudge {
         /// The unit direction.
@@ -398,6 +400,9 @@ impl Element for ComponentNode {
             for list in super::items::member_lists(&kept.members, hovered, pressed) {
                 cx.extend(list);
             }
+        }
+        if let Some(edit) = &kept.ime.edit {
+            edit.paint(cx);
         }
         super::cursor::record_own_shape(kept, cx);
         if kept.close_guard {

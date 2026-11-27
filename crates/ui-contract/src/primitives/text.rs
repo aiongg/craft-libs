@@ -523,6 +523,11 @@ impl TextLayout {
         Self::from_shaped(shaped, elided, full)
     }
 
+    /// The rows and glyphs of the layout, which the text editing engine reads its caret stops from.
+    pub(crate) fn metrics(&self) -> &TextMetrics {
+        &self.metrics
+    }
+
     /// The engine's layout, which a display list draws.
     pub fn rt(&self) -> &craft_ui_rt::TextLayout {
         &self.layout

@@ -109,6 +109,11 @@ pub mod spec {
     pub const BLINK: MotionSpec = MotionSpec::new(Token::Caret, MotionKind::Blink, Curve::Tween);
 }
 
+/// Whether a caret blinks under `policy`: off where the motion table's Blink row holds it solid.
+pub(crate) fn blinks(policy: &MotionPolicy) -> bool {
+    policy.mode.playback(spec::BLINK.kind()) == Playback::Run
+}
+
 /// How long a blinking caret shows or hides its stroke, in seconds: the platform's usual caret rate.
 const BLINK_HALF_PERIOD: f64 = 0.53;
 

@@ -43,6 +43,7 @@ mod render;
 mod runtime;
 mod state;
 mod text;
+pub mod text_edit;
 mod tree;
 mod window;
 
