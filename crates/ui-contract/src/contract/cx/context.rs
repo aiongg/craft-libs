@@ -324,6 +324,8 @@ pub(crate) struct RunIo<'a> {
     /// A target the run asked for takes OS file drops under a modal layer (`DropTarget::under_modal`); kept as
     /// `Kept::drop_under_modal`, so the node's drop shapes let them through.
     pub(crate) drop_under_modal: Cell<bool>,
+    /// `Pointer::take_multi_tap` took the run's multi-finger tap.
+    pub(crate) tap_taken: Cell<bool>,
 }
 
 impl<'a> RunIo<'a> {
@@ -362,6 +364,7 @@ impl<'a> RunIo<'a> {
             context_made: Cell::new(None),
             drop_mark: Cell::new(None),
             drop_under_modal: Cell::new(false),
+            tap_taken: Cell::new(false),
         }
     }
 

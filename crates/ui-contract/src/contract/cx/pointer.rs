@@ -39,8 +39,8 @@ pub trait Pointer {
     fn activated_member(&self) -> Option<Id>;
     /// This pass's wheel share, once, with the pointer it came at (`Wheel::at`) in window coordinates (8.3).
     fn take_wheel(&mut self) -> Option<Wheel>;
-    /// This pass's tap, once, when it lies in this component's rect and this component (an arena root with its members)
-    /// wins a press there.
+    /// This run's multi-finger tap, once: two or more fingers tapped together on this component (the touch gesture's
+    /// start went to it, or it is the nearest node under the fingers that takes presses), around a window point.
     fn take_multi_tap(&mut self) -> Option<MultiTap>;
     /// Feeds `pan`, the line pan this pass gave, to this component's wheel ease and returns the eased step for this
     /// pass. `Vec2::ZERO` on a pass with no line pan lets owed motion keep paying.
@@ -154,8 +154,13 @@ impl Pointer for CxCore<'_> {
     }
 
     fn take_multi_tap(&mut self) -> Option<MultiTap> {
-        let _ = self;
-        todo!("multi-finger taps: ui-rt's touch tracker queues a NodeInput on the node under the fingers, INT-1c")
+        if self.run.tap_taken.replace(true) {
+            return None;
+        }
+        self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::MultiTap(tap) => Some(*tap),
+            _ => None,
+        })
     }
 
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2 {

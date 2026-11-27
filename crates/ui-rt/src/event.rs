@@ -186,6 +186,10 @@ pub enum Event {
     /// over a node under it. Entering and leaving the node send [`Event::Hover`] instead. Only nodes
     /// that asked ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     HoverPart(Option<u64>),
+    /// Two or more fingers tapped together (`fingers`, around `at` in window coordinates): the node
+    /// the gesture's start went to gets it, else the node under the fingers that takes presses,
+    /// bubbling.
+    MultiTap(craft_behavior::MultiTap),
 }
 
 /// The context of one node's event handler.

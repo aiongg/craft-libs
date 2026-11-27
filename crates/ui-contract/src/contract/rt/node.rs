@@ -129,6 +129,9 @@ pub enum NodeInput {
         /// The sense of the pressed part (or of `owner`'s own shape).
         sense: Sense,
     },
+    /// Two or more fingers tapped together on the node (ui-rt's touch tracker), around a window point:
+    /// `Pointer::take_multi_tap`.
+    MultiTap(craft_behavior::MultiTap),
     /// A context request a node under this one made (a secondary click, the Menu key, an item's menu request),
     /// queued through its [`DescendantWatch`] for `Cx::context_requests`. A collection also queues a request its
     /// item content made after its own context step under its own id, so its next run makes it its own request.
@@ -751,6 +754,11 @@ impl Element for ComponentNode {
                 if let Some(tip) = kept.tip.as_mut() {
                     tip.hover(*on, cx);
                 }
+                Handled::Yes
+            }
+            Event::MultiTap(tap) => {
+                kept.queue.push(NodeInput::MultiTap(*tap));
+                cx.request_build();
                 Handled::Yes
             }
             Event::HoverPart(part) => {
