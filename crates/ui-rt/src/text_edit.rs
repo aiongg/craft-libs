@@ -90,6 +90,21 @@ struct Selecting {
     origin: Range<usize>,
 }
 
+/// One undo state: the text and the selection it had, which undo and redo put back. Two states are
+/// the same step when their text is: a caret move records nothing.
+#[derive(Clone, Debug, Default)]
+struct Snapshot {
+    text: String,
+    caret: usize,
+    anchor: usize,
+}
+
+impl PartialEq for Snapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
 /// The kind of the open undo step: typing coalesces with typing, deleting with deleting.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RunKind {
@@ -107,9 +122,9 @@ pub struct TextEdit {
     pref_x: Option<f32>,
     /// How far the text is scrolled inside its view: x for a single line, y for several.
     scroll: Vec2,
-    history: Option<EditHistory<String>>,
-    /// The open undo step: its kind, gesture and the text before it.
-    open: Option<(RunKind, GestureId, String)>,
+    history: Option<EditHistory<Snapshot>>,
+    /// The open undo step: its kind, gesture and the state before it.
+    open: Option<(RunKind, GestureId, Snapshot)>,
     gestures: u64,
     selecting: Option<Selecting>,
     /// The frame time the caret last moved or text was typed: the blink restarts there.
@@ -205,7 +220,13 @@ fn line_at(text: &str, at: usize) -> Range<usize> {
 impl TextEdit {
     /// An editor over `text` with the caret at its end and an empty history.
     pub fn new(text: &str) -> TextEdit {
-        TextEdit { caret: text.len(), anchor: text.len(), history: Some(EditHistory::new(&text.to_owned())), ..TextEdit::default() }
+        let end = text.len();
+        TextEdit {
+            caret: end,
+            anchor: end,
+            history: Some(EditHistory::new(&Snapshot { text: text.to_owned(), caret: end, anchor: end })),
+            ..TextEdit::default()
+        }
     }
 
     pub fn caret(&self) -> usize {
@@ -265,7 +286,7 @@ impl TextEdit {
         self.anchor = boundary(text, self.anchor);
         self.preedit = None;
         self.open = None;
-        self.history = Some(EditHistory::new(&text.to_owned()));
+        self.history = Some(EditHistory::new(&self.snap(text)));
     }
 
     /// Ends the composition without inserting it (an Escape over it, a refused edit).
@@ -278,14 +299,21 @@ impl TextEdit {
         self.moved_at = now;
     }
 
-    fn history_mut(&mut self, text: &str) -> &mut EditHistory<String> {
-        self.history.get_or_insert_with(|| EditHistory::new(&text.to_owned()))
+    /// `text` with the current selection, as an undo state.
+    fn snap(&self, text: &str) -> Snapshot {
+        Snapshot { text: text.to_owned(), caret: self.caret, anchor: self.anchor }
+    }
+
+    fn history_mut(&mut self, text: &str) -> &mut EditHistory<Snapshot> {
+        let now = self.snap(text);
+        self.history.get_or_insert_with(|| EditHistory::new(&now))
     }
 
     /// Closes the open undo step at `text`, the text after it.
     pub fn close_step(&mut self, text: &str) {
         if let Some((_, id, before)) = self.open.take() {
-            self.history_mut(text).record(&EditEvent::commit(id, Mixed::Same(before), text.to_owned()));
+            let after = self.snap(text);
+            self.history_mut(text).record(&EditEvent::commit(id, Mixed::Same(before), after));
         }
     }
 
@@ -297,14 +325,19 @@ impl TextEdit {
         self.close_step(text);
         self.gestures += 1;
         let id = GestureId::new(self.gestures);
-        self.history_mut(text).record(&EditEvent::begin(id, Mixed::Same(text.to_owned()), Arc::from(""), None));
-        self.open = Some((kind, id, text.to_owned()));
+        let before = self.snap(text);
+        self.history_mut(text).record(&EditEvent::begin(id, Mixed::Same(before.clone()), Arc::from(""), None));
+        self.open = Some((kind, id, before));
     }
 
-    /// An edit that is one undo step by itself (paste, cut, a delete of a selection).
-    fn single_step(&mut self, before: &str, after: &str) {
-        self.close_step(before);
-        self.history_mut(before).record(&EditEvent::set(Mixed::Same(before.to_owned()), after.to_owned(), Arc::from(""), None));
+    /// An edit that is one undo step by itself (paste, cut, a delete of a selection): `before` is the
+    /// state before it, `after` the text after it, with the current selection.
+    fn single_step(&mut self, before: Snapshot, after: &str) {
+        if let Some((_, id, open_before)) = self.open.take() {
+            self.history_mut(&before.text).record(&EditEvent::commit(id, Mixed::Same(open_before), before.clone()));
+        }
+        let after = self.snap(after);
+        self.history_mut(&before.text).record(&EditEvent::set(Mixed::Same(before), after, Arc::from(""), None));
     }
 
     fn replace_selection(&mut self, text: &mut String, insert: &str) {
@@ -362,9 +395,9 @@ impl TextEdit {
         if insert.is_empty() && self.selection().is_empty() {
             return out;
         }
-        let before = text.clone();
+        let before = self.snap(text);
         self.replace_selection(text, insert);
-        self.single_step(&before, text);
+        self.single_step(before, text);
         out.text_changed = true;
         out.caret_moved = true;
         out
@@ -373,38 +406,37 @@ impl TextEdit {
     /// Replaces the whole text with `with` as one undo step, the caret at its end (a completion, a
     /// draft the owner puts in).
     pub fn replace_all(&mut self, text: &mut String, with: &str) {
-        let before = text.clone();
+        let before = self.snap(text);
         text.clear();
         text.push_str(with);
         self.caret = text.len();
         self.anchor = self.caret;
         self.preedit = None;
-        self.single_step(&before, text);
+        self.single_step(before, text);
     }
 
     /// Replaces `range` of `text` with `with` as one undo step, the caret after it.
     pub fn replace_range(&mut self, text: &mut String, range: Range<usize>, with: &str) {
-        let before = text.clone();
+        let before = self.snap(text);
         self.anchor = boundary(text, range.start);
         self.caret = boundary(text, range.end);
         self.replace_selection(text, with);
-        self.single_step(&before, text);
+        self.single_step(before, text);
     }
 
-    /// Steps the history back (`redo` off) or forward; `false` when there is no step. The caret
-    /// lands at the end of what the step changed.
+    /// Steps the history back (`redo` off) or forward; `false` when there is no step. The text and
+    /// the selection come back as the step stored them.
     pub fn undo(&mut self, text: &mut String, redo: bool) -> bool {
         self.close_step(text);
-        let before = text.clone();
+        let mut now = self.snap(text);
         let step = if redo { craft_behavior::edit_history::Step::Redo } else { craft_behavior::edit_history::Step::Undo };
-        if !self.history_mut(&before).step(text, step) {
+        if !self.history_mut(text).step(&mut now, step) {
             return false;
         }
-        let same_head = before.bytes().zip(text.bytes()).take_while(|(a, b)| a == b).count();
-        let same_tail = before.bytes().rev().zip(text.bytes().rev()).take_while(|(a, b)| a == b).count().min(text.len() - same_head.min(text.len()));
-        let at = boundary(text, text.len() - same_tail);
-        self.caret = at.max(boundary(text, same_head));
-        self.anchor = self.caret;
+        *text = now.text;
+        self.caret = boundary(text, now.caret);
+        self.anchor = boundary(text, now.anchor);
+        self.pref_x = None;
         self.preedit = None;
         true
     }
@@ -492,9 +524,9 @@ impl TextEdit {
             }
             EditorInput::Delete { forward, by, .. } => {
                 if self.caret != self.anchor {
-                    let before = text.clone();
+                    let before = self.snap(text);
                     self.replace_selection(text, "");
-                    self.single_step(&before, text);
+                    self.single_step(before, text);
                     out.text_changed = true;
                 } else {
                     let mv = if *forward { NavMove::Forward } else { NavMove::Back };
@@ -527,9 +559,9 @@ impl TextEdit {
                 } else {
                     // A composition starts at the selection's start and replaces the selection.
                     if self.preedit.is_none() && self.caret != self.anchor {
-                        let before = text.clone();
+                        let before = self.snap(text);
                         self.replace_selection(text, "");
-                        self.single_step(&before, text);
+                        self.single_step(before, text);
                         out.text_changed = true;
                     }
                     self.preedit = Some(Preedit { text: composing.to_string(), cursor: cursor.clone() });
@@ -543,16 +575,16 @@ impl TextEdit {
                 EditCommand::Cut if !config.mask && self.caret != self.anchor => {
                     out.copy = Some(text[self.selection()].to_owned());
                     if !config.read_only {
-                        let before = text.clone();
+                        let before = self.snap(text);
                         self.replace_selection(text, "");
-                        self.single_step(&before, text);
+                        self.single_step(before, text);
                         out.text_changed = true;
                     }
                 }
                 EditCommand::Delete if self.caret != self.anchor => {
-                    let before = text.clone();
+                    let before = self.snap(text);
                     self.replace_selection(text, "");
-                    self.single_step(&before, text);
+                    self.single_step(before, text);
                     out.text_changed = true;
                 }
                 EditCommand::Paste => out.paste = true,

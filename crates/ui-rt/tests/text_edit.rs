@@ -157,3 +157,25 @@ fn a_masked_field_copies_nothing_and_the_limit_holds() {
     assert!(paste.text_changed);
     assert_eq!(text, "a b", "a single line pastes a line break as a space");
 }
+
+#[test]
+fn undo_restores_the_selection_stored_with_the_step() {
+    let config = EditConfig::line(Os::Linux);
+    let mut text = String::from("one two three");
+    let mut edit = TextEdit::new(&text);
+    // Select "two" from its end back to its start and cut it.
+    edit.select(&text, 7, 4);
+    edit.apply(&mut text, &EditorInput::Edit(EditCommand::Cut), &config, None);
+    assert_eq!(text, "one  three");
+    // Typing after a caret move is its own step; undo takes it back, then the cut.
+    edit.select(&text, 0, 0);
+    typed(&mut edit, &mut text, &config, ">");
+    edit.apply(&mut text, &EditorInput::Edit(EditCommand::Undo), &config, None);
+    assert_eq!((text.as_str(), edit.caret(), edit.anchor()), ("one  three", 0, 0), "the typing's step brings back its caret");
+    edit.apply(&mut text, &EditorInput::Edit(EditCommand::Undo), &config, None);
+    assert_eq!(text, "one two three");
+    assert_eq!((edit.caret(), edit.anchor()), (4, 7), "the cut word comes back selected as it was, caret on the same side");
+    edit.apply(&mut text, &EditorInput::Edit(EditCommand::Redo), &config, None);
+    assert_eq!(text, "one  three");
+    assert_eq!(edit.caret(), edit.anchor(), "redo restores the state undo left, an empty selection");
+}

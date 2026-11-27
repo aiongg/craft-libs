@@ -133,6 +133,8 @@ pub(crate) struct Window {
     /// Nodes that take focus into their content once the build pass has made it, and whether a
     /// text input goes first ([`crate::BuildCx::focus_into`]).
     pub(crate) focus_entries: Vec<(NodeId, bool)>,
+    /// Nodes that give up key focus once the build pass ends ([`crate::BuildCx::surrender_focus`]).
+    pub(crate) surrenders: Vec<NodeId>,
     /// Nodes that answer the window's close requests ([`crate::PaintCx::close_guard`]), in the order
     /// they registered.
     pub(crate) close_guards: Vec<NodeId>,
@@ -168,6 +170,7 @@ impl Window {
             window_drops: Vec::new(),
             focus_returns: IdMap::default(),
             focus_entries: Vec::new(),
+            surrenders: Vec::new(),
             close_guards: Vec::new(),
             key: None,
         }

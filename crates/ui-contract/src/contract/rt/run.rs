@@ -461,6 +461,7 @@ pub(crate) fn run_shaped<C: Component>(
     // 8 sense, from the queue the node's retained half filled since its last run, and for a collection the
     // presses the nodes under it took.
     let mut input = std::mem::take(&mut kept.queue);
+    input.extend(super::node::MenuBar::take(cx));
     if hooks.watches_presses() {
         input.extend(super::node::PressWatch::take(kept));
         super::node::PressWatch::provide(kept, cx);
@@ -555,8 +556,15 @@ pub(crate) fn run_shaped<C: Component>(
     let access = cx.access_enabled();
     let text_keys = {
         let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
-        let text_in =
-            crate::contract::text::TextIn { services: &host, keys: component.keys(), rtl, scrubs: own.contains(Sense::DRAG), scope, access };
+        let text_in = crate::contract::text::TextIn {
+            services: &host,
+            keys: component.keys(),
+            rtl,
+            scrubs: own.contains(Sense::DRAG),
+            scope,
+            access,
+            bar_returns_here: bar_returns_here(cx),
+        };
         crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
     };
     crate::contract::text::run_selections(cxx.core, &parts.text.selections);
@@ -647,6 +655,7 @@ pub(crate) fn run_shaped<C: Component>(
     // What the run asked of its node, applied after it: the menu-bar registration, a build wake (a
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
+    super::node::MenuBar::register(kept.menu_bar, cx);
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
@@ -658,6 +667,9 @@ pub(crate) fn run_shaped<C: Component>(
     }
     if let Some(reason) = cxx.core.press_cancel.take().filter(|_| kept.press.is_some()) {
         cx.cancel_press(reason);
+    }
+    if cxx.core.run.surrender.get() {
+        cx.surrender_focus();
     }
 
     // Focus: the ring's shape for the part that holds focus (or the node's own), then the moves the
@@ -715,6 +727,26 @@ pub(crate) fn run_shaped<C: Component>(
         register_inboxes(wants, node, id, &mut kept.memory, &board, cx.store_mut());
     }
     out
+}
+
+/// Whether the focus is on the window's menu bar, or in what it opened, and F10 took it from this node: the node's
+/// text part keeps its selection for the bar's menus. An untracked read: a focus move to the bar runs the node that lost
+/// it.
+fn bar_returns_here(cx: &BuildCx<'_>) -> bool {
+    let Some(menu) = cx.provided::<super::node::MenuBar>() else { return false };
+    let rt = cx.runtime();
+    let focused = rt.focused(cx.window());
+    let within = |bar: NodeId| {
+        let mut at = focused;
+        while let Some(node) = at {
+            if node == bar {
+                return true;
+            }
+            at = rt.parent(node);
+        }
+        false
+    };
+    menu.returns_to(within) == Some(cx.node())
 }
 
 /// The ring round the part that holds focus, with the shape its `focus_shape` declared, else round
@@ -1047,7 +1079,7 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                 facts.activated = true;
             }
             NodeInput::Intent { intent: Intent::ContextMenu, .. } => facts.context = true,
-            NodeInput::Focus(gained) => {
+            NodeInput::Focus { gained, .. } => {
                 facts.gained_focus |= *gained;
                 facts.lost_focus |= !*gained;
             }

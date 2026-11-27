@@ -83,9 +83,14 @@ pub enum NodeInput {
     Ime(EditorInput),
     /// The node is its window's close guard and the window was asked to close.
     Close(craft_ui_rt::CloseReason),
-    /// The node gained (`true`) or lost key focus: the next run's `Response::gained_focus` and
-    /// `lost_focus`. Queued without marking the node.
-    Focus(bool),
+    /// The node gained or lost key focus, and why: the next run's `Response::gained_focus` and
+    /// `lost_focus`, and a text part's `left_by_tab`. Queued without marking the node.
+    Focus {
+        /// Gained (`true`) or lost.
+        gained: bool,
+        /// What moved the focus.
+        cause: craft_ui_rt::FocusCause,
+    },
     /// A wheel step the node's wheel shape took, in points by its `wheel_notch`.
     Wheel(craft_behavior::Wheel),
     /// A menu key the window root routed to its menu bar node (F10, a lone Alt, an Alt mnemonic).
@@ -106,6 +111,91 @@ pub enum NodeInput {
         /// The sense of the pressed part (or of `owner`'s own shape).
         sense: Sense,
     },
+}
+
+/// The window's menu bar, as the window root provides it to every node of the window: the node that registered as
+/// the bar (`Focus::register_menu_bar`), the menu keys routed to it since its last run, and the stop F10 took the
+/// focus from, which Escape on the bar gives it back to and whose text part keeps its selection meanwhile.
+#[derive(Clone, Default)]
+pub(crate) struct MenuBar(std::rc::Rc<std::cell::RefCell<MenuBarState>>);
+
+#[derive(Default)]
+struct MenuBarState {
+    /// The bar's node, and whether it registered by claim (no mnemonic letters of its own).
+    bar: Option<(NodeId, bool)>,
+    keys: Vec<crate::runtime::keys::MenuKey>,
+    returns_to: Option<NodeId>,
+}
+
+impl MenuBar {
+    /// The menu keys routed to the node since its last run, when it is the bar: they join the run's input.
+    pub(crate) fn take(cx: &craft_ui_rt::BuildCx<'_>) -> Vec<NodeInput> {
+        let Some(bar) = cx.provided::<MenuBar>() else { return Vec::new() };
+        let mut state = bar.0.borrow_mut();
+        if state.bar.is_none_or(|(own, _)| own != cx.node()) {
+            return Vec::new();
+        }
+        state.keys.drain(..).map(NodeInput::Menu).collect()
+    }
+
+    /// After a run: registers the node as the bar (`claims`: by claim) or, when the run registered nothing, forgets it
+    /// if it was the bar.
+    pub(crate) fn register(registered: Option<bool>, cx: &craft_ui_rt::BuildCx<'_>) {
+        let Some(bar) = cx.provided::<MenuBar>() else { return };
+        let node = cx.node();
+        let mut state = bar.0.borrow_mut();
+        match registered {
+            Some(claims) => state.bar = Some((node, claims)),
+            None if state.bar.is_some_and(|(own, _)| own == node) => state.bar = None,
+            None => {}
+        }
+    }
+
+    /// The stop the bar took the focus from, while the focus is on the bar or in what it opened (`within`).
+    pub(crate) fn returns_to(&self, within: impl Fn(NodeId) -> bool) -> Option<NodeId> {
+        let state = self.0.borrow();
+        state.bar.filter(|(bar, _)| within(*bar)).and(state.returns_to)
+    }
+
+    /// The window root's menu keys, off the focused node's path (spec 9.7): F10 on every OS, and Alt with a letter off
+    /// a Mac for a bar with mnemonics of its own, reach the bar as `NodeInput::Menu`. F10 moves the focus to the bar
+    /// and remembers the stop it left; Escape with the focus on the bar itself gives it back. A lone Alt needs a
+    /// platform signal ui-rt does not have yet.
+    pub(crate) fn key(cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
+        let Some(menu) = cx.provided::<MenuBar>() else { return Handled::No };
+        let Some((bar, claims)) = menu.0.borrow().bar else { return Handled::No };
+        if !k.down || cx.window_rect(bar).is_none() {
+            return Handled::No;
+        }
+        let plain = !(k.mods.cmd || k.mods.ctrl || k.mods.alt || k.mods.shift);
+        let mac = cx.provided::<crate::contract::context::Context>().is_some_and(|ctx| ctx.os().is_mac());
+        let focused = cx.focused();
+        let routed = match k.key {
+            craft_keymap::Key::F10 if plain => {
+                if focused != Some(bar) {
+                    menu.0.borrow_mut().returns_to = focused;
+                    cx.focus_node(bar);
+                }
+                crate::runtime::keys::MenuKey::Focus
+            }
+            craft_keymap::Key::Escape if plain && focused == Some(bar) => {
+                let back = menu.0.borrow_mut().returns_to.take();
+                match back.filter(|to| cx.window_rect(*to).is_some()) {
+                    Some(to) => cx.focus_node(to),
+                    None => cx.blur(),
+                }
+                return Handled::Yes;
+            }
+            key if key.is_letter() && k.mods.alt && !(k.mods.cmd || k.mods.ctrl) && !mac && !claims => match key.name().chars().next() {
+                Some(letter) => crate::runtime::keys::MenuKey::Letter(letter.to_ascii_lowercase()),
+                None => return Handled::No,
+            },
+            _ => return Handled::No,
+        };
+        menu.0.borrow_mut().keys.push(routed);
+        cx.request_build_of(bar);
+        Handled::Yes
+    }
 }
 
 /// The presses taken under a collection's node, for its next run ([`NodeInput::DescendantPress`]). The collection
@@ -265,6 +355,8 @@ pub(crate) struct Kept {
     /// The node registered as its window's menu bar (`Focus::register_menu_bar`), `Some(true)` when it claims a
     /// lone Alt: the window root routes F10, Alt and Alt mnemonics to it as `NodeInput::Menu`.
     pub(crate) menu_bar: Option<bool>,
+    /// The window's menu bar record (window root only), provided to the window's nodes.
+    pub(crate) menu: Option<MenuBar>,
     /// The component's type name and bound command, from its last run (`runtime::inspect` records them).
     pub(crate) type_name: &'static str,
     pub(crate) command: Option<craft_keymap::CommandRef>,
@@ -325,6 +417,7 @@ impl Kept {
             cursor: None,
             notch: craft_behavior::WheelNotch::DEFAULT,
             menu_bar: None,
+            menu: None,
             fade: Default::default(),
             level: Default::default(),
             focus: FocusKept::default(),
@@ -493,9 +586,9 @@ impl Element for ComponentNode {
     /// value on press. Keys and focus requests go through the key stage and the focus service.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
-            Event::Focus(on) => {
+            Event::Focus { gained: on, cause } => {
                 if self.stop {
-                    kept.queue.push(NodeInput::Focus(*on));
+                    kept.queue.push(NodeInput::Focus { gained: *on, cause: *cause });
                 }
                 if *on {
                     kept.focus.took_focus();
@@ -687,7 +780,10 @@ impl Element for ScopeNode {
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
             Event::Key(k) if kept.window_root => match super::focus::window_keys(kept, cx, k) {
-                Handled::No => super::commands::window_command(kept, cx, k),
+                Handled::No => match MenuBar::key(cx, k) {
+                    Handled::No => super::commands::window_command(kept, cx, k),
+                    handled => handled,
+                },
                 handled => handled,
             },
             _ => Handled::No,

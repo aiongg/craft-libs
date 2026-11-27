@@ -539,6 +539,7 @@ impl<A: App> Host<A> {
                     PlatformRequest::CopyText(text) => driver.platform.clipboard().set_text(&text),
                     PlatformRequest::CopyImage(image) => driver.platform.clipboard().set_image(&image),
                     PlatformRequest::OpenUrl { url, new_tab } => driver.platform.open_url(&url, new_tab),
+                    PlatformRequest::Alert => driver.platform.alert(),
                 }
             }
             for command in ctx.take_window_commands() {

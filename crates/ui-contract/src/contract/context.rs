@@ -75,6 +75,8 @@ pub enum PlatformRequest {
     CopyImage(craft_ui_rt::RgbaImage),
     /// Open `url`, in a new tab where the platform has tabs and `new_tab` is set.
     OpenUrl { url: String, new_tab: bool },
+    /// Play the platform's alert: a component refused the input it was given ([`Context::refuse`]).
+    Alert,
 }
 
 /// The window facts a build reads, refreshed from the window's cells whenever a `Ui` of the window
@@ -382,6 +384,12 @@ impl Context {
     /// Puts `image` (straight alpha) on the clipboard; platforms without image support ignore it.
     pub(crate) fn copy_image(&self, image: craft_ui_rt::RgbaImage) {
         self.platform(PlatformRequest::CopyImage(image));
+    }
+
+    /// Tells the user the input was refused (a dropped character, a rewriting Tab, a lone Alt in a field that holds its
+    /// draft): the host plays the platform's alert. Public so an app's own control refuses through the same channel.
+    pub fn refuse(&self) {
+        self.platform(PlatformRequest::Alert);
     }
 
     /// Opens `url`, in a new tab where the platform has tabs and `new_tab` is set.

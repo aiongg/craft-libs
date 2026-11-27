@@ -119,6 +119,22 @@ pub struct AccessInput {
     pub sub: Option<u64>,
 }
 
+/// Why key focus moved ([`Event::Focus`]). The OS window losing focus moves no node's focus: a
+/// field keeps its focus while its window is in the background.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FocusCause {
+    /// Tab (`forward`) or Shift+Tab moved it, by the runtime's order or a node's own.
+    Tab { forward: bool },
+    /// A press moved it: onto the stop under the pointer, or off every stop.
+    Pointer,
+    /// The focused node went, and focus fell back to the node it named or a stop on its old path.
+    Removed,
+    /// A node or the app moved it: a request, a node giving it up, a move among a group's members,
+    /// a pane key, an assistive technology.
+    Program,
+}
+
 /// Why a window was asked to close.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloseReason {
@@ -143,8 +159,11 @@ pub enum Event {
     ImeCommit(String),
     Paste(String),
     Access(AccessInput),
-    /// The node gained (`true`) or lost key focus. Not bubbled.
-    Focus(bool),
+    /// The node gained or lost key focus, and why focus moved. Not bubbled.
+    Focus {
+        gained: bool,
+        cause: FocusCause,
+    },
     /// The node, a layer child, is asked to go ([`crate::OutsidePress`]); it tells its owner
     /// through its output. Not bubbled.
     Dismiss(DismissReason),
@@ -403,15 +422,21 @@ impl EventCx<'_> {
 
     /// Moves focus to `node` in its window.
     pub fn focus_node(&mut self, node: NodeId) {
+        self.focus_node_by(node, FocusCause::Program);
+    }
+
+    /// Moves focus to `node` in its window for `cause`: a node that runs its own Tab order passes
+    /// [`FocusCause::Tab`], so the node that loses focus learns it was tabbed off.
+    pub fn focus_node_by(&mut self, node: NodeId, cause: FocusCause) {
         if let Some(window) = self.rt.window_of(node) {
-            self.rt.set_focus(window, Some(node));
+            self.rt.set_focus(window, Some(node), cause);
         }
     }
 
     pub fn blur(&mut self) {
         if self.has_focus() {
             let window = self.window();
-            self.rt.set_focus(window, None);
+            self.rt.set_focus(window, None, FocusCause::Program);
         }
     }
 

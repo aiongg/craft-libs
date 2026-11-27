@@ -277,6 +277,8 @@ pub(crate) struct RunIo<'a> {
     pub(crate) menu_bar: Cell<Option<bool>>,
     /// The run asks to run again in the next frame (a wheel ease paying out); the driver asks the node's build.
     pub(crate) wake: Cell<bool>,
+    /// The run gives up key focus (`CxCore::surrender_focus`); the driver asks ui-rt after the run.
+    pub(crate) surrender: Cell<bool>,
     /// `Pointer::take_wheel` took the run's wheel steps.
     pub(crate) wheel_taken: Cell<bool>,
     /// The drag the run started (`Pointer::start_drag`); the driver starts ui-rt's payload session from the node's
@@ -318,6 +320,7 @@ impl<'a> RunIo<'a> {
             inbox: Default::default(),
             menu_bar: Cell::new(None),
             wake: Cell::new(false),
+            surrender: Cell::new(false),
             wheel_taken: Cell::new(false),
             drag_start: RefCell::new(None),
             build_at: Cell::new(None),

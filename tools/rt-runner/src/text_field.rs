@@ -358,7 +358,7 @@ impl Element for TextField {
                 self.apply(local, cx, &EditorInput::Text(text.as_str().into()));
                 Handled::Yes
             }
-            Event::Focus(gained) => {
+            Event::Focus { gained, .. } => {
                 // The blink starts again at the next paint, which comes now.
                 local.blink_from.set(None);
                 cx.request_paint();
