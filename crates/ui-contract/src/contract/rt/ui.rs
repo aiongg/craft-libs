@@ -206,6 +206,11 @@ impl Flow {
         }
     }
 
+    /// The region shrinks to `rest`, the part an edge pane left (`Mount::Pane`): later children lay out inside it.
+    pub(crate) fn cut_region(&mut self, rest: Rect) {
+        (self.cursor, self.region) = (self.cursor.max(rest.min), rest);
+    }
+
     /// Moves the cursor past `rect` as if a child took it, without a child slot in the plan.
     pub(crate) fn advance(&mut self, rect: Rect) {
         match self.dir {

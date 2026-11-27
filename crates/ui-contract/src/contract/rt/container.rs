@@ -25,10 +25,11 @@ use craft_behavior::{ColumnWidth, Mixed, resolve_columns};
 use craft_theme::Tokens;
 use craft_ui_rt::{BuildCx, Constraints, Element, InlineState, LayoutCx, NodeId, PaintCx, Pos2, Rect, Rgba, State, Vec2};
 
+use super::container_shape::{ContainerShape, HeaderGeometry, WindowMode, window_mode_id};
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, NodeInput, Place, Placed, ScopeNode};
 use super::overlay::{BodyClose, LayerBody, LayerHost, LayerShow, Surface, show_layer_with};
-use super::run::{Ran, finish_measured, holds, reach_layers, run, settle, sweep_tag};
+use super::run::{Ran, finish_measured, holds, reach_layers, run_shaped, settle, sweep_tag};
 use super::scope::{ScopeShow, show_scope};
 use super::scroll::{ScrollKept, ScrollNode, overscan};
 use super::sweep::Sweep;
@@ -57,6 +58,9 @@ pub(crate) struct Plan {
     shares: Vec<f32>,
     /// The level of each levelled unit of a `Row` body (`plan_levels`), in order.
     levels: Vec<usize>,
+    /// The width a content column settled at when a held child measured narrower than it (`HeldKind`): the real run
+    /// lays the children out at it, so the held child shows across the column.
+    settled: Option<f32>,
 }
 
 /// What a container node keeps besides its component's outputs: the open state of a collapsing body.
@@ -226,6 +230,24 @@ impl Shape {
         }
     }
 
+    /// A content-sized `Stack` container that is the content of its own popup layer (`Mount::Layer`, `hosted`) is a
+    /// content column: the layer takes its width from the container's content, as a row's unit does.
+    fn in_popup(mut self, props: &ContainerProps, hosted: bool) -> Shape {
+        if hosted && matches!(props.mount, Mount::Layer(_)) {
+            self.content_column |= matches!(props.layout, BodyLayout::Stack) && matches!(self.sizing, Sizing::Content | Sizing::FillHeight);
+        }
+        self
+    }
+
+    /// An edge pane fills the strip of its flow its mount gives it (`show_pane`); only the measuring run before its
+    /// first show (`measure_container`) finds its content's extent.
+    fn in_pane(mut self, props: &ContainerProps) -> Shape {
+        if matches!(props.mount, Mount::Pane(pane) if pane.at.is_none() && pane.edge != PaneEdge::Center) {
+            self.sizing = Sizing::Fill;
+        }
+        self
+    }
+
     /// A container that fits its content in a bar (`ContainerProps::content_in_bar`) takes its content width among a
     /// bar's members, whatever its sizing says.
     fn in_bar(mut self, props: &ContainerProps, env: &Env) -> Shape {
@@ -346,7 +368,7 @@ impl Shape {
                 (Dir::Stack, shares)
             }
         };
-        Plan { room, sizes, rooms, dir, shares, levels }
+        Plan { room, sizes, rooms, dir, shares, levels, settled: None }
     }
 
     /// The container's size from its inner content size, by its sizing, in `room`. A scroll body's inner size is
@@ -527,6 +549,10 @@ struct Frame<'f> {
     /// A rule precedes the body's start (the header's rule, or a quiet header that heads the body): the body's first
     /// child draws no rule above it (`Scoped::after_rule`).
     after_rule: bool,
+    /// A drag of the container's move band runs (`BodyCx::moving`), as the container's last run left it.
+    moving: bool,
+    /// Where the header lay in this build, for the move and reorder bands its run declares.
+    geometry: HeaderGeometry,
 }
 
 /// Which region a `BodyCx` is made for: the header gets the gate, the body the gate's env and the scope's cancel.
@@ -565,6 +591,8 @@ impl<'f> Frame<'f> {
             gate_mixed: gate.1,
             cancel,
             after_rule: false,
+            moving: false,
+            geometry: HeaderGeometry::default(),
         }
     }
 
@@ -601,8 +629,9 @@ impl<'f> Frame<'f> {
         let gate = if header { self.gate.as_mut() } else { None };
         // A measuring run leaves the cancel for the real run that follows it.
         let cancel = hook == Hook::Body && ui.flow.measuring.is_none() && std::mem::take(&mut self.cancel);
-        let mut bcx =
-            BodyCx::new(self.body_id, self.env.view(), self.resolved, rect, &mut self.stage, &mut self.open, gate, Some(shared)).with_cancel(cancel);
+        let mut bcx = BodyCx::new(self.body_id, self.env.view(), self.resolved, rect, &mut self.stage, &mut self.open, gate, Some(shared))
+            .with_cancel(cancel)
+            .with_moving(self.moving);
         let out = Env::run_in(ui, env, |ui| f(ui, &mut bcx));
         if self.close.is_none() {
             self.close = bcx.close_requested();
@@ -714,7 +743,70 @@ pub(crate) fn show_container<C: Container, R>(
         let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
         return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
+    if let Mount::Pane(pane) = props.mount
+        && pane.at.is_none()
+        && pane.edge != PaneEdge::Center
+        && hosted.is_none()
+    {
+        return show_pane(slot, ui, pane, place, body, (tip, theme));
+    }
     show_themed(slot, ui, (at, place), body, tip, hosted, theme)
+}
+
+/// Shows an edge pane (`Mount::Pane` at an edge, not laid out by its caller) in a strip of the flow's region at its
+/// edge, as deep as `container_shape::pane_shown` says, and leaves the flow the rest of the region: the panes and the
+/// centre shown after it lay out there. Before its first show the pane is as deep as its content, which its session
+/// memory keeps from then on, until its grip gives it another extent.
+fn show_pane<C: Container, R>(
+    slot: &mut Option<C>,
+    ui: &mut Ui<'_, '_>,
+    pane: crate::contract::ShellPane,
+    place: Env,
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    (tip, theme): (Option<TipFn<'_>>, Option<ThemeScope>),
+) -> Inner<C::Output, R> {
+    let component = slot.as_mut().expect("a container is shown once");
+    let source = component.common_mut(Internal::new()).id.clone();
+    let (id, _) = ui.flow.peek_child(type_key::<C>(), source);
+    let ctx = ui.ctx().clone();
+    let region = ui.flow.region;
+    let along_x = matches!(pane.edge, PaneEdge::Start | PaneEdge::End);
+    let extent = match super::container_shape::pane_shown(&ctx, id, &pane) {
+        Some(extent) => extent,
+        None => {
+            let size = measure_container(component, ui, craft_behavior::Proposal::Ideal, &mut *body);
+            let extent = if along_x { size.x } else { size.y };
+            if ui.flow.measuring.is_none() {
+                super::container_shape::note_pane_extent(&ctx, id, extent);
+            }
+            extent
+        }
+    };
+    let extent = extent.min(if along_x { region.width() } else { region.height() }).max(0.0);
+    // The start edge is the left in a left-to-right env, the right in a right-to-left one.
+    let rtl = place.direction.is_rtl();
+    let at_left = matches!((pane.edge, rtl), (PaneEdge::Start, false) | (PaneEdge::End, true));
+    let (strip, rest) = match pane.edge {
+        PaneEdge::Top => (
+            Rect::from_min_size(region.min, Vec2::new(region.width(), extent)),
+            Rect::from_min_max(Pos2::new(region.min.x, region.min.y + extent), region.max),
+        ),
+        PaneEdge::Bottom => (
+            Rect::from_min_max(Pos2::new(region.min.x, region.max.y - extent), region.max),
+            Rect::from_min_max(region.min, Pos2::new(region.max.x, region.max.y - extent)),
+        ),
+        _ if at_left => (
+            Rect::from_min_size(region.min, Vec2::new(extent, region.height())),
+            Rect::from_min_max(Pos2::new(region.min.x + extent, region.min.y), region.max),
+        ),
+        _ => (
+            Rect::from_min_max(Pos2::new(region.max.x - extent, region.min.y), region.max),
+            Rect::from_min_max(region.min, Pos2::new(region.max.x - extent, region.max.y)),
+        ),
+    };
+    let shown = show_themed(slot, ui, (ShowAt::Rect(strip), place), body, tip, None, theme);
+    ui.flow.cut_region(rest);
+    shown
 }
 
 /// `show_plain` inside a scope that gives the container and everything under it `theme`, when it has one.
@@ -777,10 +869,21 @@ fn show_on_layer<C: Container, R>(
     // The content shows under the layer's id, which the container takes as its own (`show_plain`, hosted).
     let (tokens, sweep, rtl) = (ui.flow.tokens.clone(), ui.flow.sweep, Env::of(ui).direction.is_rtl());
     let anchor = Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO);
+    // Where the user moved the layer and how large they made it (`container_shape`): the position wins over the
+    // overlay's own place unless the caller places the layer; the size over the content's.
+    let save = slot.as_ref().and_then(|c| c.props(Internal::new()).save.clone());
+    let placement = super::container_shape::placement_of(ui.ctx(), id, save.as_ref());
     let cx = &mut *ui.cx;
     let base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
-    let show = LayerShow { sweep, surface: Surface::Plain, pad: 0.0, host: Some(id), ..base };
-    let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), shown: None };
+    let mut show = LayerShow { sweep, surface: Surface::Plain, pad: 0.0, host: Some(id), ..base };
+    if overlay.placed.is_none()
+        && overlay.placed_at.is_none()
+        && let Some(pos) = placement.pos
+    {
+        show.spec.placement = craft_ui_rt::Placement::At(Pos2::from(pos));
+    }
+    let size = placement.size.map(Vec2::from);
+    let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), size, shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
     content.shown.expect("a layer mount runs its content in every build that shows it")
 }
@@ -867,14 +970,19 @@ struct LayerContent<'s, 'b, C: Container, R> {
     body: &'b mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
     /// The layer's Escape rules for the nodes it holds (a dialog's).
     escape: crate::primitives::text_adapter::ScopeEscape,
+    /// The size the user gave the layer with its grips, which its content then fills.
+    size: Option<Vec2>,
     shown: Option<Inner<C::Output, R>>,
 }
 
 impl<C: Container, R> LayerBody<()> for LayerContent<'_, '_, C, R> {
     fn measure(&mut self, ui: &mut Ui<'_, '_>) -> Vec2 {
         let room = ui.flow.region.size();
+        if let Some(size) = self.size {
+            return size.min(room);
+        }
         let body = &mut *self.body;
-        self.slot.as_mut().map_or(Vec2::ZERO, |container| measure_container(container, ui, craft_behavior::Proposal::Ideal, body).min(room))
+        self.slot.as_mut().map_or(Vec2::ZERO, |container| measure_in(container, ui, craft_behavior::Proposal::Ideal, body, true).min(room))
     }
 
     fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) {
@@ -906,7 +1014,7 @@ fn show_plain<C: Container, R>(
     let (id, child) = ui.flow.child(type_key::<C>(), source);
     let key = component_key(&component);
     let props = component.props(Internal::new()).clone();
-    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place);
+    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place).in_popup(&props, hosted.is_some()).in_pane(&props);
     // A window mount is the whole content of its window.
     let at = match (&props.mount, at) {
         (Mount::Window { .. }, ShowAt::Flow) => ShowAt::Rect(ui.ctx().content_rect()),
@@ -977,6 +1085,9 @@ fn show_plain<C: Container, R>(
                 shape.share = driver.anim_bool("collapse", open, spec::OPEN_RISE);
             }
             shape.closed = !open && shape.share <= 0.0;
+            if matches!(props.mount, Mount::Layer(_)) {
+                frame.moving = kept.memory.recall::<WindowMode>(window_mode_id(id)).moving();
+            }
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
             let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
@@ -1041,7 +1152,17 @@ fn show_plain<C: Container, R>(
                 context: ctx.clone(),
                 flow_reveal: &mut flow.reveal,
             };
-            let output = run(component, kept, cx, ran);
+            // The band, grip and pane drags run on the node's own run; a run that moved the layer or the pane asks for
+            // another build round, so it stands where the step put it in this frame. The run's flow holds no region of
+            // the container: the regions `lay_out` placed stay, with whatever the run's paint showed after them.
+            let mut hooks = ContainerShape::new(&props, frame.geometry, &tokens);
+            let placed = std::mem::take(&mut kept.placed);
+            let output = run_shaped(component, kept, cx, ran, &mut hooks);
+            let shown = std::mem::replace(&mut kept.placed, placed);
+            kept.placed.extend(shown);
+            if hooks.moved {
+                cx.rebuild();
+            }
             // The props' scope and roving group, where the component's hooks name none.
             if scope != crate::runtime::focus::FocusPolicy::NONE {
                 kept.focus.scope = scope;
@@ -1111,6 +1232,19 @@ pub(crate) fn measure_container<C: Container, R>(
     proposal: craft_behavior::Proposal,
     body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
 ) -> Vec2 {
+    let hosted = hosted_by(ui).is_some();
+    measure_in(component, ui, proposal, body, hosted)
+}
+
+/// `measure_container`; `hosted`: the container is the content of its own layer, which measures it before it provides
+/// the `LayerHost` (`LayerContent::measure`).
+fn measure_in<C: Container, R>(
+    component: &mut C,
+    ui: &mut Ui<'_, '_>,
+    proposal: craft_behavior::Proposal,
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    hosted: bool,
+) -> Vec2 {
     let room = match proposal {
         craft_behavior::Proposal::Size(size) => size,
         craft_behavior::Proposal::Width(width) => Vec2::new(width, ui.flow.room().y),
@@ -1132,7 +1266,7 @@ pub(crate) fn measure_container<C: Container, R>(
         return *size;
     }
     let props = component.props(Internal::new()).clone();
-    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, &ui.flow).in_bar(&props, &begun.env);
+    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, &ui.flow).in_bar(&props, &begun.env).in_popup(&props, hosted);
     let open = read_open(component, &props, peeked.as_ref().and_then(|p| p.1), &ctx);
     shape.closed = !open;
     let size = {
@@ -1212,6 +1346,7 @@ fn lay_out<C: Container>(
 ) -> (Vec2, Flow) {
     let inner = Rect::from_min_size(origin + shape.pad, (room - 2.0 * shape.pad).max(Vec2::ZERO));
     let real = into.kept.is_some();
+    frame.geometry = HeaderGeometry { body_top: inner.min.y, ..HeaderGeometry::default() };
     if !shape.has_regions() {
         let at = BodyAt { node: into.node, own_kept: into.own_kept, marked: into.marked, sweep: into.sweep };
         let region = body_region(shape, inner);
@@ -1298,6 +1433,7 @@ fn lay_out<C: Container>(
         place(hn, Rect::from_min_size(header_rect.min, header));
         place(cn, Rect::from_min_size(controls_rect.min, controls));
         header_w = header.x + controls.x + 2.0 * inset;
+        frame.geometry.line = Some(Rect::from_min_max(Pos2::new(line_rect.min.x, top), Pos2::new(line_rect.max.x, top + header.y.max(controls.y))));
         let band_bottom = top + header.y.max(controls.y);
         let band_width = if room.x.is_finite() { room.x } else { header_w + 2.0 * shape.pad.x };
         place(band, Rect::from_min_size(Pos2::new(origin.x, band_top), Vec2::new(band_width, band_bottom - band_top)));
@@ -1354,6 +1490,7 @@ fn lay_out<C: Container>(
         crate::contract::footer_slot::clear(&ctx, id);
     }
     let main = Rect::from_min_max(Pos2::new(main_min, top), Pos2::new(main_max, inner.max.y));
+    frame.geometry.body_top = main.min.y;
     let body_end_h = if shape.closed {
         0.0
     } else {
@@ -1373,6 +1510,10 @@ fn lay_out<C: Container>(
     let body_size = if shape.collapsing() { Vec2::new(body_size.x, body_size.y * shape.share) } else { body_size };
     place(body_node, Rect::from_min_size(body_rect.min, body_size));
     let mut below = (top + body_size.y).max(top + inline.0);
+    // An inline header's move band spans its whole line: header, body and end region.
+    if shape.header.is_some_and(|h| h.inline) {
+        frame.geometry.inline_line = Some(Rect::from_min_max(Pos2::new(inner.min.x, top), Pos2::new(inner.max.x, below)));
+    }
     if body_end_h > 0.0 {
         let rect = Rect::from_min_max(Pos2::new(main.min.x, below + shape.gap), Pos2::new(main.max.x, below + shape.gap + body_end_h));
         let (bn, size) =
@@ -1662,6 +1803,27 @@ fn run_body(
     let reusable = kept.plan.take().filter(|p| at.own_kept && !at.marked && p.room == room);
     let (plan, measured) = match reusable {
         Some(plan) => (Some(plan), false),
+        // A content column's plan holds the width it settled at, from the same two sweeps as its measuring run, and
+        // is reused while its room and key are unchanged and nothing under it is marked.
+        None if shape.content_column => {
+            let mut ui = Ui::new(&mut *cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
+            let ctx = ui.ctx().clone();
+            let ((), narrowest) = crate::layout::held_sweep(&ctx, id, true, || call(&mut ui, true));
+            let mut flow = ui.flow;
+            let width = flow.content_size().x;
+            let settled = (narrowest < width - 0.5).then_some(width);
+            if let Some(width) = settled {
+                let column = Rect::from_min_size(region.min, Vec2::new(width, region.height()));
+                let mut ui = Ui::new(&mut *cx, fresh_in(column, shape.base_dir(columns), Vec::new()).measuring(at.node));
+                call(&mut ui, false);
+                flow = ui.flow;
+            }
+            let units = std::mem::take(&mut flow.body.units);
+            kept.body.levelled = !units.is_empty();
+            let mut plan = shape.plan(room, std::mem::take(&mut flow.sizes), std::mem::take(&mut flow.rooms), &units, tokens);
+            plan.settled = settled;
+            (Some(plan), true)
+        }
         None if shape.needs_plan(had_fills, kept.body.levelled) => {
             let mut ui = Ui::new(cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
             call(&mut ui, false);
@@ -1674,13 +1836,18 @@ fn run_body(
         None => (None, false),
     };
     let flow = match &plan {
-        Some(plan) => fresh(plan.dir.clone(), plan.levels.clone()).with_plan(plan.shares.clone(), plan.rooms.clone()),
+        Some(plan) => {
+            let region = plan.settled.map_or(region, |width| Rect::from_min_size(region.min, Vec2::new(width, region.height())));
+            fresh_in(region, plan.dir.clone(), plan.levels.clone()).with_plan(plan.shares.clone(), plan.rooms.clone())
+        }
         None => fresh(shape.base_dir(columns), Vec::new()),
     };
     let mut ui = Ui::new(cx, flow);
     call(&mut ui, false);
     let Ui { cx, flow, .. } = ui;
     let stale = match &plan {
+        // A content column with no settled width took its sizes offered no room: only its fill shares are planned.
+        Some(plan) if shape.content_column && plan.settled.is_none() && flow.fills == 0 => false,
         Some(plan) => !same_sizes(&plan.sizes, &flow.sizes),
         None => flow.fills > 0,
     };

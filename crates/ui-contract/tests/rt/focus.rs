@@ -19,8 +19,8 @@ use craft_ui_test_kit::rt::Rig;
 /// Past the theme's hover fade, which paint reads from the clock.
 const FADE_END: f64 = 0.25;
 
-fn menu() -> PopupHandle {
-    PopupHandle::new("menu")
+fn menu(cx: &mut impl craft_ui::contract::overlay::Overlays) -> PopupHandle {
+    cx.popup("menu")
 }
 
 /// A button, a Tab stop, that toggles a popover of two rows when activated.
@@ -68,16 +68,16 @@ impl Component for MenuButton {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if cx.response.clicked() {
-            if menu().is_open(cx) {
-                menu().close(cx);
+            if menu(cx).is_open(cx) {
+                menu(cx).close(cx);
             } else {
-                menu().open(cx);
+                menu(cx).open(cx);
             }
         }
     }
 
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
-        let shown = ui.show(menu(), Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
+        let shown = ui.show(menu(cx), Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
             let cut = IconButton::new(IconId::new("cut"), "Cut").show(ui);
             let copy = IconButton::new(IconId::new("copy"), "Copy").show(ui);
             (vec![cut.rect, copy.rect], cut.clicked() || copy.clicked())
@@ -85,10 +85,10 @@ impl Component for MenuButton {
         if let Some((rows, picked)) = shown {
             self.rows = Some(rows);
             if picked {
-                menu().close(cx);
+                menu(cx).close(cx);
             }
         }
-        self.open = Some(menu().is_open(cx));
+        self.open = Some(menu(cx).is_open(cx));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOut {
