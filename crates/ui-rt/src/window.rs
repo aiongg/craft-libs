@@ -98,6 +98,8 @@ pub(crate) struct Window {
     pub(crate) close_guards: Vec<NodeId>,
     /// The app's name for the window ([`crate::WindowSpec::key`]).
     pub(crate) key: Option<String>,
+    /// Shown inside a host's UI ([`crate::WindowSpec::embedded`]).
+    pub(crate) embedded: bool,
 }
 
 impl Window {
@@ -130,6 +132,7 @@ impl Window {
             focus_entries: Vec::new(),
             close_guards: Vec::new(),
             key: None,
+            embedded: false,
         }
     }
 

@@ -370,6 +370,11 @@ pub struct WindowSpec {
     /// Whether the window has a taskbar entry. Honoured on Windows and X11; elsewhere the system
     /// decides.
     pub taskbar: bool,
+    /// Shown inside another UI that owns key focus (an rt window drawn into an egui app): Tab
+    /// past the window's last stop leaves it ([`crate::Runtime::take_focus_exits`]) instead of
+    /// wrapping, and keys nothing in it took go back to the host
+    /// ([`crate::Runtime::take_unhandled_keys`]).
+    pub embedded: bool,
 }
 
 /// Where a window stands in the stack of windows.

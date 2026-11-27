@@ -22,6 +22,7 @@
 
 mod clip;
 mod concave;
+mod kept;
 mod paint;
 mod readback;
 mod surface;
@@ -33,22 +34,23 @@ use std::sync::Arc;
 
 use craft_theme::Rgba;
 use craft_ui_rt::{
-    FrameTree, ImageChange, ImageKey, ImageOptions, ImageStore, NativeWindow, Part, ReadBack, ReadBackId, RectU, RenderStats, Renderer, RgbaImage,
+    FrameTree, ImageChange, ImageKey, ImageOptions, ImageStore, NativeWindow, ReadBack, ReadBackId, RectU, RenderStats, Renderer, RgbaImage,
     SizeU, SurfaceHandle, WindowId, damage_pixels,
 };
 use egui_wgpu::{RenderState, RendererOptions, ScreenDescriptor, WgpuConfiguration, WgpuSetup};
-use emath::{Rect as ERect, Vec2};
+use emath::Rect as ERect;
 use epaint::textures::{TextureFilter, TextureOptions};
-use epaint::{ClippedPrimitive, ColorImage, ImageDelta, PaintCallback, Primitive, TessellationOptions, Tessellator};
+use epaint::{ClippedPrimitive, ColorImage, ImageDelta, PaintCallback, Primitive, TessellationOptions};
 
-use crate::paint::{Env, Piece, Prim, Scratch, mask_texture};
 use crate::readback::PendingRead;
 use crate::timer::Timer;
 
 pub use egui_wgpu::wgpu;
 pub use epaint::text::{FontDefinitions, TextOptions};
+pub use kept::{KeptDraw, KeptMeshes, KeptPiece, PieceKind};
+pub use paint::{ManagedIds, TextureIds};
 pub use surface::{SurfaceHook, SurfaceInfo, SurfacePrepare};
-pub use text::{CONDENSED_FAMILY, EpaintText, SEMIBOLD_FAMILY};
+pub use text::{CONDENSED_FAMILY, EpaintText, FontsAccess, OwnedFonts, SEMIBOLD_FAMILY};
 
 pub type Error = Box<dyn std::error::Error>;
 
@@ -114,24 +116,13 @@ enum Kind {
     Window { native: NativeWindow, surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration, blitter: wgpu::util::TextureBlitter },
 }
 
-/// A kept piece list with the version and shift it was made for.
-struct Kept {
-    version: u64,
-    shift: Vec2,
-    prims: Vec<Prim>,
-    masks: Vec<ImageKey>,
-}
-
 struct WindowState {
     kind: Kind,
     /// The window's pixels, kept from frame to frame.
     canvas: wgpu::Texture,
     size_px: SizeU,
     scale: f32,
-    tessellator: Tessellator,
-    /// The atlas generation and size the tessellator and kept primitives belong to.
-    atlas: (u64, [usize; 2]),
-    kept: HashMap<(craft_ui_rt::NodeId, Part), Kept>,
+    kept: KeptMeshes,
 }
 
 pub struct EpaintRenderer {
@@ -153,7 +144,6 @@ pub struct EpaintRenderer {
     synced: SyncReport,
     reads: HashMap<ReadBackId, PendingRead>,
     next_read: u64,
-    scratch: Scratch,
     /// The primitives the last frame drew, to size the next frame's list.
     prim_hint: usize,
 }
@@ -198,7 +188,6 @@ impl EpaintRenderer {
             synced: SyncReport::default(),
             reads: HashMap::new(),
             next_read: 0,
-            scratch: Scratch::default(),
             prim_hint: 0,
         })
     }
@@ -356,7 +345,7 @@ impl EpaintRenderer {
     fn upload_image(&self, key: ImageKey, image: &RgbaImage, options: ImageOptions, mask: bool) {
         let size = [image.size.width as usize, image.size.height as usize];
         let color = color_image(size, &image.pixels, mask);
-        let id = if mask { mask_texture(key) } else { paint::image_texture(key) };
+        let id = if mask { ManagedIds.mask(key) } else { ManagedIds.image(key) };
         let delta = ImageDelta::full(color, texture_options(options));
         self.gpu.renderer.write().update_texture(&self.gpu.device, &self.gpu.queue, id, &delta);
     }
@@ -384,55 +373,25 @@ impl EpaintRenderer {
         stats: &mut RenderStats,
         needed: &mut HashSet<ImageKey>,
     ) -> Vec<ClippedPrimitive> {
-        let atlas = (self.text.atlas_generation(), self.text.atlas_size());
-        if state.atlas != atlas {
-            state.atlas = atlas;
-            state.kept.clear();
-            state.tessellator = self.text.tessellator(state.scale, self.options.tessellation);
-        }
-        for id in &frame.changes().removed {
-            state.kept.remove(&(*id, Part::Content));
-            state.kept.remove(&(*id, Part::Overlay));
-        }
+        state.kept.begin(frame, &self.text);
         let mut out = Vec::with_capacity(self.prim_hint);
         if damage.is_empty() {
             return out;
         }
-        let erect = |r: emath::Rect| r;
-        let damage: Vec<ERect> = damage.iter().map(|r| erect(r.to_logical(state.scale))).collect();
-        let scale = f64::from(state.scale);
-        let WindowState { kept, tessellator, .. } = state;
+        let damage: Vec<ERect> = damage.iter().map(|r| r.to_logical(state.scale)).collect();
+        let kept = &mut state.kept;
         let text = &mut self.text;
-        let scratch = &mut self.scratch;
         let hooks = &self.hooks;
         frame.walk(|draw| {
             stats.draws += 1;
             if !damage.iter().any(|d| d.intersects(draw.ink)) {
                 return;
             }
-            let frac = |v: f32| {
-                let px = f64::from(v) * scale;
-                ((px - px.floor()) / scale) as f32
-            };
-            let shift = Vec2::new(frac(draw.origin.x), frac(draw.origin.y));
-            let key = (draw.node, draw.part);
-            let fresh = kept.get(&key).is_some_and(|k| k.version == draw.version && k.shift == shift);
-            if fresh {
-                stats.reused += 1;
-            } else {
-                let done = paint::tessellate(draw.list, shift, &mut Env { tessellator, text, scale: scale as f32, scratch });
-                kept.insert(key, Kept { version: draw.version, shift, prims: done.prims, masks: done.masks });
-                stats.prepared += 1;
-            }
-            let entry = &kept[&key];
-            needed.extend(entry.masks.iter().copied());
-            let delta = Vec2::new(draw.origin.x - shift.x, draw.origin.y - shift.y);
-            let outlines: Vec<Vec<emath::Pos2>> = draw.rounded.iter().map(|c| clip::rounded_outline(c.rect, c.radii, scale as f32)).collect();
-            for prim in &entry.prims {
-                let clip_rect = prim.clip_rect.translate(delta).intersect(draw.clip);
-                let bounds = prim.bounds.translate(delta).intersect(clip_rect);
-                match &prim.piece {
-                    Piece::Mesh(mesh) => {
+            let entry = kept.draw(&draw, text, &ManagedIds, stats);
+            needed.extend(entry.masks().iter().copied());
+            for KeptPiece { clip_rect, bounds, kind } in entry.pieces() {
+                match kind {
+                    PieceKind::Mesh(mesh) => {
                         let reaches = |d: &ERect| clip_rect.intersect(*d).is_positive() && bounds.intersects(*d);
                         let Some(last) = damage.iter().rposition(reaches) else { continue };
                         let mut moved: Option<epaint::Mesh> = None;
@@ -440,22 +399,7 @@ impl EpaintRenderer {
                             if !reaches(d) {
                                 continue;
                             }
-                            let empty = moved
-                                .get_or_insert_with(|| {
-                                    let mut m = mesh.clone();
-                                    for v in &mut m.vertices {
-                                        v.pos += delta;
-                                        if draw.opacity < 1.0 {
-                                            v.color = v.color.gamma_multiply(draw.opacity);
-                                        }
-                                    }
-                                    for outline in &outlines {
-                                        clip::clip_to_outline(&mut m, outline);
-                                    }
-                                    m
-                                })
-                                .is_empty();
-                            if empty {
+                            if moved.get_or_insert_with(|| entry.moved(mesh)).is_empty() {
                                 break;
                             }
                             // The last rect takes the moved mesh itself.
@@ -463,9 +407,8 @@ impl EpaintRenderer {
                             out.push(ClippedPrimitive { clip_rect: clip_rect.intersect(*d), primitive: Primitive::Mesh(m) });
                         }
                     }
-                    Piece::Surface { key, rect } => {
-                        let Some(hook) = hooks.get(key) else { continue };
-                        let rect = rect.translate(delta);
+                    PieceKind::Surface { key, rect } => {
+                        let Some(hook) = hooks.get(&key) else { continue };
                         for d in &damage {
                             let scissor = clip_rect.intersect(*d);
                             if !scissor.is_positive() || !rect.intersects(*d) {
@@ -487,7 +430,7 @@ impl EpaintRenderer {
         let t = web_time::Instant::now();
         let mut needed = HashSet::new();
         let mut prims = self.primitives(state, frame, &damage, stats, &mut needed);
-        if self.text.atlas_size() != state.atlas.1 {
+        if !state.kept.is_current(&self.text) {
             // Shaping again grew the atlas, which moves every glyph coordinate: start over once.
             *stats = RenderStats::default();
             needed.clear();
@@ -613,15 +556,12 @@ impl Renderer for EpaintRenderer {
                 }
             }
         };
-        let atlas = (self.text.atlas_generation(), self.text.atlas_size());
         let mut state = WindowState {
             kind,
             canvas: self.make_canvas(size_px),
             size_px,
             scale,
-            tessellator: self.text.tessellator(scale, self.options.tessellation),
-            atlas,
-            kept: HashMap::new(),
+            kept: KeptMeshes::new(&self.text, scale, self.options.tessellation),
         };
         self.configure(&mut state);
         self.windows.insert(window, state);
@@ -674,14 +614,14 @@ impl Renderer for EpaintRenderer {
                     gpu.update_texture(
                         &self.gpu.device,
                         &self.gpu.queue,
-                        paint::image_texture(key),
+                        ManagedIds.image(key),
                         &ImageDelta::partial(at, color_image(size, &bytes, false), options),
                     );
                     if self.masks.contains(&key) {
                         gpu.update_texture(
                             &self.gpu.device,
                             &self.gpu.queue,
-                            mask_texture(key),
+                            ManagedIds.mask(key),
                             &ImageDelta::partial(at, color_image(size, &bytes, true), options),
                         );
                     }
@@ -690,8 +630,8 @@ impl Renderer for EpaintRenderer {
                 }
                 ImageChange::Removed(key) => {
                     let mut gpu = self.gpu.renderer.write();
-                    gpu.free_texture(&paint::image_texture(key));
-                    gpu.free_texture(&mask_texture(key));
+                    gpu.free_texture(&ManagedIds.image(key));
+                    gpu.free_texture(&ManagedIds.mask(key));
                     self.uploaded.remove(&key);
                     self.masks.remove(&key);
                 }

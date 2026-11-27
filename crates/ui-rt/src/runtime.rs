@@ -531,6 +531,13 @@ impl Runtime {
     }
 
     /// Records the app's name for `window`.
+    /// Marks `window` as shown inside a host's UI ([`crate::WindowSpec::embedded`]).
+    pub fn set_window_embedded(&mut self, window: WindowId, embedded: bool) {
+        if let Some(w) = self.windows.get_mut(&window) {
+            w.embedded = embedded;
+        }
+    }
+
     pub fn set_window_key(&mut self, window: WindowId, key: Option<String>) {
         if let Some(w) = self.windows.get_mut(&window) {
             w.key = key;

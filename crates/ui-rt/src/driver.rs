@@ -82,6 +82,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
         self.runtime.set_root(window, root);
         self.runtime.set_window_owner(window, spec.owner);
         self.runtime.set_window_key(window, spec.key.clone());
+        self.runtime.set_window_embedded(window, spec.embedded);
         self.sync_window(window);
         window
     }
@@ -93,6 +94,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
             (open.root)(&mut self.runtime, window);
             self.runtime.set_window_owner(window, open.spec.owner);
             self.runtime.set_window_key(window, open.spec.key.clone());
+            self.runtime.set_window_embedded(window, open.spec.embedded);
             self.sync_window(window);
             self.runtime.notify(open.requester, &crate::event::Event::WindowOpened(window));
         }
@@ -115,6 +117,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
         let window = self.platform.create_window(spec);
         self.runtime.set_inline_root(window);
         self.runtime.set_window_key(window, spec.key.clone());
+        self.runtime.set_window_embedded(window, spec.embedded);
         self.sync_window(window);
         window
     }

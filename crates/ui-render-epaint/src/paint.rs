@@ -16,19 +16,34 @@ use kurbo::{BezPath, PathEl};
 
 use crate::clip::{clip_to_outline, rounded_outline};
 use crate::concave;
-use crate::text::{EpaintText, Shaped};
+use crate::text::{EpaintText, FontsAccess, Shaped};
 
-/// The font atlas is texture 0. An image is the odd id `2k + 1`, its alpha-only variant the even
-/// id `2k + 2`.
+/// The font atlas is texture 0 (`TextureId::default()`), as in egui: text and solid shapes draw
+/// from it.
 pub(crate) const FONT_TEXTURE: TextureId = TextureId::Managed(0);
 
-pub(crate) fn image_texture(key: ImageKey) -> TextureId {
-    TextureId::Managed(key.0.wrapping_mul(2).wrapping_add(1))
+/// The textures images are drawn from. Kept meshes hold the ids they were tessellated with, so a
+/// key's ids stay the same while its image lives.
+pub trait TextureIds {
+    /// The texture of image `key`'s pixels.
+    fn image(&self, key: ImageKey) -> TextureId;
+    /// The image with its colour replaced by white and its alpha kept, for [`Item::ImageMask`].
+    fn mask(&self, key: ImageKey) -> TextureId;
 }
 
-/// The image with its colour replaced by white and its alpha kept, for [`Item::ImageMask`].
-pub(crate) fn mask_texture(key: ImageKey) -> TextureId {
-    TextureId::Managed(key.0.wrapping_mul(2).wrapping_add(2))
+/// The wgpu renderer's ids: image `k` is the odd id `2k + 1`, its alpha-only variant the even id
+/// `2k + 2`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ManagedIds;
+
+impl TextureIds for ManagedIds {
+    fn image(&self, key: ImageKey) -> TextureId {
+        TextureId::Managed(key.0.wrapping_mul(2).wrapping_add(1))
+    }
+
+    fn mask(&self, key: ImageKey) -> TextureId {
+        TextureId::Managed(key.0.wrapping_mul(2).wrapping_add(2))
+    }
 }
 
 /// What one tessellated piece draws.
@@ -139,9 +154,10 @@ fn aligned_outline(r: ERect, radii: CornerRadii, s: &craft_ui_rt::Stroke, scale:
 }
 
 /// Everything `tessellate` needs besides the list.
-pub(crate) struct Env<'a> {
+pub(crate) struct Env<'a, F: FontsAccess> {
     pub tessellator: &'a mut Tessellator,
-    pub text: &'a mut EpaintText,
+    pub text: &'a mut EpaintText<F>,
+    pub ids: &'a dyn TextureIds,
     pub scale: f32,
     /// Buffers every list uses and leaves empty, so a list allocates none of its own.
     pub scratch: &'a mut Scratch,
@@ -184,7 +200,7 @@ impl Clips {
 
 /// Tessellates `list` shifted by `shift` points. Meshes keep the font atlas' texture for text and
 /// shapes, and an image's texture for images.
-pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> Tessellated {
+pub(crate) fn tessellate<F: FontsAccess>(list: &DisplayList, shift: Vec2, env: &mut Env<'_, F>) -> Tessellated {
     let mut out = Tessellated::default();
     let mut clips = Clips { rects: Vec::new(), rounded: Vec::new(), rect: ERect::EVERYTHING, outlines: Vec::new() };
     let mut opacities: Vec<f32> = Vec::new();
@@ -284,7 +300,7 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                     }
                 }
             }
-            Item::Mesh(mesh) => shapes.push(Shape::mesh(mesh_of(mesh, shift, opacity))),
+            Item::Mesh(mesh) => shapes.push(Shape::mesh(mesh_of(mesh, shift, opacity, env.ids))),
             Item::Shadow { rect: r, radii, offset, blur, spread, color: c } => {
                 let r = rect(*r, shift).translate(*offset).expand(*spread);
                 let radii = CornerRadii {
@@ -309,11 +325,11 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                 shapes.push(Shape::mesh(mesh));
             }
             Item::Image { key, rect: r, uv, tint } => {
-                shapes.push(Shape::image(image_texture(*key), rect(*r, shift), *uv, color(*tint, opacity)));
+                shapes.push(Shape::image(env.ids.image(*key), rect(*r, shift), *uv, color(*tint, opacity)));
             }
             Item::ImageMask { key, rect: r, uv, color: c } => {
                 out.masks.push(*key);
-                shapes.push(Shape::image(mask_texture(*key), rect(*r, shift), *uv, color(*c, opacity)));
+                shapes.push(Shape::image(env.ids.mask(*key), rect(*r, shift), *uv, color(*c, opacity)));
             }
             Item::Text { layout, origin, color: c, highlight, angle, .. } => {
                 let Some(shaped) = layout.downcast_ref::<Shaped>() else {
@@ -365,8 +381,8 @@ fn flush(raw: &mut Vec<ClippedPrimitive>, outlines: &[Vec<Pos2>], prims: &mut Ve
     }
 }
 
-fn mesh_of(mesh: &DisplayMesh, shift: Vec2, opacity: f32) -> Mesh {
-    let texture = mesh.texture.map_or(FONT_TEXTURE, image_texture);
+fn mesh_of(mesh: &DisplayMesh, shift: Vec2, opacity: f32, ids: &dyn TextureIds) -> Mesh {
+    let texture = mesh.texture.map_or(FONT_TEXTURE, |key| ids.image(key));
     let mut out = Mesh::with_texture(texture);
     let textured = mesh.texture.is_some();
     out.vertices = mesh

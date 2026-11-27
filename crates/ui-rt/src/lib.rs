@@ -61,7 +61,7 @@ pub use geom::{Constraints, CornerRadii, Margin, RectU, SizeU, damage_pixels};
 pub use gesture::{PINCH_CONTINUES, WheelOptions};
 pub use hit::{Hit, HitShape, WindowZone};
 pub use id::{NodeId, WindowId, hash_key};
-pub use input::{Interact, InteractFact, LONG_PRESS_TIME, TOUCH_SLOP};
+pub use input::{FocusExit, Interact, InteractFact, LONG_PRESS_TIME, TOUCH_SLOP};
 pub use layer::{DismissReason, Layer, LayerSpec, OutsidePress, Placement, Side};
 pub use layout::{LayoutCx, virtual_band};
 pub use paint::PaintCx;

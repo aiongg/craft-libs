@@ -82,6 +82,14 @@ pub(crate) enum ClipboardRequest {
     Read,
 }
 
+/// Where Tab took key focus out of an embedded window ([`crate::WindowSpec::embedded`]): past its
+/// last Tab stop, or with Shift past its first. The host moves its own focus on in that direction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FocusExit {
+    Next,
+    Previous,
+}
+
 /// The open press: which pointer, and who took it.
 #[derive(Clone, Copy, Debug)]
 struct Press {
@@ -123,6 +131,11 @@ pub(crate) struct InputState {
     /// press or an accessibility click hides it.
     focus_shown: bool,
     pub(crate) touches: Touches,
+    /// Keys whose routing ended with no node, layer or focus move taking them, until the host
+    /// takes them; kept for embedded windows only.
+    unhandled_keys: Vec<KeyInput>,
+    /// Tab moves out of an embedded window, until the host takes them.
+    focus_exits: Vec<FocusExit>,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
     /// Something that decides the cursor changed since it was last picked.
@@ -350,6 +363,20 @@ impl Runtime {
         for id in left {
             input.queue.push_back((id, Event::Dismiss(DismissReason::FocusLeft)));
         }
+    }
+
+    /// Keys `window` routed since the last call that nothing took: no node on the focus path, no
+    /// layer and no focus move. Only an embedded window ([`crate::WindowSpec::embedded`]) keeps
+    /// them; its host leaves them in its own input, so a key the window does not use still
+    /// reaches the host's shortcuts.
+    pub fn take_unhandled_keys(&mut self, window: WindowId) -> Vec<KeyInput> {
+        self.input_mut(window).map(|i| std::mem::take(&mut i.unhandled_keys)).unwrap_or_default()
+    }
+
+    /// Tab moves out of embedded `window` since the last call ([`FocusExit`]); the window's key
+    /// focus is cleared at each.
+    pub fn take_focus_exits(&mut self, window: WindowId) -> Vec<FocusExit> {
+        self.input_mut(window).map(|i| std::mem::take(&mut i.focus_exits)).unwrap_or_default()
     }
 
     /// Moves `window`'s focus to the next (or previous) Tab stop in tree order, wrapping around.
@@ -730,6 +757,7 @@ impl Runtime {
             return;
         }
         let Some(target) = self.focused(window).or_else(|| self.key_root(window)) else {
+            self.unhandled_key(window, k);
             return;
         };
         let mut handled = self.dispatch(target, &Event::Key(k), true).is_some();
@@ -751,11 +779,45 @@ impl Runtime {
         }
         let plain_tab = k.key == Key::Tab && !(k.mods.cmd || k.mods.ctrl || k.mods.alt);
         if !handled && k.down && plain_tab {
-            self.move_focus(window, !k.mods.shift);
+            self.tab(window, !k.mods.shift);
+            handled = true;
         }
         if !handled && k.down && k.key == Key::Escape {
-            self.dismiss_on_escape(window);
+            handled = self.dismiss_on_escape(window);
         }
+        if !handled {
+            self.unhandled_key(window, k);
+        }
+    }
+
+    fn unhandled_key(&mut self, window: WindowId, k: KeyInput) {
+        if self.windows.get(&window).is_some_and(|w| w.embedded)
+            && let Some(input) = self.input_mut(window)
+        {
+            input.unhandled_keys.push(k);
+        }
+    }
+
+    /// Tab's focus move. An embedded window lets focus out past its last stop (first, going
+    /// back) instead of wrapping around, and so with no stop at all.
+    fn tab(&mut self, window: WindowId, forward: bool) {
+        if self.windows.get(&window).is_some_and(|w| w.embedded) {
+            let order = self.focus_order(window);
+            let at = self.focused(window).and_then(|f| order.iter().position(|&n| n == f));
+            let past = match at {
+                Some(i) if forward => i + 1 == order.len(),
+                Some(i) => i == 0,
+                None => order.is_empty(),
+            };
+            if past {
+                self.set_focus(window, None);
+                if let Some(input) = self.input_mut(window) {
+                    input.focus_exits.push(if forward { FocusExit::Next } else { FocusExit::Previous });
+                }
+                return;
+            }
+        }
+        self.move_focus(window, forward);
     }
 
     /// Where a key goes with nothing focused in `window`: the root, or for an inline root
@@ -782,13 +844,15 @@ impl Runtime {
         out
     }
 
-    /// Sends [`DismissReason::Escape`] to the topmost layer child of `window` that asks for it.
-    fn dismiss_on_escape(&mut self, window: WindowId) {
-        let Some(w) = self.windows.get(&window) else { return };
+    /// Sends [`DismissReason::Escape`] to the topmost layer child of `window` that asks for it;
+    /// false when there is none.
+    fn dismiss_on_escape(&mut self, window: WindowId) -> bool {
+        let Some(w) = self.windows.get(&window) else { return false };
         let top = self.layered_top_first(window).into_iter().find(|id| w.layered.get(id).is_some_and(|s| s.escape));
         if let Some(id) = top {
             self.deliver(id, id, &Event::Dismiss(DismissReason::Escape));
         }
+        top.is_some()
     }
 
     /// The window whose app-modal layer child blocks `window`'s input: another window with a

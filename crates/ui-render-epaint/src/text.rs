@@ -1,6 +1,10 @@
 //! `TextEngine` on epaint's `Fonts`: the faces are the ones the app installs (craft's font stack
 //! flattened to `FontDefinitions`), so glyphs, metrics and the atlas come out as in the egui
 //! build, and a galley measured in layout is the galley the renderer draws.
+//!
+//! Where the fonts live is a [`FontsAccess`]: [`OwnedFonts`] for the wgpu renderer, which uploads
+//! the atlas itself, or a host's fonts (an egui app's), whose atlas the host uploads and whose
+//! glyph pixels then match the host's own text.
 
 use std::sync::Arc;
 
@@ -9,8 +13,8 @@ use craft_ui_rt::{
     FaceInstall, FontFace, GlyphPlace, Overflow, RichText, TextEngine, TextHandle, TextLayout, TextMetrics, TextRow, TextSpec, overflow_text,
 };
 use emath::{Pos2, Rect, Vec2};
-use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
-use epaint::{Color32, ImageDelta};
+use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, FontsView, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
+use epaint::{Color32, ImageDelta, PreparedDisc};
 
 /// The family name craft's font stack registers for the semibold face.
 pub const SEMIBOLD_FAMILY: &str = "semibold";
@@ -48,60 +52,155 @@ impl Shaped {
     }
 }
 
-pub struct EpaintText {
+/// Where [`EpaintText`]'s fonts and glyph atlas live.
+pub trait FontsAccess {
+    /// Runs `f` on the fonts at `scale` physical pixels per point. Fonts a host owns may serve only
+    /// the host's own scale; the rt window then has the host's scale.
+    fn with_fonts<R>(&mut self, scale: f32, f: impl FnOnce(&mut FontsView<'_>) -> R) -> R;
+
+    fn with_definitions<R>(&self, f: impl FnOnce(&FontDefinitions) -> R) -> R;
+
+    /// Makes the fonts again from `definitions` (a face was installed). False when the host owns
+    /// the definitions and the face cannot be added here.
+    fn replace_definitions(&mut self, definitions: FontDefinitions) -> bool;
+
+    /// Which glyph atlas galleys point into: a new value whenever the atlas is made, cleared
+    /// (it got full) or rebuilt. Never repeats for one `FontsAccess`.
+    fn atlas_generation(&self) -> u64;
+
+    fn atlas_size(&self) -> [usize; 2];
+
+    /// The atlas' pre-rasterised discs for the tessellator; an empty list is valid (small circles
+    /// are then tessellated as paths).
+    fn prepared_discs(&self) -> Vec<PreparedDisc>;
+
+    /// The atlas change since the last call, for a renderer that uploads the atlas itself; `None`
+    /// when nothing changed or the host uploads it.
+    fn take_atlas_delta(&mut self) -> Option<ImageDelta>;
+
+    /// Once per frame, between layout and drawing: flushes unused galleys and clears a full atlas.
+    /// Fonts a host owns do nothing here; the host's own pass does it.
+    fn begin_pass(&mut self);
+}
+
+/// Fonts and atlas owned by the renderer (the wgpu path).
+pub struct OwnedFonts {
     fonts: Fonts,
-    semibold: FontFamily,
-    condensed: FontFamily,
-    /// The atlas generations of the `Fonts` an installed face replaced, so a generation never
+    /// The atlas generations of the `Fonts` replaced definitions dropped, so a generation never
     /// repeats across them.
     generation_base: u64,
 }
 
-impl EpaintText {
+impl OwnedFonts {
+    pub fn new(definitions: FontDefinitions, options: TextOptions) -> OwnedFonts {
+        OwnedFonts { fonts: Fonts::new(options, definitions), generation_base: 0 }
+    }
+}
+
+impl FontsAccess for OwnedFonts {
+    fn with_fonts<R>(&mut self, scale: f32, f: impl FnOnce(&mut FontsView<'_>) -> R) -> R {
+        f(&mut self.fonts.with_pixels_per_point(scale))
+    }
+
+    fn with_definitions<R>(&self, f: impl FnOnce(&FontDefinitions) -> R) -> R {
+        f(self.fonts.definitions())
+    }
+
+    fn replace_definitions(&mut self, definitions: FontDefinitions) -> bool {
+        let options = *self.fonts.options();
+        self.generation_base += self.fonts.atlas_generation() + 1;
+        self.fonts = Fonts::new(options, definitions);
+        true
+    }
+
+    fn atlas_generation(&self) -> u64 {
+        self.generation_base + self.fonts.atlas_generation()
+    }
+
+    fn atlas_size(&self) -> [usize; 2] {
+        self.fonts.texture_atlas().size()
+    }
+
+    fn prepared_discs(&self) -> Vec<PreparedDisc> {
+        self.fonts.texture_atlas().prepared_discs()
+    }
+
+    fn take_atlas_delta(&mut self) -> Option<ImageDelta> {
+        self.fonts.font_image_delta()
+    }
+
+    fn begin_pass(&mut self) {
+        let options = *self.fonts.options();
+        self.fonts.begin_pass(options, epaint::text::ViewportKey::default());
+    }
+}
+
+pub struct EpaintText<F: FontsAccess = OwnedFonts> {
+    fonts: F,
+}
+
+impl EpaintText<OwnedFonts> {
     /// `definitions` hold the app's faces; the families named [`SEMIBOLD_FAMILY`] and
     /// [`CONDENSED_FAMILY`] serve the semibold and condensed slots when present.
     pub fn new(definitions: FontDefinitions, options: TextOptions) -> EpaintText {
-        let has = |name: &str| definitions.families.contains_key(&FontFamily::Name(name.into()));
-        let semibold = if has(SEMIBOLD_FAMILY) { FontFamily::Name(SEMIBOLD_FAMILY.into()) } else { FontFamily::Proportional };
-        let condensed = if has(CONDENSED_FAMILY) { FontFamily::Name(CONDENSED_FAMILY.into()) } else { semibold.clone() };
-        EpaintText { fonts: Fonts::new(options, definitions), semibold, condensed, generation_base: 0 }
+        EpaintText::from_fonts(OwnedFonts::new(definitions, options))
+    }
+}
+
+impl<F: FontsAccess> EpaintText<F> {
+    /// Text on `fonts`; the families named [`SEMIBOLD_FAMILY`] and [`CONDENSED_FAMILY`] serve the
+    /// semibold and condensed slots when present.
+    pub fn from_fonts(fonts: F) -> EpaintText<F> {
+        EpaintText { fonts }
+    }
+
+    pub fn fonts(&self) -> &F {
+        &self.fonts
+    }
+
+    pub fn fonts_mut(&mut self) -> &mut F {
+        &mut self.fonts
+    }
+
+    fn named(&self, name: &str) -> Option<FontFamily> {
+        let family = FontFamily::Name(name.into());
+        self.fonts.with_definitions(|d| d.families.contains_key(&family)).then_some(family)
     }
 
     fn family(&self, slot: FontSlot) -> FontFamily {
         match slot {
             FontSlot::Ui => FontFamily::Proportional,
-            FontSlot::UiSemibold => self.semibold.clone(),
+            FontSlot::UiSemibold => self.named(SEMIBOLD_FAMILY).unwrap_or(FontFamily::Proportional),
             FontSlot::Mono => FontFamily::Monospace,
-            FontSlot::UiCondensed => self.condensed.clone(),
+            FontSlot::UiCondensed => self.named(CONDENSED_FAMILY).unwrap_or_else(|| self.family(FontSlot::UiSemibold)),
         }
     }
 
-    /// Counts the times the glyph atlas was cleared because it was full. Layouts made under an
-    /// older generation hold stale glyph coordinates; the renderer shapes those again when it
-    /// draws them (`Shaped::generation`), and callers that cache galleys of their own compare it.
+    /// Which glyph atlas layouts point into ([`FontsAccess::atlas_generation`]). Layouts made
+    /// under an older generation hold stale glyph coordinates; the renderer shapes those again
+    /// when it draws them (`Shaped::generation`), and callers that cache galleys of their own
+    /// compare it.
     pub fn atlas_generation(&self) -> u64 {
-        self.generation_base + self.fonts.atlas_generation()
+        self.fonts.atlas_generation()
     }
 
     pub(crate) fn atlas_size(&self) -> [usize; 2] {
-        self.fonts.texture_atlas().size()
+        self.fonts.atlas_size()
     }
 
-    /// The glyph atlas change since the last call; the renderer uploads it before drawing.
+    /// The glyph atlas change since the last call; the wgpu renderer uploads it before drawing.
     pub(crate) fn atlas_delta(&mut self) -> Option<ImageDelta> {
-        self.fonts.font_image_delta()
+        self.fonts.take_atlas_delta()
     }
 
     /// Flushes the galley cache and handles a full atlas. Called once per frame, between layout
     /// and drawing.
     pub(crate) fn begin_pass(&mut self) {
-        let options = *self.fonts.options();
-        self.fonts.begin_pass(options, epaint::text::ViewportKey::default());
+        self.fonts.begin_pass();
     }
 
     pub(crate) fn tessellator(&self, scale: f32, options: epaint::TessellationOptions) -> epaint::Tessellator {
-        let atlas = self.fonts.texture_atlas();
-        epaint::Tessellator::new(scale, options, atlas.size(), atlas.prepared_discs())
+        epaint::Tessellator::new(scale, options, self.fonts.atlas_size(), self.fonts.prepared_discs())
     }
 
     fn shape(&mut self, spec: &TextSpec, scale: f32) -> Shaped {
@@ -110,17 +209,18 @@ impl EpaintText {
         let wraps = spec.overflow == Overflow::Wrap;
         let max_width = if wraps { spec.max_width.unwrap_or(f32::INFINITY) } else { f32::INFINITY };
         let generation = self.atlas_generation();
-        let mut fonts = self.fonts.with_pixels_per_point(scale);
-        // A run without its own line height takes the font's row height rounded up to whole
-        // points, as craft's text layout sets it (`text_layout::layout_with`).
-        format.line_height = Some(spec.line_height.unwrap_or_else(|| fonts.row_height(&format.font_id).ceil()));
-        let mut layout = |text: &str| {
-            let mut job = LayoutJob::single_section(text.to_owned(), format.clone());
-            job.wrap.max_width = max_width;
-            fonts.layout_job(job)
-        };
-        let text = overflow_text(spec, |t| layout(t).rect.width());
-        let galley = layout(&text);
+        let (galley, text) = self.fonts.with_fonts(scale, |fonts| {
+            // A run without its own line height takes the font's row height rounded up to whole
+            // points, as craft's text layout sets it (`text_layout::layout_with`).
+            format.line_height = Some(spec.line_height.unwrap_or_else(|| fonts.row_height(&format.font_id).ceil()));
+            let mut layout = |text: &str| {
+                let mut job = LayoutJob::single_section(text.to_owned(), format.clone());
+                job.wrap.max_width = max_width;
+                fonts.layout_job(job)
+            };
+            let text = overflow_text(spec, |t| layout(t).rect.width());
+            (layout(&text), text)
+        });
         Shaped { galley, text, source: Source::Plain(spec.clone()), scale, generation }
     }
 
@@ -164,7 +264,6 @@ impl EpaintText {
                 (section.bytes.clone(), section.indent, format)
             })
             .collect();
-        let mut fonts = self.fonts.with_pixels_per_point(scale);
         let mut job = LayoutJob {
             text: rich.text.to_string(),
             direction: if rich.rtl { epaint::text::TextDirection::RightToLeft } else { epaint::text::TextDirection::LeftToRight },
@@ -178,19 +277,22 @@ impl EpaintText {
             },
             ..LayoutJob::default()
         };
-        for (bytes, indent, mut format) in sections {
-            // A section without its own line height takes its face's row height rounded up to whole
-            // points, so a wrapped text keeps its height at every scale.
-            if format.line_height.is_none() {
-                format.line_height = Some(fonts.row_height(&format.font_id).ceil());
+        let galley = self.fonts.with_fonts(scale, |fonts| {
+            for (bytes, indent, mut format) in sections {
+                // A section without its own line height takes its face's row height rounded up to
+                // whole points, so a wrapped text keeps its height at every scale.
+                if format.line_height.is_none() {
+                    format.line_height = Some(fonts.row_height(&format.font_id).ceil());
+                }
+                job.sections.push(epaint::text::LayoutSection {
+                    leading_space: indent,
+                    byte_range: epaint::text::ByteIndex(bytes.start)..epaint::text::ByteIndex(bytes.end),
+                    format,
+                });
             }
-            job.sections.push(epaint::text::LayoutSection {
-                leading_space: indent,
-                byte_range: epaint::text::ByteIndex(bytes.start)..epaint::text::ByteIndex(bytes.end),
-                format,
-            });
-        }
-        let galley = aligned_rows(anchored_at_start(fonts.layout_job(job)), rich.row_align, scale);
+            fonts.layout_job(job)
+        });
+        let galley = aligned_rows(anchored_at_start(galley), rich.row_align, scale);
         let text: Arc<str> = galley.job.text.as_str().into();
         Shaped { galley, text, source: Source::Rich(rich.clone()), scale, generation }
     }
@@ -248,7 +350,7 @@ fn shaped(layout: &TextLayout) -> Option<&Shaped> {
     layout.handle.downcast_ref::<Shaped>()
 }
 
-impl TextEngine for EpaintText {
+impl<F: FontsAccess> TextEngine for EpaintText<F> {
     fn layout(&mut self, spec: &TextSpec, scale: f32) -> TextLayout {
         layout_of(self.shape(spec, scale))
     }
@@ -264,7 +366,7 @@ impl TextEngine for EpaintText {
         if skrifa::FontRef::from_index(&face.bytes, face.index).is_err() {
             return false;
         }
-        let mut definitions = self.fonts.definitions().clone();
+        let mut definitions = self.fonts.with_definitions(FontDefinitions::clone);
         let name = face.family.to_string();
         let blob: epaint::text::Blob = Arc::new(Arc::clone(&face.bytes));
         let tweak = epaint::text::FontTweak { coords: epaint::text::VariationCoords::new(face.coords.iter().copied()), ..Default::default() };
@@ -279,14 +381,11 @@ impl TextEngine for EpaintText {
             }
         }
         definitions.families.insert(FontFamily::Name(name.into()), list);
-        let options = *self.fonts.options();
-        self.generation_base += self.fonts.atlas_generation() + 1;
-        self.fonts = Fonts::new(options, definitions);
-        true
+        self.fonts.replace_definitions(definitions)
     }
 
     fn has_face(&self, family: &str) -> bool {
-        self.fonts.definitions().families.contains_key(&FontFamily::Name(family.into()))
+        self.named(family).is_some()
     }
 
     fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {
