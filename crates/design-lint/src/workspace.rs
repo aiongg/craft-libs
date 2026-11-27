@@ -230,6 +230,8 @@ struct CrateInfo {
     name: String,
     dir: PathBuf,
     egui_linked: bool,
+    /// Whether `app/no-egui` applies: the crate depends on `craft-ui-contract` and is not exempt.
+    contract_client: bool,
     /// Test sources of `harness = false` targets: a file, or the directory of a `main.rs`.
     harness_free: Vec<PathBuf>,
     /// Module path of each source file of the library tree.
@@ -242,6 +244,9 @@ pub struct WorkspaceScope {
     crates: Vec<CrateInfo>,
     types: BTreeMap<PathBuf, crate::contract::Types>,
 }
+
+/// Crates `app/no-egui` leaves alone: ported after the widgets (Q6), and the contract crate until egui leaves it.
+const NO_EGUI_EXEMPT: [&str; 3] = ["craft-cloud-ui", "craft-update", "craft-ui-contract"];
 
 fn is_egui_crate(name: &str) -> bool {
     name == "eframe" || name.starts_with("egui") || name.starts_with("epaint")
@@ -358,6 +363,8 @@ impl WorkspaceScope {
                 name: package.name.clone(),
                 dir: rel(dir),
                 egui_linked: linked.contains(&package.name),
+                contract_client: !NO_EGUI_EXEMPT.contains(&package.name.as_str())
+                    && package.dependencies.iter().any(|d| d.name == "craft-ui-contract"),
                 harness_free: harness_free_targets(dir)?.into_iter().map(|p| rel(dir).join(p)).collect(),
                 modules: module_files(index, package, &rel),
             });
@@ -411,6 +418,10 @@ impl RuleScope for WorkspaceScope {
 
     fn egui_linked(&self, file: &Path) -> bool {
         self.crate_of(file).is_some_and(|c| c.egui_linked)
+    }
+
+    fn contract_client(&self, file: &Path) -> bool {
+        self.crate_of(file).is_some_and(|c| c.contract_client)
     }
 
     fn harness_free(&self, file: &Path) -> bool {
