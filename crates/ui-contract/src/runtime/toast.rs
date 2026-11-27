@@ -169,6 +169,11 @@ pub fn set_progress(ctx: &Context, id: ToastId, fraction: f32, message: Option<L
 pub struct ToastId(u64);
 
 impl ToastId {
+    /// The handle numbered `value` (the queue on craft-ui-rt numbers its own).
+    pub(crate) fn from_value(value: u64) -> Self {
+        ToastId(value)
+    }
+
     /// The handle as a number, unique among the toasts of one queue: what a host reports to automation.
     pub fn value(self) -> u64 {
         self.0

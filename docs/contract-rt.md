@@ -183,13 +183,16 @@ No frozen trait changes. Additions:
 | Addition | File | Lines |
 |---|---|---|
 | `Node::inline`; `Dirty::PATH`; `mark_build` on an inline node marks owners `PATH` up to the root and queues the root | `tree.rs` | ~40 |
-| `BuildCx::inline(el, f)`: reconciles `el`, clears its marks and calls `f` with the node's `Local`, an `InlineState` (new, key moved, `BUILD`, `PATH`) and a nested `BuildCx`; `f` decides to run or keep, and `BuildCx::keep_children` leaves the subtree as it was; otherwise children `f` did not reach go. `mark_changed` and `request_layout` queue only what changed. `inline_layer` for layer children comes with the layers task | `build.rs` | ~150 |
+| `BuildCx::inline(el, f)`: reconciles `el`, clears its marks and calls `f` with the node's `Local`, an `InlineState` (new, key moved, `BUILD`, `PATH`) and a nested `BuildCx`; `f` decides to run or keep, and `BuildCx::keep_children` leaves the subtree as it was; otherwise children `f` did not reach go. `mark_changed` and `request_layout` queue only what changed. `inline_layer(layer, key, spec, el, f)` does the same for a layer child the building node owns, and `peek_layer` reads one's `Local` | `build.rs` | ~150 |
 | `Runtime::set_inline_root`, `Runtime::frame_with(text, roots)`; the build pass calls `roots` for queued inline roots and skips other inline nodes | `runtime.rs` | ~70 |
 | `Driver::step_with(time, roots)`, `Driver::open_inline_window` | `driver.rs` | ~25 |
 | `PaintCx::extend(&DisplayList)` for variants; later an `Arc` swap that skips the copy | `paint.rs` | ~10 |
 | counters `runs` and `scopes` beside `built` (`BuildCx::count_run`, `count_scope`) | `runtime.rs`, `build.rs` | ~20 |
 | `InteractFact` and per-fact interaction cells; `BuildCx::interaction` (no read), `interaction_cell`, `read_interaction(node, fact)` (a build read of one fact, so a scope reading `hovered()` does not rerun on a press), `BuildCx::peek_state` (a cell's value without a read) | `input.rs`, `build.rs`, `runtime.rs` | ~75 |
 | `EventCx::hit(pos, accept)`, `tag_of(node)`, `request_build_of(node)`: a press owner hit-tests along its drag and marks what it crosses (toggle sweeps) | `event.rs` | ~20 |
+| build wakes: `BuildCx::request_build_at`, `EventCx::request_build_at` (a tooltip's delay, a toast's timeout) and an untracked `BuildCx::now` | `build.rs`, `event.rs`, `runtime.rs` | ~40 |
+| `Event::Hover(bool)` for nodes that ask (`BuildCx::hover_events`); `EventCx::request_owner_build` (a layer child tells its owner it was dismissed) | `event.rs`, `input.rs` | ~30 |
+| `LayerSpec::{escape, focus_left, app_modal}`, `DismissReason::{Escape, FocusLeft}`: an unhandled Escape dismisses the topmost layer child that asks, focus leaving one dismisses it, an app-modal child blocks the other windows' input (`Runtime::blocked_by`); `LayerSpec::place` and `constraints` public so a build places its layer child as the runtime will | `layer.rs`, `input.rs` | ~110 |
 
 ## 10. Services
 

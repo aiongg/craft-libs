@@ -5,12 +5,16 @@ use std::any::{Any, TypeId};
 
 use craft_behavior::{PartRef, PressStart};
 use craft_ui_rt::{
-    AccessCx, Constraints, Cursor, DisplayList, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx, Mods, NodeId, PaintCx, PointerButton,
-    PointerInput, Pos2, Sense, State, Vec2,
+    AccessCx, Constraints, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx,
+    Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Sense, State, Vec2,
 };
+
 use egui::Id;
 
+use super::drag::{DragSource, DropRule};
+use super::overlay::PopupStates;
 use super::sweep::Sweep;
+use super::tip::TipKept;
 use crate::runtime::memory::Slot;
 
 /// The pointer state a paint variant was recorded for (section 8).
@@ -47,6 +51,10 @@ pub enum NodeInput {
     },
     /// An assistive technology's action on the node or one of its sub-nodes.
     Access(super::access::AccessAction),
+    /// The drag the node started ended.
+    DragEnd(DragOutcome),
+    /// A payload the node's drop rule takes was dropped on it.
+    Drop(DragData),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -152,6 +160,17 @@ pub(crate) struct Kept {
     pub(crate) press: Option<PressStart>,
     /// A drag of the node's press runs, as of the inputs its runs consumed.
     pub(crate) dragging: bool,
+    /// The component's popups and whether each is open.
+    pub(crate) popups: PopupStates,
+    /// The component's tooltip and where it stands.
+    pub(crate) tip: Option<TipKept>,
+    /// What a drag from the component carries, from its last run.
+    pub(crate) drag: Option<DragSource>,
+    /// The payloads the component takes as drops, from its last run.
+    pub(crate) drop: Option<DropRule>,
+    /// A ui-rt drag session the node started is running: its press moves are the session's, not
+    /// input for a run.
+    pub(crate) drag_session: bool,
 }
 
 impl Kept {
@@ -176,6 +195,11 @@ impl Kept {
             sweep: None,
             toggle: None,
             press: None,
+            popups: PopupStates::new(),
+            tip: None,
+            drag: None,
+            drop: None,
+            drag_session: false,
             dragging: false,
         }
     }
@@ -281,6 +305,10 @@ impl Element for ComponentNode {
                 None => cx.hit(p.shape, p.sense, p.id),
             }
         }
+        if kept.drop.is_some() {
+            let bounds = cx.bounds();
+            cx.drop_target(HitShape::Rect(bounds), 0);
+        }
     }
 
     /// Queues what the next run consumes and marks the node, which marks the path to its window
@@ -288,6 +316,31 @@ impl Element for ComponentNode {
     /// value on press. Focus requests are the runtime's: it moves focus to the nearest stop.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
+            Event::Hover(on) => {
+                if let Some(tip) = kept.tip.as_mut() {
+                    tip.hover(*on, cx);
+                }
+                Handled::Yes
+            }
+            Event::DragEnd(outcome) => {
+                kept.drag_session = false;
+                kept.queue.push(NodeInput::DragEnd(*outcome));
+                cx.request_build();
+                Handled::Yes
+            }
+            Event::Drop(d) => {
+                let Some(rule) = kept.drop else { return Handled::No };
+                match d.phase {
+                    DropPhase::Over if rule.accepts(&d.data) => cx.accept_drop(rule.op),
+                    DropPhase::Over => Handled::No,
+                    DropPhase::Drop => {
+                        kept.queue.push(NodeInput::Drop(d.data.clone()));
+                        cx.request_build();
+                        Handled::Yes
+                    }
+                    _ => Handled::Yes,
+                }
+            }
             Event::Pointer(p) if kept.takes_press() => {
                 self.pointer(kept, cx, p);
                 Handled::Yes
@@ -326,6 +379,23 @@ impl ComponentNode {
             }
             _ => kept.press.unwrap_or_else(|| PressStart::new(pos, p.button, cx.time(), 1)),
         };
+        match p.gesture {
+            Gesture::Down { .. } => {
+                if let Some(tip) = kept.tip.as_mut() {
+                    tip.pressed(cx);
+                }
+            }
+            Gesture::DragStart { .. } if kept.drag.is_some() => {
+                let tokens = cx.env().tokens;
+                let tokens = tokens.get(cx);
+                if let Some(source) = &kept.drag {
+                    kept.drag_session = cx.start_drag(source.start(&tokens));
+                }
+            }
+            // The session moves the preview; the source does not run per move.
+            Gesture::Drag { .. } if kept.drag_session => return,
+            _ => {}
+        }
         if super::sweep::on_pointer(self.tag, kept, cx, p) {
             return;
         }

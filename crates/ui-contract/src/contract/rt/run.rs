@@ -16,10 +16,13 @@ use egui::Id;
 use smallvec::SmallVec;
 
 use super::access::Access;
+use super::drag::{DragSource, DropRule};
 use super::key::{ComponentKey, component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, KeptPart, Memory, NodeInput, Place, Pointer, Variant, part_id};
+use super::overlay::OverlayUi;
 use super::response::{EditResponse, InputFacts, Outcome, Response};
 use super::sweep;
+use super::tip;
 use super::ui::{Flow, Ui};
 use crate::contract::{BindMut, IdSource};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord, PartResult};
@@ -336,6 +339,26 @@ pub trait Component: ComponentKey + Sized {
     /// sense. Runs only while the window's access tree is on.
     fn access(&self, _access: &mut Access, _cx: &Cx<'_, Self>) {}
 
+    /// Shows the component's popups (step 10): after `update` in a run, and on a pass that reaches
+    /// a marked node in one of its popups while the component keeps its outputs.
+    fn overlay(&mut self, _ui: &mut OverlayUi<'_, '_>) {}
+
+    /// The tooltip text; it shows after [`tip::DELAY`] with the pointer resting on the component.
+    fn tooltip(&self) -> Option<String> {
+        None
+    }
+
+    /// What a drag from the component carries; ui-rt starts the session when a press on it moves
+    /// past slop.
+    fn drag_source(&self) -> Option<DragSource> {
+        None
+    }
+
+    /// The payloads the component takes as drops.
+    fn drop_target(&self) -> Option<DropRule> {
+        None
+    }
+
     /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
     fn finish(self, cx: &Cx<'_, Self>) -> Self::Output;
 }
@@ -382,8 +405,13 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
             };
             let rect = flow.allocate(Some(cx.node()), size, false);
             if kept_outputs && size == kept.size {
-                cx.keep_children();
                 kept.cache(room, size);
+                if state.path {
+                    // A node in one of its layer children is marked: reach them.
+                    reach_layers(&mut component, kept, cx, rect, &flow.tokens, flow.sweep);
+                } else {
+                    cx.keep_children();
+                }
                 return settle(component, kept, cx, rect, &flow.tokens);
             }
             let tokens = cx.tokens();
@@ -480,6 +508,11 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
             bind.apply(event);
         }
     }
+    // `rcx` borrows `kept.memory`: the hooks below take Kept's other fields one by one.
+    overlay_pass(&mut component, OverlayUi::new(cx, ran.id, ran.rect, &mut kept.popups, true, ran.tokens.clone(), ran.sweep));
+    tip::show(&mut kept.tip, component.tooltip(), true, cx, ran.id, ran.rect, ran.tokens);
+    kept.drag = component.drag_source();
+    kept.drop = component.drop_target();
     kept.variants = record_variants(&mut component, &rcx, cx, sense);
     // Nothing is built while the window's access tree is off; turning it on rebuilds every node.
     let built = cx.access_enabled().then(|| {
@@ -532,6 +565,7 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                 }
             }
             NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
+            NodeInput::DragEnd(_) | NodeInput::Drop(_) => {}
         }
     }
     (facts, dragging)
@@ -577,6 +611,32 @@ fn drag_delta(phase: PressPhase) -> Vec2 {
         PressPhase::Drag { delta, .. } => delta,
         _ => Vec2::ZERO,
     }
+}
+
+/// Runs the component's `overlay` hook over its kept popups. Returns whether a popup opened or
+/// closed.
+pub(crate) fn overlay_pass<C: Component>(component: &mut C, mut ui: OverlayUi<'_, '_>) -> bool {
+    component.overlay(&mut ui);
+    ui.changed
+}
+
+/// The overlay and tooltip passes of a node that keeps its own outputs while a build reaches its
+/// layer children (a marked node under one of them, or a container whose body runs): the popups
+/// keep their bodies unless marked, and a popup that opened or closed here makes the node run in
+/// this frame.
+pub(crate) fn reach_layers<C: Component>(
+    component: &mut C,
+    kept: &mut Kept,
+    cx: &mut BuildCx<'_>,
+    rect: Rect,
+    tokens: &Arc<Tokens>,
+    sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
+) {
+    let id = kept.id;
+    if overlay_pass(component, OverlayUi::new(cx, id, rect, &mut kept.popups, false, tokens.clone(), sweep)) {
+        cx.rebuild();
+    }
+    tip::show(&mut kept.tip, None, false, cx, id, rect, tokens);
 }
 
 /// One paint, then one per further pointer state when the paint read it (`Press` only for a

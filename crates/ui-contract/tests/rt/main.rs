@@ -4,6 +4,7 @@
 mod access;
 mod input;
 mod layout;
+mod overlay;
 
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};

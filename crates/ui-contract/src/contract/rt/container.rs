@@ -23,7 +23,7 @@ use egui::Id;
 
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, Place, Placed, ScopeNode};
-use super::run::{Component, Ran, finish_measured, holds, run, settle, sweep_tag};
+use super::run::{Component, Ran, finish_measured, holds, reach_layers, run, settle, sweep_tag};
 use super::scroll::{ScrollKept, ScrollNode, overscan};
 use super::sweep::Sweep;
 use super::ui::{Dir, Flow, Ui};
@@ -266,6 +266,8 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
             let rect = flow.allocate(Some(cx.node()), size, fills);
             if own_kept && size == kept.size {
                 kept.cache(room, size);
+                // The body reconciled the children; the layer children are reached the same way.
+                reach_layers(&mut component, kept, cx, rect, &tokens, sweep);
                 return (out, settle(component, kept, cx, rect, &tokens));
             }
             (out, run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep }))
@@ -289,7 +291,7 @@ fn lay_out<C: Container, R>(
     let inner = Rect::from_min_size(origin + shape.pad, (room - 2.0 * shape.pad).max(Vec2::ZERO));
     if !shape.has_regions() {
         let at = BodyAt { node: into.node, own_kept: into.own_kept, marked: into.marked, sweep: into.sweep };
-        let (out, mut flow) = run_body(cx, shape, at, into.kept.as_deref_mut(), id, inner, inner.min, None, tokens, body);
+        let (out, mut flow) = run_body(cx, shape, at, into.kept.as_deref_mut(), id, inner, origin, None, tokens, body);
         if let Some(kept) = into.kept
             && kept.placed != flow.placed
         {
