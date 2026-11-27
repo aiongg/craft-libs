@@ -461,9 +461,10 @@ fn a_fading_popup_takes_no_click_or_key_and_is_gone_after_its_wake() {
         step(&mut rig, &mut app, Some(up));
         focus_outside(&rig);
     }
-    // A click where a row shows reaches none of its rows.
+    // A click where a row shows reaches none of its rows. One more step, not a settle: settling moves the clock on,
+    // past the close fade this inspects.
     click(&mut rig, &mut app, rows[1].center());
-    settle(&mut rig, &mut app);
+    step(&mut rig, &mut app, None);
     assert_eq!(app.menu.picked.get(), None, "the fading menu's rows took nothing");
     assert!(!app.menu.open.get(), "nothing opened it again");
     assert_eq!(layer_children(&rig), fading, "a click inside a fading menu does not dismiss it again or reopen it");

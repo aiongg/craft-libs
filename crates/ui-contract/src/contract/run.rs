@@ -89,8 +89,11 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Step 9, after the component's `update`.
     fn updated(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
 
-    /// Step 11, after the value step's apply.
-    fn apply(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+    /// Step 11, after the value step's apply. True when it wrote through the component's binding (a collection's
+    /// selection), so the node keeps the key of the written value.
+    fn apply(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) -> bool {
+        false
+    }
 
     /// Step 13, into the node's paint before the component's own paint: what lies under the shape's
     /// content (a collection's surface).

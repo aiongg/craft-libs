@@ -22,6 +22,14 @@ pub struct EnvView<'a> {
 }
 
 impl<'a> EnvView<'a> {
+    /// Registers a read of `cell` for the node whose build runs (its hooks and `measure`), so a write to it reruns
+    /// that node and a kept size is not reused across it.
+    fn note(&self, cell: super::EnvCell) {
+        if let Some(seen) = self.scoped.seen {
+            crate::contract::context::log_env_cell(seen, cell);
+        }
+    }
+
     /// The footer a `FooterSlot` under this scope places, if a container offers one.
     pub(crate) fn footer_slot(&self) -> Option<super::FooterSlotOf> {
         self.scoped.footer_slot
@@ -53,8 +61,9 @@ impl<'a> EnvView<'a> {
     }
 
     /// The rounded frame of the layer the scope is on, when it has one: a surface on the layer's edge fits its corners
-    /// to it. `Env::of` registered the read of the frame cell.
+    /// to it.
     pub fn frame(&self) -> Option<super::LayerFrame> {
+        self.note(super::EnvCell::Frame);
         self.scoped.frame
     }
 
@@ -81,32 +90,38 @@ impl<'a> EnvView<'a> {
 
     /// The flow direction: layout order, arrow keys and roving.
     pub fn direction(&self) -> Direction {
+        self.note(super::EnvCell::Direction);
         self.scoped.direction
     }
 
     /// The paragraph direction of text, which only a scope that sets the interface's direction changes.
     pub fn text_direction(&self) -> Direction {
+        self.note(super::EnvCell::Direction);
         self.scoped.text_direction
     }
 
     /// The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
     /// set.
     pub fn mode(&self) -> Mode {
+        self.note(super::EnvCell::Tokens);
         self.scoped.token_inputs.mode
     }
 
     /// The motion mode in effect.
     pub fn motion(&self) -> MotionPolicy {
+        self.note(super::EnvCell::Motion);
         self.scoped.motion
     }
 
     /// Whether the canvas surround shows the theme's pattern (`RootEnv::canvas_pattern`).
     pub fn canvas_pattern(&self) -> bool {
+        self.note(super::EnvCell::Root);
         self.scoped.canvas_pattern
     }
 
     /// The pixels per point.
     pub fn scale(&self) -> Scale {
+        self.note(super::EnvCell::Scale);
         self.scoped.scale
     }
 
