@@ -39,6 +39,16 @@ impl HitShape {
     }
 }
 
+impl HitShape {
+    /// The smallest rect around the shape.
+    pub fn bounds(&self) -> Rect {
+        match *self {
+            HitShape::Rect(r) | HitShape::RoundedRect(r, _) => r,
+            HitShape::Circle(c, radius) => Rect::from_center_size(c, Vec2::splat(radius * 2.0)),
+        }
+    }
+}
+
 impl From<Rect> for HitShape {
     fn from(r: Rect) -> HitShape {
         HitShape::Rect(r)
@@ -52,6 +62,8 @@ pub(crate) enum HitKind {
     Input,
     /// Where drags may drop ([`crate::PaintCx::drop_target`]).
     Drop,
+    /// What the operating system does with a press there ([`crate::PaintCx::window_zone`]).
+    Zone,
 }
 
 /// One recorded shape: what it senses and which part of its node it is (the node's own tag
@@ -138,6 +150,66 @@ fn visit(
         }
     }
     own(Part::Content)
+}
+
+/// A place in a window the operating system acts on ([`crate::PaintCx::window_zone`]), with the
+/// parts of other nodes that lie over it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WindowZone {
+    /// What the node tagged it with.
+    pub tag: u64,
+    /// In window coordinates.
+    pub rect: Rect,
+    /// The parts of other nodes painted above the zone's node that take input, clipped to the
+    /// zone: a press there goes to them, not to the zone.
+    pub covers: Vec<Rect>,
+}
+
+/// Every zone of `window`, with the input shapes above each: paint order is the tree's pre-order
+/// with the layers in order, so a shape recorded after the zone's (by another node) is above it.
+/// An ancestor is visited before its descendants and so never covers them.
+pub(crate) fn window_zones(tree: &Tree, window: &Window) -> Vec<WindowZone> {
+    enum Entry {
+        Zone(u64, Rect, NodeId),
+        Input(Rect, NodeId),
+    }
+    fn walk(tree: &Tree, id: NodeId, parent_origin: Vec2, out: &mut Vec<Entry>) {
+        let Some(node) = tree.nodes.get(&id) else { return };
+        let origin = parent_origin + node.frame.offset;
+        for h in &node.hits {
+            let rect = h.shape.bounds().translate(origin);
+            match h.kind {
+                HitKind::Zone => out.push(Entry::Zone(h.part, rect, id)),
+                HitKind::Input if !h.sense.is_empty() => out.push(Entry::Input(rect, id)),
+                HitKind::Input | HitKind::Drop => {}
+            }
+        }
+        for &child in &node.children {
+            walk(tree, child, origin, out);
+        }
+    }
+    let mut entries = Vec::new();
+    for layer in Layer::ALL {
+        walk(tree, window.layer(layer), Vec2::ZERO, &mut entries);
+    }
+    entries
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| match e {
+            Entry::Zone(tag, rect, node) => {
+                let covers = entries[i + 1..]
+                    .iter()
+                    .filter_map(|o| match o {
+                        Entry::Input(cover, owner) if owner != node => Some(cover.intersect(*rect)),
+                        _ => None,
+                    })
+                    .filter(|cover| cover.is_positive())
+                    .collect();
+                Some(WindowZone { tag: *tag, rect: *rect, covers })
+            }
+            Entry::Input(..) => None,
+        })
+        .collect()
 }
 
 /// The window origin of `id`: the sum of its and its ancestors' offsets.

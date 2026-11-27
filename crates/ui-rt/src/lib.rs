@@ -53,13 +53,13 @@ pub use display::{
     StrokeAlign, SurfaceKey, TextHighlight, Vertex, Wrap,
 };
 pub use drag::{DragData, DragGhost, DragInfo, DragOutcome, DragPointer, DragStart, DropInput, DropPhase};
-pub use driver::{Driver, StepReport};
+pub use driver::{Driver, StepReport, WakeHandler};
 pub use element::{Element, Memo, Show};
-pub use event::{AccessInput, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
+pub use event::{AccessInput, CloseReason, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 pub use frame::{Draw, FrameChanges, FrameNode, FrameTree, Part};
 pub use geom::{Constraints, CornerRadii, Margin, RectU, SizeU, damage_pixels};
 pub use gesture::{PINCH_CONTINUES, WheelOptions};
-pub use hit::{Hit, HitShape};
+pub use hit::{Hit, HitShape, WindowZone};
 pub use id::{NodeId, WindowId, hash_key};
 pub use input::{Interact, InteractFact, LONG_PRESS_TIME, TOUCH_SLOP};
 pub use layer::{DismissReason, Layer, LayerSpec, OutsidePress, Placement, Side};
@@ -76,7 +76,7 @@ pub use text::{
     FaceInstall, FontFace, FontSpec, GlyphPlace, Overflow, RichText, TextEngine, TextFormat, TextHandle, TextLayout, TextLine, TextMetrics, TextRow,
     TextSection, TextSpec, TextWrap, overflow_text,
 };
-pub use window::Env;
+pub use window::{Env, WindowGeometry};
 
 pub use craft_behavior::{
     CopyKeys, CursorIcon, DropOperation, PointerButton, PointerKind, PointerSample, PressCancel, Sense, WheelPhase, WheelSource, WheelUnit,

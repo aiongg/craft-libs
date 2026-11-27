@@ -38,6 +38,7 @@ pub mod textures;
 mod tip;
 mod toast;
 mod ui;
+pub mod windows;
 
 pub use container::{Container, show_container};
 pub use dialog::show_dialog;

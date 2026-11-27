@@ -226,7 +226,7 @@ pub(super) fn frame_of_spec(ctx: &Context, spec: &WindowSpec) -> (WindowChrome, 
 }
 
 /// Who draws the frame `frame` describes.
-pub(super) fn chrome_of(frame: &Frame) -> WindowChrome {
+pub(crate) fn chrome_of(frame: &Frame) -> WindowChrome {
     match frame {
         Frame::Native => WindowChrome::Native,
         Frame::Inset(_) => WindowChrome::Inset,

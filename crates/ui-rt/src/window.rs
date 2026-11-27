@@ -40,6 +40,16 @@ pub struct Env {
     pub drag: State<Option<DragInfo>>,
 }
 
+/// Where a window is and how big, as the platform last reported.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowGeometry {
+    /// The inner size in logical points.
+    pub size: Vec2,
+    pub scale: f32,
+    /// The surface's top left on the virtual desktop in physical pixels, once the platform told.
+    pub position_px: Option<Pos2>,
+}
+
 pub(crate) struct Window {
     pub(crate) env: Env,
     pub(crate) root: NodeId,
@@ -69,6 +79,11 @@ pub(crate) struct Window {
     /// Nodes that take drops anywhere in the window ([`crate::PaintCx::window_drop_target`]), in
     /// the order they registered.
     pub(crate) window_drops: Vec<NodeId>,
+    /// Nodes that answer the window's close requests ([`crate::PaintCx::close_guard`]), in the order
+    /// they registered.
+    pub(crate) close_guards: Vec<NodeId>,
+    /// The app's name for the window ([`crate::WindowSpec::key`]).
+    pub(crate) key: Option<String>,
 }
 
 impl Window {
@@ -94,6 +109,8 @@ impl Window {
             position: None,
             owner: None,
             window_drops: Vec::new(),
+            close_guards: Vec::new(),
+            key: None,
         }
     }
 

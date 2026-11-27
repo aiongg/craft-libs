@@ -335,6 +335,9 @@ pub struct WindowSpec {
     pub decorations: bool,
     /// Draws over the window it is attached to and moves with it (a floating panel window).
     pub owner: Option<WindowId>,
+    /// The app's name for the window (the key its placement is saved under); the runtime keeps it
+    /// for the host ([`crate::Runtime::window_key`]).
+    pub key: Option<String>,
 }
 
 impl WindowSpec {

@@ -169,6 +169,11 @@ impl Runtime {
                 if let Some(input) = self.input_mut(window) {
                     input.hover_pos = None;
                     input.hover_pointer = None;
+                    // A window that takes no input shows the arrow, not what it showed under the pointer.
+                    if input.cursor != crate::platform::Cursor::Default {
+                        input.cursor = crate::platform::Cursor::Default;
+                        self.cursor_requests.push((window, crate::platform::Cursor::Default));
+                    }
                 }
                 self.refresh_hover(window);
             }
@@ -849,6 +854,7 @@ impl Runtime {
         self.forget_touch_node(window, id);
         if let Some(w) = self.windows.get_mut(&window) {
             w.window_drops.retain(|&n| n != id);
+            w.close_guards.retain(|&n| n != id);
         }
         let Some(input) = self.input_mut(window) else { return };
         if input.hover_hit.is_some_and(|(h, _)| h.node == id) {

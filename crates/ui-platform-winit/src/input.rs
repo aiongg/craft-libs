@@ -70,7 +70,16 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
             }
             put(WindowEvent::Resize(px.to_logical(scale as f32)));
         }
-        W::Moved(_) => shared.borrow_mut().monitors_stale = true,
+        W::Moved(outer) => {
+            // The event carries the outer corner; the runtime's `Moved` is the surface's.
+            let inner = {
+                let mut s = shared.borrow_mut();
+                s.monitors_stale = true;
+                s.entry(id).and_then(|e| e.window.as_ref()).and_then(|w| w.inner_position().ok())
+            };
+            let at = inner.unwrap_or(outer);
+            put(WindowEvent::Moved(Pos2::new(at.x as f32, at.y as f32)));
+        }
         W::ScaleFactorChanged { scale_factor, .. } => {
             if let Some(e) = shared.borrow_mut().entry_mut(id) {
                 e.scale = scale_factor as f32;

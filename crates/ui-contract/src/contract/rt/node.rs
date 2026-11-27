@@ -55,6 +55,8 @@ pub enum NodeInput {
     DragEnd(DragOutcome),
     /// A payload the node's drop rule takes was dropped on it.
     Drop(DragData),
+    /// The node is its window's close guard and the window was asked to close.
+    Close(craft_ui_rt::CloseReason),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -92,6 +94,9 @@ pub(crate) struct KeptPart {
     pub(crate) shape: HitShape,
     pub(crate) sense: Sense,
     pub(crate) cursor: Option<Cursor>,
+    /// What the operating system does with a press on the part (a title bar's drag area, a caption
+    /// button, a resize edge).
+    pub(crate) exclusive: Option<crate::runtime::windows::WindowHit>,
 }
 
 /// The ui-rt part id of `part`: never 0, which names the node's own shape.
@@ -148,6 +153,8 @@ pub(crate) struct Kept {
     /// A ui-rt drag session the node started is running: its press moves are the session's, not
     /// input for a run.
     pub(crate) drag_session: bool,
+    /// The component answers its window's close requests, from its last run.
+    pub(crate) close_guard: bool,
     /// The env cells the node's window root provided (window root only).
     pub(crate) env: Option<super::env::EnvCells>,
     /// The cursor over the node's own shape, from `Component::cursor`.
@@ -185,6 +192,7 @@ impl Kept {
             drag: None,
             drop: None,
             drag_session: false,
+            close_guard: false,
             dragging: false,
             env: None,
             cursor: None,
@@ -282,7 +290,13 @@ impl Element for ComponentNode {
         super::motion::paint_level(kept, cx);
         super::motion::paint_looks(kept, cx, look);
         super::cursor::record_own_shape(kept, cx);
+        if kept.close_guard {
+            cx.close_guard();
+        }
         for p in &kept.parts {
+            if let Some(hit) = p.exclusive {
+                cx.window_zone(p.shape, super::windows::zone_tag(hit));
+            }
             match p.cursor {
                 Some(cursor) => cx.hit_cursor(p.shape, p.sense, p.id, cursor),
                 None => cx.hit(p.shape, p.sense, p.id),
@@ -303,6 +317,11 @@ impl Element for ComponentNode {
                 if let Some(tip) = kept.tip.as_mut() {
                     tip.hover(*on, cx);
                 }
+                Handled::Yes
+            }
+            Event::CloseRequested(reason) => {
+                kept.queue.push(NodeInput::Close(*reason));
+                cx.request_build();
                 Handled::Yes
             }
             Event::DragEnd(outcome) => {
