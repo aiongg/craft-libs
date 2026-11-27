@@ -96,41 +96,6 @@ impl DropTarget<ColumnDrag> for ColumnGap {
     }
 }
 
-/// One toggle cell of a row as the row records it for the collection's node of that cell.
-#[doc(hidden)]
-#[derive(Clone, Debug)]
-pub struct RowToggle {
-    /// The cell's column.
-    pub column: ColumnKey,
-    /// The accessible name, `{row}` filled; empty when the cell gives none.
-    pub name: String,
-    /// The cell shows the mixed state.
-    pub mixed: bool,
-    /// The cell is announced as a check box.
-    pub check_box: bool,
-    /// The row's node for the cell, which the collection's node for the cell goes under.
-    pub cell: Id,
-}
-
-/// The toggle cells of one row this pass, by column.
-#[derive(Clone, Default)]
-struct ToggleNames(std::sync::Arc<[RowToggle]>);
-
-/// Records the toggle cells of the row `item`, for the collection's cell nodes of the same pass. A row that has none
-/// records an empty list.
-#[doc(hidden)]
-pub fn put_toggle_names(ctx: &Context, item: Id, names: Vec<RowToggle>) {
-    ctx.service::<ToggleNamesOf, _>(|recorded| recorded.0.insert(item, ToggleNames(names.into())));
-}
-
-fn recorded_toggle_names(ctx: &Context, item: Id) -> Option<std::sync::Arc<[RowToggle]>> {
-    ctx.service::<ToggleNamesOf, _>(|recorded| recorded.0.get(&item).map(|ToggleNames(names)| names.clone()))
-}
-
-/// The toggle names each row recorded (`put_toggle_names`), by the row's item id: a window service.
-#[derive(Default)]
-struct ToggleNamesOf(std::collections::HashMap<Id, ToggleNames>);
-
 /// The header row's facts for the collection that shows the header menu.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct HeaderFacts {
@@ -369,26 +334,15 @@ impl Header {
         self.toggle_columns().filter_map(|(column, toggle)| Some((column, toggle.key?))).collect()
     }
 
-    /// The cell of toggle column `key` in the row `item` as the row recorded it (`put_toggle_names`), else a cell under
-    /// the row's node. Its name is the one the row's cell gave, else the column's header text, else its icon's name,
-    /// resolved in `env`. `None` when the row recorded its toggle cells and has none in this column: the collection
-    /// reports no node there.
-    pub(super) fn toggle_cell(&self, ctx: &Context, item: Id, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> Option<RowToggle> {
-        let recorded = recorded_toggle_names(ctx, item);
-        let mut cell = match &recorded {
-            Some(cells) => cells.iter().find(|cell| cell.column == *key).cloned()?,
-            None => RowToggle { column: key.clone(), name: String::new(), mixed: false, check_box: false, cell: item },
-        };
-        if !cell.name.is_empty() {
-            return Some(cell);
-        }
-        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return Some(cell) };
+    /// The name of toggle column `key`'s cells before their row names them: the column's header text, else its icon's
+    /// name, resolved in `env`.
+    pub(super) fn toggle_header_name(&self, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
+        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return String::new() };
         let header = env.resolve(&spec.header);
-        cell.name = match (header.as_str(), &spec.icon) {
+        match (header.as_str(), &spec.icon) {
             ("", Some(icon)) => icon.name().to_owned(),
             (text, _) => text.to_owned(),
-        };
-        Some(cell)
+        }
     }
 
     /// The key of the column at position `at`.

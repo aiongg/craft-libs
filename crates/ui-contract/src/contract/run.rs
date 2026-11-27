@@ -48,6 +48,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         None
     }
 
+    /// The node shows focus on its lead item, never with a ring round itself (a collection).
+    fn lead_shows_focus(&self) -> bool {
+        false
+    }
+
     /// What a text field that drives this node reads of it at key time; `None` for a node that is no collection.
     fn list_keys(&self) -> Option<crate::contract::rt::focus::ListKeys> {
         None

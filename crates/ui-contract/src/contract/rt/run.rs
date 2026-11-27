@@ -711,7 +711,6 @@ pub(crate) fn run_shaped<C: Component>(
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
         kept.cursor = Some(cursor);
     }
-    kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     // A node whose only stops are selection parts is a stop too, focused by a press on a part and out of Tab order.
     let selection_only = !stop && resolved.enabled && !parts.text.selections.is_empty();
     kept.focus.stop = if stop {
@@ -862,7 +861,14 @@ pub(crate) fn run_shaped<C: Component>(
             kept.focus.part = None;
         }
     }
-    kept.focus.ring_shape = ring_shape(&cxx, &kept.focus, rect);
+    let ring = stop
+        .then(|| crate::style::StyleView::focus(style))
+        .flatten()
+        .and_then(|look| Some((look, ring_shape(&cxx, &kept.focus, rect, !hooks.lead_shows_focus())?)));
+    (kept.focus.ring, kept.focus.ring_shape) = match ring {
+        Some((look, shape)) => (Some(craft_ui_rt::Stroke::new(look.stroke.width, crate::primitives::items::rgba(look.stroke.color))), shape),
+        None => (None, RingShape::Bounds),
+    };
 
     // 17 finish: the activation fires the bound command once, at event time on the board's handler.
     let activated = component.activated(&cxx) && resolved.enabled;
@@ -1131,22 +1137,23 @@ fn bar_returns_here(cx: &BuildCx<'_>) -> bool {
     menu.returns_to(within) == Some(cx.node())
 }
 
-/// The ring round the part that holds focus, with the shape its `focus_shape` declared, else round
-/// the node: the shape `Cx::focus_shape` set, else its rect with its surface's corners.
-fn ring_shape<C: Component>(cx: &Cx<'_, C>, focus: &super::focus::FocusKept, rect: Rect) -> RingShape {
-    if focus.ring.is_none() {
-        return RingShape::Bounds;
-    }
+/// The ring of a stop whose style has a focus look: round the part that holds focus, with the shape its `focus_shape`
+/// declared, else round the node (`whole`): the shape `Cx::focus_shape` set, else its rect with its surface's corners.
+/// `None` for the node's own ring on a `Well` surface or where its lead item shows the focus (`whole` false).
+fn ring_shape<C: Component>(cx: &Cx<'_, C>, focus: &super::focus::FocusKept, rect: Rect, whole: bool) -> Option<RingShape> {
     let core = &*cx.core;
     if let Some(part) = focus.part
         && let Some(result) = core.results.get(&(part.key, part.index))
     {
         let shape = core.focus_shapes.iter().find(|(key, _)| *key == (part.key, part.index)).map(|(_, shape)| shape);
-        return RingShape::of(shape, result.rect, craft_ui_rt::CornerRadii::ZERO, rect.min);
+        return Some(RingShape::of(shape, result.rect, craft_ui_rt::CornerRadii::ZERO, rect.min));
     }
-    let radii =
-        crate::style::StyleView::surface(cx.style).map_or(craft_ui_rt::CornerRadii::ZERO, |look| crate::primitives::items::radii(look.radius));
-    RingShape::of(core.focus_shape.as_ref(), rect, radii, rect.min)
+    let surface = crate::style::StyleView::surface(cx.style);
+    if !whole || surface.is_some_and(|look| look.kind == Some(crate::style::SurfaceKind::Well)) {
+        return None;
+    }
+    let radii = surface.map_or(craft_ui_rt::CornerRadii::ZERO, |look| crate::primitives::items::radii(look.radius));
+    Some(RingShape::of(core.focus_shape.as_ref(), rect, radii, rect.min))
 }
 
 /// The window rects of the parts that toggle a popup, which `OverlayUi::anchor_part` anchors to.

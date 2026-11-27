@@ -71,7 +71,6 @@ pub use drag::{SweepApply, SweepStep};
 pub use header::ColumnCommands;
 pub(crate) use header::HeaderFacts;
 #[doc(hidden)]
-pub use header::{RowToggle, put_toggle_names};
 pub use press::item_part_open;
 #[doc(hidden)]
 pub use request::lead_position;

@@ -208,7 +208,6 @@ impl Component for ListRow<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        self.record_toggle_names(cx);
         if self.spacer || self.rule_head {
             return;
         }
@@ -499,13 +498,19 @@ impl Component for ListRow<'_> {
             cell.grid.column_index = column_of(&toggle.column);
             cell.flags.set(Flags::SELECTED, selected);
             // A toggle of the collection's own toggle column is the collection's node, with its state, and its
-            // requests go to the collection; the row reports it under this cell, where the painted toggle stands.
+            // requests go to the collection; the row reports it under this cell, where the painted toggle stands, named
+            // and announced as its cell shows it.
             if self.toggle_columns.contains(&toggle.column) {
                 let row = cx.env.facts_of(cx.resolved.id);
                 if let Some((_, node)) = row.and_then(|facts| facts.toggle_nodes.iter().find(|(column, _)| *column == toggle.column)) {
                     let rect = self.cell_rect(TOGGLE_CELL.at(at as u64));
                     let node = access.adopt(TOGGLE.at(at as u64), node.clone());
                     node.under(TOGGLE_CELL.at(at as u64));
+                    node.name = Name::Text(named(toggle.name_pattern(&words), label));
+                    node.flags.set(Flags::MIXED, toggle.state == ToggleState::Mixed);
+                    if toggle.check_box {
+                        node.check_box();
+                    }
                     if let Some(rect) = rect {
                         node.bounds(rect);
                     }

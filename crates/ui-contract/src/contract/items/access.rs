@@ -13,14 +13,15 @@ use craft_behavior::ColumnKey;
 use craft_ui_rt::{Pos2, Rect};
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The access node of each shown toggle cell of row `(at, key)`, for the band row `item` to report under its cell:
-    /// named by its cell, else by its column's header, carrying its state, and served by the collection `owner`. The
+    /// The access node of each shown toggle cell of row `(at, key)`, for its band row to report under its cell:
+    /// carrying the state the collection holds, named by the column's header until the row names it from its own cell
+    /// (`SubNode::check_box` for a cell the row announces as a check box), and served by the collection `owner`. The
     /// collection claims each cell's part with a `Role::None` sub-node, so an AccessKit click the row hands on reaches
-    /// `toggle_by_access`.
+    /// `toggle_by_access`. Nothing here comes from the row's run, so the row's facts hold across its runs.
     pub(super) fn toggle_cell_nodes(
         &mut self,
         ctx: &Context,
-        (owner, item): (Id, Id),
+        owner: Id,
         (at, key): (usize, &C::Key),
         (cells, enabled): (&[(ColumnKey, Rect)], bool),
         env: &crate::runtime::env::EnvView<'_>,
@@ -30,17 +31,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if !cells.iter().any(|(held, _)| *held == column) {
                 continue;
             }
-            let Some(cell) = self.header.toggle_cell(ctx, item, &column, env) else { continue };
-            let role = match (toggle.exclusive, cell.check_box) {
-                (true, _) => Role::RADIO_BUTTON,
-                (false, true) => Role::CHECK_BOX,
-                (false, false) => Role::SWITCH,
-            };
+            let role = if toggle.exclusive { Role::RADIO_BUTTON } else { Role::SWITCH };
             let part = TOGGLE_CELL.at(key_hash(&(key, &column)));
             let mut node = access::SubNode::new(part, role);
-            node.name = access::Name::Text(cell.name);
+            node.name = access::Name::Text(self.header.toggle_header_name(&column, env));
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
-            node.flags.set(crate::style::Flags::MIXED, cell.mixed);
             node.disabled = !(enabled && self.source.enabled(at) && self.toggle_open(at, &column));
             if let Some(chord) = toggle.key {
                 node.shortcut(chord.display(ctx.os()));

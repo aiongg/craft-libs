@@ -180,15 +180,17 @@ fn a_select_runs_the_same_nodes_at_any_length_and_one_row_more_when_it_moves() {
 
 #[test]
 fn a_footer_click_adds_one_layer_at_the_same_cost_at_any_length() {
+    // The new layer goes in at the top and moves every band row down one place, so each band row runs; both lengths
+    // fill the band (a 20-layer list holds fewer rows than the band).
     let mut runs = Vec::new();
-    for n in [20, 600] {
+    for n in [100, 600] {
         let mut h = panel(n);
         let target = h.get_by_label("New Layer");
         let added = click(&mut h, target);
         assert_eq!(h.state().tree.layers.len(), n + 1, "N={n}: New Layer adds one layer");
         runs.push(added.frame.runs);
     }
-    assert_eq!(runs[0], runs[1], "a footer click runs the same nodes at 20 and 600 layers");
+    assert_eq!(runs[0], runs[1], "a footer click runs the same nodes at 100 and 600 layers");
 }
 
 #[test]

@@ -68,6 +68,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(role)
     }
 
+    fn lead_shows_focus(&self) -> bool {
+        true
+    }
+
     fn list_keys(&self) -> Option<crate::contract::rt::focus::ListKeys> {
         let tree = self.layout.as_ref().is_some_and(|layout| matches!(layout.nav(), craft_behavior::NavShape::Tree));
         Some(crate::contract::rt::focus::ListKeys { tree, lead: self.lead.key.is_some() })
@@ -438,9 +442,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 // A band row reports the toggles of the collection's toggle columns under its own cells; a member
                 // has no node to report them under.
                 let toggle_nodes = match facts {
-                    Some(_) => {
-                        self.toggle_cell_nodes(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env)
-                    }
+                    Some(_) => self.toggle_cell_nodes(&ctx, id, (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env),
                     None => Vec::new(),
                 };
                 let row_facts = ItemFacts {

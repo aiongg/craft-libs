@@ -6,7 +6,7 @@ use super::style::{ListRowStyle, ThumbRows};
 use super::thumb::{Thumb, ThumbSize};
 use super::trailing::{TrailingFace, TrailingItem, trailing_run};
 use crate::buttons::Link;
-use crate::contract::{ColumnAlign, PartsCx, RowHeight, RowToggle, WordSetCx as _};
+use crate::contract::{ColumnAlign, PartsCx, RowHeight, WordSetCx as _};
 use crate::layout::{ShrinkOrder, ShrinkUnit, shrink_widths};
 use crate::list::toggle::ToggleState;
 use crate::list::words::ListWords;
@@ -242,29 +242,6 @@ impl ListRow<'_> {
             }
             self.menu_open |= facts.menu_open;
         }
-    }
-
-    /// Hands the collection this row's toggle cells, so its cell nodes read their names and roles and go under the
-    /// row's cell nodes.
-    pub(super) fn record_toggle_names(&self, cx: &PartsCx<'_, Self>) {
-        let words = cx.words::<ListWords>();
-        let label = cx.resolved.label;
-        let id = cx.resolved.id;
-        // A row without a node, or a spacer, reports no cell nodes: the collection's node goes under the row's.
-        let cells = self.node && !self.spacer;
-        let names = self
-            .toggles
-            .iter()
-            .enumerate()
-            .map(|(at, toggle)| RowToggle {
-                column: toggle.column.clone(),
-                name: named(toggle.name_pattern(&words), label),
-                mixed: toggle.state == ToggleState::Mixed,
-                check_box: toggle.check_box,
-                cell: if cells { crate::runtime::access::sub_node_id(id, TOGGLE_CELL.at(at as u64)) } else { id },
-            })
-            .collect();
-        crate::contract::put_toggle_names(&cx.context(), cx.resolved.id, names);
     }
 
     /// How the wrapped lines fit: all of them, or cut after `line_limit`.

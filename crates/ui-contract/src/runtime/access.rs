@@ -619,6 +619,16 @@ impl SubNode {
         self
     }
 
+    /// Announces a two-state toggle another component described (`Access::adopt`) as a check box, as the cell it
+    /// stands for shows one; a radio button stays one.
+    #[doc(hidden)]
+    pub fn check_box(&mut self) -> &mut Self {
+        if self.role != Role::RADIO_BUTTON {
+            self.role = Role::CHECK_BOX;
+        }
+        self
+    }
+
     /// Requests on this sub-node go to component `owner` as requests on its `part`: the owner describes the node and
     /// another component reports it (`Access::adopt`). The owner claims `part` with a `Role::None` sub-node of its own.
     #[doc(hidden)]

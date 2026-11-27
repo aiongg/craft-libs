@@ -10,7 +10,7 @@ use craft_behavior::{IconId, Metrics, PartKey, PressPhase, ValueDrag};
 use craft_ui_contract::contract::*;
 use craft_ui_contract::primitives::{PaintShape, TextRun};
 use craft_ui_contract::runtime::focus::{ActivateKeys, FocusPolicy, KeepKeys, KeyUse, Roving};
-use craft_ui_contract::style::{ComponentStyle, Stateful, States, StyleColor, StyleCx, SurfaceKind, SurfaceLook, UiTokens, rgba_color};
+use craft_ui_contract::style::{ComponentStyle, FocusLook, Stateful, States, StyleColor, StyleCx, SurfaceKind, SurfaceLook, UiTokens, rgba_color};
 use craft_ui_rt::{ImageKey, Pos2, Rect, Sense, Vec2, hash_key};
 use craft_ui_test_kit::contract::PlainStyle;
 
@@ -49,13 +49,22 @@ impl IconButton {
     }
 }
 
+/// The icon button's style: the focus ring of the real one.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+pub struct IconButtonStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+}
+
 impl Component for IconButton {
     const ROLE: Role = Role::BUTTON;
-    type Style = PlainStyle;
+    type Style = IconButtonStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: IconButtonStyleKey) -> PlainStyle {
-        PlainStyle::default()
+    fn style(cx: &StyleCx<'_>, _: IconButtonStyleKey) -> IconButtonStyle {
+        IconButtonStyle { metrics: Metrics::new(), focus: cx.focus_look() }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
