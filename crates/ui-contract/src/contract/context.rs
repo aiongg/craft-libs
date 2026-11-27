@@ -39,6 +39,8 @@ pub struct Context {
 pub enum PlatformRequest {
     /// Put `text` on the clipboard.
     CopyText(String),
+    /// Put `image` on the clipboard (straight alpha).
+    CopyImage(craft_ui_rt::RgbaImage),
     /// Open `url`, in a new tab where the platform has tabs and `new_tab` is set.
     OpenUrl { url: String, new_tab: bool },
 }
@@ -275,6 +277,11 @@ impl Context {
     /// Puts `text` on the clipboard.
     pub fn copy_text(&self, text: String) {
         self.platform(PlatformRequest::CopyText(text));
+    }
+
+    /// Puts `image` (straight alpha) on the clipboard; platforms without image support ignore it.
+    pub(crate) fn copy_image(&self, image: craft_ui_rt::RgbaImage) {
+        self.platform(PlatformRequest::CopyImage(image));
     }
 
     /// Opens `url`, in a new tab where the platform has tabs and `new_tab` is set.

@@ -1252,6 +1252,7 @@ macro_rules! derived_hash {
 }
 
 derived_hash!(
+    craft_ui_rt::NodeId,
     craft_behavior::PointerButton,
     craft_keymap::Binding,
     craft_behavior::NavMove,

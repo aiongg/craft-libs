@@ -528,6 +528,7 @@ impl<A: App> Host<A> {
             for request in ctx.take_platform_requests() {
                 match request {
                     PlatformRequest::CopyText(text) => driver.platform.clipboard().set_text(&text),
+                    PlatformRequest::CopyImage(image) => driver.platform.clipboard().set_image(&image),
                     PlatformRequest::OpenUrl { url, new_tab } => driver.platform.open_url(&url, new_tab),
                 }
             }

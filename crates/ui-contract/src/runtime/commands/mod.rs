@@ -639,6 +639,13 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
     fn command_inbox(&mut self) -> Option<(&mut InboxIn, &mut crate::runtime::memory::MemoryStage, crate::primitives::Id)> {
         None
     }
+    /// The paste this context's run takes: the focused component that lists Paste gets the clipboard content the
+    /// platform delivered to it. `None` for a context without a node of its own.
+    fn command_pasted(&self) -> Option<ClipContent> {
+        None
+    }
+    /// Whether this context belongs to a measuring run, whose effects are fenced.
+    fn command_fenced(&self) -> bool;
 }
 
 /// The chapter-11 context trait that `Cx`, `BodyCx` and `ItemCx` implement. "This instance" is the innermost
@@ -646,7 +653,7 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
 pub trait Commands: CommandAccess {
     /// The one clipboard path.
     fn clipboard(&self) -> ClipboardHandle {
-        ClipboardHandle::new(self.command_ctx(), self.command_owner())
+        ClipboardHandle::new(self.command_ctx(), self.command_owner(), self.command_pasted(), self.command_fenced())
     }
 
     /// This frame's state of a scoped command, for this instance. Publishing an app-scope command here is a

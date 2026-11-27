@@ -72,6 +72,10 @@ impl craft_theme::Mix for SurfaceStyle {
             SurfaceStyle { fill: craft_theme::Mix::mix(self.fill, to.fill, t), ..self }
         }
     }
+
+    fn same(self, other: SurfaceStyle) -> bool {
+        self == other
+    }
 }
 
 fn color(c: Rgba) -> Color32 {
