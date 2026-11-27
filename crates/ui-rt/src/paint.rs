@@ -82,6 +82,13 @@ impl PaintCx<'_> {
         self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::Drop, cursor: None });
     }
 
+    /// Records a place, in local coordinates, where a primary press holds the focused node's draft:
+    /// the focused node gets [`crate::Event::PressKept`] with `holds`, and keeps its focus when it
+    /// holds drafts, whatever shape takes the press. The shape takes no input itself.
+    pub fn holds_drafts(&mut self, shape: impl Into<HitShape>) {
+        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part: 0, level: self.part, kind: HitKind::Hold, cursor: None });
+    }
+
     /// Records a place the operating system acts on in local coordinates: a press there moves the
     /// window, resizes it or is a caption button, as the host's `tag` says
     /// ([`crate::Runtime::window_zones`]). It takes no pointer input of the runtime's.

@@ -90,8 +90,12 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
         W::Focused(focused) => put(WindowEvent::Focus(focused)),
         W::ThemeChanged(theme) => put(WindowEvent::Theme(theme_of(theme))),
         W::ModifiersChanged(m) => {
+            let now = mods_of(m.state());
             if let Some(e) = shared.borrow_mut().entry_mut(id) {
-                e.mods = mods_of(m.state());
+                e.mods = now;
+            }
+            if now != mods {
+                put(WindowEvent::Modifiers(now));
             }
         }
         W::CursorMoved { position, .. } => {

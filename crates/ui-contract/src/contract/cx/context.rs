@@ -246,6 +246,8 @@ pub struct CxCore<'a> {
 pub(crate) struct RunIo<'a> {
     /// The inputs queued since the last run, oldest first; empty on a settled `Cx`.
     pub(crate) input: &'a [NodeInput],
+    /// The frame's text engine while the driver lends it to `update` (`Cx::layout_doc`); `None` outside that call.
+    pub(crate) text: Option<&'a dyn crate::primitives::Services>,
     /// The node did not run: `finish` gets the kept facts.
     pub(crate) settled: bool,
     /// The run is a measuring run (the parent measures its children); it reaches no node.
@@ -311,11 +313,75 @@ pub(crate) struct RunIo<'a> {
     pub(crate) drop_types: RefCell<smallvec::SmallVec<[(std::any::TypeId, bool); 1]>>,
 }
 
+/// The frame's text engine, lent to a component's `update` (`Cx::layout_doc`): the driver takes it out of the run's
+/// build before the call and puts it back after, and records the font stack read only when the call laid text out, so a
+/// node whose `update` lays nothing out reads nothing more.
+pub(crate) struct UpdateText<'e> {
+    engine: RefCell<Option<&'e mut dyn craft_ui_rt::TextEngine>>,
+    scale: Cell<f32>,
+    fonts: Cell<crate::fonts::StackFacts>,
+    used: Cell<bool>,
+}
+
+impl<'e> UpdateText<'e> {
+    pub(crate) fn new() -> UpdateText<'e> {
+        UpdateText { engine: RefCell::new(None), scale: Cell::new(1.0), fonts: Cell::new(Default::default()), used: Cell::new(false) }
+    }
+
+    /// Takes the engine out of `cx` for the `update` call.
+    pub(crate) fn lend(&self, cx: &mut craft_ui_rt::BuildCx<'e>) {
+        self.scale.set(cx.scale());
+        self.fonts.set(crate::fonts::peek_stack_facts(cx));
+        *self.engine.borrow_mut() = cx.lend_text_engine();
+    }
+
+    /// Puts the engine back into `cx` after the call; a call that laid text out records the reads its layout made.
+    pub(crate) fn give_back(&self, cx: &mut craft_ui_rt::BuildCx<'e>) {
+        cx.return_text_engine(self.engine.borrow_mut().take());
+        if self.used.take() {
+            crate::fonts::stack_facts(cx);
+            let _ = cx.text_engine();
+        }
+    }
+}
+
+impl crate::primitives::Services for UpdateText<'_> {
+    fn scale(&self) -> f32 {
+        self.scale.get()
+    }
+
+    fn fonts(&self) -> crate::fonts::StackFacts {
+        self.used.set(true);
+        self.fonts.get()
+    }
+
+    fn layout(&self, text: &craft_ui_rt::RichText) -> craft_ui_rt::TextLayout {
+        self.used.set(true);
+        match self.engine.borrow_mut().as_deref_mut() {
+            Some(engine) => engine.layout_rich(text, self.scale.get()),
+            None => crate::primitives::Services::layout(&crate::primitives::NoServices, text),
+        }
+    }
+
+    fn metrics(&self, layout: &craft_ui_rt::TextLayout) -> craft_ui_rt::TextMetrics {
+        match self.engine.borrow_mut().as_deref_mut() {
+            Some(engine) => engine.metrics(layout),
+            None => crate::primitives::Services::metrics(&crate::primitives::NoServices, layout),
+        }
+    }
+
+    /// `update` draws nothing: the lent engine lays text out and registers no picture.
+    fn image(&self, _: craft_ui_rt::ImageKey, _: craft_ui_rt::ImageOptions, _: &mut dyn FnMut() -> Arc<craft_ui_rt::RgbaImage>) {
+        debug_assert!(false, "Cx::layout_doc lays text out only; `update` registers no picture");
+    }
+}
+
 impl<'a> RunIo<'a> {
     /// The node side of a run over `input`.
     pub(crate) fn new(input: &'a [NodeInput], context: Context) -> RunIo<'a> {
         RunIo {
             input,
+            text: None,
             settled: false,
             measuring: false,
             context,
@@ -469,11 +535,14 @@ impl<C: Component> Cx<'_, C> {
 
     /// Lays document `text` out `text.wrap` wide: the call `ContentPainterCx::layout` and `MeasureCx::layout_doc`
     /// make, so `update` finds a character at a point in the galley that `paint` draws.
+    /// Called outside `update`, it lays nothing out (an empty layout).
     pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
-        let _ = text;
-        todo!(
-            "Cx::layout_doc: the run lends no text services to `update` (the build is borrowed per call by RunHost); needs a lead decision, INT-1a4 Left 1"
-        )
+        let direction = craft_i18n::Direction::Ltr;
+        let tokens = self.core.env.shared_tokens();
+        match self.core.run.text {
+            Some(lent) => text.layout(lent, &tokens, direction),
+            None => text.layout(&crate::primitives::NoServices, &tokens, direction),
+        }
     }
 
     /// Whether the control's link label was clicked in this pass.

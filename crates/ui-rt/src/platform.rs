@@ -323,6 +323,9 @@ pub enum WindowEvent {
         down: bool,
         repeat: bool,
     },
+    /// The modifiers held changed (a modifier key went down or up). Platforms send it for modifier
+    /// keys, which arrive as no `Key` event; the runtime finds a lone Alt in it.
+    Modifiers(Mods),
     /// The lock keys' state, sent when it changes and once when the window opens. Platforms that
     /// cannot tell never send it, and both read as off.
     LockKeys {

@@ -130,6 +130,21 @@ impl BuildCx<'_> {
         self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t })
     }
 
+    /// Takes the frame's text engine out of the build for a scope in which code that holds no
+    /// build lays text out (a component hook between draws); [`Self::return_text_engine`] puts it
+    /// back. Records no read: code that used the engine records it with [`Self::text_engine`]
+    /// once the engine is back. `None` outside an inline root or while lent.
+    pub fn lend_text_engine(&mut self) -> Option<&'a mut dyn TextEngine> {
+        self.text.take()
+    }
+
+    /// Puts back the engine [`Self::lend_text_engine`] took.
+    pub fn return_text_engine(&mut self, engine: Option<&'a mut dyn TextEngine>) {
+        if engine.is_some() {
+            self.text = engine;
+        }
+    }
+
     /// Shapes `text` at the window's scale with the frame's engine; `None` outside an inline root.
     pub fn text_layout_rich(&mut self, text: &RichText) -> Option<TextLayout> {
         let scale = self.scale();

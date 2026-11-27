@@ -70,7 +70,8 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut super::text::Text
     let Some(decl) = step.editor.take() else { return };
     let keys = keys_of(keys, decl.purpose);
     // A press that leaves the editor ends its gesture, as a focus loss ends a text field's draft.
-    if step.commit_now {
+    let commit_now = super::text::press_left(cx.core.input());
+    if commit_now {
         cx.commit();
     }
     let focused = cx.core.focus.focused;
@@ -96,7 +97,7 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut super::text::Text
             cx.fire(command, FireSource::Key);
         }
     }
-    cx.core.editor = Some(EditorInfo { keys, rect: decl.rect, purpose: decl.purpose, focused, read_only, commit_now: step.commit_now });
+    cx.core.editor = Some(EditorInfo { keys, rect: decl.rect, purpose: decl.purpose, focused, read_only, commit_now });
     cx.core.editor_inputs = inputs;
 }
 

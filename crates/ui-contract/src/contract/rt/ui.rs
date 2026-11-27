@@ -869,7 +869,8 @@ impl<'u, 'c> Ui<'u, 'c> {
     // Focus services (section 15.9).
 
     /// Moves focus back out of the layer a pick was made in, before the pick's command runs, so the command reaches
-    /// the stop focus returns to: the layer's focus return (its opener), as its closing would. Nothing in a measuring
+    /// the stop focus returns to: the layer's focus return (its opener), as its closing would, and past a menu bar
+    /// that F10 or a lone Alt focused, to the stop the bar took the focus from. Nothing in a measuring
     /// run, or when the layer has no live node.
     pub fn return_from_pick(&mut self, picked: crate::runtime::focus::PickedIn) {
         if self.is_measuring() {
@@ -891,6 +892,7 @@ impl<'u, 'c> Ui<'u, 'c> {
             }
         }
         if let Some(to) = to {
+            let to = super::node::MenuBar::past_bar(self.cx, to);
             self.cx.focus_node(to);
         }
     }

@@ -494,6 +494,8 @@ pub(crate) fn run_shaped<C: Component>(
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
     };
+    // The text engine `update` borrows for `Cx::layout_doc`, lent from the build for that call alone.
+    let update_text = crate::contract::cx::UpdateText::new();
     let mut core = core_for(
         &begun.env,
         &resolved,
@@ -502,6 +504,7 @@ pub(crate) fn run_shaped<C: Component>(
         response,
         begun.step1.command.clone(),
         RunIo {
+            text: Some(&update_text),
             ime_history: kept.ime.history(),
             ime_body: kept.ime.body.clone().into(),
             hover_point: cx.hover_point(node),
@@ -591,7 +594,9 @@ pub(crate) fn run_shaped<C: Component>(
     drive_toggles(cxx.core, facts.overlays, std::any::type_name::<C>());
     steps::edit_intents(&mut component, &mut cxx);
     steps::scrub_by_label(&component, &mut cxx);
+    update_text.lend(cx);
     component.update(&mut cxx);
+    update_text.give_back(cx);
     hooks.updated(&mut component, &mut cxx);
     steps::record_context(cxx.core);
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {

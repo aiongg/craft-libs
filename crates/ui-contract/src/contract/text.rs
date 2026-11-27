@@ -50,8 +50,6 @@ pub(crate) fn draft(memory: &mut MemoryStage, id: Id) -> Option<String> {
 /// What `PartsCx::text` leaves for step 8b.
 #[derive(Default)]
 pub(crate) struct TextStep {
-    /// A press elsewhere or another focus loss asks the run to commit now.
-    pub commit_now: bool,
     pub decl: Option<TextDecl>,
     pub editor: Option<super::editor::EditorDecl>,
     pub selections: Vec<SelectDecl>,
@@ -592,7 +590,8 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     }
     (decl.values.resync)(&mut state, shown_copy(cx).as_ref());
     let keys = text_in.keys;
-    let text = prepare(cx.core, part, &mut state, &text_in, step.commit_now);
+    let held = cx.core.input().iter().any(|input| matches!(input, crate::contract::rt::node::NodeInput::HeldPress));
+    let text = prepare(cx.core, part, &mut state, &text_in, press_left(cx.core.input()));
     let PreparedText { out, read_only, list_open, commit_now, was_focused, window_blur, menu_open, left_for_part } = text;
     for command in out.unhandled.iter().copied().filter_map(crate::runtime::commands::EditCommands::of) {
         use crate::runtime::commands::Commands as _;
@@ -604,12 +603,10 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     if window_blur && state.end == Some(End::Blur) {
         state.end = None;
     }
-    if part.options.holds_drafts && state.end.is_none() && state.draft.is_some() && step.commit_now {
-        // A press the focus service held for this part keeps focus, and the draft shows as its value would
-        // (`End::Rewrite { refuses: false }`).
-        todo!(
-            "a press that keeps the focus elsewhere (commit_now) and the holds_drafts classification need a ui-rt press signal: open question in INT-1h report"
-        );
+    if part.options.holds_drafts && held && state.end.is_none() {
+        // A press on a part declared `holds_drafts`, or in a popup above the field, kept the focus: the draft shows as
+        // its value would.
+        state.end = Some(End::Rewrite { refuses: false });
     }
     let keeps_escape = part.options.keep_on_escape && !part.options.clear_on_escape && !read_only && cx.core.resolved.enabled && part.options.enabled;
     let resolved = resolve(&mut state, cx.value(), commit_now, keeps_escape);
@@ -675,6 +672,12 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
 }
 
 /// The direction of the Tab that moved focus off the node this run, from the last focus loss its queue holds.
+/// A pointer press elsewhere took the focus in this run: the draft commits now, before the page that press switches can
+/// remove the field.
+pub(crate) fn press_left(input: &[crate::contract::rt::node::NodeInput]) -> bool {
+    input.iter().any(|item| matches!(item, crate::contract::rt::node::NodeInput::Focus { gained: false, cause: craft_ui_rt::FocusCause::Pointer }))
+}
+
 fn tabbed_off(input: &[crate::contract::rt::node::NodeInput]) -> Option<bool> {
     use crate::contract::rt::node::NodeInput;
     input.iter().rev().find_map(|item| match item {

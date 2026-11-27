@@ -532,6 +532,7 @@ impl Runtime {
             | WindowEvent::Paste(_)
             | WindowEvent::Pinch { .. }
             | WindowEvent::Files(_)
+            | WindowEvent::Modifiers(_)
             | WindowEvent::Access(_) => self.route_input(window, ev),
         }
     }
