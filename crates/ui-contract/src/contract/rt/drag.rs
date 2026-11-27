@@ -32,6 +32,10 @@ pub(crate) struct Payload {
 /// The value of type `payload` the drag `data` carries: its payload or one of the values beside it.
 /// Drags from the OS carry no contract payload and answer `None`.
 pub(crate) fn payload_of(data: &DragData, payload: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
+    if payload == TypeId::of::<craft_ui_rt::OsFiles>() {
+        // An OS drag carries its files as the session's own data, not as a contract payload.
+        return data.files().map(|files| Arc::new(files.clone()) as Arc<dyn Any + Send + Sync>);
+    }
     let carried = data.get::<Payload>()?;
     std::iter::once(&carried.value).chain(&carried.also).find(|value| (***value).type_id() == payload).cloned()
 }

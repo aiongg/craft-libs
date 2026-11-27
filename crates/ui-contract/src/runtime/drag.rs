@@ -10,7 +10,6 @@ use craft_behavior::{CopyKeys, DropOperation};
 use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::any::Any;
 use std::marker::PhantomData;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What the ghost layer paints beside the pointer during a drag.
@@ -114,28 +113,9 @@ impl DropMark {
     }
 }
 
-/// A file the OS drags over the window or drops on it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct OsFile {
-    /// The file's name; empty while the OS tells only a hovered file's type.
-    pub name: String,
-    /// Where the file is, on platforms that give a path.
-    pub path: Option<PathBuf>,
-    /// The file's media type, as far as the OS knows it.
-    pub mime: String,
-    /// The file's content, on platforms that give no path; read only for a dropped file.
-    pub bytes: Option<Arc<[u8]>>,
-}
-
-/// The payload of a drag that comes from the OS: files held over the window, then the files dropped. Targets take it
-/// like any payload, with `Pointer::drop_target` or `Pointer::window_drop_target`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct OsFiles {
-    /// The files, in the order the OS lists them.
-    pub files: Vec<OsFile>,
-}
+/// The files of an OS drag: targets take [`OsFiles`] like any payload, with `Pointer::drop_target` or
+/// `Pointer::window_drop_target`.
+pub use craft_ui_rt::{OsFile, OsFiles};
 
 /// What a component registers with `Pointer::drop_target`.
 pub trait DropTarget<P: ?Sized> {
