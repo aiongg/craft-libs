@@ -337,6 +337,13 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// Records another canvas's lists (`take`), its content at the current level and its overlay over the children, in
+    /// call order with what this canvas holds, under the fade in force.
+    pub fn append(&self, (content, overlay): (DisplayList, DisplayList)) {
+        self.extend(content.items);
+        self.over(|| self.extend(overlay.items));
+    }
+
     /// Records each of `items`.
     pub fn extend<I: IntoIterator<Item = Item>>(&self, items: I) {
         for item in items {

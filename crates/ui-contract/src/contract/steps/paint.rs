@@ -81,16 +81,22 @@ fn next_shape(ui: &Ui) -> usize {
 /// Step 13, paint, the pipeline's part before `C::paint`: the root surface and the state fill. A faded component's
 /// record keeps the surface's corners, which its veil takes.
 pub(crate) fn paint_surface(ui: &Ui, env: &Env, core: &CxCore<'_>, style: &dyn StyleView) {
-    let Some(look) = style.surface() else { return };
+    let Some(items) = surface_items(ui, env, core, style) else { return };
+    match core.surface_slot {
+        Some(slot) => ui.painter().set(slot, egui::Shape::Vec(shapes_of(&items))),
+        None => paint_items(ui.painter(), &items),
+    }
+}
+
+/// The items of the root surface, fitted to the layer's frame; `None` for a component with no surface.
+pub(crate) fn surface_items(ui: &Ui, env: &Env, core: &CxCore<'_>, style: &dyn StyleView) -> Option<Vec<craft_ui_rt::Item>> {
+    let look = style.surface()?;
     if core.faded {
         core.paint.borrow_mut().surface_radius = look.radius;
     }
     let mut items = surface_look_items(&env.tokens, look, &core.state, core.rect, env.direction, ui.ctx().pixels_per_point());
     crate::primitives::fit_to_frame(ui.ctx(), ui.layer_id(), &mut items);
-    match core.surface_slot {
-        Some(slot) => ui.painter().set(slot, egui::Shape::Vec(shapes_of(&items))),
-        None => paint_items(ui.painter(), &items),
-    }
+    Some(items)
 }
 
 /// Step 13, paint, after the root surface: the state layer of every part declared `state_layer`, with control

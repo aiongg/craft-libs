@@ -652,6 +652,7 @@ pub(super) fn paint_ui<'a>(ui: &'a mut Ui, env: &'a Env, core: &'a CxCore<'_>, s
         fade: core.fade,
         node: core.node,
         kids: None,
+        host: None,
         canvas,
     }
 }
