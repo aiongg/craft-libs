@@ -361,6 +361,24 @@ impl Flow {
         rect
     }
 
+    /// The current line of a `Row` is at least `height` high.
+    pub(crate) fn set_row_height(&mut self, height: f32) {
+        if let Dir::Row { .. } = self.dir {
+            self.line = self.line.max(height);
+        }
+    }
+
+    /// The next child of a `Row` starts a new line under the current one.
+    pub(crate) fn end_row(&mut self) {
+        if let Dir::Row { .. } = self.dir
+            && self.on_line > 0
+        {
+            self.cursor = Pos2::new(self.region.min.x, self.cursor.y + self.line + self.gap);
+            self.line = 0.0;
+            self.on_line = 0;
+        }
+    }
+
     /// The size of what the children used, from the region's start.
     pub(crate) fn content_size(&self) -> Vec2 {
         if self.sizes.is_empty() { Vec2::ZERO } else { (self.extent.max - self.region.min).max(Vec2::ZERO) }
@@ -587,10 +605,109 @@ impl<'u, 'c> Ui<'u, 'c> {
         value
     }
 
-    /// Runs `f` on the session slot of type `T` under `id`: window-wide memory that outlives the
+    /// Runs `f` on the session slot of type `T` under `id`: memory of the runtime that outlives the
     /// nodes that use it, made with its default on first use.
     pub fn with_session<T: crate::runtime::memory::Slot, R>(&mut self, id: Id, f: impl FnOnce(&mut T) -> R) -> R {
         crate::runtime::memory::with_session(&self.ctx, id, f)
+    }
+
+    /// Writes `value` as the saved value under `key`; it is stored through the host when its
+    /// serialized form differs from the saved one. Nothing is written in a measuring run.
+    pub fn set_saved_value<T: crate::runtime::memory::Savable>(&mut self, key: &crate::runtime::memory::SaveKey, value: T) {
+        if !self.is_measuring() {
+            crate::runtime::memory::set_saved_value(&self.ctx, key, value);
+        }
+    }
+
+    /// Runs `f` in a measuring run of this cursor's flow: what it shows only reports its size, no
+    /// node is reached and no input is taken, and this cursor does not move. Kept children of the
+    /// node being built answer from their size cache.
+    pub fn measuring_scope<R>(&mut self, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        let under = match self.flow.measuring {
+            Some(under) => under,
+            None => Some(self.cx.node()),
+        };
+        let flow = self.flow.nested(self.flow.id, self.available_rect_before_wrap()).measuring(under);
+        let mut inner = self.nested_ui(flow);
+        f(&mut inner)
+    }
+
+    // Edit gestures (section 15.9): the runtime's edit facts.
+
+    /// A gesture id no gesture of this runtime has had: ids grow in the order gestures begin,
+    /// across components and windows.
+    pub fn next_gesture_id(&mut self) -> craft_behavior::GestureId {
+        self.ctx.memory().with(|memory| {
+            memory.edits.newest = memory.edits.newest.next();
+            memory.edits.newest
+        })
+    }
+
+    /// Cancels every running gesture: each ends with `reason` at its next value step and stays
+    /// cancelled under its press. The app's undo and redo call it before they change the document.
+    pub fn cancel_edits(&mut self, reason: craft_behavior::CancelReason) {
+        if self.is_measuring() {
+            return;
+        }
+        self.ctx.memory().with(|memory| {
+            memory.edits.cancel_serial += 1;
+            memory.edits.cancel_reason = Some(reason);
+        });
+    }
+
+    /// Runs `body` and says whether a gesture of a component shown inside it was running after the
+    /// component's apply step (a drag or a typing run under way). A measuring run sees none.
+    pub fn watch_gestures<R>(&mut self, body: impl FnOnce(&mut Ui<'_, '_>) -> R) -> (R, bool) {
+        if self.is_measuring() {
+            return (body(self), false);
+        }
+        let before = self.ctx.memory().with(|memory| memory.edits.running);
+        let out = body(self);
+        let after = self.ctx.memory().with(|memory| memory.edits.running);
+        (out, after != before)
+    }
+
+    // Id-map lookups (section 15.9): the node a craft `Id` names, through the window's map.
+
+    /// Whether the pointer is over the node `id` names; tracked (`Hovered`).
+    pub fn hovers(&mut self, id: Id) -> bool {
+        super::ids::hovers(self.cx, id)
+    }
+
+    /// Whether the node `id` names has key focus; tracked (`Focused`).
+    pub fn is_focused(&mut self, id: Id) -> bool {
+        super::ids::is_focused(self.cx, id)
+    }
+
+    /// Whether focus is inside the node `scope` names; `None` when no live node answers to it.
+    /// Tracked (`FocusWithin`).
+    pub fn focus_in_scope(&mut self, scope: Id) -> Option<bool> {
+        super::ids::focus_in_scope(self.cx, scope)
+    }
+
+    /// Moves key focus to the node `target` names, once the build has made it. `false` when no
+    /// live node answers to it, and in a measuring run.
+    pub fn request_focus(&mut self, target: crate::runtime::focus::FocusTarget) -> bool {
+        !self.is_measuring() && super::ids::request_focus(self.cx, target)
+    }
+
+    /// Cancels the press running on the node `owner` names.
+    pub fn cancel_press_of(&mut self, owner: Id) {
+        if !self.is_measuring() {
+            super::ids::cancel_press_of(self.cx, owner);
+        }
+    }
+
+    /// The part of the node `owner` names that a press runs on, if any.
+    pub fn pressed_part(&self, owner: Id) -> Option<craft_behavior::PartRef> {
+        super::ids::pressed_part(self.cx, owner)
+    }
+
+    /// The pointer position when it is inside `rect`. Tracked: a reader runs again at every pointer
+    /// move, so code that only needs hover over its own node reads its response instead.
+    pub fn hover_point_in(&mut self, rect: Rect) -> Option<Pos2> {
+        let pointer = self.cx.env().pointer.get(self.cx);
+        pointer.pos.filter(|at| rect.contains(*at))
     }
 
     // Crate-private surface for ui-contract's own code (section 15.2).
@@ -635,5 +752,15 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// The room before a wrapping row would wrap.
     pub(crate) fn available_size_before_wrap(&self) -> Vec2 {
         self.flow.room()
+    }
+
+    /// The current line of a `Row` flow is at least `height` high.
+    pub(crate) fn set_row_height(&mut self, height: f32) {
+        self.flow.set_row_height(height);
+    }
+
+    /// The next child of a `Row` flow starts a new line under the current one.
+    pub(crate) fn end_row(&mut self) {
+        self.flow.end_row();
     }
 }

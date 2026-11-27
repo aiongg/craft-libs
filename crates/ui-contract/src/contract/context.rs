@@ -362,7 +362,6 @@ pub(crate) fn window_id(window: WindowId) -> Id {
 }
 
 /// One entry of the build log: a tracked read or an effect for the scope whose build is running.
-#[derive(Clone)]
 pub(crate) enum CellRead {
     Scale(State<f32>),
     Focused(State<bool>),
@@ -378,6 +377,9 @@ pub(crate) enum CellRead {
     CommandState(CommandBoard, CommandRef, Option<Id>),
     /// A command's state published for an instance of its scope (`Commands::publish`).
     Publish(CommandBoard, CommandRef, Option<Id>, CommandState),
+    /// A read made with the node's `BuildCx` when its build ends, for a service whose cell may not exist yet (a
+    /// texture entry read from a hook: `CxCore::texture_state`).
+    Build(Box<dyn FnOnce(&mut BuildCx<'_>)>),
 }
 
 thread_local! {
@@ -458,6 +460,7 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cell.get(cx);
             }
             CellRead::Publish(board, command, instance, state) => board.set_state_of(cx, &command, instance, state),
+            CellRead::Build(read) => read(cx),
         }
     }
     if let Some(after) = wake {
@@ -477,7 +480,27 @@ pub(crate) fn log_publish(board: CommandBoard, command: CommandRef, instance: Op
     log(CellRead::Publish(board, command, instance, state));
 }
 
+/// Logs `read`, run with the `BuildCx` of the node whose build is running when that build ends: how a service read
+/// from a hook (which has no `BuildCx`) registers its cell read for the node, creating the cell if it needs one.
+pub(crate) fn log_build_read(read: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+    log(CellRead::Build(Box::new(read)));
+}
+
 /// Logs an `Env::of` read for the scope whose build is running.
 pub(crate) fn log_env_read(cells: EnvCells, scale: State<f32>, focused: State<bool>) {
     log(CellRead::Env(cells, scale, focused));
+}
+
+impl crate::contract::CxCore<'_> {
+    /// The state of `key`'s picture at `revision` in `store`, read from a hook: the read is tracked through the run's
+    /// read log, so this node runs again when a job answers for `key`, and a leaf reads its own thumbnail with no
+    /// prop. One read path with `TextureStore::state` underneath (the cache side: `TextureStore::state_logged`).
+    pub fn texture_state<K: crate::primitives::textures::TextureKey>(
+        &self,
+        store: &crate::primitives::textures::TextureStore<K>,
+        key: &K,
+        revision: crate::primitives::textures::Revision,
+    ) -> crate::primitives::textures::TextureState {
+        store.state_logged(key, revision)
+    }
 }

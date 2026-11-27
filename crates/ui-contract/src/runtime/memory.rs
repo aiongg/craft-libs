@@ -201,6 +201,14 @@ impl MemoryStage {
         &self.ctx
     }
 
+    /// Notes that the stage's component has a gesture running after its apply step, for `Ui::watch_gestures`. A
+    /// measuring run's stage notes nothing.
+    pub(crate) fn note_gesture_running(&self) {
+        if !self.peek_only {
+            self.ctx.memory().with(|memory| memory.edits.running += 1);
+        }
+    }
+
     /// The serial and reason of the latest cancel of every running edit (`Ui::cancel_edits`); serial 0 before the
     /// first. A gesture that began before the serial it last saw ends with the reason.
     pub(crate) fn cancel_all(&self) -> (u64, Option<CancelReason>) {
