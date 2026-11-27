@@ -2,9 +2,9 @@
 //! carries them to the slots and the body.
 
 use super::{AppValues, EnvValue};
-use crate::runtime::egui::pass;
-use crate::runtime::frame::{PerViewport, Stamped, Stored};
-use egui::Rect;
+use crate::contract::Context;
+use crate::primitives::Id;
+use craft_ui_rt::Rect;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -127,7 +127,7 @@ struct Inner {
     region: Option<Rect>,
     /// The key of the shell's revealed rects: the same in every pass of the shell, so a replayed view registers its
     /// rects for the shell that shows it.
-    reveals: egui::Id,
+    reveals: Id,
     dialog: DialogRecord,
     page_band: Option<PageBandRoom>,
 }
@@ -153,23 +153,27 @@ impl PageBandRoom {
     }
 }
 
-/// The rects that content registered on the running pass of a viewport for the edge it was revealed from, each with
-/// the key of its shell.
+/// The rects that content registered in the running frame of a window for the edge it was revealed from, each with
+/// the key of its shell, and the frame time they were registered at.
 #[derive(Default)]
-struct RevealedRects(Vec<(egui::Id, RevealEdge, Rect)>);
+struct RevealedRects(Vec<(Id, RevealEdge, Rect)>, f64);
 
-impl Stored for RevealedRects {}
-
-fn with_revealed<R>(ctx: &egui::Context, f: impl FnOnce(&mut RevealedRects) -> R) -> R {
-    let viewport = pass::current_viewport(ctx);
-    PerViewport::<Stamped<RevealedRects>>::with_pass(ctx, viewport, pass::pass_nr(ctx, viewport), |rects, _| rects.0.clear(), f)
+/// Runs `f` on the window's revealed rects of the running frame: those of an earlier frame are dropped first.
+fn with_revealed<R>(ctx: &Context, f: impl FnOnce(&mut RevealedRects) -> R) -> R {
+    let now = ctx.time();
+    ctx.service::<RevealedRects, _>(|rects| {
+        if rects.1 != now {
+            rects.0.clear();
+            rects.1 = now;
+        }
+        f(rects)
+    })
 }
 
 crate::stays!(RevealEdge);
 
 /// Registers `rect` for `edge` with the shell keyed `reveals`, on the running pass. A replayed view registers it again.
-fn note_reveal(ctx: &egui::Context, reveals: egui::Id, edge: RevealEdge, rect: Rect) {
-    crate::runtime::replay::journal(ctx, || (reveals, edge, rect), |ctx, &(reveals, edge, rect)| note_reveal(ctx, reveals, edge, rect));
+fn note_reveal(ctx: &Context, reveals: Id, edge: RevealEdge, rect: Rect) {
     with_revealed(ctx, |rects| rects.0.push((reveals, edge, rect)));
 }
 
@@ -302,22 +306,20 @@ impl ShellCx {
     /// it they are keyed by the window; `AppShell` passes its own id, so an embedded shell keeps its rects apart from
     /// the shell of the window around it.
     #[must_use]
-    pub fn with_reveals_key(mut self, id: egui::Id) -> Self {
+    pub fn with_reveals_key(mut self, id: Id) -> Self {
         Arc::make_mut(&mut self.inner).reveals = id;
         self
     }
 
     /// Registers `rect`, a revealed panel the body drew on this pass, as part of the revealed `edge`: the edge reveal
     /// lasts while the pointer is over it, as it does over a revealed slot. Call it in the pass that draws the panel; a
-    /// memoized view that replays registers it again. A measuring run registers nothing.
-    pub fn reveal_rect(&self, ctx: &egui::Context, edge: RevealEdge, rect: Rect) {
-        if crate::runtime::measure::effect(ctx, "shell::reveal_rect") {
-            note_reveal(ctx, self.inner.reveals, edge, rect);
-        }
+    /// memoized view that replays registers it again. The caller skips it in a measuring run (`Ui::is_measuring`).
+    pub fn reveal_rect(&self, ctx: &Context, edge: RevealEdge, rect: Rect) {
+        note_reveal(ctx, self.inner.reveals, edge, rect);
     }
 
     /// The rects registered with [`reveal_rect`](Self::reveal_rect) on this pass, in registration order.
-    pub fn revealed_rects(&self, ctx: &egui::Context) -> Vec<(RevealEdge, Rect)> {
+    pub fn revealed_rects(&self, ctx: &Context) -> Vec<(RevealEdge, Rect)> {
         let reveals = self.inner.reveals;
         with_revealed(ctx, |rects| rects.0.iter().filter(|(shell, _, _)| *shell == reveals).map(|&(_, edge, rect)| (edge, rect)).collect())
     }

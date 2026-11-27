@@ -5,13 +5,13 @@ use super::label::Label;
 use super::units::{PointSize, UnitWords, Units, ZoomPrecision};
 use super::values::{MotionPolicy, Scale};
 use super::{Held, ItemFacts, Scoped};
+use crate::primitives::Id;
 use crate::runtime::commands::CommandChain;
 use craft_host::Host;
 use craft_host::target::ShellInfo;
 use craft_i18n::{AgeStyle, Counted, Direction, WordSet};
 use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::Mode;
-use egui::Id;
 use std::sync::Arc;
 
 /// What component code sees: everything in `Env` except tokens, size, enabled, read-only, arena, transform
@@ -120,13 +120,11 @@ impl<'a> EnvView<'a> {
     /// The platform and the running viewport's window facts: the OS, the capabilities and the window's kind,
     /// chrome, state, insets and focus.
     pub fn shell(&self) -> &'a ShellInfo {
-        crate::runtime::replay::note_input(&self.scoped.ctx, crate::runtime::inputs::Input::Shell);
         &self.scoped.shell
     }
 
     /// The keyboard layout: which character each key position types, for text that names a key.
     pub fn keyboard_layout(&self) -> &'a craft_keymap::Layout {
-        crate::runtime::replay::note_input(&self.scoped.ctx, crate::runtime::inputs::Input::Keyboard);
         &self.scoped.keyboard
     }
 

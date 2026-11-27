@@ -1,15 +1,17 @@
 //! The style cache and variant acceptance.
 
+use super::cx::GroupCache;
 use super::cx::StyleCx;
 use super::key::{EnvKey, StyleKey};
 use super::look::ComponentStyle;
 use super::replacements::Frozen;
-use crate::runtime::pass_state;
 use craft_theme::{ControlSize, Variant};
 use std::any::{Any, TypeId};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// The variant a component takes for a requested one.
@@ -91,24 +93,68 @@ impl StyleCache {
 /// The style of a component: the cached one for `(TypeId::of::<K>(), TypeId::of::<S>(), key, EnvKey, variant, size)`, else the app's
 /// replacement or `default` run on a miss. A hit costs one lock, one hash lookup and one `Arc` clone; the style
 /// function runs outside the lock and its result is inserted after it returns.
+/// One window's style caches (docs/contract-rt.md section 15.7): the resolved styles, the token groups and the app's
+/// style replacements. The window root provides it (`BuildCx::provide`, through the window's `Context`); the
+/// window's tokens and theme-base revisions it was filled at clear it when either moves.
+#[derive(Clone, Default)]
+pub struct StyleCaches(Rc<RefCell<Caches>>);
+
+#[derive(Default)]
+pub(crate) struct Caches {
+    pub(crate) styles: StyleCache,
+    pub(crate) groups: GroupCache,
+    pub(crate) replacements: Frozen,
+    /// The revisions of the window's tokens, theme-base and scale cells the entries were filled at.
+    filled_at: Option<(u64, u64, u64)>,
+}
+
+impl StyleCaches {
+    /// Runs `f` on the caches. `f` must not reach the caches again.
+    pub(crate) fn with<R>(&self, f: impl FnOnce(&mut Caches) -> R) -> R {
+        f(&mut self.0.borrow_mut())
+    }
+
+    /// Clears every entry when the window's tokens, theme-base or scale revision moved since the caches were filled
+    /// at `revisions` (a theme, contrast, density or scale write); the replacements stay.
+    pub(crate) fn clear_if_moved(&self, revisions: (u64, u64, u64)) {
+        let mut caches = self.0.borrow_mut();
+        if caches.filled_at != Some(revisions) {
+            if caches.filled_at.is_some() {
+                caches.styles = StyleCache::default();
+                caches.groups = GroupCache::default();
+            }
+            caches.filled_at = Some(revisions);
+        }
+    }
+
+    /// Installs the app's style replacements.
+    pub(crate) fn set_replacements(&self, frozen: Frozen) {
+        let mut caches = self.0.borrow_mut();
+        caches.replacements = frozen;
+        caches.styles = StyleCache::default();
+    }
+}
+
 #[doc(hidden)]
 pub fn resolve_style<K: StyleKey, S: ComponentStyle>(
     cx: &StyleCx<'_>,
     key: K,
-    ctx: &egui::Context,
+    caches: &StyleCaches,
     default: for<'a> fn(&StyleCx<'a>, K) -> S,
 ) -> Arc<S> {
     let accepted = accepted_variant::<K, S>(cx.variant);
     let (env, size) = (cx.key, cx.size);
     let hash = hash_of::<K, S>(&key, env, accepted.variant, size);
-    if let Some(hit) = pass_state::with::<StyleCache, _>(ctx, |cache| cache.get::<K, S>(hash, &key, env, accepted.variant, size)) {
+    if let Some(hit) = caches.with(|caches| caches.styles.get::<K, S>(hash, &key, env, accepted.variant, size)) {
         return hit;
     }
-    let build = Frozen::of::<K, S>(ctx).unwrap_or(default);
+    let build = caches.with(|caches| caches.replacements.get::<K, S>()).unwrap_or(default);
+    // The style function is app code and may resolve other styles: it runs outside the borrow.
     let style = Arc::new(build(&cx.with_variant(accepted.variant), key));
     let entry =
         Entry { ty: TypeId::of::<K>(), style_ty: TypeId::of::<S>(), key: Box::new(key), env, variant: accepted.variant, size, style: style.clone() };
-    pass_state::with::<StyleCache, _>(ctx, |cache| {
+    caches.with(|caches| {
+        let cache = &mut caches.styles;
         if accepted.fell_back && cache.fallbacks.insert((TypeId::of::<K>(), cx.variant)) {
             log::warn!("{} does not accept the variant {:?}; the default look stands in", std::any::type_name::<K>(), cx.variant);
         }

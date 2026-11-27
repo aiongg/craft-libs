@@ -1,11 +1,9 @@
 //! The root token cache: resolved tokens keyed by what they depend on.
 
 use super::root::{ResolvedRoot, RootEnv};
-use crate::runtime::egui::pass;
-use crate::runtime::pass_state;
+use crate::contract::Context;
 use crate::style::UiTokens;
 use craft_theme::{AppId, AppSizes, Appearance, Contrast, Mode, Rgba, SUITE_DEFAULT, Size, TextSize, ThemeDef, ThemeId, builtins};
-use egui::Context;
 use std::sync::Arc;
 
 /// How many root-token inputs the cache keeps beyond those used in the current frame: the window's, a few themed
@@ -30,15 +28,16 @@ struct RootTokens {
 /// How many times the context resolved root tokens it had no entry for.
 #[cfg(feature = "testing")]
 pub(crate) fn root_token_resolves(ctx: &Context) -> usize {
-    pass_state::with::<RootTokenCache, _>(ctx, |cache| cache.misses)
+    ctx.service::<RootTokenCache, _>(|cache| cache.misses)
 }
 
 /// The tokens `inputs` resolve to, cached by the inputs. An entry read in the current root frame is never dropped, so
 /// however many themed regions a frame shows, each resolves once; past the kept count the least recently read of the
 /// others goes.
 pub(super) fn tokens_for(ctx: &Context, inputs: &TokenInputs) -> Arc<UiTokens> {
-    let frame = pass::root_frame_nr(ctx);
-    let hit = pass_state::with::<RootTokenCache, _>(ctx, |cache| {
+    // The frame time as a recency stamp: positive doubles order as their bits do.
+    let frame = ctx.time().to_bits();
+    let hit = ctx.service::<RootTokenCache, _>(|cache| {
         let entry = cache.entries.iter_mut().find(|entry| entry.inputs.same(inputs))?;
         entry.used = frame;
         // An equal definition in another allocation: the next frames find this one by pointer.
@@ -53,7 +52,7 @@ pub(super) fn tokens_for(ctx: &Context, inputs: &TokenInputs) -> Arc<UiTokens> {
         return hit;
     }
     let tokens = resolved(inputs);
-    pass_state::with::<RootTokenCache, _>(ctx, |cache| {
+    ctx.service::<RootTokenCache, _>(|cache| {
         #[cfg(feature = "testing")]
         {
             cache.misses += 1;

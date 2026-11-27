@@ -4,22 +4,69 @@
 //! whether it is a measuring run: there, children report their size and no node is reached, so a
 //! kept child answers from its size cache instead of running.
 
+use std::hash::Hash;
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, State, Vec2, WindowId};
-use egui::Id;
+use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, Sense, State, Vec2, WindowId};
 
 use super::key::Ordinals;
 use super::node::Placed;
+use super::response::{InputFacts, Response};
 use super::sweep::Sweep;
-use crate::contract::IdSource;
+use crate::contract::context::Context;
+use crate::contract::{IdSource, MemoKey, MemoProps};
 use crate::layout::CellAlign;
+use crate::primitives::Id;
+use crate::runtime::env::Env;
 
-/// The build cursor of one node: its ui-rt build context and the layout region its children go in.
+/// The build cursor of one node: its ui-rt build context, the layout region its children go in,
+/// the env its children inherit and the window's [`Context`].
 pub struct Ui<'u, 'c> {
     pub(crate) cx: &'u mut BuildCx<'c>,
     pub(crate) flow: Flow,
+    /// The window's context: one handle per window, found where the window root provided it.
+    pub(crate) ctx: Context,
+    /// The env this cursor's children inherit; [`Env::run_in`] changes it for a body.
+    pub(crate) env: Env,
+}
+
+/// How a child cursor made with [`Ui::scope_builder`] is placed: a craft type with egui's builder
+/// names. A builder with no rect continues where the parent's next child would start.
+#[derive(Clone, Debug, Default)]
+pub struct UiBuilder {
+    max_rect: Option<Rect>,
+    id_salt: Option<u64>,
+    sense: Option<Sense>,
+}
+
+impl UiBuilder {
+    /// A builder that places the child cursor where the parent's next child goes.
+    pub fn new() -> UiBuilder {
+        UiBuilder::default()
+    }
+
+    /// The child cursor lays its children out in `rect` (window coordinates).
+    #[must_use]
+    pub fn max_rect(mut self, rect: Rect) -> UiBuilder {
+        self.max_rect = Some(rect);
+        self
+    }
+
+    /// The child cursor's ids hash from `salt` under the parent's id.
+    #[must_use]
+    pub fn id_salt(mut self, salt: impl Hash) -> UiBuilder {
+        self.id_salt = Some(craft_ui_rt::hash_key(&salt));
+        self
+    }
+
+    /// What the child region senses. A plain cursor has no hit shape of its own, so this is kept for
+    /// the callers that name it; a region that must take input is a component.
+    #[must_use]
+    pub fn sense(mut self, sense: Sense) -> UiBuilder {
+        self.sense = Some(sense);
+        self
+    }
 }
 
 /// How a flow places its children: the body's `BodyLayout` with what its container's plan decided
@@ -86,6 +133,10 @@ pub(crate) struct Flow {
     /// The intents the layer scope whose body this flow is took for it (an untaken Enter's Submit, a
     /// clearing Escape); empty in every other flow ([`super::intents`]).
     pub(crate) scope: super::intents::ScopeIntents,
+    /// What paint recorded through this cursor is clipped to, in window coordinates.
+    pub(crate) clip: Rect,
+    /// The opacity content built through this cursor paints at.
+    pub(crate) opacity: f32,
 }
 
 impl Flow {
@@ -114,6 +165,50 @@ impl Flow {
             fills: 0,
             sweep: None,
             scope: super::intents::ScopeIntents::default(),
+            clip: Rect::EVERYTHING,
+            opacity: 1.0,
+        }
+    }
+
+    /// A flow nested in this one in the same node, laying out in `region` with ids under `id`: it
+    /// keeps the node's origin, tokens, view, sweep, clip and opacity, and measures when this one does.
+    pub(crate) fn nested(&self, id: Id, region: Rect) -> Flow {
+        let mut flow = Flow::new(id, self.origin, region, self.gap, self.tokens.clone()).in_view(self.view).with_sweep(self.sweep);
+        flow.measuring = self.measuring;
+        flow.clip = self.clip;
+        flow.opacity = self.opacity;
+        flow
+    }
+
+    /// Takes over what a nested flow of the same node laid out: its placed nodes, and its extent as
+    /// one block the cursor moves past.
+    pub(crate) fn take_nested(&mut self, inner: Flow) {
+        self.absorb(&inner);
+        self.placed.extend(inner.placed);
+        if inner.extent.is_positive() || !inner.sizes.is_empty() {
+            self.advance(inner.extent);
+        }
+    }
+
+    /// Moves the cursor past `rect` as if a child took it, without a child slot in the plan.
+    pub(crate) fn advance(&mut self, rect: Rect) {
+        match self.dir {
+            Dir::Stack => self.cursor.y = self.cursor.y.max(rect.max.y),
+            Dir::Row { .. } => {
+                self.cursor.x = self.cursor.x.max(rect.max.x);
+                self.line = self.line.max(rect.height());
+            }
+            Dir::Grid { .. } => {}
+        }
+        self.on_line += 1;
+        self.extent = self.extent.union(rect);
+    }
+
+    /// Moves the cursor `amount` along the flow's axis.
+    pub(crate) fn add_space(&mut self, amount: f32) {
+        match self.dir {
+            Dir::Row { .. } => self.cursor.x += amount,
+            _ => self.cursor.y += amount,
         }
     }
 
@@ -273,8 +368,29 @@ impl Flow {
 }
 
 impl<'u, 'c> Ui<'u, 'c> {
+    /// The cursor of a node's build: the window's context and the env the enclosing scope gives
+    /// (section 15.2), brought up to date with the env cells.
     pub(crate) fn new(cx: &'u mut BuildCx<'c>, flow: Flow) -> Ui<'u, 'c> {
-        Ui { cx, flow }
+        let ctx = Context::of_build(cx);
+        let env = Env::for_build(cx, &ctx);
+        Ui { cx, flow, ctx, env }
+    }
+
+    /// A cursor of the same node over `flow`, inheriting this one's env and context.
+    pub(crate) fn nested_ui(&mut self, flow: Flow) -> Ui<'_, 'c> {
+        Ui { cx: &mut *self.cx, flow, ctx: self.ctx.clone(), env: self.env.clone() }
+    }
+
+    /// Brings this cursor's env up to date with the env cells its node sees now: a scope calls it after
+    /// providing cells of its own, before it runs its content.
+    pub(crate) fn refresh_env(&mut self) {
+        let env = self.env.clone();
+        self.env = env.refreshed(self.cx, &self.ctx);
+    }
+
+    /// The window's context.
+    pub fn ctx(&self) -> &Context {
+        &self.ctx
     }
 
     /// The window this build is in.
@@ -287,9 +403,24 @@ impl<'u, 'c> Ui<'u, 'c> {
         self.flow.id
     }
 
+    /// The craft `Id` of the enclosing node (egui's name for [`Ui::id`]).
+    pub fn scope_id(&self) -> Id {
+        self.flow.id
+    }
+
+    /// The window's pixels per point; tracked.
+    pub fn pixels_per_point(&self) -> f32 {
+        self.ctx.pixels_per_point()
+    }
+
     /// The rect children go in, in window coordinates.
     pub fn max_rect(&self) -> Rect {
         self.flow.region
+    }
+
+    /// The room left for the next child, from where it starts.
+    pub fn available_rect_before_wrap(&self) -> Rect {
+        Rect::from_min_size(self.flow.next_min(), self.flow.room())
     }
 
     /// The room the next child has.
@@ -297,14 +428,38 @@ impl<'u, 'c> Ui<'u, 'c> {
         self.flow.room()
     }
 
-    /// Where the next child starts.
-    pub fn cursor(&self) -> Pos2 {
-        self.flow.next_min()
+    /// The width the next child has.
+    pub fn available_width(&self) -> f32 {
+        self.flow.room().x
     }
 
-    /// The rect the children used so far.
-    pub fn min_rect(&self) -> Rect {
-        self.flow.extent
+    /// The height the next child has.
+    pub fn available_height(&self) -> f32 {
+        self.flow.room().y
+    }
+
+    /// Children go no wider than `width`.
+    pub fn set_max_width(&mut self, width: f32) {
+        let region = &mut self.flow.region;
+        region.max.x = region.min.x + width.max(0.0);
+    }
+
+    /// Children go no taller than `height`.
+    pub fn set_max_height(&mut self, height: f32) {
+        let region = &mut self.flow.region;
+        region.max.y = region.min.y + height.max(0.0);
+    }
+
+    /// The children's extent is at least `size` from the region's start.
+    pub fn set_min_size(&mut self, size: Vec2) {
+        let min = self.flow.region.min;
+        self.flow.extent = self.flow.extent.union(Rect::from_min_size(min, size));
+    }
+
+    /// The children's extent is at least `height` high from the region's start.
+    pub fn set_min_height(&mut self, height: f32) {
+        let min = self.flow.region.min;
+        self.flow.extent = self.flow.extent.union(Rect::from_min_size(min, Vec2::new(0.0, height)));
     }
 
     /// This is a measuring run: what is shown here only reports its size, and outputs carry no
@@ -313,14 +468,159 @@ impl<'u, 'c> Ui<'u, 'c> {
         self.flow.measuring.is_some()
     }
 
+    /// A child cursor in the same node, placed by `builder`; the parent's cursor moves past what the
+    /// child laid out.
+    pub fn scope_builder<R>(&mut self, builder: UiBuilder, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        let region = builder.max_rect.unwrap_or_else(|| self.available_rect_before_wrap());
+        let id = match builder.id_salt {
+            Some(salt) => self.flow.id.with(salt),
+            None => self.flow.id.with(("scope", self.flow.sizes.len(), self.flow.placed.len())),
+        };
+        let flow = self.flow.nested(id, region);
+        let mut inner = self.nested_ui(flow);
+        let out = f(&mut inner);
+        let flow = inner.flow;
+        self.flow.take_nested(flow);
+        out
+    }
+
+    /// A child cursor whose ids hash from `salt` under this one's.
+    pub fn push_id<R>(&mut self, salt: impl Hash, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        self.scope_builder(UiBuilder::new().id_salt(salt), f)
+    }
+
+    /// The rect the children used so far.
+    pub fn min_rect(&self) -> Rect {
+        self.flow.extent
+    }
+
+    /// Where the next child starts, as egui's cursor rect: `min` is the next position, `max` the
+    /// region's end.
+    pub fn cursor(&self) -> Rect {
+        Rect::from_min_max(self.flow.next_min(), self.flow.region.max)
+    }
+
+    /// What paint recorded through this cursor is clipped to.
+    pub fn clip_rect(&self) -> Rect {
+        self.flow.clip
+    }
+
+    /// Clips paint recorded through this cursor to `clip`.
+    pub fn set_clip_rect(&mut self, clip: Rect) {
+        self.flow.clip = clip;
+    }
+
+    /// The children's extent includes `rect`.
+    pub fn expand_to_include_rect(&mut self, rect: Rect) {
+        self.flow.extent = self.flow.extent.union(rect);
+    }
+
+    /// The cursor moves past `rect`, as if a child took it.
+    pub fn advance_cursor_after_rect(&mut self, rect: Rect) {
+        self.flow.advance(rect);
+    }
+
+    /// The cursor moves `amount` along the flow's axis.
+    pub fn add_space(&mut self, amount: f32) {
+        self.flow.add_space(amount);
+    }
+
+    /// Lays out a blank child of `size` and returns its rect.
+    pub fn allocate(&mut self, size: Vec2) -> Rect {
+        self.flow.allocate(None, size, false)
+    }
+
+    /// Brings `rect` into view: the nearest scroll body around reveals it with its glide.
+    pub fn scroll_to_rect(&mut self, rect: Rect) {
+        if self.flow.reveal.is_none() {
+            self.flow.reveal = Some(rect.min);
+        }
+    }
+
+    /// The enclosing node's response: its rect and interaction state, with no input facts (the input a
+    /// node's run takes reaches its own `Cx`). Interaction facts read from it are tracked.
+    pub fn response(&self) -> Response {
+        let node = (!self.is_measuring()).then(|| self.cx.node());
+        let interact = node.map(|node| self.cx.interaction(node)).unwrap_or_default();
+        Response::new(self.flow.id, self.flow.region, node, interact, false, InputFacts::default())
+    }
+
     /// The tokens this node's build read.
     pub fn tokens(&self) -> &Tokens {
         &self.flow.tokens
     }
 
-    /// The ui-rt build context, for code that shows plain ui-rt elements. A measuring run must not
-    /// reconcile children through it.
-    pub fn build_cx(&mut self) -> &mut BuildCx<'c> {
+    /// The ui-rt build context, for the bridge's own code. A measuring run must not reconcile
+    /// children through it.
+    pub(crate) fn build_cx(&mut self) -> &mut BuildCx<'c> {
         self.cx
+    }
+
+    /// A value derived from `key` by `build`, kept in a slot of the node being built and built again
+    /// only when `key` moves.
+    pub fn derived<K: MemoProps, V: Send + Sync + 'static>(&mut self, key: &K, build: impl FnOnce() -> V) -> Arc<V> {
+        let mut hasher = MemoKey::new();
+        key.key(&mut hasher);
+        let hash = hasher.finish();
+        let slot = self.cx.slot(("craft-derived", std::any::TypeId::of::<K>()), || None::<(u128, Arc<V>)>);
+        if let Some((kept, value)) = self.cx.peek_state(slot)
+            && *kept == hash
+        {
+            return value.clone();
+        }
+        let value = Arc::new(build());
+        // The node's own slot, which nothing reads with a recorded read: the write marks no one.
+        slot.set(self.cx, Some((hash, value.clone())));
+        value
+    }
+
+    /// Runs `f` on the session slot of type `T` under `id`: window-wide memory that outlives the
+    /// nodes that use it, made with its default on first use.
+    pub fn with_session<T: crate::runtime::memory::Slot, R>(&mut self, id: Id, f: impl FnOnce(&mut T) -> R) -> R {
+        crate::runtime::memory::with_session(&self.ctx, id, f)
+    }
+
+    // Crate-private surface for ui-contract's own code (section 15.2).
+
+    /// A fresh id under this cursor's, unique among the ids it handed out in this run.
+    pub(crate) fn unique_id(&mut self) -> Id {
+        self.flow.id.with(("unique", self.flow.sizes.len(), self.flow.placed.len(), self.flow.on_line))
+    }
+
+    /// The opacity content built through this cursor paints at.
+    pub(crate) fn opacity(&self) -> f32 {
+        self.flow.opacity
+    }
+
+    /// Content built through this cursor paints at `opacity` (multiplied into the parent's).
+    pub(crate) fn set_opacity(&mut self, opacity: f32) {
+        self.flow.opacity = opacity.clamp(0.0, 1.0);
+    }
+
+    /// A child cursor in `rect`, with ids under `salt`: [`Ui::scope_builder`] for the bridge.
+    pub(crate) fn child<R>(&mut self, rect: Rect, salt: impl Hash, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        self.scope_builder(UiBuilder::new().max_rect(rect).id_salt(salt), f)
+    }
+
+    /// Whether the scope is enabled (the env's `enabled`).
+    pub(crate) fn is_enabled(&self) -> bool {
+        self.env.enabled
+    }
+
+    /// The children's extent reaches `x` horizontally.
+    pub(crate) fn expand_to_include_x(&mut self, x: f32) {
+        let extent = &mut self.flow.extent;
+        if extent.is_negative() {
+            let y = self.flow.region.min.y;
+            *extent = Rect::from_min_max(Pos2::new(x, y), Pos2::new(x, y));
+        } else {
+            extent.min.x = extent.min.x.min(x);
+            extent.max.x = extent.max.x.max(x);
+        }
+    }
+
+    /// The room before a wrapping row would wrap.
+    pub(crate) fn available_size_before_wrap(&self) -> Vec2 {
+        self.flow.room()
     }
 }

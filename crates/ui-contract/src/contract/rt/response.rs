@@ -35,7 +35,7 @@ thread_local! {
 }
 
 /// The start of one scope's reads in the log.
-pub(crate) struct ReadMark(usize);
+pub(crate) struct ReadMark(usize, usize);
 
 /// Opens a scope's reads: the window root clears what a panicked build left; nested scopes stack.
 pub(crate) fn begin_reads(root: bool) -> ReadMark {
@@ -44,13 +44,14 @@ pub(crate) fn begin_reads(root: bool) -> ReadMark {
         if root {
             log.clear();
         }
-        ReadMark(log.len())
+        ReadMark(log.len(), crate::contract::context::begin_cell_reads(root))
     })
 }
 
 /// Closes a scope's reads: each fact read since `mark` becomes a build read of the scope's node
 /// (`cx`), so the scope runs again when one of them flips.
 pub(crate) fn end_reads(mark: ReadMark, cx: &mut BuildCx<'_>) {
+    crate::contract::context::end_cell_reads(mark.1, cx);
     let reads: Vec<(NodeId, InteractFact)> = READS.with(|log| log.borrow_mut().split_off(mark.0));
     for (i, &(node, fact)) in reads.iter().enumerate() {
         if !reads[..i].contains(&(node, fact)) {

@@ -3,7 +3,6 @@
 use super::cx::StyleCx;
 use super::key::StyleKey;
 use super::look::ComponentStyle;
-use crate::runtime::egui::memory::Service;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,15 +56,5 @@ impl Frozen {
     /// The replacement for key type `K`, if the app made one.
     pub(crate) fn get<K: StyleKey, S: ComponentStyle>(&self) -> Option<Replacement<K, S>> {
         self.map.get(&TypeId::of::<K>()).and_then(|f| f.downcast_ref::<Replacement<K, S>>()).copied()
-    }
-
-    /// Stores `self` as the context's replacements.
-    pub(crate) fn store(self, ctx: &egui::Context) {
-        Service::<Frozen>::run(ctx, |slot| *slot = self);
-    }
-
-    /// The replacement for `K` in `ctx`.
-    pub(crate) fn of<K: StyleKey, S: ComponentStyle>(ctx: &egui::Context) -> Option<Replacement<K, S>> {
-        Service::<Frozen>::run(ctx, |frozen| frozen.get::<K, S>())
     }
 }

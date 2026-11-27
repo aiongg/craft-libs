@@ -14,7 +14,7 @@ mod surround;
 pub(crate) mod text_measure;
 mod tokens;
 
-pub use cache::{Accepted, accepted_variant};
+pub use cache::{Accepted, StyleCaches, accepted_variant};
 pub use craft_behavior::{ControlMetrics, Insets, Metrics};
 #[doc(hidden)]
 pub use craft_theme::GroupValues;

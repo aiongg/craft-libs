@@ -8,16 +8,17 @@ use super::paint::{
 };
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
+use crate::contract::Context;
 use crate::fonts::stack_facts;
+use crate::primitives::Id;
 use crate::runtime::env::{AppValues, MotionPolicy, Scale, StyleValue};
 use crate::runtime::motion::{MotionSpec, Presence};
-use crate::runtime::pass_state;
 use craft_behavior::ControlMetrics;
 use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::Stroke as StrokeStep;
 use craft_theme::{BySize, Contrast, ControlSize, Flags, RadiusStep, Rgba, Size, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
-use egui::{Color32, Context, CornerRadius, Id};
+use egui::{Color32, CornerRadius};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -71,13 +72,12 @@ pub struct StyleCx<'a> {
     host_muted: Option<&'a Stateful<StyleColor>>,
     /// The line height per point of text of the interface face, as the scope's frame began.
     line_ratio: f32,
+    /// The window's context: the style caches and the frame's facts.
     ctx: &'a Context,
     values: &'a AppValues,
     /// The component whose motion memory `exiting` reads, and the motion policy it runs under; set by the collection
     /// hook for the layout it asks of the component.
     owner: Option<(Id, MotionPolicy)>,
-    /// The `Ui` a collection's layout hook measures faces in; none elsewhere.
-    pub(crate) measuring: Option<&'a egui::Ui>,
 }
 
 /// A variant's look as style parts.
@@ -123,12 +123,6 @@ fn egui_color(c: Rgba) -> Color32 {
 }
 
 impl<'a> StyleCx<'a> {
-    /// The frame's context, for the gate on effects in a measuring run.
-    #[doc(hidden)]
-    pub fn frame_ctx(&self) -> &Context {
-        self.ctx
-    }
-
     /// The contrast setting of the scope, for a style that adds a cue at high contrast.
     pub fn contrast(&self) -> Contrast {
         self.tokens.contrast()
@@ -176,15 +170,14 @@ impl<'a> StyleCx<'a> {
             ctx,
             values,
             owner: None,
-            measuring: None,
         }
     }
 
     /// The style context of the scope `env` describes, in the secondary variant: for code outside a style function
     /// that works out a layout from a component's style or the scope's tokens.
-    pub fn of_env(ctx: &'a Context, env: &'a crate::runtime::env::Env) -> Self {
+    pub fn of_env(env: &'a crate::runtime::env::Env) -> Self {
         StyleCx::new(
-            ctx,
+            &env.ctx,
             &env.tokens,
             &env.values,
             env.size,
@@ -207,7 +200,7 @@ impl<'a> StyleCx<'a> {
     /// Runs `f` with the root style at the tokens `scope` resolves, for code that has a context and no `Ui`.
     pub fn with_root_scoped<R>(ctx: &Context, scope: &crate::runtime::env::ThemeScope, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {
         let env = crate::runtime::env::Env::of_root(ctx).derive_local(|scoped| scope.apply(ctx, scoped));
-        f(&StyleCx::of_env(ctx, &env))
+        f(&StyleCx::of_env(&env))
     }
 
     /// The one link look: body role, underlined, `accent.text`, `text.disabled` when not `enabled`.
@@ -218,14 +211,6 @@ impl<'a> StyleCx<'a> {
         let (ink, off) = (self.color(colors.accent.text), self.color(colors.text.disabled));
         let rest = if enabled { ink } else { off };
         super::look::TextLook::new(craft_theme::TypeRole::Body, Stateful::new(rest).off(States::new(rest, rest, rest, off)))
-    }
-
-    /// The same context measuring faces in `ui`; the collection hook calls it before it asks for a layout.
-    pub(crate) fn measured_by<'b>(&self, ui: &'b egui::Ui) -> StyleCx<'b>
-    where
-        'a: 'b,
-    {
-        StyleCx { measuring: Some(ui), ..*self }
     }
 
     /// The same context scoped to the component `id`, whose keyed presences `exiting` reads under `policy`.
@@ -603,11 +588,13 @@ impl<'a> StyleCx<'a> {
     /// over it, built on the first read and cached by `(TypeId::of::<G>(), UiTokens::key)`.
     pub fn token_group<G: TokenGroup>(&self) -> G {
         let cache_key = (TypeId::of::<G>(), self.tokens.key());
-        let hit = pass_state::with::<GroupCache, _>(self.ctx, |cache| cache.built.get(&cache_key).cloned());
+        let caches = self.ctx.styles();
+        let hit = caches.with(|caches| caches.groups.built.get(&cache_key).cloned());
         if let Some(hit) = hit.and_then(|entry| entry.downcast::<G>().ok()) {
             return (*hit).clone();
         }
-        let clash = pass_state::with::<GroupCache, _>(self.ctx, |cache| {
+        let clash = caches.with(|caches| {
+            let cache = &mut caches.groups;
             let clash = cache.paths.iter().any(|(path, ty)| *path == G::PATH && *ty != TypeId::of::<G>());
             if !clash && !cache.paths.iter().any(|(_, ty)| *ty == TypeId::of::<G>()) {
                 cache.paths.push((G::PATH, TypeId::of::<G>()));
@@ -619,7 +606,7 @@ impl<'a> StyleCx<'a> {
         group.overlay(self.tokens.groups());
         // The clone is app code, so it runs before the service lock is taken.
         let shared: Arc<dyn Any + Send + Sync> = Arc::new(group.clone());
-        pass_state::with::<GroupCache, _>(self.ctx, |cache| cache.built.insert(cache_key, shared));
+        caches.with(|caches| caches.groups.built.insert(cache_key, shared));
         group
     }
 }

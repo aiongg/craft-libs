@@ -1,96 +1,62 @@
-//! Derived values: data a component computes from its inputs and keeps across passes. [`derived`] keeps one value per
-//! component id and value type, and builds it again only when its key changes. The key implements
-//! [`MemoProps`], so it can only be made of checked inputs (`Tracked` revisions, framework
-//! revisions, plain values), and a kept value is never stale while the key compiles.
-//!
-//! A value no pass asks for is dropped by the rule memoized views follow for absent entries (`lazy::absent_past_room`).
+//! Derived values for code with a context and no node of its own (a body, a service): data computed from inputs and
+//! kept across builds. [`derived`] keeps one value per id and value type in the window's `Context`, and builds it
+//! again only when its key changes. The key implements [`MemoProps`], so it can only be made of checked inputs
+//! (`Tracked` revisions, framework revisions, plain values), and a kept value is never stale while the key compiles.
+//! Code that builds in a node keeps its value in the node instead (`Ui::derived`), so it goes with the node.
 
-use crate::contract::{MemoKey, MemoProps};
-use crate::runtime::egui::pass;
-use crate::runtime::frame::PerViewport;
-use egui::{Context, Id, IdMap};
+use crate::contract::{Context, MemoKey, MemoProps};
+use crate::primitives::Id;
 use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::sync::Arc;
 
-/// A kept value: the key it was built from and the frame a pass last asked for it.
+/// How many values a window keeps for code with no node; past it the least recently asked for goes.
+const KEPT: usize = 256;
+
+/// A kept value: the key it was built from and when it was last asked for.
 struct Entry {
     key: u128,
     value: Arc<dyn Any + Send + Sync>,
-    touched: u64,
+    used: u64,
 }
 
-/// The kept values of one viewport.
+/// The kept values of one window.
 #[derive(Default)]
-pub(crate) struct Store {
-    entries: IdMap<Entry>,
-    /// The frame the entries were last pruned in.
-    pruned: u64,
+struct Store {
+    entries: HashMap<Id, Entry>,
+    /// Counts the asks, to order the entries by their last.
+    clock: u64,
 }
 
-impl Store {
-    /// Drops the absent entries past the memo rule's room, once per frame. An entry asked for in this frame or the one
-    /// before is shown.
-    fn prune(&mut self, frame: u64) {
-        if self.pruned == frame {
-            return;
-        }
-        self.pruned = frame;
-        let shown = self.entries.values().filter(|entry| entry.touched + 1 >= frame).count();
-        let absent = self.entries.iter().filter(|(_, entry)| entry.touched + 1 < frame).map(|(id, entry)| (entry.touched, *id));
-        for id in super::lazy::absent_past_room(shown, absent) {
-            self.entries.remove(&id);
-        }
-    }
-}
-
-/// The value of the component `id` derived from `key`: the kept one while `key` is the one it was built from, else
-/// `build`'s, which is kept in its place. One value is kept per id and value type `V`; a component that derives two
-/// values of one type gives each its own id.
+/// The value under `id` derived from `key`: the kept one while `key` is the one it was built from, else `build`'s,
+/// which is kept in its place. One value is kept per id and value type `V`.
 ///
-/// While the key is unchanged, every call returns the same `Arc` (`Arc::ptr_eq` holds), so a caller that keeps the
-/// last result can tell "unchanged" from a pointer compare.
+/// While the key is unchanged and the value is kept, every call returns the same `Arc` (`Arc::ptr_eq` holds).
 pub fn derived<K: MemoProps, V: Send + Sync + 'static>(ctx: &Context, id: Id, key: &K, build: impl FnOnce() -> V) -> Arc<V> {
-    let mut memo = MemoKey::of_view(ctx);
+    let mut memo = MemoKey::new();
     memo.feed_hash(&K::identity());
     key.key(&mut memo);
-    #[cfg(feature = "testing")]
-    crate::runtime::measure::count_memo_key_bytes(ctx, memo.bytes());
     let key = memo.finish();
     let slot = id.with(TypeId::of::<V>());
-    crate::runtime::replay::note_derived_keep(ctx, slot);
-    let viewport = pass::current_viewport(ctx);
-    let frame = pass::frame_nr(ctx, viewport);
-    let kept = PerViewport::<Store>::with(ctx, viewport, |store| {
-        store.prune(frame);
+    let kept = ctx.service::<Store, _>(|store| {
+        store.clock += 1;
+        let clock = store.clock;
         let entry = store.entries.get_mut(&slot).filter(|entry| entry.key == key)?;
-        entry.touched = frame;
+        entry.used = clock;
         Arc::clone(&entry.value).downcast::<V>().ok()
     });
     if let Some(value) = kept {
         return value;
     }
-    #[cfg(feature = "testing")]
-    crate::runtime::measure::count_derived(ctx, id);
     // Built outside the store, so a build may derive values of its own.
     let value = Arc::new(build());
-    let entry = Entry { key, value: Arc::clone(&value) as Arc<dyn Any + Send + Sync>, touched: frame };
-    PerViewport::<Store>::with(ctx, viewport, |store| store.entries.insert(slot, entry));
-    value
-}
-
-/// Keeps the values under `slots` through this frame, for a replayed run that asked for them: the replay asks for
-/// nothing, and an entry no pass asked for in a frame is dropped by the memo rule.
-pub(crate) fn keep(ctx: &Context, slots: &[Id]) {
-    if slots.is_empty() {
-        return;
-    }
-    let viewport = pass::current_viewport(ctx);
-    let frame = pass::frame_nr(ctx, viewport);
-    PerViewport::<Store>::with(ctx, viewport, |store| {
-        for slot in slots {
-            if let Some(entry) = store.entries.get_mut(slot) {
-                entry.touched = frame;
-            }
-        }
+    let dropped = ctx.service::<Store, _>(|store| {
+        let used = store.clock;
+        let dropped = store.entries.insert(slot, Entry { key, value: Arc::clone(&value) as Arc<dyn Any + Send + Sync>, used });
+        let oldest = (store.entries.len() > KEPT).then(|| store.entries.iter().min_by_key(|(_, entry)| entry.used).map(|(id, _)| *id)).flatten();
+        (dropped, oldest.and_then(|id| store.entries.remove(&id)))
     });
+    // The replaced values drop outside the store: a value's drop may reach the window's services.
+    drop(dropped);
+    value
 }

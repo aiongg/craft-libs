@@ -73,4 +73,4 @@ pub(crate) use scope::{MemoView, WindowEnv, window_root, window_root_with};
 pub(crate) use textures::{TextureCache, TextureKey, TextureLook};
 pub(crate) use tip::DELAY as TOOLTIP_DELAY;
 pub(crate) use toast::{ToastHost, ToastQueue};
-pub(crate) use ui::Ui;
+pub(crate) use ui::{Ui, UiBuilder};

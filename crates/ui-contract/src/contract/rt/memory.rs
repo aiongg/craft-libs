@@ -5,7 +5,7 @@
 
 use std::any::{Any, TypeId};
 
-use egui::Id;
+use crate::primitives::Id;
 
 use crate::runtime::memory::Slot;
 
@@ -24,6 +24,12 @@ impl Memory {
             }
         };
         self.0[at].2.downcast_mut::<T>().expect("a slot holds the type it was created with")
+    }
+
+    /// The slot of type `T` under `id`, moved out.
+    pub(crate) fn take<T: Slot>(&mut self, id: Id) -> Option<T> {
+        let at = self.0.iter().position(|(t, i, _)| *t == TypeId::of::<T>() && *i == id)?;
+        self.0.swap_remove(at).2.downcast::<T>().ok().map(|value| *value)
     }
 
     /// A copy of the slot of type `T` under `id`, or its default.
