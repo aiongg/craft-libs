@@ -69,9 +69,10 @@ pub struct FrameServices<'f> {
 }
 
 impl<'f> FrameServices<'f> {
-    /// `text` is `None` where no engine is lent (layouts come out empty).
-    pub fn new(text: Option<&'f mut dyn TextEngine>, images: &'f mut ImageStore, scale: f32) -> Self {
-        FrameServices { text: RefCell::new(text), images: RefCell::new(images), scale, fonts: StackFacts::default() }
+    /// `text` is `None` where no engine is lent (layouts come out empty). `fonts` are the window's stack facts
+    /// (`fonts::stack_facts`, a recorded read).
+    pub fn new(text: Option<&'f mut dyn TextEngine>, images: &'f mut ImageStore, scale: f32, fonts: StackFacts) -> Self {
+        FrameServices { text: RefCell::new(text), images: RefCell::new(images), scale, fonts }
     }
 }
 

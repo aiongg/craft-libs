@@ -78,6 +78,7 @@ struct Shared {
     tokens: State<Arc<Tokens>>,
     time: State<f64>,
     wakes: State<u64>,
+    text_stack: State<u64>,
     drag: State<Option<DragInfo>>,
 }
 
@@ -150,7 +151,13 @@ impl Runtime {
     /// A runtime with no window yet; [`Runtime::add_window`] or [`Runtime::set_root`] add them.
     pub fn new(tokens: Tokens) -> Runtime {
         let mut store = Store::default();
-        let shared = Shared { tokens: store.create(Arc::new(tokens)), time: store.create(0.0), wakes: store.create(0), drag: store.create(None) };
+        let shared = Shared {
+            tokens: store.create(Arc::new(tokens)),
+            time: store.create(0.0),
+            wakes: store.create(0),
+            text_stack: store.create(0),
+            drag: store.create(None),
+        };
         Runtime {
             tree: Tree::default(),
             store,
@@ -257,6 +264,7 @@ impl Runtime {
             tokens: self.shared.tokens,
             time: self.shared.time,
             wakes: self.shared.wakes,
+            text_stack: self.shared.text_stack,
             drag: self.shared.drag,
             modifiers: self.store.create(craft_keymap::chord::Mods::NONE),
             caps_lock: self.store.create(false),
@@ -722,6 +730,12 @@ impl Runtime {
         }
     }
 
+    /// Takes the text engine's [`TextEngine::stack_generation`]: a font stack set since the last
+    /// frame marks every node that laid text out, so the next frame lays it out again.
+    pub fn note_text_stack(&mut self, generation: u64) {
+        self.shared.text_stack.set_if_changed(&mut self.store, generation);
+    }
+
     /// Build, layout and paint over dirty nodes only, then damage, per window.
     /// An inline root that needs a build stays queued: hosts with inline roots call
     /// [`Runtime::frame_with`].
@@ -739,6 +753,7 @@ impl Runtime {
     fn run_frame(&mut self, text: &mut dyn TextEngine, mut roots: Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>) -> FrameReport {
         let mut report = FrameReport::default();
         self.counters = Counters::default();
+        self.note_text_stack(text.stack_generation());
         if std::mem::take(&mut self.away_check) && !self.windows.values().any(|w| *self.store.peek(w.env.window_focused)) {
             self.dismiss_away(None);
         }

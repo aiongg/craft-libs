@@ -752,8 +752,9 @@ fn record_frame(cx: &mut BuildCx<'_>, surface: Surface, size: Vec2, tokens: &Arc
         return DisplayList::default();
     }
     let scale = cx.scale();
+    let fonts = crate::fonts::stack_facts(cx);
     let (text, images) = cx.paint_services();
-    let services = FrameServices::new(text, images, scale);
+    let services = FrameServices::new(text, images, scale, fonts);
     let ui_tokens = UiTokens::new(tokens.clone(), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
     let canvas = Canvas::new(&services, Pos2::ZERO, Rect::EVERYTHING);
     let record = RefCell::new(PaintRecord::default());

@@ -130,6 +130,76 @@ pub struct FaceInstall {
     pub fallback: Vec<FontFace>,
 }
 
+/// How a [`FontStack`] face draws: adjustments of its glyphs that leave the layout's metrics alone.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FaceTweak {
+    /// Glyphs drawn at this many times the text size.
+    pub scale: f32,
+    /// Glyphs moved down by this share of the text size.
+    pub y_offset_factor: f32,
+    /// Glyphs moved down by this many logical points.
+    pub y_offset: f32,
+    /// Where the face is a fallback (not its family's first face), its glyphs sit on the row's
+    /// baseline; centred in the row otherwise (emoji and symbols).
+    pub baseline_fallback: bool,
+}
+
+impl Default for FaceTweak {
+    fn default() -> FaceTweak {
+        FaceTweak { scale: 1.0, y_offset_factor: 0.0, y_offset: 0.0, baseline_fallback: false }
+    }
+}
+
+/// One face of a [`FontStack`] family.
+#[derive(Clone)]
+pub struct StackFace {
+    /// The face's name: a face listed by several families has the same name in each, and the
+    /// engine reads its file once.
+    pub name: Arc<str>,
+    /// The font file.
+    pub bytes: Arc<[u8]>,
+    /// The face's index in the file.
+    pub index: u32,
+    /// The variation coordinates the face is drawn at (`wght`, `opsz`).
+    pub coords: Vec<([u8; 4], f32)>,
+    pub tweak: FaceTweak,
+}
+
+impl std::fmt::Debug for StackFace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StackFace")
+            .field("name", &self.name)
+            .field("bytes", &self.bytes.len())
+            .field("index", &self.index)
+            .field("coords", &self.coords)
+            .field("tweak", &self.tweak)
+            .finish()
+    }
+}
+
+/// The faces text is set in, for every renderer: each family's faces in the order a character
+/// falls back through them. The theme's slots ([`FontFace::Slot`]) and the families an app names
+/// ([`FontFace::Family`]) are families alike. An engine takes it with [`TextEngine::set_stack`].
+#[derive(Clone, Debug, Default)]
+pub struct FontStack {
+    pub families: Vec<(FontFace, Vec<StackFace>)>,
+}
+
+impl FontStack {
+    /// The faces of `family`, `None` when the stack has no such family.
+    pub fn family(&self, family: &FontFace) -> Option<&[StackFace]> {
+        self.families.iter().find(|(f, _)| f == family).map(|(_, faces)| faces.as_slice())
+    }
+
+    /// Sets the faces of `family`, in place of the ones it had.
+    pub fn set_family(&mut self, family: FontFace, faces: Vec<StackFace>) {
+        match self.families.iter_mut().find(|(f, _)| *f == family) {
+            Some((_, kept)) => *kept = faces,
+            None => self.families.push((family, faces)),
+        }
+    }
+}
+
 /// An underline or strike-through line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextLine {
@@ -298,6 +368,24 @@ pub trait TextEngine {
     fn has_face(&self, family: &str) -> bool {
         let _ = family;
         false
+    }
+
+    /// Sets text in `stack` from the next layout on, in place of the faces set before; the faces
+    /// [`install_face`](Self::install_face) added stay. Layouts made before keep the old faces'
+    /// shaping, so every call moves [`stack_generation`](Self::stack_generation) and the runtime
+    /// lays out again what laid text out. An engine with fixed faces ignores it.
+    fn set_stack(&mut self, stack: &FontStack) {
+        let _ = stack;
+    }
+
+    /// Moves by one at each [`set_stack`](Self::set_stack); 0 before the first.
+    fn stack_generation(&self) -> u64 {
+        0
+    }
+
+    /// The stack [`set_stack`](Self::set_stack) gave last, `None` before the first.
+    fn stack(&self) -> Option<&FontStack> {
+        None
     }
 
     /// The rows, glyphs and ink of `layout`. An engine without glyph metrics gives one row of the

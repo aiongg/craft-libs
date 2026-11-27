@@ -23,8 +23,8 @@ pub struct LayoutCx<'a> {
     text: &'a mut dyn TextEngine,
     node: NodeId,
     /// The texts the node's previous layout shaped, and those this one has asked for so far.
-    last: SmallVec<[(TextSpec, f32, TextLayout); 2]>,
-    shaped: SmallVec<[(TextSpec, f32, TextLayout); 2]>,
+    last: SmallVec<[ShapedText; 2]>,
+    shaped: SmallVec<[ShapedText; 2]>,
 }
 
 impl Reads for LayoutCx<'_> {
@@ -91,16 +91,18 @@ impl LayoutCx<'_> {
         set_offset(self.rt, child, offset);
     }
 
-    /// Shapes text at the current scale. Reading the scale records the read, so a scale change
-    /// lays this node out again. The node's previous layout shaped the same text at the same
-    /// scale in the same place of its call order: that shaping is reused.
+    /// Shapes text at the current scale. Reading the scale and the font stack's generation
+    /// records the reads, so a scale or stack change lays this node out again. The node's
+    /// previous layout shaped the same text at the same scale and stack in the same place of its
+    /// call order: that shaping is reused.
     pub fn text_layout(&mut self, spec: &TextSpec) -> TextLayout {
         let scale = self.scale();
+        let stack = self.env().text_stack.get(self);
         let layout = match self.last.get(self.shaped.len()) {
-            Some((last, at, layout)) if *at == scale && last == spec => layout.clone(),
+            Some((last, at, of, layout)) if *at == scale && *of == stack && last == spec => layout.clone(),
             _ => self.text.layout(spec, scale),
         };
-        self.shaped.push((spec.clone(), scale, layout.clone()));
+        self.shaped.push((spec.clone(), scale, stack, layout.clone()));
         layout
     }
 
@@ -118,6 +120,9 @@ fn set_offset(rt: &mut Runtime, id: NodeId, offset: Vec2) {
         rt.note_moved(id);
     }
 }
+
+/// A text a layout shaped: its spec, the scale and stack generation it was shaped at, and the layout.
+pub(crate) type ShapedText = (TextSpec, f32, u64, TextLayout);
 
 pub(crate) fn layout_node(rt: &mut Runtime, text: &mut dyn TextEngine, id: NodeId, c: Constraints) -> Vec2 {
     let Some(node) = rt.tree.nodes.get_mut(&id) else {

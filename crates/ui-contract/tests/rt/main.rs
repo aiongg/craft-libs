@@ -7,6 +7,7 @@ mod access;
 mod content;
 mod env;
 mod focus;
+mod fonts;
 mod harness;
 mod id;
 mod ime;
