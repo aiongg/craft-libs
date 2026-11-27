@@ -194,6 +194,7 @@ No frozen trait changes. Additions:
 | `Event::Hover(bool)` for nodes that ask (`BuildCx::hover_events`); `EventCx::request_owner_build` (a layer child tells its owner it was dismissed) | `event.rs`, `input.rs` | ~30 |
 | `Item::Text.angle` (turned text), `ImageOptions.wrap` (`Wrap::{Clamp, Repeat}`: repeating images), `Mesh` builders, `TextEngine::{install_face, has_face}` with `FaceInstall` (document faces installed while the app runs); each renderer supports them | `display.rs`, `text.rs` | ~95 |
 | `LayerSpec::{escape, focus_left, app_modal}`, `DismissReason::{Escape, FocusLeft}`: an unhandled Escape dismisses the topmost layer child that asks, focus leaving one dismisses it, an app-modal child blocks the other windows' input (`Runtime::blocked_by`); `LayerSpec::place` and `constraints` public so a build places its layer child as the runtime will | `layer.rs`, `input.rs` | ~110 |
+| `BuildCx::{provide, provided}`, `PaintCx::provided` (values a node gives itself and what it owns: env cells, the job board), `BuildCx::slot` (a cell created by key, owned by the node), `BuildCx::derived`, `Derived::state`, `Runtime::store_and_images_mut` (a host delivers job results into cells and images together) | `build.rs`, `paint.rs`, `tree.rs`, `state.rs`, `runtime.rs` | ~90 |
 
 ## 10. Services
 
@@ -205,13 +206,13 @@ No frozen trait changes. Additions:
 | Commands (`runtime/commands`) | board, per-frame state, queue, gate | unchanged; command state read through tracked cells, so a node that read a state runs when it moves |
 | IME engine (`runtime/ime.rs`, `primitives/text_input.rs`) | egui IME events plus fork patches | platform IME requests and events per window into the same engine; the type tool uses it (owner rule) |
 | Drag (`runtime/drag.rs`) | one session per context with payload and preview | payload sessions on ui-rt input (A2); the ghost on the drag layer |
-| Motion (`runtime/motion.rs`) | tweens over one clock, one repaint per viewport | tweens read in paint (`time_until`) for pointer looks and chrome; a tween read in a run makes the node run each frame of the tween |
+| Motion (`runtime/motion.rs`) | tweens over one clock, one repaint per viewport | a run names targets (`Cx::fade_to`, the pointer variants); the node's paint evaluates the tween at the frame time (`rt/motion.rs`): hover fades blend the kept variants, an opacity tween wraps the node. A running animation reads the frame time in paint, so ui-rt repaints that node per frame and asks for frames; the paint that finds it finished reads nothing and nothing is asked for. The mode and durations are env cells read in paint |
 | Overlay (`runtime/overlay.rs`, `contract/overlay*`) | egui layers, order, open modal | ui-rt layers per window; layer children are inline nodes of the component that shows them; outside-press dismissal from ui-rt |
-| Cursor (`runtime/cursor.rs`) | requests collected per pass | the node's kept cursor; ui-rt sets it on hover through `Platform::set_cursor` |
-| Memory (`runtime/memory.rs`) | slots in egui's `IdTypeMap`, eviction by seen marks | slots in the node's `Local`, freed with the node; the saved tier stays in the host store keyed by `Id` |
-| Env (`runtime/env*`) | `Env` walked per run, scope values | env values as cells with read tracking; `ThemeScope` per subtree |
+| Cursor (`runtime/cursor.rs`) | requests collected per pass | the node's kept cursor (`Component::cursor`, `PartBuilder::cursor`) recorded with its hit shapes; ui-rt picks it on hover and sets it through `Platform::set_cursor` only when it differs (`rt/cursor.rs`) |
+| Memory (`runtime/memory.rs`) | slots in egui's `IdTypeMap`, eviction by seen marks | slots in the node's `Local` (`rt/memory.rs`), freed with the node; cells a scope or job needs are `BuildCx::slot` cells owned by the node; the saved tier stays in the host store keyed by `Id` |
+| Env (`runtime/env*`) | `Env` walked per run, scope values | env values as cells (`rt/env.rs`: tokens, theme base, direction, density, motion mode, layer frame) provided by the window root (`BuildCx::provide`) and found by the nearest owner; a hook asks through its context (`Cx::direction`, `Paint::frame`), the run registers a build read of what was asked after the hooks, so a write marks only those nodes. `EnvScope`/`ThemeScope` give a subtree cells of its own: a theme scope's are derived cells, so a base write marks its readers at the start of the pass |
 | Access (`runtime/access*`, `runtime/egui/access*`) | full tree every pass, cloned at settle | node-owned AccessKit nodes in ui-rt's incremental update, off until AT activation |
-| Pending and wakes (`runtime/pending.rs`) | results polled per pass | jobs wake the driver through its `Waker`; the node that waits reads a cell the result writes |
+| Pending and wakes (`runtime/pending.rs`) | results polled per pass | `JobBoard` runs jobs on `host::Jobs`, wakes the driver through its `Waker`, and `deliver` (on `PlatformEvent::Wake`) writes each result into the cell the waiting node owns and reads (`Ui::job`) or into the `ImageStore` (`TextureCache`) |
 | Windows (`runtime/windows*`) | egui viewports | ui-rt windows and the platform's multi-window (B10) |
 
 ## 11. What is deleted

@@ -17,8 +17,11 @@ use smallvec::SmallVec;
 
 use super::access::Access;
 use super::drag::{DragSource, DropRule};
+use super::env::{EnvSnapshot, LayerFrame};
 use super::key::{ComponentKey, component_key, fold, type_key};
-use super::node::{ComponentNode, Kept, KeptPart, Memory, NodeInput, Place, Pointer, Variant, part_id};
+use super::memory::Memory;
+use super::motion::{Level, MotionSpec};
+use super::node::{ComponentNode, Kept, KeptPart, NodeInput, Place, Pointer, Variant, part_id};
 use super::overlay::OverlayUi;
 use super::response::{EditResponse, InputFacts, Outcome, Response};
 use super::sweep;
@@ -38,6 +41,19 @@ pub struct MeasureCx<'a> {
     pub room: Vec2,
     /// The tokens the node's run read.
     pub tokens: &'a Tokens,
+    env: &'a EnvSnapshot,
+}
+
+impl MeasureCx<'_> {
+    /// The flow direction. Reading it makes a direction change run the node again.
+    pub fn direction(&self) -> Direction {
+        self.env.direction()
+    }
+
+    /// The density preset. Reading it makes a density change run the node again.
+    pub fn density(&self) -> craft_theme::Size {
+        self.env.density()
+    }
 }
 
 /// The facts of one run, or of a kept node (settled: no input, the kept facts).
@@ -57,6 +73,8 @@ pub struct Cx<'a, C: Component> {
     edit: Edit<ValueOf<C>>,
     swept: Option<bool>,
     settled: bool,
+    env: &'a EnvSnapshot,
+    level: Cell<Option<(f32, MotionSpec)>>,
 }
 
 /// The value a run shows and the edits it made.
@@ -110,6 +128,34 @@ impl<'a, C: Component> Cx<'a, C> {
     /// The press on the component's own shape.
     pub fn press(&self) -> &PressState {
         &self.own.press
+    }
+
+    /// The flow direction. Reading it makes a direction change run the node again.
+    pub fn direction(&self) -> Direction {
+        self.env.direction()
+    }
+
+    /// The density preset. Reading it makes a density change run the node again.
+    pub fn density(&self) -> craft_theme::Size {
+        self.env.density()
+    }
+
+    /// The motion mode in effect. Reading it makes a change of the mode run the node again.
+    pub fn motion_mode(&self) -> craft_behavior::MotionMode {
+        self.env.motion()
+    }
+
+    /// The rounded frame of the layer the node is in. Reading it makes a change of the frame run the
+    /// node again.
+    pub fn frame(&self) -> Option<LayerFrame> {
+        self.env.frame()
+    }
+
+    /// Aims the node's opacity at `target` (0 to 1): the paint phase tweens toward it over `spec`'s
+    /// duration, reading the frame time while it runs, so no hook runs per frame. The first target a
+    /// node names is shown at once.
+    pub fn fade_to(&self, target: f32, spec: MotionSpec) {
+        self.level.set(Some((target.clamp(0.0, 1.0), spec)));
     }
 
     /// The node's memory slot of type `T`, created with its default on first use.
@@ -213,9 +259,21 @@ pub struct Paint<'a> {
     canvas: &'a Canvas<'a>,
     record: &'a RefCell<PaintRecord>,
     ui_tokens: &'a UiTokens,
+    env: &'a EnvSnapshot,
 }
 
 impl Paint<'_> {
+    /// The flow direction. Reading it makes a direction change run the node again.
+    pub fn direction(&self) -> Direction {
+        self.env.direction()
+    }
+
+    /// The rounded frame of the layer the node is in, in window coordinates. Reading it makes a
+    /// change of the frame run the node again.
+    pub fn frame(&self) -> Option<LayerFrame> {
+        self.env.frame()
+    }
+
     /// The pointer state this variant shows. Reading it makes the run record a variant per state.
     pub fn pointer(&self) -> Pointer {
         self.read.set(true);
@@ -229,7 +287,7 @@ impl Paint<'_> {
 
     /// The content-paint API.
     pub fn draw(&self) -> Draw<'_> {
-        Draw::new(self.canvas, self.record, DrawEnv { tokens: self.ui_tokens, direction: Direction::Ltr, ink: Ink::OnPanel })
+        Draw::new(self.canvas, self.record, DrawEnv { tokens: self.ui_tokens, direction: self.env.peek_direction(), ink: Ink::OnPanel })
     }
 }
 
@@ -316,6 +374,12 @@ pub trait Component: ComponentKey + Sized {
         Sense::empty()
     }
 
+    /// The cursor over the component's own shape: kept with the node and picked by ui-rt on hover, so
+    /// a hover runs no hook. `None` inherits the nearest cursor above.
+    fn cursor(&self) -> Option<Cursor> {
+        None
+    }
+
     /// Named sub-rects (thumbs, tracks, handles), kept as hit shapes until the next run.
     fn parts(&mut self, _rect: Rect, _cx: &mut PartsCx<'_, Self>) {}
 
@@ -388,7 +452,9 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
         let cached =
             under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).filter(|p| holds(p.local, key, p.state)).and_then(|p| p.local.cached(room));
         let tokens = ui.flow.tokens.clone();
-        let size = cached.unwrap_or_else(|| component.measure(&MeasureCx { room, tokens: &tokens }));
+        let env = EnvSnapshot::peek(ui.cx);
+        let size = cached.unwrap_or_else(|| component.measure(&MeasureCx { room, tokens: &tokens, env: &env }));
+        env.register(ui.cx);
         let rect = ui.flow.allocate(None, size, false);
         return finish_measured(component, id, rect, &tokens);
     }
@@ -399,8 +465,11 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
             let size = match kept.cached(room).filter(|_| kept_outputs) {
                 Some(size) => size,
                 None => {
-                    let tokens = if kept_outputs { flow.tokens.clone() } else { cx.tokens() };
-                    component.measure(&MeasureCx { room, tokens: &tokens })
+                    let tokens = if kept_outputs { flow.tokens.clone() } else { super::env::tokens(cx) };
+                    let env = EnvSnapshot::peek(cx);
+                    let size = component.measure(&MeasureCx { room, tokens: &tokens, env: &env });
+                    env.register(cx);
+                    size
                 }
             };
             let rect = flow.allocate(Some(cx.node()), size, false);
@@ -414,7 +483,7 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
                 }
                 return settle(component, kept, cx, rect, &flow.tokens);
             }
-            let tokens = cx.tokens();
+            let tokens = super::env::tokens(cx);
             run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep })
         })
     })
@@ -447,6 +516,7 @@ pub(crate) fn finish_measured<C: Component>(component: C, id: Id, rect: Rect, to
 
 fn finish_settled<C: Component>(mut component: C, id: Id, rect: Rect, tokens: &Tokens, response: Response, memory: &mut Memory) -> C::Output {
     let shown = component.bind().and_then(|b| b.get());
+    let env = EnvSnapshot::default();
     let rcx = Cx {
         id,
         rect,
@@ -459,6 +529,8 @@ fn finish_settled<C: Component>(mut component: C, id: Id, rect: Rect, tokens: &T
         edit: Edit { shown, events: EditEvents::new() },
         swept: None,
         settled: true,
+        env: &env,
+        level: Cell::new(None),
     };
     component.finish(&rcx)
 }
@@ -469,7 +541,9 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     cx.count_run();
     cx.mark_changed();
     let node = cx.node();
+    let env = EnvSnapshot::peek(cx);
     let sense = component.sense();
+    kept.cursor = component.cursor();
     let shown = component.bind().and_then(|b| b.get());
     let mut parts = Vec::new();
     component
@@ -500,6 +574,8 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
         edit: Edit { shown, events: EditEvents::new() },
         swept,
         settled: false,
+        env: &env,
+        level: Cell::new(None),
     };
     component.update(&mut rcx);
     let wrote = !rcx.edit.events.is_empty();
@@ -530,7 +606,12 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     // The size cache holds only this run's size (field access: `rcx` still borrows the memory).
     kept.sizes.clear();
     kept.sizes.push((ran.place.room, ran.size));
-    component.finish(&rcx)
+    if let Some((target, spec)) = rcx.level.take() {
+        Level::aim(kept.level.get_mut(), target, spec);
+    }
+    let out = component.finish(&rcx);
+    env.register(cx);
+    out
 }
 
 /// The response's input facts from a run's queue, and whether a drag of the node's press runs after
@@ -657,9 +738,13 @@ fn record_variants<C: Component>(component: &mut C, cx: &Cx<'_, C>, build: &mut 
             canvas: &canvas,
             record: &record,
             ui_tokens: &ui_tokens,
+            env: cx.env,
         };
         component.paint(&p, cx);
         let read = p.read.get();
+        if record.borrow().direction_read {
+            cx.env.mark_direction();
+        }
         let (content, overlay) = canvas.finish();
         (Variant { look, content, overlay }, read)
     };

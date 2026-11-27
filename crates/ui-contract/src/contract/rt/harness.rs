@@ -5,7 +5,7 @@
 //! platform input, and nodes are found in the access tree the runtime keeps, never through
 //! internals. The clock moves only through [`Harness::step`] and its relatives, so a test decides
 //! what time it is. Motion is off unless the test opts in with [`HarnessBuilder::with_motion`]: the
-//! motion tokens' durations are 0, so a tween ends in the frame that starts it.
+//! window's motion-mode env cell is `Off`, so a tween ends in the frame that starts it.
 //!
 //! Names follow the kittest subset the egui-backed tests use (`state`, `state_mut`, `step`,
 //! `run_steps`, `run`, `get_by_label`, `query_by_label`, `query_*_by_role`, `key_press`, `render`,
@@ -13,12 +13,13 @@
 //! `key`, `type_text`).
 
 use accesskit::Role;
+use craft_behavior::MotionMode;
 use craft_theme::{Appearance, Contrast, Mode, TextSize, Tokens, builtins, resolve};
 use craft_ui_platform_headless::{Contact, HeadlessPlatform, Input};
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Driver, Key, Mods, Pos2, ReadBack, Rect, Renderer, RgbaImage, StepReport, Vec2, WindowId};
 
-use super::{Ui, window_root};
+use super::{EnvCells, Ui, WindowEnv, window_root_with};
 
 /// One simulated 60 Hz frame, in seconds: what [`Harness::step`] advances the clock by.
 pub const FRAME: f64 = 1.0 / 60.0;
@@ -39,15 +40,6 @@ pub fn default_tokens() -> Tokens {
         reduced_motion: false,
     };
     resolve(&builtins()[0], appearance, None).tokens
-}
-
-/// `tokens` with every motion duration 0.
-fn without_motion(mut tokens: Tokens) -> Tokens {
-    let m = &mut tokens.motion;
-    for motion in [&mut m.hover, &mut m.open, &mut m.r#move, &mut m.caret, &mut m.outline] {
-        motion.millis = 0;
-    }
-    tokens
 }
 
 /// A node of the access tree, as input addresses it.
@@ -133,24 +125,14 @@ impl HarnessBuilder {
     pub fn build_with<S: 'static, R: Renderer>(self, renderer: R, view: impl FnMut(&mut Ui<'_, '_>, &mut S) + 'static, state: S) -> Harness<S, R> {
         let window = HeadlessPlatform::MAIN;
         let platform = HeadlessPlatform::with_window(self.size, self.scale);
-        let mut runtime = craft_ui_rt::Runtime::new(self.tokens.clone());
+        let mut runtime = craft_ui_rt::Runtime::new(self.tokens);
         runtime.set_inline_root(window);
+        let tokens = runtime.env(window).tokens;
+        let cells = EnvCells::in_store(runtime.store_mut(), tokens);
+        cells.motion.set(runtime.store_mut(), if self.motion { MotionMode::Full } else { MotionMode::Off });
         let mut driver = Driver::new(runtime, platform, renderer);
         driver.runtime.set_access_enabled(window, true);
-        let mut harness = Harness {
-            driver,
-            window,
-            state,
-            view: Box::new(view),
-            tokens: self.tokens,
-            motion: self.motion,
-            held: Mods::NONE,
-            rebuild: false,
-            last: StepReport::default(),
-            steps: 0,
-        };
-        harness.apply_tokens();
-        harness
+        Harness { driver, window, state, view: Box::new(view), cells, held: Mods::NONE, rebuild: false, last: StepReport::default(), steps: 0 }
     }
 }
 
@@ -161,8 +143,7 @@ pub struct Harness<S = (), R: Renderer = RecordingRenderer> {
     window: WindowId,
     state: S,
     view: Box<dyn FnMut(&mut Ui<'_, '_>, &mut S)>,
-    tokens: Tokens,
-    motion: bool,
+    cells: EnvCells,
     held: Mods,
     /// The app's own state moved: the root builds in the next step.
     rebuild: bool,
@@ -190,11 +171,6 @@ impl<S: 'static> Harness<S, RecordingRenderer> {
 }
 
 impl<S, R: Renderer> Harness<S, R> {
-    fn apply_tokens(&mut self) {
-        let tokens = if self.motion { self.tokens.clone() } else { without_motion(self.tokens.clone()) };
-        self.driver.runtime.set_tokens(tokens);
-    }
-
     /// The window the view runs in.
     pub fn window(&self) -> WindowId {
         self.window
@@ -220,15 +196,14 @@ impl<S, R: Renderer> Harness<S, R> {
 
     /// Shows other tokens.
     pub fn set_tokens(&mut self, tokens: Tokens) -> &mut Self {
-        self.tokens = tokens;
-        self.apply_tokens();
+        self.driver.runtime.set_tokens(tokens);
         self
     }
 
     /// Turns motion on or off for the steps that follow.
     pub fn set_motion(&mut self, on: bool) -> &mut Self {
-        self.motion = on;
-        self.apply_tokens();
+        let mode = if on { MotionMode::Full } else { MotionMode::Off };
+        self.cells.motion.set(self.driver.runtime.store_mut(), mode);
         self
     }
 
@@ -254,7 +229,8 @@ impl<S, R: Renderer> Harness<S, R> {
         }
         let now = self.driver.platform.now();
         let (state, view) = (&mut self.state, &mut self.view);
-        let report = self.driver.step_with(now, &mut |_, cx| window_root(cx, |ui| view(ui, state)));
+        let host = WindowEnv { cells: Some(self.cells), jobs: None };
+        let report = self.driver.step_with(now, &mut |_, cx| window_root_with(cx, host.clone(), |ui| view(ui, state)));
         self.last = report;
         self.steps += 1;
         report

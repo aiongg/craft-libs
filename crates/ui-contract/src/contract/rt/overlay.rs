@@ -341,7 +341,7 @@ fn run_layer<R: Clone + 'static>(
     cx.count_scope();
     cx.hover_events(run.hover);
     lk.dismissed = None;
-    let tokens: Arc<Tokens> = cx.tokens();
+    let tokens: Arc<Tokens> = super::env::tokens(cx);
     let gap = tokens.space.gap.stack;
     let constraints = run.spec.constraints(run.viewport, run.anchor);
     let room = (constraints.max * run.share - Vec2::splat(2.0 * run.pad)).max(Vec2::ZERO);
