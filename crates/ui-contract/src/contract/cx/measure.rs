@@ -94,7 +94,7 @@ impl<C: Component> MeasureCx<'_, C> {
     /// `None` when the width is unbounded and no wrap width is set.
     pub fn column_room(&self) -> Option<f32> {
         let room = self.room.or_else(|| {
-            let width = crate::layout::row_alone_room(self.scope).unwrap_or_else(|| self.with_ui(|ui| crate::layout::flow_room(ui, self.scope).x));
+            let width = self.with_ui(|ui| crate::layout::flow_room(ui).x);
             Some(width).filter(|width| width.is_finite())
         });
         match (room, self.env.measure()) {
@@ -127,7 +127,8 @@ impl<C: Component> MeasureCx<'_, C> {
             && self.proposal != Proposal::Min
             && let Some(column) = self.env.column_first_sweep()
         {
-            self.with_ui(|ui| crate::layout::report_held(ui, column, self.id, crate::layout::HeldKind::Picture, f32::INFINITY));
+            let _ = column;
+            todo!("held widths: a picture's report to its column's first sweep (HeldKind::Picture), INT-2c");
         }
         let width = self.picture_width(least, most);
         Vec2::new(width, height(width))

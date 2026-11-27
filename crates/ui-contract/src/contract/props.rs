@@ -2,12 +2,12 @@
 
 use super::{IdSource, Internal, Meta, Sizing};
 use crate::primitives::Id;
+use crate::primitives::IdSalt;
 use crate::runtime::commands::{CommandRef, CommandScope};
 use crate::runtime::env::Label;
 use crate::style::GlyphRole;
 use craft_behavior::DocKey;
 use craft_theme::{ControlSize, Variant};
-use egui::{AsIdSalt, IdSalt};
 
 /// What every component carries: the props the pipeline reads at step 1.
 #[derive(Clone, Debug, Default, crate::contract::MemoProps)]
@@ -72,7 +72,7 @@ impl Common {
 /// The setters every component gets from `Meta`.
 pub trait Props: Meta + Sized {
     /// Salts the id with `salt`.
-    fn id_salt(mut self, salt: impl AsIdSalt) -> Self {
+    fn id_salt(mut self, salt: impl std::hash::Hash) -> Self {
         self.common_mut(Internal::new()).id = IdSource::Salt(IdSalt::new(salt));
         self
     }

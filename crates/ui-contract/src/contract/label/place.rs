@@ -3,14 +3,11 @@
 use super::leaf::{LabelLeaf, colon};
 use super::props::{CaptionColumn, FieldLayout, LabelKind, LabelScheme};
 use super::step::LabelIn;
-use crate::contract::Show;
-use crate::runtime::access::scope::{self};
-use crate::runtime::egui::{alloc, child};
+use crate::contract::{Context, Show, Ui};
+use crate::runtime::access::scope::scope_facts;
 use crate::runtime::env::Env;
-use crate::runtime::memory::sub;
 use craft_behavior::{ColumnWidth, Flow, LabelColumn};
 use craft_ui_rt::{Align, Rect, Vec2};
-use egui::{Ui, UiBuilder};
 
 /// Where the label step put the label and the control.
 pub(crate) struct Placed {
@@ -29,7 +26,7 @@ pub(crate) struct Placed {
 /// track has no text baseline) and its label are centred on each other across the row. For a field's control, as in
 /// `LabelColumn::place`, the one with the lower baseline moves down so the two baselines line up, using the baseline
 /// `record_control_baseline` stored last pass.
-fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32, first_line: f32) -> Placed {
+fn place_after(ctx: &Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32, first_line: f32) -> Placed {
     let rtl = flow.is_rtl();
     let (control_cell, rest) = flow.take_start(input.control_min.min(flow.rect().width()));
     let (_, rest) = rest.take_start(gap);
@@ -54,13 +51,12 @@ fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, l
 /// The rect a hidden label leaves for its control. In a body whose labelled rows share a label column the label
 /// still takes the column, so the control starts in the control column; elsewhere, or where the row is too narrow
 /// for the column, the control takes the row.
-pub(super) fn hidden_control(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32) -> Rect {
+pub(super) fn hidden_control(ctx: &Context, input: &LabelIn<'_>, flow: Flow, gap: f32) -> Rect {
     if input.side.layout != FieldLayout::Beside {
         return input.row;
     }
     match crate::layout::ambient_width(ctx, &crate::layout::LABELS, 0.0).filter(|column| *column > 0.0) {
         Some(column) if input.room >= column + gap + input.control_min => {
-            crate::layout::note_beside(ctx, &crate::layout::LABELS, input.room - gap - input.control_min);
             let (_, rest) = flow.take_start(column);
             rest.take_start(gap).1.rect()
         }
@@ -72,22 +68,19 @@ pub(super) fn hidden_control(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flo
 /// its control) starts from its row's start. Under a form whose labelled rows share a label column, a row of the
 /// column's flow starts past the column and the gap, so its control lines up with theirs, when the row has room for
 /// the column, the gap and the control; 0 elsewhere. An inspector's check rows stay at the row's start.
-fn after_indent(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, gap: f32) -> f32 {
+fn after_indent(ctx: &Context, env: &Env, input: &LabelIn<'_>, gap: f32) -> f32 {
     if input.side.layout != FieldLayout::After || !input.in_column || env.values.get::<LabelScheme>() != LabelScheme::Form {
         return 0.0;
     }
     match crate::layout::ambient_width(ctx, &crate::layout::LABELS, 0.0).filter(|column| *column > 0.0) {
-        Some(column) if input.room >= column + gap + input.control_min => {
-            crate::layout::note_beside(ctx, &crate::layout::LABELS, input.room - gap - input.control_min);
-            column + gap
-        }
+        Some(column) if input.room >= column + gap + input.control_min => column + gap,
         _ => 0.0,
     }
 }
 
 /// Decides where the label and the control of `input` sit, from `input.control_min`, `input.room` and the group's
 /// label column. Shows and records nothing.
-pub(super) fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: &mut LabelLeaf, glyph: bool, flow: Flow) -> Placed {
+pub(super) fn decide(ctx: &Context, env: &Env, input: &LabelIn<'_>, kids: &mut Ui, leaf: &mut LabelLeaf, glyph: bool, flow: Flow) -> Placed {
     let rtl = env.direction.is_rtl();
     let gap = label_gap(env);
     let indent = after_indent(ctx, env, input, gap);
@@ -113,7 +106,6 @@ pub(super) fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: 
         return Placed { label, control: cell, trailing: Rect::NOTHING, caption: 0.0 };
     }
     let key = if glyph { crate::layout::GLYPHS } else { crate::layout::LABELS };
-    let mut read = false;
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {
             let own = natural.x;
@@ -121,7 +113,6 @@ pub(super) fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: 
             // as its own text.
             let shared = env.values.get::<LabelScheme>() != LabelScheme::Inline || env.values.get::<CaptionColumn>().shared();
             let width = crate::layout::ambient_width(ctx, &key, own).filter(|width| shared && *width > 0.0);
-            read = width.is_some();
             let width = width.unwrap_or(own);
             (width, width + gap + input.control_min)
         }
@@ -141,10 +132,6 @@ pub(super) fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: 
     // that never sits beside stacks in an unbounded room as well.
     let pinned = (input.content_row || input.egui_cell) && input.side.layout == FieldLayout::Beside;
     let stacks = (input.room < stack_below || stack_below == f32::INFINITY) && !pinned;
-    // A label that sits beside the group's column measured so far stacks once the column passes this.
-    if read && !stacks && !pinned {
-        crate::layout::note_beside(ctx, &key, input.room - gap - input.control_min);
-    }
     // A stacked label has the row's width at most, where its name elides; in an egui grid's cell it keeps its own.
     let column = if stacks && !input.egui_cell { column.min(input.row.width()) } else { column };
     // A beside label that does not stack takes its column, the gap and the control's least, past the row's end where
@@ -162,7 +149,7 @@ pub(super) fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: 
         place_after(ctx, input, flow, gap, natural, baseline, leaf.first_line.get())
     } else {
         let placed = crate::layout::place_label(
-            kids,
+            &*kids,
             input.scope,
             &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
             flow,
@@ -218,7 +205,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Plac
     if input.side.shows_no_leaf(content) {
         return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, label_gap(env)), trailing: Rect::NOTHING, caption: 0.0 };
     }
-    let reset = scope::last_reset(&ctx, input.scope);
+    let reset = scope_facts(ui.build_cx(), input.scope).1.reset;
     let slot = if reset.is_some() && input.side.reset_dot { env.tokens.size.handle.sm } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.side.kind.shown(input.text).clone(), slot);
     leaf.resettable = reset.is_some();
@@ -234,10 +221,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Plac
         }
     }
     let glyph = leaf.glyph.is_some();
-    let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(sub(input.scope, "label_ui"));
-    let kids = alloc::child(ui, builder);
-    let installed = Env::install_for(&kids, crate::contract::cx::child_env(env, &crate::contract::cx::Under::new(input.enabled, input.size)));
-    let placed = decide(&ctx, env, input, &kids, &mut leaf, glyph, flow);
-    Env::restore(&ctx, installed);
+    let kid_env = crate::contract::cx::child_env(env, &crate::contract::cx::Under::new(input.enabled, input.size));
+    let placed = Env::run_in(ui, kid_env, |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow));
     placed
 }

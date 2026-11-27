@@ -148,6 +148,9 @@ pub(crate) struct Merged {
 pub(crate) struct ScopeFacts {
     pub reset: Option<ResetFact>,
     pub scrub: bool,
+    /// The child of the control whose stop a click on the label focuses, in place of the control's own
+    /// (`PaintUi::label_target`).
+    pub target: Option<Id>,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -171,10 +174,13 @@ pub(crate) fn scope_facts(cx: &mut BuildCx<'_>, scope: Id) -> (State<ScopeFacts>
 /// Writes `change` into the facts of the label scope that names the running control, when its build ends and only
 /// when it changes them. A control no label names writes nothing.
 fn note(core: &crate::contract::CxCore<'_>, change: impl FnOnce(&mut ScopeFacts) + 'static) {
-    let Some(cell) = core.env.field_label().and_then(|label| label.facts) else { return };
-    if core.run.measuring {
-        return;
+    if !core.run.measuring {
+        note_in(core.env.field_label(), change);
     }
+}
+
+fn note_in(label: Option<&FieldLabel>, change: impl FnOnce(&mut ScopeFacts) + 'static) {
+    let Some(cell) = label.and_then(|label| label.facts) else { return };
     crate::contract::context::log_build_read(move |cx| {
         use craft_ui_rt::Writes as _;
         let mut facts = cell.with(cx.store_mut(), ScopeFacts::clone);
@@ -192,4 +198,9 @@ pub(crate) fn note_reset(core: &crate::contract::CxCore<'_>, reset: Option<Reset
 /// the drag from its next run on.
 pub(crate) fn note_scrub(core: &crate::contract::CxCore<'_>) {
     note(core, |facts| facts.scrub = true);
+}
+
+/// Names `target`, a child of the control the label `label` names, as the one a click on the label focuses.
+pub(crate) fn note_label_target(label: Option<&FieldLabel>, target: Id) {
+    note_in(label, move |facts| facts.target = Some(target));
 }

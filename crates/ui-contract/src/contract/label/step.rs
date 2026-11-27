@@ -206,6 +206,8 @@ pub(crate) struct Decided {
     facts: LeafFacts,
     /// The label scope's facts cell, which the control writes.
     cell: State<ScopeFacts>,
+    /// The child of the control a click on the label focuses, when the control named one.
+    target: Option<Id>,
 }
 
 struct DecidedLeaf {
@@ -243,18 +245,24 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
     let ctx = ui.ctx().clone();
     let rtl = env.direction.is_rtl();
     let (gap, slot_side) = (label_gap(env), env.tokens.size.handle.sm);
-    let (cell, facts) = scope_facts(ui.build_cx(), input.scope);
-    let reset = facts.reset.clone();
+    let (cell, facts_read) = scope_facts(ui.build_cx(), input.scope);
+    let reset = facts_read.reset.clone();
     let flow = Flow::new(input.row, rtl);
     let content = input.trailing.x > 0.0;
     let facts = LeafFacts { control_min: input.control_min, in_column: input.in_column, claims: input.claims };
     if input.side.shows_no_leaf(content) {
         let control = hidden_control(&ctx, input, flow, gap);
-        return Decided { placed: Placed { label: Rect::NOTHING, control, trailing: Rect::NOTHING, caption: 0.0 }, leaf: None, facts, cell };
+        return Decided {
+            placed: Placed { label: Rect::NOTHING, control, trailing: Rect::NOTHING, caption: 0.0 },
+            leaf: None,
+            facts,
+            cell,
+            target: facts_read.target,
+        };
     }
     let slot = if reset.is_some() && input.side.reset_dot { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.side.kind.shown(input.text).clone(), slot);
-    leaf.scrub = input.enabled && (input.side.scrub || facts.scrub);
+    leaf.scrub = input.enabled && (input.side.scrub || facts_read.scrub);
     leaf.resettable = reset.is_some();
     leaf.differs = reset.as_ref().is_some_and(|fact| fact.differs);
     leaf.default = reset.as_ref().and_then(|fact| fact.default.clone());
@@ -291,7 +299,7 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
         let middle = cell.top() + leaf.first_line.get() / 2.0;
         placed.trailing = Rect::from_min_size(craft_ui_rt::pos2(cell.min.x, middle - input.trailing.y / 2.0), input.trailing);
     }
-    Decided { placed, leaf: Some(DecidedLeaf { leaf, env: kid_env, reset }), facts, cell }
+    Decided { placed, leaf: Some(DecidedLeaf { leaf, env: kid_env, reset }), facts, cell, target: facts_read.target }
 }
 
 /// Shows the label step `decided` for `input`: the label and the `trailing` content inside it. Returns where the label
@@ -300,7 +308,7 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
 fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing: Option<Trailing<'_>>) -> (Placed, FieldLabel) {
     let rtl = env.direction.is_rtl();
     let label_id = sub(input.scope, "label");
-    let Decided { placed, leaf, cell, .. } = decided;
+    let Decided { placed, leaf, cell, target, .. } = decided;
     let Some(DecidedLeaf { leaf, env: kid_env, reset }) = leaf else {
         let mut label = field_label(env, input, label_id, Rect::NOTHING).shown(false);
         label.facts = Some(cell);
@@ -330,7 +338,7 @@ fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing:
     // A click on the label moves focus to the control it names; a control that claims the label takes the press
     // itself.
     if activated && !input.claims {
-        ui.request_focus(FocusTarget::Id(control_of(input)));
+        ui.request_focus(FocusTarget::Id(target.unwrap_or_else(|| control_of(input))));
     }
     let mut label = field_label(env, input, label_id, placed.label)
         .with_press(shown.press)

@@ -52,7 +52,6 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
         shared: Option<RegionShare<'a>>,
     ) -> Self {
-        memory.claim(id);
         let (gate_mixed, field_message, owner) =
             shared.map_or((false, None, None), |shared| (shared.gate_mixed, shared.field_message, Some(shared.owner)));
         BodyCx {
@@ -190,7 +189,7 @@ impl<'a> BodyCx<'a> {
         let mut content = content;
         let size = crate::contract::run::measure_under(
             &mut content,
-            &*ui,
+            ui,
             Some(content_id),
             craft_behavior::Proposal::Ideal,
             Some(&super::Under::new(under.0, under.1)),

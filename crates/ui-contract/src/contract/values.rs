@@ -247,12 +247,6 @@ pub fn clicked(outcome: &impl Outcome) -> bool {
     outcome.response().clicked()
 }
 
-/// The `Response` of the component `id` shown in this window: the one its last run or keep gave. `None` for an id
-/// no component showed.
-pub fn response_of(ui: &Ui, id: Id) -> Option<Response> {
-    ui.response_of(id)
-}
-
 /// Whether a pointer press went down on `response`'s component and is still held.
 pub fn pressed(response: &Response) -> bool {
     response.is_pointer_button_down_on()
