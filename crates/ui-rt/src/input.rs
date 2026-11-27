@@ -543,6 +543,7 @@ impl Runtime {
             input.cursor_check = true;
             self.refresh_hovered_parts(before.map(|(h, _)| h), hit.map(|(h, _)| h));
         }
+        let Some(input) = self.input_mut(window) else { return };
         if now == input.hovered {
             return;
         }
