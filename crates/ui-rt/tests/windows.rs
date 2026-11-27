@@ -427,6 +427,35 @@ fn an_image_sub_rect_update_uploads_that_part_and_damages_only_its_draw() {
     assert!(damage[0].min.x >= 99.0 && damage[0].max.x <= 165.0 && damage[0].max.y <= 115.0, "the image's draw: {:?}", damage[0]);
 }
 
+#[test]
+fn images_past_the_frame_upload_budget_arrive_over_the_next_frames() {
+    let paints = Rc::new(RefCell::new(0));
+    let mut rt = Runtime::new(tokens());
+    rt.set_root(MAIN, Picture { paints: paints.clone() });
+    let mut d = Driver::new(rt, TestPlatform::new(Vec2::new(400.0, 300.0), 1.0), RecordingRenderer::default());
+    d.step(0.0);
+    let image = || Arc::new(RgbaImage::new(SizeU::new(32, 32)));
+    let images = d.runtime.images_mut();
+    images.set_upload_budget(2 * 32 * 32 * 4);
+    for key in 10..15 {
+        images.insert(ImageKey(key), image());
+    }
+    assert_eq!(images.waiting(), 3, "two fit the frame's budget");
+    assert!(!images.contains(ImageKey(12)), "a waiting image is not in the store yet");
+    let mut uploaded = Vec::new();
+    for time in 1..5 {
+        let step = d.step(f64::from(time));
+        if !step.ran {
+            break;
+        }
+        uploaded.push(step.render.images_uploaded);
+    }
+    assert_eq!(uploaded, [2, 2, 1], "each frame uploads at most its budget, and the runtime asks for the frames itself");
+    assert!((10..15).all(|key| d.runtime.images().contains(ImageKey(key))));
+    assert_eq!(*paints.borrow(), 1, "no display list is re-recorded");
+    assert!(!d.step(6.0).ran, "idle once every image is in");
+}
+
 /// Counts its builds; reads the wake cell so a background job's wake reruns it.
 struct Inbox {
     builds: Rc<RefCell<u32>>,

@@ -1,8 +1,7 @@
 //! Sample content for stories in every crate: photos for tiles and previews, and the brush tips and strokes a
 //! brush preview shows, so a story shows what its component shows in an app without a document or an engine.
 //!
-//! - [`StoryPictures`]: a key's photo painted into a thumbnail, through the one thumbnail store
-//!   ([`Thumbnails`]) and a [`FakeThumbSource`] whose pictures are opaque.
+//! - [`StoryPictures`]: a key's photo painted into a thumbnail, the opaque picture of a `FakeThumbSource`.
 //! - [`sample_picture`]: the same photo as an image, for a component that takes pixels rather than a source.
 //! - [`paint_tip`], [`paint_wave`] and [`stamped_stroke`]: brush tips, a stroke drawn as a wave and a stroke
 //!   stamped with round dabs, as a brush engine renders them.
@@ -12,38 +11,39 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use craft_behavior::PixelSize;
-use egui::{Color32, ColorImage, Context, Pos2, Rect, pos2, vec2};
+use egui::{Color32, ColorImage, Pos2, Rect, pos2, vec2};
 
-use crate::primitives::textures::{FakeThumbSource, Priority, ThumbFit, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, fake_thumb_image};
+use crate::primitives::textures::{ThumbFit, ThumbPaint, ThumbRequest, cover_uv, fake_thumb_image};
 use crate::primitives::{ContentPainterCx, StrokeWidth};
+use egui::emath::GuiRounding as _;
 
-/// The photos of the stories in one context, keyed by a number: the same key shows the same picture everywhere.
-#[derive(Clone)]
-pub struct StoryPictures {
-    thumbs: Thumbnails<u64>,
-}
+/// The photos of the stories, keyed by a number: the same key shows the same picture everywhere.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StoryPictures;
 
 impl StoryPictures {
-    /// The pictures stored in `ctx`.
-    pub fn of(ctx: &Context) -> Self {
-        Self { thumbs: Thumbnails::in_context(ctx, "craft_ui::testing::pictures", ThumbnailOptions::new()) }
+    /// The story photos.
+    pub fn new() -> Self {
+        Self
     }
 
-    /// A thumbnail painter that fills its rect with the photo of `key`, cropped to the rect's shape.
+    /// A thumbnail painter that fills its rect with the photo of `key`, cropped to the rect's shape. The photo is
+    /// made at the cell's pixel size the first time and kept in the frame's image store.
     pub fn thumb(&self, key: u64) -> impl FnOnce(&ContentPainterCx, Rect) + 'static {
-        let thumbs = self.thumbs.clone();
         move |cx, rect| {
-            let ctx = cx.painter.services().egui().expect("thumbnails load through the egui context").clone();
-            let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ctx.pixels_per_point());
-            let state = thumbs.state(&ctx, &FakeThumbSource::<u64>::new().opaque(true), &key, &request, Priority::VISIBLE);
-            thumbs.paint(cx, rect, &state, &ThumbPaint::default().fit(ThumbFit::Cover).checker(false));
+            let side = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.pixels_per_point()).side;
+            let image = cx.painter.cached_image(("craft_ui::testing::pictures", key, side), || sample_picture(key, [side, side]));
+            let paint = ThumbPaint::default().fit(ThumbFit::Cover).checker(false);
+            let uv = cover_uv(rect, vec2(side as f32, side as f32));
+            cx.painter.image(image, rect.round_to_pixels(cx.pixels_per_point()), uv, paint.tint.0);
         }
     }
 }
 
 /// The photo of `key` as an image `size` pixels wide and high: the picture [`StoryPictures::thumb`] paints.
 pub fn sample_picture(key: u64, [width, height]: [u32; 2]) -> ColorImage {
-    fake_thumb_image(&key, PixelSize::new(width, height))
+    let image = fake_thumb_image(&key, PixelSize::new(width, height));
+    ColorImage::from_rgba_unmultiplied([image.size.width as usize, image.size.height as usize], &image.pixels)
 }
 
 /// The shape of a sample brush tip.

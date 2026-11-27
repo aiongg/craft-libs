@@ -50,7 +50,7 @@ pub use access::{AccessCx, AccessEntry, Politeness as AnnouncePoliteness};
 pub use build::{BuildCx, InlineState, Peek};
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,
-    StrokeAlign, SurfaceKey, TextHighlight, Vertex, Wrap,
+    StrokeAlign, SurfaceKey, TextHighlight, UPLOAD_BUDGET, Vertex, Wrap,
 };
 pub use drag::{DragData, DragGhost, DragInfo, DragOutcome, DragPointer, DragStart, DropInput, DropPhase};
 pub use driver::{Driver, StepReport, WakeHandler};

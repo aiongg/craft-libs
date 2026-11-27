@@ -13,6 +13,10 @@ use craft_ui_contract::contract::rt::{
 };
 use craft_ui_contract::contract::rt::{Response, show_leaf};
 use craft_ui_contract::contract::{MemoKey, MemoProps};
+use craft_ui_contract::primitives::textures::{
+    CachedTexture, LoadedPicture, Priority, Revision, TextureBudget, TextureState, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions,
+    Thumbnails,
+};
 use craft_ui_contract::runtime::env::ThemeScope;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
@@ -391,10 +395,9 @@ impl Component for Thumb<'_> {
     }
 
     fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        let key: ImageKey = self.cache.image_key(&self.id, 1);
-        let look = self.cache.look(&self.id, 1);
-        if look == TextureLook::Loading {
-            self.cache.request(self.id, 1, || Some(solid(8, 8)));
+        let key: ImageKey = self.cache.image_key(&self.id, REV);
+        if !self.cache.requested(&self.id, REV) {
+            self.cache.request(self.id, REV, Priority::VISIBLE, |_| Ok(Some(solid(8, 8))));
         }
         let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
         paint.draw().canvas().image(key, paint.bounds(), uv, Color32::WHITE);
@@ -404,6 +407,8 @@ impl Component for Thumb<'_> {
         cx.response.clone()
     }
 }
+
+const REV: Revision = Revision::new(1);
 
 fn solid(w: u32, h: u32) -> RgbaImage {
     let mut image = RgbaImage::new(SizeU { width: w, height: h });
@@ -417,23 +422,108 @@ fn a_late_picture_reaches_its_node_through_the_image_store_with_no_run() {
         cache: TextureCache<u32>,
     }
     let mut w = World::build(
-        |board| App { cache: TextureCache::new("thumbs", 1 << 20, board.clone()) },
+        |board| App { cache: TextureCache::new("thumbs", TextureBudget::new(1 << 20, 64), board.clone()) },
         |ui, app| {
             let _ = IconButton::new(IconId::new("plus"), "Other").show(ui);
             Thumb { cache: &app.cache, id: 3 }.show_in(ui);
         },
     );
     let cache = w.app.cache.clone();
-    assert_eq!(cache.look(&3, 1), TextureLook::Loading);
+    assert!(matches!(cache.look(&3, REV), TextureLook::Loading { stand_in: None, .. }));
     assert_eq!(w.queue.run_all(), 1, "the first paint asked for the picture once");
     assert_eq!(w.wake(), 1);
-    assert_eq!(cache.look(&3, 1), TextureLook::Ready(cache.image_key(&3, 1)));
+    assert_eq!(cache.look(&3, REV), TextureLook::Ready(CachedTexture::new(cache.image_key(&3, REV), craft_behavior::PixelSize::new(8, 8))));
     let arrived = w.step();
     assert_eq!((arrived.frame.runs, arrived.frame.scopes, arrived.frame.built), (0, 0, 0), "nothing runs when the picture arrives: {arrived:?}");
     assert_eq!(arrived.render.images_uploaded, 1, "the renderer uploads it: {arrived:?}");
     assert!(!w.rig.driver.runtime.needs_frame(), "and the window is settled again");
     let idle = w.step();
     assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
+}
+
+/// A leaf that paints the picture of a thumbnail state.
+struct Pic {
+    state: TextureState,
+}
+
+impl ComponentKey for Pic {
+    fn key(&self, key: &mut MemoKey) {
+        self.state.shown().map_or(0, |t| t.key.0).key(key);
+    }
+}
+
+impl Component for Pic {
+    const ROLE: accesskit::Role = accesskit::Role::Image;
+    type Output = Response;
+
+    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+        Vec2::new(32.0, 32.0)
+    }
+
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
+        if let Some(texture) = self.state.shown() {
+            let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+            paint.draw().canvas().image(texture.key, paint.bounds(), uv, Color32::WHITE);
+        }
+    }
+
+    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A source whose pictures come from a background job.
+struct Slow;
+
+impl ThumbSource<u32> for Slow {
+    fn revision(&self, _: &u32, _: &ThumbRequest) -> Revision {
+        REV
+    }
+
+    fn render(&self, _: &u32, request: &ThumbRequest) -> ThumbRender {
+        let side = request.side;
+        ThumbRender::Later(Box::new(move |_| Ok(LoadedPicture::Image(solid(side, side)))))
+    }
+}
+
+struct Thumbed {
+    thumbs: Thumbnails<u32>,
+    state: Option<TextureState>,
+    view_runs: u32,
+    other_runs: u32,
+}
+
+#[test]
+fn a_thumbnail_is_delivered_once_to_the_view_that_reads_it_and_then_nothing_runs() {
+    let mut w = World::build(
+        |board| Thumbed { thumbs: Thumbnails::on(board, "trial", ThumbnailOptions::new()), state: None, view_runs: 0, other_runs: 0 },
+        |ui, app| {
+            MemoView::new(1u32).show(ui, |ui, _| {
+                app.view_runs += 1;
+                let state = app.thumbs.state(ui.build_cx(), &Slow, &7, &ThumbRequest::for_cell(32.0, 1.0), Priority::VISIBLE);
+                app.state = Some(state.clone());
+                Pic { state }.show_in(ui);
+            });
+            MemoView::new(2u32).show(ui, |ui, _| {
+                app.other_runs += 1;
+                let _ = IconButton::new(IconId::new("eraser"), "Beside").show(ui);
+            });
+        },
+    );
+    assert!(matches!(w.app.state, Some(TextureState::Loading { stand_in: None, .. })), "{:?}", w.app.state);
+    assert_eq!((w.app.view_runs, w.app.other_runs), (1, 1));
+    assert_eq!(w.queue.run_all(), 1, "one job makes the picture");
+    assert_eq!(w.wake(), 1, "its answer is delivered once");
+    let arrived = w.step();
+    assert!(matches!(w.app.state, Some(TextureState::Ready(_))), "{:?}", w.app.state);
+    assert_eq!((w.app.view_runs, w.app.other_runs), (2, 1), "only the view that reads the picture ran again");
+    assert_eq!(arrived.frame.scopes, 2, "the root and the reading view: {arrived:?}");
+    assert_eq!(arrived.frame.runs, 1, "only the picture's leaf ran: {arrived:?}");
+    assert_eq!(arrived.render.images_uploaded, 1, "{arrived:?}");
+    assert_eq!(w.wake(), 0, "nothing more is delivered");
+    let idle = w.step();
+    assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
+    assert!(!w.rig.driver.runtime.needs_frame());
 }
 
 /// Shows a leaf and returns its rect.

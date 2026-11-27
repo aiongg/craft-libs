@@ -424,6 +424,7 @@ pub enum ImageChange {
     Removed(ImageKey),
 }
 
+#[derive(Clone)]
 struct StoredImage {
     image: Arc<RgbaImage>,
     options: ImageOptions,
@@ -431,13 +432,30 @@ struct StoredImage {
 
 /// Images by key, shared by every window. Renderers apply [`ImageStore::changes`] once per frame
 /// (`Renderer::sync_images`) and then draw the frame's windows.
-#[derive(Default)]
+///
+/// A frame uploads at most [`ImageStore::upload_budget`] bytes of new images: an insert past it
+/// waits, invisible to [`ImageStore::contains`], and enters the store in a later frame (the
+/// runtime asks for that frame itself), so a burst of thumbnails never spikes one frame.
 pub struct ImageStore {
     images: HashMap<ImageKey, StoredImage>,
     changes: Vec<ImageChange>,
     /// Keys whose pixels changed without a re-recorded display list: the runtime damages their
     /// draws.
     pub(crate) touched: Vec<ImageKey>,
+    budget: usize,
+    /// Bytes of whole images set since the renderers last synced.
+    sent: usize,
+    /// Inserts past this frame's budget, oldest first.
+    waiting: Vec<(ImageKey, StoredImage)>,
+}
+
+/// The bytes of new images one frame uploads by default.
+pub const UPLOAD_BUDGET: usize = 16 * 1024 * 1024;
+
+impl Default for ImageStore {
+    fn default() -> Self {
+        ImageStore { images: HashMap::new(), changes: Vec::new(), touched: Vec::new(), budget: UPLOAD_BUDGET, sent: 0, waiting: Vec::new() }
+    }
 }
 
 impl ImageStore {
@@ -445,16 +463,61 @@ impl ImageStore {
         self.insert_with(key, image, ImageOptions::default());
     }
 
+    /// Stores `image` under `key` for the renderers to upload, in this frame when the frame's
+    /// upload budget has room (the first image of a frame always does), else in the first frame
+    /// that has room; a replaced image shows until then.
     pub fn insert_with(&mut self, key: ImageKey, image: Arc<RgbaImage>, options: ImageOptions) {
-        self.images.insert(key, StoredImage { image, options });
+        let stored = StoredImage { image, options };
+        if let Some(at) = self.waiting.iter().position(|(k, _)| *k == key) {
+            self.waiting[at].1 = stored;
+        } else if self.waiting.is_empty() && self.fits(stored.image.pixels.len()) {
+            self.set(key, stored);
+        } else {
+            self.waiting.push((key, stored));
+        }
+    }
+
+    fn set(&mut self, key: ImageKey, stored: StoredImage) {
+        self.sent = self.sent.saturating_add(stored.image.pixels.len());
+        self.images.insert(key, stored);
         self.changes.retain(|c| !matches!(c, ImageChange::Pixels(k, _) if *k == key));
         self.changes.push(ImageChange::Set(key));
         self.touched.push(key);
     }
 
+    /// Whether `bytes` more fit this frame's budget; the first image of a frame always does.
+    fn fits(&self, bytes: usize) -> bool {
+        self.sent == 0 || self.sent.saturating_add(bytes) <= self.budget
+    }
+
+    /// Whether this frame takes more images: nothing waits and the frame has sent less than its
+    /// budget. A component that makes pictures on the UI thread makes no more in a frame without
+    /// room.
+    pub fn has_room(&self) -> bool {
+        self.waiting.is_empty() && self.sent < self.budget
+    }
+
+    /// The bytes of new images one frame uploads.
+    pub fn upload_budget(&self) -> usize {
+        self.budget
+    }
+
+    /// Sets the bytes of new images one frame uploads.
+    pub fn set_upload_budget(&mut self, bytes: usize) {
+        self.budget = bytes;
+    }
+
+    /// How many inserts wait for a later frame.
+    pub fn waiting(&self) -> usize {
+        self.waiting.len()
+    }
+
     /// Writes `pixels` (tightly packed rows) into `rect` of image `key`; renderers upload that
     /// part only. Returns false when there is no such image or the rect does not fit.
     pub fn update(&mut self, key: ImageKey, rect: RectU, pixels: &[u8]) -> bool {
+        if let Some((_, stored)) = self.waiting.iter_mut().find(|(k, _)| *k == key) {
+            return Arc::make_mut(&mut stored.image).write(rect, pixels);
+        }
         let Some(stored) = self.images.get_mut(&key) else {
             return false;
         };
@@ -480,6 +543,7 @@ impl ImageStore {
     }
 
     pub fn remove(&mut self, key: ImageKey) {
+        self.waiting.retain(|(k, _)| *k != key);
         if self.images.remove(&key).is_some() {
             self.changes.retain(|c| !matches!(c, ImageChange::Set(k) | ImageChange::Pixels(k, _) if *k == key));
             self.changes.push(ImageChange::Removed(key));
@@ -507,7 +571,16 @@ impl ImageStore {
         &self.changes
     }
 
+    /// Ends the frame's uploads: the next frame's budget starts, and the inserts that waited
+    /// enter the store, oldest first, while it has room. Each one entered is touched, so the
+    /// runtime runs a frame for it.
     pub(crate) fn clear_changes(&mut self) {
         self.changes.clear();
+        self.sent = 0;
+        let mut waiting = std::mem::take(&mut self.waiting).into_iter().peekable();
+        while let Some((key, stored)) = waiting.next_if(|(_, stored)| self.fits(stored.image.pixels.len())) {
+            self.set(key, stored);
+        }
+        self.waiting.extend(waiting);
     }
 }
