@@ -85,7 +85,7 @@ impl Component for TextField<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS
     }
 
     fn text_input(&self) -> Option<craft_ui_rt::ImePurpose> {

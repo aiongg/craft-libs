@@ -208,7 +208,7 @@ pub(crate) fn show_shaped<C: Component>(
     let mut begun = begin_in(&mut component, ui, place);
     let (id, child) = ui.flow.child(type_key::<C>(), begun.common.id.clone());
     begun.enter_instance(id);
-    let key = component_key(&component);
+    let key = component_key(&component, &begun.common);
     let room = ui.flow.room();
     let tag = sweep_tag(&component, &ui.flow);
     let command = begun.step1.command.clone();
@@ -491,8 +491,9 @@ pub(crate) fn run_shaped<C: Component>(
     // A row's facts from its collection, read so that a change runs the row (15.5).
     let row = super::items::row_facts(cx, id);
     let stop = own_stop(&component, &resolved);
-    // Only a stop can hold focus, so only a stop reads it: a focus move reruns the stops it touches.
-    let focused = stop && cx.read_interaction(node, InteractFact::Focused);
+    // Only a stop can hold focus. The fact is taken without a read: what in the run uses it logs the read
+    // (`CxCore::read_focused`), so a focus move reruns only the stops whose run used it.
+    let focused = stop && interact.focused;
     let swept = match (component.sweep_value(), sweep) {
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
@@ -576,6 +577,10 @@ pub(crate) fn run_shaped<C: Component>(
     cxx.core.state_layer_parts = steps::declared_with(&parts, |extras| extras.state_layer);
     cxx.core.own_reset_parts = steps::declared_with(&parts, |extras| extras.own_reset);
     cxx.core.focus_shapes = steps::focus_shapes(&parts);
+    // The active part follows focus, so a component with parts reads `Focused`.
+    if !cxx.core.results.is_empty() {
+        cxx.core.read_focused();
+    }
     cxx.core.active = cxx.core.focus.part.filter(|part| cxx.core.results.contains_key(&(part.key, part.index)));
     cxx.core.activation = activation_of(&resolved, cxx.core.run.input, own);
     hooks.sensed(&mut component, &mut cxx);
@@ -623,6 +628,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
     cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
+    cx.take_released_focus(kept.focus.takes_released_focus());
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
@@ -763,7 +769,7 @@ pub(crate) fn run_shaped<C: Component>(
     let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
     let fires = std::mem::take(&mut cxx.core.run.fires);
     kept.id = id;
-    kept.key = if wrote { component_key(&component) } else { key };
+    kept.key = if wrote { component_key(&component, &begun.common) } else { key };
     kept.place = place;
     kept.size = size;
     // The size cache holds only this run's size.
@@ -1273,6 +1279,10 @@ fn record_variants<C: Component>(
             let (content, overlay) = canvas.finish();
             (Variant { look, content, overlay }, children)
         });
+        // A look with a focus entry: the node reruns when focus or its visibility flips.
+        if read.focus {
+            cxx.core.read_focus_visible();
+        }
         (variant, children, read)
     };
     // The label that names the control shows its press and hover as the control's own.

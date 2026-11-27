@@ -130,6 +130,12 @@ impl FocusKept {
         self.traps() || self.stop.is_some_and(|keys| keys.chrome_key)
     }
 
+    /// A pane takes the focus a text stop under it gives up on a press, so the pane's keys keep
+    /// working after the click. ui-rt reads it as the node's `BuildCx::take_released_focus`.
+    pub(crate) fn takes_released_focus(&self) -> bool {
+        self.scope.kind == ScopeKind::Pane
+    }
+
     /// A press on a shape that takes no focus gives up the focus of a text stop (the field commits
     /// through its focus loss) or a press-only stop, and leaves any other stop's (a button's, a
     /// canvas's); a trapping scope or a canvas above keeps it either way. ui-rt reads it as the

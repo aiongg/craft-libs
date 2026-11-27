@@ -87,13 +87,16 @@ impl CxCore<'_> {
 }
 
 impl Styled for CxCore<'_> {
+    /// The whole set: the caller may branch on any of it, so a look being recorded reads both pointer facts.
     fn state(&self) -> &StateSet {
         self.assert_stated();
+        crate::style::note_pointer_read(true, true);
         &self.state
     }
 
     fn root_state(&self) -> StateSet {
         self.assert_stated();
+        crate::style::note_pointer_read(true, true);
         let hovered = self.response.hovered() && !self.results.values().any(|result| result.hovered);
         let pressed = self.press.phase.is_press();
         let state = if !self.looks_enabled() {

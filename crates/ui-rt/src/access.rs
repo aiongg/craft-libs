@@ -53,6 +53,17 @@ pub(crate) struct AccessState {
     pub(crate) announcer: Announcer,
 }
 
+impl AccessState {
+    /// Drops what `id` routed while it lived: its sub-nodes, the item it reported for a stop (and
+    /// the item a stop it was reported), the control it stood for (and the owner standing for it).
+    pub(crate) fn forget(&mut self, id: NodeId) {
+        self.subs.retain(|_, (owner, _)| *owner != id);
+        self.active.retain(|stop, item| *stop != id && *item != id);
+        self.stands.retain(|owner, control| *owner != id && *control != id);
+        self.dirty.remove(&id);
+    }
+}
+
 /// How an announcement is read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Politeness {

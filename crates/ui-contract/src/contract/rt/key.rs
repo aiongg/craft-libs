@@ -6,13 +6,15 @@ use craft_ui_rt::hash_key;
 
 pub use crate::contract::ComponentKey;
 
-/// The key of `component`, or `None` for an unkeyed type.
-pub(crate) fn component_key<C: ComponentKey>(component: &C) -> Option<u128> {
+/// The key of `component` with its common props (which the show takes out of it before the run), or `None` for
+/// an unkeyed type.
+pub(crate) fn component_key<C: ComponentKey>(component: &C, common: &crate::contract::Common) -> Option<u128> {
     if C::UNKEYED {
         return None;
     }
     let mut key = MemoKey::new();
     component.key(&mut key);
+    crate::contract::MemoProps::key(common, &mut key);
     Some(key.finish())
 }
 

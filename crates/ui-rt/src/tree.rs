@@ -71,6 +71,8 @@ pub(crate) struct Node {
     /// While it or a node under it holds the focus, a primary press no shape takes leaves the focus
     /// where it is ([`crate::BuildCx::keep_focus_on_empty_presses`]).
     pub(crate) keeps_focus: bool,
+    /// A focus a node under it gives up on a press goes here ([`crate::BuildCx::take_released_focus`]).
+    pub(crate) takes_released_focus: bool,
     /// Its inline build is running: a node it owns is being built inside it ([`crate::BuildCx::is_building`]).
     pub(crate) building: bool,
     /// Taken out while the node's own build, layout or paint runs.
@@ -131,6 +133,7 @@ impl Node {
             inline: false,
             hover_events: false,
             keeps_focus: false,
+            takes_released_focus: false,
             building: false,
             element,
             props_key,

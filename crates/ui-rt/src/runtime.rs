@@ -1056,6 +1056,9 @@ impl Runtime {
                 p.children.retain(|&c| c != id);
             }
             self.forget_node(node.window, id);
+            if let Some(w) = self.windows.get_mut(&node.window) {
+                w.access.forget(id);
+            }
             if !self.hosted.is_empty() {
                 self.end_hosted(id);
             }

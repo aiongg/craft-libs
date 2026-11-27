@@ -189,6 +189,9 @@ impl Runtime {
                 if let Some(l) = self.tree.nodes.get_mut(&layer) {
                     l.children.push(node);
                 }
+                if pointer.confined {
+                    self.stack_confined(layer, node, owner);
+                }
                 self.tree.mark_build(node);
                 if let Some(w) = self.windows.get_mut(&window) {
                     w.input.painted = Some(PointerShown { owner, pointer, node, placed: None });
@@ -219,6 +222,11 @@ impl Runtime {
             return;
         }
         let (node, owner, pointer, was) = (shown.node, shown.owner, shown.pointer.clone(), shown.placed);
+        if pointer.confined
+            && let Some(layer) = self.tree.nodes.get(&node).and_then(|n| n.parent)
+        {
+            self.stack_confined(layer, node, owner);
+        }
         let min = at + pointer.offset;
         let clip = pointer.confined.then(|| self.window_rect(owner).unwrap_or(Rect::NOTHING).translate(-min.to_vec2()));
         let art = match pressed {
@@ -239,6 +247,23 @@ impl Runtime {
         if w.layered.insert(node, spec) != Some(spec) {
             w.relayout = true;
         }
+    }
+
+    /// Puts the confined pointer `node` right above the layer child of `layer` that holds `owner`, so
+    /// every layer child opened above the owner's (a panel, a popup over the canvas) covers it. Only a
+    /// move repaints the layer.
+    fn stack_confined(&mut self, layer: NodeId, node: NodeId, owner: NodeId) {
+        let path = crate::hit::chain(&self.tree, owner);
+        let Some(l) = self.tree.nodes.get_mut(&layer) else { return };
+        let Some(at) = l.children.iter().position(|c| path.contains(c)) else { return };
+        let Some(from) = l.children.iter().position(|c| *c == node) else { return };
+        let target = if from > at { at + 1 } else { at };
+        if from == target {
+            return;
+        }
+        l.children.remove(from);
+        l.children.insert(target, node);
+        self.tree.mark_paint(layer);
     }
 
     /// The layer root `node` paints on: the layer node above its layer child or app root.

@@ -59,7 +59,7 @@ impl Component for MenuButton {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
