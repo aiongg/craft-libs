@@ -170,6 +170,8 @@ struct Shape {
     label_column: bool,
     /// The edge of an edge pane that faces the window's centre, where `ContainerProps::edge_rule` draws its divider.
     edge_rule: Option<PaneEdge>,
+    /// The colour of the band behind the header (`HeaderRegion::fill`).
+    band: Option<Rgba>,
 }
 
 impl Shape {
@@ -213,6 +215,7 @@ impl Shape {
                 },
                 _ => None,
             },
+            band: props.header.and_then(|h| h.fill).map(|fill| crate::primitives::items::rgba(crate::style::band_color(&env.tokens, fill))),
         }
     }
 
@@ -422,6 +425,8 @@ impl Ui<'_, '_> {
 #[derive(Clone, Copy, Debug, Hash)]
 enum Region {
     Header,
+    /// The band behind the header (`HeaderRegion::fill`).
+    HeaderBand,
     Controls,
     End,
     Body,
@@ -818,6 +823,12 @@ fn show_plain<C: Container, R>(
     let cancel = hosted.is_some() && measuring.is_none() && std::mem::take(&mut ui.flow.scope.clear);
     let stage = if measuring.is_some() { MemoryStage::open(&ctx, body_id).peek_only() } else { MemoryStage::open(&ctx, body_id) };
     let regions = regions_env(&props, &place, resolved.enabled, shape.takes_room().0);
+    // A container that is an instance of a command scope heads the command chain its regions and body run under: the
+    // scope's commands resolve, publish and fire for this instance there.
+    let regions = match props.command_scope.or(common.command_scope) {
+        Some(scope) => regions.derive(|scoped| scoped.commands = scoped.commands.pushed(scope, id)),
+        None => regions,
+    };
     let owner = BodyOwner::new(&*begun.style, shape.gap);
     let mut inner_value = None;
     let mut call = |ui: &mut Ui<'_, '_>, bcx: &mut BodyCx<'_>| {
@@ -1139,6 +1150,10 @@ fn lay_out<C: Container>(
     // The height and width an inline header takes on the body's line.
     let mut inline = (0.0_f32, 0.0_f32);
     if let Some(h) = shape.header {
+        // The band is created before the header's nodes so it paints beneath them; it is placed once the header's
+        // height is known, across the container's width from its top edge, whatever the padding.
+        let band = shape.band.and_then(|color| rule_node(cx, real, Region::HeaderBand, color));
+        let band_top = origin.y;
         let inset = h.inset.points(tokens);
         let line_rect = Rect::from_min_max(Pos2::new(main_min + inset, top), Pos2::new(main_max - inset, inner.max.y));
         let controls_w = region_size(cx, &into, Region::Controls, id, line_rect, tokens, &mut |ui| {
@@ -1177,6 +1192,9 @@ fn lay_out<C: Container>(
         place(hn, Rect::from_min_size(header_rect.min, header));
         place(cn, Rect::from_min_size(controls_rect.min, controls));
         header_w = header.x + controls.x + 2.0 * inset;
+        let band_bottom = top + header.y.max(controls.y);
+        let band_width = if room.x.is_finite() { room.x } else { header_w + 2.0 * shape.pad.x };
+        place(band, Rect::from_min_size(Pos2::new(origin.x, band_top), Vec2::new(band_width, band_bottom - band_top)));
         if h.inline {
             // The body shares the header's line: it starts past the header (before it, right to left).
             let used = line_rect.width() + inset + shape.header_gap;
