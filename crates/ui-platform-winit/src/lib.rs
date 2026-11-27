@@ -272,6 +272,14 @@ impl Platform for WinitPlatform {
             }
             ImeRequest::Cursor(r) => area(r),
             ImeRequest::Stop => native.set_ime_allowed(false),
+            // winit has no reset: turning the input method off drops the marked text, and turning it
+            // on again starts a new session, which winit reports as `Ime::Enabled`.
+            ImeRequest::Reset => {
+                native.set_ime_allowed(false);
+                native.set_ime_allowed(true);
+            }
+            // winit has no surrounding-text request.
+            ImeRequest::Surrounding { .. } => {}
         }
     }
 

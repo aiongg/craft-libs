@@ -170,7 +170,7 @@ impl<S, R: Renderer> Harness<S, R> {
             .ime_for(self.window())
             .filter_map(|request| match request {
                 craft_ui_rt::ImeRequest::Start { cursor, .. } | craft_ui_rt::ImeRequest::Cursor(cursor) => Some(*cursor),
-                craft_ui_rt::ImeRequest::Stop => None,
+                _ => None,
             })
             .last()
     }

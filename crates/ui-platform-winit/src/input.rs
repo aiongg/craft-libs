@@ -155,7 +155,8 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
         W::Ime(ime) => match ime {
             Ime::Preedit(text, cursor) => put(WindowEvent::ImePreedit { text, cursor: cursor.map(|(a, b)| a..b) }),
             Ime::Commit(text) => put(WindowEvent::ImeCommit(text)),
-            Ime::Enabled | Ime::Disabled => {}
+            Ime::Enabled => put(WindowEvent::ImeEnabled),
+            Ime::Disabled => {}
         },
         W::HoveredFile(path) => push_file(shared, id, path, false),
         W::HoveredFileCancelled => put(WindowEvent::Files(FileDrag::Leave)),

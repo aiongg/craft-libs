@@ -1,4 +1,4 @@
-//! The values an editor reports to the input method: its surrounding text and its composition. The IME engine is
+//! The values an editor reports to the input method: its surrounding text. The IME engine is
 //! `contract::rt::ime`.
 
 /// The committed window around the caret that an editor reports to the input method, or why there is none.
@@ -30,11 +30,9 @@ impl<'a> EditorSurrounding<'a> {
     }
 }
 
-/// What an editor reports of the input method's composition (`EditorState::composing`, `EditorState::shows_marked`).
-#[derive(Clone, Copy)]
-pub(crate) struct Composing {
-    /// The editor shows marked text now.
-    pub(crate) now: bool,
-    /// The editor draws the marked text of the pre-edits it is given.
-    pub(crate) shows_marked: bool,
+impl EditorSurrounding<'_> {
+    /// No text to report, at `revision` if the editor keeps one.
+    pub const fn unavailable(revision: Option<u64>) -> Self {
+        EditorSurrounding::Unavailable { revision }
+    }
 }

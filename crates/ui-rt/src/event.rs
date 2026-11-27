@@ -334,6 +334,13 @@ impl EventCx<'_> {
         node.outbox.as_mut().and_then(|b| b.downcast_mut::<O>()).expect("outbox holds O")
     }
 
+    /// Ends the composition of this node's IME session, as [`crate::BuildCx::interrupt_ime`]
+    /// does: for a press during a composition, which the node commits before the press lands.
+    pub fn interrupt_ime(&mut self) {
+        let node = self.node;
+        self.rt.interrupt_ime(node);
+    }
+
     /// For changes to the node's `Local` that no cell tracks.
     pub fn request_build(&mut self) {
         self.rt.tree.mark_build(self.node);

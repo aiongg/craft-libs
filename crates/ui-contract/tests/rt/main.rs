@@ -9,6 +9,7 @@ mod env;
 mod focus;
 mod harness;
 mod id;
+mod ime;
 mod input;
 mod int5b;
 mod items;

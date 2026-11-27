@@ -155,9 +155,37 @@ pub enum ImePurpose {
 /// Rects are logical points in window coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ImeRequest {
-    Start { purpose: ImePurpose, cursor: Rect },
+    Start {
+        purpose: ImePurpose,
+        cursor: Rect,
+    },
     Cursor(Rect),
     Stop,
+    /// Ends the running composition: the platform drops its marked text and starts the session
+    /// again, then reports [`WindowEvent::ImeEnabled`]. Input method events of the ended
+    /// composition that arrive before that are dropped by the runtime.
+    Reset,
+    /// The committed text around the caret, with byte offsets of the cursor and the selection
+    /// anchor into it. Sent when the session starts and when the editor's text changed for a
+    /// reason other than the input method (typing it did not compose, a paste, undo, an app edit).
+    /// Platforms without surrounding-text support ignore it.
+    Surrounding {
+        text: String,
+        cursor: usize,
+        anchor: usize,
+    },
+}
+
+/// The committed text around a text input's caret, as its node last reported it
+/// ([`crate::Element::ime_surrounding`]). `revision` changes only when the text changed for a
+/// reason other than the input method; the runtime sends the text to the platform at a session
+/// start and at each new revision.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImeSurrounding {
+    pub revision: u64,
+    pub text: String,
+    pub cursor: usize,
+    pub anchor: usize,
 }
 
 /// The pointer's look over a window.
@@ -307,6 +335,9 @@ pub enum WindowEvent {
         cursor: Option<Range<usize>>,
     },
     ImeCommit(String),
+    /// The platform's input method session (re)started, after [`ImeRequest::Start`] or
+    /// [`ImeRequest::Reset`]: events after it belong to a new composition.
+    ImeEnabled,
     Paste(String),
     PasteImage(Arc<RgbaImage>),
     /// The system theme changed, or was read when the window opened.

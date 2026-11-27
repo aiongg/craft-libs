@@ -449,6 +449,14 @@ impl BuildCx<'_> {
         self.rt.start_drag(node, start)
     }
 
+    /// Ends the composition of `node`'s IME session ([`crate::ImeRequest::Reset`]): its editor
+    /// refused an input method edit, or ended the composition itself, so the platform's view of the
+    /// text is stale. Late events of the composition are dropped. Nothing happens when the
+    /// window's session is not `node`'s. `node` is this node or the component a body reports for.
+    pub fn interrupt_ime(&mut self, node: NodeId) {
+        self.rt.interrupt_ime(node);
+    }
+
     /// Ends `window`'s open press as the host did (`PressCancel::Host`): its owner gets the cancel.
     pub fn cancel_press(&mut self, reason: craft_behavior::PressCancel) {
         let window = self.window;

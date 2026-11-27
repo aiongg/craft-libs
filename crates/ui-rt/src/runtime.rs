@@ -516,6 +516,7 @@ impl Runtime {
             | WindowEvent::Text(_)
             | WindowEvent::ImePreedit { .. }
             | WindowEvent::ImeCommit(_)
+            | WindowEvent::ImeEnabled
             | WindowEvent::Paste(_)
             | WindowEvent::Pinch { .. }
             | WindowEvent::Files(_)

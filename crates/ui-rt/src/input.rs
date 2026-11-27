@@ -116,7 +116,7 @@ pub(crate) struct InputState {
     focus_chain: Vec<NodeId>,
     /// Focus events, delivered after the handler that caused them returns.
     queue: VecDeque<(NodeId, Event)>,
-    ime: Option<(NodeId, Rect)>,
+    ime: ImeSession,
     /// Focus moved since the last frame: the access focus and the IME session follow.
     pub(crate) focus_moved: bool,
     /// Modality, as craft keeps it: a key press or typed text shows the focus ring, a pointer
@@ -132,6 +132,22 @@ pub(crate) struct InputState {
     pub(crate) cursor: Cursor,
     /// Something that decides the cursor changed since it was last picked.
     pub(crate) cursor_check: bool,
+}
+
+/// A window's platform IME session as the runtime drives it.
+#[derive(Default)]
+struct ImeSession {
+    /// The node the session is for and the cursor rect last sent.
+    at: Option<(NodeId, Rect)>,
+    /// The surrounding-text revision last sent for the session's node.
+    surrounding: Option<u64>,
+    /// The platform composes: a non-empty preedit arrived, and no commit or empty preedit since.
+    composing: bool,
+    /// A composition ended here (a reset, or the session left its node while composing): its late
+    /// preedits and commits are dropped until the platform reports a new session.
+    fenced: bool,
+    /// The session's node asked for its composition to end ([`crate::BuildCx::interrupt_ime`]).
+    interrupt: bool,
 }
 
 impl InputState {
@@ -266,9 +282,20 @@ impl Runtime {
                 }
             }
             WindowEvent::ImePreedit { text, cursor } => {
-                self.send_to_focused(window, Event::ImePreedit { text: text.clone(), cursor: cursor.clone() })
+                if self.ime_live(window, Some(!text.is_empty())) {
+                    self.send_to_focused(window, Event::ImePreedit { text: text.clone(), cursor: cursor.clone() })
+                }
             }
-            WindowEvent::ImeCommit(text) => self.send_to_focused(window, Event::ImeCommit(text.clone())),
+            WindowEvent::ImeCommit(text) => {
+                if self.ime_live(window, Some(false)) {
+                    self.send_to_focused(window, Event::ImeCommit(text.clone()))
+                }
+            }
+            WindowEvent::ImeEnabled => {
+                if let Some(w) = self.windows.get_mut(&window) {
+                    w.input.ime.fenced = false;
+                }
+            }
             WindowEvent::Paste(text) => self.send_to_focused(window, Event::Paste(text.clone())),
             WindowEvent::Access(req) => self.route_access(window, req),
             _ => {}
@@ -959,6 +986,32 @@ impl Runtime {
         })
     }
 
+    /// Whether an input method event in `window` reaches the focused node: not while a fence
+    /// drops the late events of an ended composition. `composing` is what the event says of the
+    /// composition after it.
+    fn ime_live(&mut self, window: WindowId, composing: Option<bool>) -> bool {
+        let Some(w) = self.windows.get_mut(&window) else { return false };
+        if w.input.ime.fenced {
+            return false;
+        }
+        if let Some(composing) = composing {
+            w.input.ime.composing = composing;
+        }
+        true
+    }
+
+    /// The composition of `node`'s IME session ends: the platform drops its marked text and
+    /// restarts the session, and late events of the composition are dropped
+    /// ([`ImeRequest::Reset`]). Sent at the window's next IME sync; nothing happens when the
+    /// session is not `node`'s.
+    pub(crate) fn interrupt_ime(&mut self, node: NodeId) {
+        let Some(window) = self.tree.window_of(node) else { return };
+        let Some(w) = self.windows.get_mut(&window) else { return };
+        if w.input.ime.at.is_some_and(|(n, _)| n == node) {
+            w.input.ime.interrupt = true;
+        }
+    }
+
     fn send_to_focused(&mut self, window: WindowId, ev: Event) {
         if let Some(focused) = self.focused(window) {
             self.dispatch(focused, &ev, false);
@@ -1116,7 +1169,11 @@ impl Runtime {
 
     /// Starts, moves or stops `window`'s platform IME session to follow its focused node's text
     /// input and cursor rect. Only a window with key focus holds a session, so the session moves
-    /// with the user between windows. The frame runs it after layout.
+    /// with the user between windows. A session that leaves its node while the platform composes
+    /// fences the composition's late events (the node committed the composition itself when it
+    /// lost focus). The session's node's surrounding text goes out at the start and at each new
+    /// revision, and an interrupt the node asked for goes out as a reset. The frame runs it after
+    /// layout.
     pub(crate) fn sync_ime(&mut self, window: WindowId) {
         let active = self.windows.get(&window).is_some_and(|w| *self.store.peek(w.env.window_focused));
         let want = self.focused(window).filter(|_| active).and_then(|f| {
@@ -1126,25 +1183,48 @@ impl Runtime {
             let local = el.ime_cursor().unwrap_or(Rect::from_min_size(Pos2::ZERO, n.frame.size));
             Some((f, purpose, local.translate(window_origin(&self.tree, f))))
         });
+        let since =
+            self.windows.get(&window).and_then(|w| w.input.ime.at.filter(|(n, _)| want.is_some_and(|(f, ..)| f == *n)).and(w.input.ime.surrounding));
+        let fresh = want.and_then(|(node, ..)| self.tree.nodes.get(&node).and_then(|n| n.element.as_ref()?.ime_surrounding(since)));
         let Some(w) = self.windows.get_mut(&window) else { return };
-        match (w.input.ime, want) {
+        let ime = &mut w.input.ime;
+        let ended = |ime: &mut ImeSession| {
+            if std::mem::take(&mut ime.composing) {
+                ime.fenced = true;
+            }
+            ime.surrounding = None;
+            ime.interrupt = false;
+        };
+        match (ime.at, want) {
             (None, None) => {}
             (Some(_), None) => {
                 w.ime_requests.push(ImeRequest::Stop);
-                w.input.ime = None;
+                ended(ime);
+                ime.at = None;
             }
             (old, Some((node, purpose, rect))) => {
                 let start = ImeRequest::Start { purpose, cursor: rect };
                 match old {
                     Some((n, _)) if n != node => {
                         w.ime_requests.push(ImeRequest::Stop);
+                        ended(ime);
                         w.ime_requests.push(start);
                     }
                     None => w.ime_requests.push(start),
                     Some((_, last)) if last != rect => w.ime_requests.push(ImeRequest::Cursor(rect)),
                     Some(_) => {}
                 }
-                w.input.ime = Some((node, rect));
+                ime.at = Some((node, rect));
+                if std::mem::take(&mut ime.interrupt) {
+                    w.ime_requests.push(ImeRequest::Reset);
+                    if std::mem::take(&mut ime.composing) {
+                        ime.fenced = true;
+                    }
+                }
+                if let Some(s) = fresh.filter(|s| ime.surrounding != Some(s.revision)) {
+                    ime.surrounding = Some(s.revision);
+                    w.ime_requests.push(ImeRequest::Surrounding { text: s.text, cursor: s.cursor, anchor: s.anchor });
+                }
             }
         }
     }

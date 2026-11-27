@@ -46,7 +46,7 @@ mod text;
 mod tree;
 mod window;
 
-pub use access::{AccessCx, AccessEntry, Politeness as AnnouncePoliteness};
+pub use access::{AccessCx, AccessEntry, Politeness as AnnouncePoliteness, access_sub_id};
 pub use build::{BuildCx, InlineState, Peek};
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,
@@ -66,8 +66,8 @@ pub use layer::{DismissReason, Layer, LayerSpec, ModalReach, OutsidePress, Place
 pub use layout::{LayoutCx, virtual_band};
 pub use paint::PaintCx;
 pub use platform::{
-    Clipboard, Cursor, FileDrag, ImePurpose, ImeRequest, MonitorInfo, NativeWindow, OsFile, OsFiles, Platform, PlatformEvent, PointerEvent,
-    PointerPhase, SurfaceHandle, SurfaceHost, SystemTheme, Waker, WindowCommand, WindowEvent, WindowHandles, WindowLevel, WindowSpec,
+    Clipboard, Cursor, FileDrag, ImePurpose, ImeRequest, ImeSurrounding, MonitorInfo, NativeWindow, OsFile, OsFiles, Platform, PlatformEvent,
+    PointerEvent, PointerPhase, SurfaceHandle, SurfaceHost, SystemTheme, Waker, WindowCommand, WindowEvent, WindowHandles, WindowLevel, WindowSpec,
 };
 pub use render::{ReadBack, ReadBackId, RenderStats, Renderer};
 pub use runtime::{FrameReport, Runtime};
