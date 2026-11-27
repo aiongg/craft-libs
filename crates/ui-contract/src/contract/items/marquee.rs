@@ -53,7 +53,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     self.drags.marquee = Some(MarqueeDrag { select, last: selected, live: false });
                 }
             }
-            PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => {
+            // A run with the pointer at rest during a live marquee (the rows view glides under it: `rows_view`'s follow)
+            // sweeps again at the moved offset.
+            PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } | PressPhase::Held { pos, .. }
+                if !matches!(cx.core.press.phase, PressPhase::Held { .. }) || self.drags.marquee.as_ref().is_some_and(|marquee| marquee.live) =>
+            {
                 if let Some(mut marquee) = self.drags.marquee.take() {
                     marquee.live = true;
                     let at = Self::logical(layout, rect, rtl, layer(pos));

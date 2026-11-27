@@ -149,11 +149,14 @@ pub(crate) fn rows_offset(ui: &Ui<'_, '_>) -> ScrollPos {
 ///
 /// With `scroll` the view is the scroll body's: the content node moves by its offset in layout.
 /// Without it the rows are shown whole in one content node. `jump` sets the offset first: a bound
-/// offset the app moved, or the edge scroll of a drag (`ScrollKept::jump_to`).
+/// offset the app moved (`ScrollKept::jump_to`). With `follow` (a drag or marquee while the rows view
+/// glides) the collection reads the offset layout pays out, tracked, so its drop spot and sweep follow
+/// the moving rows with one run per glide frame. A reveal the rows ask for goes on to the scroll
+/// bodies around the collection.
 pub(crate) fn rows_view<R>(
     ui: &mut Ui<'_, '_>,
     view: RowsView,
-    (scroll, jump): (Option<Scroll>, Option<Vec2>),
+    (scroll, jump, follow): (Option<Scroll>, Option<Vec2>, bool),
     extent: Vec2,
     build: impl FnOnce(&mut Ui<'_, '_>, &RowFacts) -> R,
 ) -> Option<R> {
@@ -162,24 +165,25 @@ pub(crate) fn rows_view<R>(
     }
     let (id, tokens) = (ui.flow.id, ui.flow.tokens.clone());
     let Ui { cx, flow, .. } = ui;
-    let (out, node) = match scroll {
+    let (out, inner, node) = match scroll {
         Some(scroll) => cx.keyed(Region::Rows, |cx| {
             cx.inline(ScrollNode { scroll }, |sk: &mut ScrollKept, _, cx| {
                 sk.subscribe(cx);
+                if follow {
+                    sk.read_offset(cx);
+                }
                 if let Some(offset) = jump {
                     sk.jump_to(offset);
                 }
                 let at = RowsView { offset: ScrollPos { x: f64::from(sk.offset.x), y: f64::from(sk.offset.y) }, ..view };
                 let (out, mut inner, content) = content_node(cx, id, at, extent, &tokens, build);
                 sk.finish_build(cx, view.rect, content, &mut inner, scroll, &tokens);
-                (out, cx.node())
+                (out, inner, cx.node())
             })
         }),
-        None => {
-            let (out, _, content) = content_node(cx, id, view, extent, &tokens, build);
-            (out, content)
-        }
+        None => content_node(cx, id, view, extent, &tokens, build),
     };
+    flow.absorb(&inner);
     let placed = Placed { node, offset: view.rect.min - flow.origin, size: view.rect.size() };
     match flow.placed.iter_mut().find(|p| p.node == node) {
         Some(p) => *p = placed,
@@ -319,7 +323,7 @@ pub(crate) struct MemberRun {
     pub(crate) owner: Id,
     /// The member's own `Id` (`items::members::item_id`).
     pub(crate) id: Id,
-    /// The collection node's part the row is: `(ITEM_NODE, key hash)`; its input and hover arrive on it.
+    /// The collection node's part the row is: `(ROW, key hash)`; its input and hover arrive on it.
     pub(crate) part: craft_behavior::PartRef,
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,

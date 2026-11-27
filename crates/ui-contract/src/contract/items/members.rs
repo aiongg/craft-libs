@@ -1,11 +1,11 @@
 //! Items that are members of the collection's run (`Collection::MEMBERS`, docs/contract-rt.md 15.5): each row is a
-//! part `(ITEM_NODE, key hash)` of the collection's node, not a node. The driver runs each member's hooks at its row
+//! part `(ROW, key hash)` of the collection's node, not a node, and its access node the sub-node `(ITEM_NODE, key hash)`. The driver runs each member's hooks at its row
 //! with the input the collection's node took for that part (`rt::run::run_member`), records its paint per pointer
 //! look into the row's own lists, and reports it as a sub-node of the collection's. ui-rt's paint shows each row's
 //! list for the look of that row's part (`PaintCx::hovered_part`), so a hover over a member row repaints the
 //! collection's node from kept lists and runs nothing; a row's state change runs the collection.
 
-use super::{ITEM_NODE, ItemsHooks, key_hash};
+use super::{ITEM_NODE, ItemsHooks, ROW, key_hash};
 use crate::contract::Context;
 use crate::contract::Ui;
 use crate::contract::collection::ShownRow;
@@ -53,16 +53,16 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let Member { at, key, mut item, row, clip, flags, position, renaming, openers, shown } = member;
             let member_id = item_id(id, &key);
             let on = enabled && item.common_mut(Internal::new()).enabled.unwrap_or(true);
-            let part = ITEM_NODE.at(key_hash(&key));
+            let part = ROW.at(key_hash(&key));
             let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
             let ran = crate::contract::rt::run::run_member(item, ui, &run, cx.core.input());
-            self.member_looks.push(ran.looks);
             if ran.tip.is_some() {
                 cx.core.member_tip = ran.tip;
             }
             if let Some(shown) = shown_rows.get_mut(shown) {
-                shown.openers = self.item_openers(ui, cx.core.input(), enabled, openers);
+                shown.openers = self.member_openers(ui, (id, ran.looks.part, &ran.looks.parts), cx.core.input(), enabled, openers);
             }
+            self.member_looks.push(ran.looks);
             let label = ran.output.label_rect().unwrap_or(row);
             self.report_item_output(ctx, id, &key, ran.output);
             if renaming {

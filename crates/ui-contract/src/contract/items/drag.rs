@@ -436,6 +436,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// Whether the rows view glides: a drag's or marquee's edge scroll, or the middle-button auto-scroll. Its offset
+    /// is then the glide's, which a bound offset follows rather than sets.
+    pub(super) fn glides(&self) -> bool {
+        self.drags.edge_rate != 0.0 || self.auto_scroll.is_some()
+    }
+
     /// `at` in the layout's logical coordinates, relative to the rows' rect.
     pub(super) fn logical(layout: &C::ItemLayout, rect: Rect, rtl: bool, at: Pos2) -> Pos2 {
         logical_point(layout, rect, rtl, at)

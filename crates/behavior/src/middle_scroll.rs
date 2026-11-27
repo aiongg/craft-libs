@@ -103,6 +103,24 @@ impl MiddleScroll {
         Vec2::new(0.0, if invert { -delta } else { delta })
     }
 
+    /// The latch's scroll as a velocity, for a view that pays it out itself (a glide): points per second along the
+    /// view's offset, positive toward the content's end (the opposite sign of [`step`](Self::step)'s content move),
+    /// reversed by `invert`. A call with `held` and the pointer past the dead zone counts one held pass, as a `step`
+    /// with time does. Zero while nothing is latched or the pointer sits in the dead zone.
+    pub fn velocity(&mut self, pointer: Pos2, held: bool, invert: bool) -> Vec2 {
+        let Some(anchor) = self.anchor else { return Vec2::ZERO };
+        let displacement = pointer.y - anchor.y;
+        if !displacement.is_finite() || displacement.abs() <= DEAD_ZONE {
+            return Vec2::ZERO;
+        }
+        if held {
+            self.held_passes = self.held_passes.saturating_add(1);
+        }
+        let speed = displacement.abs().min(MAX_DISPLACEMENT).powf(SPEED_EXPONENT) * SPEED_MULTIPLIER;
+        let velocity = displacement.signum() * speed;
+        Vec2::new(0.0, if invert { -velocity } else { velocity })
+    }
+
     /// Where the latch is anchored, `None` when there is none.
     pub fn anchor(&self) -> Option<Pos2> {
         self.anchor

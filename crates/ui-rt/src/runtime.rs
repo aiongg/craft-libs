@@ -109,6 +109,9 @@ pub struct Runtime {
     pub(crate) interact_facts: IdMap<[Option<State<bool>>; InteractFact::COUNT]>,
     /// Per-node cells of the part of the node the pointer hovers, created when paint first reads one.
     pub(crate) hovered_parts: IdMap<State<Option<u64>>>,
+    /// Per-node cells of whether one part of the node is hovered, created when a build first reads
+    /// one: each flips only when its own part's hover does.
+    pub(crate) part_hovers: IdMap<smallvec::SmallVec<[(u64, State<bool>); 2]>>,
     /// Per-node cells of the pointer's place while it hovers the node or a node under it, created
     /// when a build first reads one.
     pub(crate) hover_points: IdMap<State<Option<Pos2>>>,
@@ -173,6 +176,7 @@ impl Runtime {
             interact: IdMap::default(),
             interact_facts: IdMap::default(),
             hovered_parts: IdMap::default(),
+            part_hovers: IdMap::default(),
             hover_points: IdMap::default(),
             clipboard: Vec::new(),
             wakes: Vec::new(),
@@ -275,6 +279,7 @@ impl Runtime {
             num_lock: self.store.create(false),
             held_keys: self.store.create(Vec::new()),
             pointer: self.store.create(crate::window::PointerFacts::default()),
+            wheels: self.store.create(0),
             layers: self.store.create(0),
         };
         let w = Window::new(window, env, viewport);
@@ -292,6 +297,7 @@ impl Runtime {
             env.num_lock.slot_ref(),
             env.held_keys.slot_ref(),
             env.pointer.slot_ref(),
+            env.wheels.slot_ref(),
             env.layers.slot_ref(),
         ];
         self.tree.nodes.insert(w.root, root);

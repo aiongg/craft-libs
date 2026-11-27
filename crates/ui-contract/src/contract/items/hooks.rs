@@ -319,7 +319,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A section row the component declares as its own `section_part` reports its own node; any other one is the
         // collection's sub-node: a heading named by the row's text.
         self.sub_nodes.clear();
-        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
+        let sections: Vec<usize> = order.iter().copied().filter(|&at| self.source.section_stop(at) && layout.shown(at)).collect();
+        for at in sections {
             if crate::contract::cx::Pointer::part_if_declared(cx, super::section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, view.offset, rtl);
                 self.report_section_node(at, row, cx.core.resolved.enabled);
@@ -343,8 +344,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let extent = Vec2::new(size.x as f32, size.y as f32);
         // The rows view scrolls along the axis the rows overflow; a sheet's sideways scroll is shared with its header.
         let scroll = self.scrolls.then(|| if self.overflow == Axis::X { Scroll::horizontal() } else { Scroll::vertical() });
-        // A bound offset is the app's: it sets the rows view's.
+        // A bound offset is the app's: it sets the rows view's. While the rows view glides, step 5 took the offset the
+        // glide paid out and the settle step writes it back, so the jump never pulls the glide back.
         let jump = (self.scrolls && self.scroll_bound).then(|| Vec2::new(self.offset_x as f32, self.offset as f32));
+        // A drag or marquee follows the glide under it: the rows view's offset is read tracked, one run per glide frame.
+        let follow = self.drags.edge_rate != 0.0;
         // A drag's or marquee's edge scroll is a glide of the rows view: ui-rt moves the rows in layout each frame and
         // runs nothing until the glide brings unbuilt rows into the band or the rate changes.
         if let Some(velocity) = self.glide.take() {
@@ -502,7 +506,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             if C::MEMBERS {
                 place_rows(ui, None);
             } else {
-                rows_view(ui, view, (scroll, jump), extent, |ui, facts| {
+                rows_view(ui, view, (scroll, jump, follow), extent, |ui, facts| {
                     if let Some(at) = reveal {
                         ui.flow.reveal = Some(at);
                     }
@@ -761,7 +765,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // The layout reads the component's own motion memory (`StyleCx::exiting`): an item leaving its source keeps
         // its room until its exit ends.
         let scx = &at.scx.owned_by(at.memory, id, env.motion);
-        if self.scrolls && !self.scroll_bound {
+        if self.scrolls && (!self.scroll_bound || self.glides()) {
             let kept = at.with_ui(|ui| crate::contract::rt::items::rows_offset(ui));
             (self.offset, self.offset_x) = (kept.y, kept.x);
         }
