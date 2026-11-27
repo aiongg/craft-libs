@@ -17,7 +17,7 @@ pub mod rig;
 pub mod scenario;
 pub mod stats;
 
-pub use bench::{BenchRow, bench, bench_table};
+pub use bench::{BenchRow, bench, bench_table, bench_with};
 pub use observe::{AccessNode, Snapshot, StepDiff, WindowSnapshot, first_difference};
 pub use pixels::{PixelResult, PixelStats, Rule, compare_pixels};
 pub use rig::{Rig, test_tokens};

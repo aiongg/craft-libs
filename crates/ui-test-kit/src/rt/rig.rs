@@ -47,6 +47,12 @@ impl<R: Renderer> Rig<R> {
         Rig { driver: Driver::new(runtime, platform, renderer), main: HeadlessPlatform::MAIN, state: None }
     }
 
+    /// A rig over a runtime that has its root set already (the app made its state cells in it)
+    /// and a headless platform with the first window.
+    pub fn from_parts(runtime: Runtime, platform: HeadlessPlatform, renderer: R) -> Rig<R> {
+        Rig { driver: Driver::new(runtime, platform, renderer), main: HeadlessPlatform::MAIN, state: None }
+    }
+
     /// A window with an inline root ([`Runtime::set_inline_root`]): the check passes its content
     /// to [`Rig::step_with`] and [`Rig::frame_with`].
     pub fn inline(size: Vec2, scale: f32, renderer: R) -> Rig<R> {

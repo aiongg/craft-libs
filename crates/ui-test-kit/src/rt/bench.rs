@@ -35,6 +35,13 @@ pub struct BenchRow {
     pub ui_ms: Stat,
     /// Render time per frame, milliseconds.
     pub render_ms: Stat,
+    /// Renderer preparation (tessellation, picture recording) per frame, milliseconds.
+    pub prepare_ms: Stat,
+    /// Access tree time per frame, milliseconds.
+    pub access_ms: Stat,
+    /// The CPU cost the experiment's tables compare: the driver step without the renderer's work
+    /// after preparing (`total - render + prepare`), milliseconds.
+    pub cpu_ms: Stat,
     pub total_ms: Stat,
     /// False where no counting allocator is installed; `allocs` and `bytes` are then zeros.
     pub alloc_counted: bool,
@@ -45,11 +52,17 @@ pub struct BenchRow {
 /// Runs `scenario` on rigs from `make` for `warmup + measured` frames: its steps in order, a fresh
 /// rig whenever it ends. Each step's input is injected outside the timed section; the timed frame
 /// is the clock advance and the driver step.
-pub fn bench<R: Renderer>(make: impl FnMut() -> Rig<R>, scenario: &Scenario, warmup: usize, measured: usize) -> BenchRow {
-    let mut make = make;
-    let mut rig = make();
+pub fn bench<R: Renderer>(mut make: impl FnMut() -> Rig<R>, scenario: &Scenario, warmup: usize, measured: usize) -> BenchRow {
+    bench_with(|_| make(), scenario, warmup, measured)
+}
+
+/// [`bench`] where `make` gets the renderer of the rig it replaces (`None` the first time), so a
+/// GPU device or a font atlas survives from round to round.
+pub fn bench_with<R: Renderer>(mut make: impl FnMut(Option<R>) -> Rig<R>, scenario: &Scenario, warmup: usize, measured: usize) -> BenchRow {
+    let mut rig = make(None);
     let mut next = 0;
     let (mut ui, mut render, mut total, mut allocs, mut bytes) = (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut prepare, mut access, mut cpu) = (Vec::new(), Vec::new(), Vec::new());
     let mut row = BenchRow {
         scenario: scenario.name.clone(),
         frames: 0,
@@ -61,6 +74,9 @@ pub fn bench<R: Renderer>(make: impl FnMut() -> Rig<R>, scenario: &Scenario, war
         prepared: 0,
         ui_ms: Stat::default(),
         render_ms: Stat::default(),
+        prepare_ms: Stat::default(),
+        access_ms: Stat::default(),
+        cpu_ms: Stat::default(),
         total_ms: Stat::default(),
         alloc_counted: false,
         allocs: Stat::default(),
@@ -75,7 +91,8 @@ pub fn bench<R: Renderer>(make: impl FnMut() -> Rig<R>, scenario: &Scenario, war
             }
             None if scenario.steps.is_empty() => super::rig::FRAME,
             None => {
-                rig = make();
+                let Rig { driver, .. } = rig;
+                rig = make(Some(driver.renderer));
                 next = 0;
                 continue;
             }
@@ -94,6 +111,9 @@ pub fn bench<R: Renderer>(make: impl FnMut() -> Rig<R>, scenario: &Scenario, war
             let ui_ms = f.build_ms + f.layout_ms + f.paint_ms + f.access_ms;
             ui.push(ui_ms);
             render.push(report.render_ms);
+            prepare.push(report.render.prepare_ms);
+            access.push(f.access_ms);
+            cpu.push((cost.ms - report.render_ms + report.render.prepare_ms).max(0.0));
             total.push(cost.ms);
             allocs.push(cost.allocs as f64);
             bytes.push(cost.bytes as f64);
@@ -102,6 +122,9 @@ pub fn bench<R: Renderer>(make: impl FnMut() -> Rig<R>, scenario: &Scenario, war
     }
     row.ui_ms = summarize(&ui);
     row.render_ms = summarize(&render);
+    row.prepare_ms = summarize(&prepare);
+    row.access_ms = summarize(&access);
+    row.cpu_ms = summarize(&cpu);
     row.total_ms = summarize(&total);
     row.alloc_counted = alloc::installed();
     row.allocs = summarize(&allocs);
