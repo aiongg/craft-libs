@@ -344,7 +344,8 @@ pub fn bench_json(renderer: &str, rows: &[Row]) -> String {
 /// The panel in a window until it closes (or `exit_after` seconds).
 pub fn window<R: Renderer + 'static>(make: fn() -> R, layers: usize, exit_after: Option<f64>) -> Result<(), String> {
     let started = web_time::Instant::now();
-    run(
+    let mut drawn = 0usize;
+    let result = run(
         move |platform: WinitPlatform| async move {
             let mut d = Driver::new(craft_ui_rt::Runtime::new(pro_dark_tokens()), platform, make());
             let doc: DocCell = d.runtime.store_mut().create(Arc::new(Doc::new(layers)));
@@ -355,18 +356,20 @@ pub fn window<R: Renderer + 'static>(make: fn() -> R, layers: usize, exit_after:
             }
             d
         },
-        move |d, _report| {
+        move |d, report| {
+            drawn += usize::from(report.windows_drawn > 0);
             for w in d.runtime.take_close_requests() {
                 d.platform.window(w, WindowCommand::Close);
             }
             if exit_after.is_some_and(|s| started.elapsed().as_secs_f64() >= s) {
+                println!("{drawn} frames drawn in {:.1} s; closing", started.elapsed().as_secs_f64());
                 for w in d.platform.surfaces().windows() {
                     d.platform.window(w, WindowCommand::Close);
                 }
             }
         },
-    )
-    .map_err(|e| e.to_string())
+    );
+    result.map_err(|e| e.to_string())
 }
 
 pub fn reference_dir(arg: Option<String>) -> PathBuf {
