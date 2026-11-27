@@ -553,7 +553,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
     kept.cursor = component.cursor().as_ref().map(super::cursor::platform);
-    let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, rect, interact.hovered);
+    let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, (rect.min, rect), interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
     cxx.core.toggles = steps::toggles(&parts);
@@ -569,6 +569,7 @@ pub(crate) fn run_shaped<C: Component>(
     // 8b the text part runs the editing engine over the same queue; selection parts take their edit commands.
     let scope = cx.provided::<crate::primitives::text_adapter::ScopeEscape>().unwrap_or_default();
     let access = cx.access_enabled();
+    let bar_returns_here = bar_returns_here(cx);
     let text_keys = {
         let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
         let text_in = crate::contract::text::TextIn {
@@ -578,7 +579,7 @@ pub(crate) fn run_shaped<C: Component>(
             scrubs: own.contains(Sense::DRAG),
             scope,
             access,
-            bar_returns_here: bar_returns_here(cx),
+            bar_returns_here,
         };
         crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
     };
@@ -622,7 +623,18 @@ pub(crate) fn run_shaped<C: Component>(
     // shape's content (a collection's rows), whose children join the ones the paint showed.
     let open = facts.overlays && cxx.core.popups.any_open();
     let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
-    let (variants, values) = record_variants(&mut component, &mut cxx, &host, begun, own, &kept.parts, open, &*hooks);
+    let at = Pointing { origin: rect.min, clip: Rect::EVERYTHING, now: host.cx().interaction(node) };
+    let (variants, values, children) = record_variants(&mut component, &mut cxx, &host, begun, (own, &kept.parts), open, &*hooks, at);
+    if let Some(read) = children {
+        // Children shown from paint: one look, so the node reruns when a pointer fact its paint read flips.
+        let mut cx = host.cx();
+        if read.hover {
+            cx.read_interaction(node, InteractFact::Hovered);
+        }
+        if read.press {
+            cx.read_interaction(node, InteractFact::Pressed);
+        }
+    }
     kept.variants = variants;
     crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
@@ -746,6 +758,157 @@ pub(crate) fn run_shaped<C: Component>(
         register_inboxes(wants, node, id, &mut kept.memory, &board, cx.store_mut());
     }
     out
+}
+
+/// Runs a member of a collection's run (`Collection::MEMBERS`, 15.5) at its row, as a part of the collection's
+/// node. `ui` is the collection's content `Ui` and `input` the queue the collection's node took this run. The
+/// member's steps run in a node's order: style, sense, parts, update, then state, paint and paint_over once per
+/// pointer look its paint read, and finish. It has no node, stop, popup or value of its own: its parts' hit shapes
+/// and its looks go back to the collection's node through `MemberRan::looks`, its parts under ids salted with the
+/// row's part (`member_part`), so the collection's node takes their presses and gives them back here.
+pub(crate) fn run_member<I: Component>(
+    mut item: I,
+    ui: &mut Ui<'_, '_>,
+    run: &super::items::MemberRun,
+    input: &[NodeInput],
+) -> super::items::MemberRan<I::Output> {
+    let begun = begin(&mut item, ui);
+    let id = run.id;
+    let resolved = begun.resolved(id);
+    let style = &*begun.style;
+    let rtl = begun.env.direction.is_rtl() && !resolved.ltr_axis;
+    let origin = ui.flow.origin;
+    let room = ui.flow.room();
+    let tokens = ui.flow.tokens.clone();
+    let context = ui.ctx.clone();
+    let node = ui.cx.node();
+    let row = part_id(run.part);
+    // The member's share of the collection's queue: presses on its row (as its own shape, part 0) and on its parts.
+    let local: Vec<NodeInput> = input
+        .iter()
+        .filter_map(|i| match i {
+            NodeInput::Pointer { part, .. } if *part == row => {
+                let mut own = i.clone();
+                if let NodeInput::Pointer { part, .. } = &mut own {
+                    *part = 0;
+                }
+                Some(own)
+            }
+            NodeInput::Pointer { part, .. } if member_part_of(row, *part) => Some(i.clone()),
+            _ => None,
+        })
+        .collect();
+    // The row's pointer state, read untracked: a hover moving between rows repaints the collection's kept looks.
+    let hovered = ui.cx.hovered_part(node).filter(|part| *part == row || member_part_of(row, *part));
+    let pressed = hovered.is_some() && ui.cx.interaction(node).pressed;
+    let now = craft_ui_rt::Interact { hovered: hovered.is_some(), pressed, ..Default::default() };
+    let (mut in_facts, dragging) = input_facts(&local, origin, false);
+    in_facts.disabled = !run.enabled;
+    let response = Response::new(id, run.rect, None, now, dragging, in_facts);
+    let mut memory = MemoryStage::open(&context, id);
+    let mut popups = PopupStates::default();
+    let mut core =
+        core_for(&begun.env, &resolved, &mut memory, &mut popups, response, begun.step1.command.clone(), RunIo::new(&local, context.clone()));
+    place_core(&mut core, &item, style, run.rect, &resolved, begun.env.direction.is_rtl());
+    core.visible = run.rect.intersect(run.clip);
+    core.row = Some(Arc::new(crate::runtime::env::ItemFacts {
+        item: id,
+        flags: run.flags,
+        position: run.position,
+        columns: Vec::new(),
+        toggles: Vec::new(),
+        toggle_keys: Vec::new(),
+        closed_toggles: Vec::new(),
+        aligns: Vec::new(),
+        pressed: None,
+        menu_open: false,
+    }));
+    core.parted = true;
+    core.faded = begun.facts.faded && !run.enabled;
+    let mut cxx = Cx { core: &mut core, style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
+
+    // 7 parts, in the collection node's coordinates under salted ids.
+    let own = if run.enabled { own_sense(&item, &resolved) } else { Sense::HOVER };
+    let mut parts = steps::PartsStep::default();
+    if begun.facts.parts {
+        let host = RunHost::new(&mut *ui.cx, run_flow(id, Pos2::ZERO, room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
+        let mut lent: &RunHost<'_, '_> = &host;
+        let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
+        let measure_in = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(run.rect.width()), host: &cell };
+        steps::declare_parts(&mut item, &cxx, run.rect, &mut parts, &measure_in, Some((node, now)), None, &mut |_, _, _| {});
+    }
+    let mut member_parts = steps::kept_parts(&parts, origin);
+    for kept in &mut member_parts {
+        kept.id = member_part(row, kept.part);
+    }
+    // 8 sense
+    let results = part_results(&member_parts, &parts, own, &local, (origin, run.rect), now.hovered);
+    cxx.core.results = results.1;
+    cxx.core.press = results.0.press;
+    cxx.core.toggles = steps::toggles(&parts);
+    cxx.core.value_parts = steps::declared_with(&parts, |extras| extras.value);
+    cxx.core.state_layer_parts = steps::declared_with(&parts, |extras| extras.state_layer);
+    cxx.core.activation = activation_of(&resolved, &local, own);
+
+    // 9 update
+    steps::update_inputs(cxx.core);
+    item.update(&mut cxx);
+
+    // 12 state and 13 paint, once per pointer look the paint read, at the row inside its clip.
+    let host = RunHost::new(&mut *ui.cx, run_flow(id, origin, room, tokens, None), context, begun.env.clone());
+    let at = Pointing { origin, clip: run.clip, now };
+    let (variants, _, children) = record_variants(&mut item, &mut cxx, &host, &begun, (own, &member_parts), false, &NoShape, at);
+    if let Some(read) = children {
+        // Children shown from paint: one look, so the collection reruns when the row's pointer state flips.
+        let mut cx = host.cx();
+        if read.hover {
+            cx.read_hovered_part(node);
+        }
+        if read.press {
+            cx.read_interaction(node, InteractFact::Pressed);
+        }
+    }
+    drop(host);
+
+    // 16 the tooltip of the hovered part, else the member's own, shown by the collection's step 16.
+    let hovered_tip = hovered.and_then(|part| {
+        let at = member_parts.iter().position(|kept| kept.id == part)?;
+        let (_, extras) = parts.decls.iter().nth(at)?;
+        extras
+            .tooltip
+            .as_ref()
+            .map(|tooltip| (member_parts[at].part, bounds(member_parts[at].shape).translate(origin.to_vec2()), tooltip.spec().clone()))
+    });
+    let tip = hovered_tip
+        .or_else(|| hovered.and(resolved.tooltip).map(|tooltip| (run.part, run.rect, tooltip.spec().clone())))
+        .map(|(part, rect, spec)| crate::contract::tooltip::MemberTip { part, spec, rect, pressed });
+    let looks = super::items::MemberLooks {
+        part: row,
+        looks: variants
+            .into_iter()
+            .map(|variant| {
+                let mut list = variant.content;
+                list.items.extend(variant.overlay.items);
+                (variant.look, list)
+            })
+            .collect(),
+        parts: member_parts,
+    };
+    let output = item.finish(cxx);
+    memory.flush();
+    super::items::MemberRan { output, looks, tip }
+}
+
+/// The ui-rt part id of a member's part `part` in the collection's node, for the member whose row part id is
+/// `row`: the row's high half with the part's low half, so the collection's node tells which member a press is on
+/// without the member's declarations (`member_part_of`).
+pub(crate) fn member_part(row: u64, part: PartRef) -> u64 {
+    (row & !0xFFFF_FFFF) | (part_id(part) & 0xFFFF_FFFF) | 1
+}
+
+/// Whether the collection-node part id `part` is the row `row`'s, or one of its member's parts.
+pub(crate) fn member_part_of(row: u64, part: u64) -> bool {
+    part >> 32 == row >> 32
 }
 
 /// Whether the focus is on the window's menu bar, or in what it opened, and F10 took it from this node: the node's
@@ -960,21 +1123,18 @@ pub(crate) fn reach_layers<C: Component>(
 /// showed children keeps that one recording (children reconcile once), and its pointer reads
 /// become build reads (15.6 rule 5); otherwise the looks it read are recorded beside it.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn record_variants<C: Component>(
     component: &mut C,
     cxx: &mut Cx<'_, C>,
     host: &RunHost<'_, '_>,
     begun: &Begun<C>,
-    sense: Sense,
-    parts: &[KeptPart],
+    (sense, parts): (Sense, &[KeptPart]),
     open: bool,
     hooks: &dyn ShapeHooks<C>,
-) -> (SmallVec<[Variant; 1]>, AppValues) {
-    let (node, now) = {
-        let cx = host.cx();
-        let node = cx.node();
-        (node, cx.interaction(node))
-    };
+    at: Pointing,
+) -> (SmallVec<[Variant; 1]>, AppValues, Option<crate::style::PointerReads>) {
+    let now = at.now;
     let takes_press = sense.takes_press() || parts.iter().any(|p| p.sense.takes_press());
     let scale = host.scale;
     let mut values = AppValues::default();
@@ -988,7 +1148,7 @@ fn record_variants<C: Component>(
             steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
             // Each look reserves its paint slots from key 0, so a slot names the same place in every look.
             cxx.core.paint.borrow_mut().slots = 0;
-            let canvas = Canvas::new(host, cxx.core.rect.min, Rect::EVERYTHING);
+            let canvas = Canvas::new(host, at.origin, at.clip);
             let fade = steps::fade(&canvas, &begun.env, cxx.core);
             if let Some(items) = steps::surface_items(&begun.env, cxx.core, &*begun.style, scale) {
                 canvas.extend(items);
@@ -1050,16 +1210,15 @@ fn record_variants<C: Component>(
         }
     }
     drop(paint_as);
-    if children {
-        let mut cx = host.cx();
-        if read.hover {
-            cx.read_interaction(node, InteractFact::Hovered);
-        }
-        if read.press {
-            cx.read_interaction(node, InteractFact::Pressed);
-        }
-    }
-    (out, values)
+    (out, values, children.then_some(read))
+}
+
+/// Where a run records its looks: the canvas origin (the node's top left) and clip, and the pointer state of
+/// the place it records for (`Interact` of its node, or of a member's row part).
+struct Pointing {
+    origin: Pos2,
+    clip: Rect,
+    now: craft_ui_rt::Interact,
 }
 
 /// The response's input facts from a run's queue, and whether a drag of the node's press runs after
@@ -1116,12 +1275,14 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
 
 /// The press of the node's own shape and of each declared part, folded from the run's queue: the
 /// last phase on it, drag moves summed. Positions are window coordinates.
+/// The press and hover results of the run's own shape (`rect`) and its kept parts, from its queue: positions in the
+/// queue and the kept shapes are relative to `origin`, the node's top left.
 fn part_results(
     kept: &[KeptPart],
     parts: &steps::PartsStep,
     sense: Sense,
     input: &[NodeInput],
-    rect: Rect,
+    (origin, rect): (Pos2, Rect),
     hovered: bool,
 ) -> (PartResult, crate::primitives::sensing::PartResults) {
     let press_of = |id: u64| {
@@ -1131,9 +1292,9 @@ fn part_results(
             if *part != id {
                 continue;
             }
-            let at = *pos + rect.min.to_vec2();
+            let at = *pos + origin.to_vec2();
             let mut start = *start;
-            start.origin += rect.min.to_vec2();
+            start.origin += origin.to_vec2();
             let phase = match *gesture {
                 Gesture::Down { .. } => PressPhase::down(start),
                 Gesture::LongPress => PressPhase::held(start, at),
@@ -1151,13 +1312,8 @@ fn part_results(
         .iter()
         .map(|p| {
             let inactive = steps::inactive(parts, p.part);
-            let result = PartResult {
-                rect: bounds(p.shape).translate(rect.min.to_vec2()),
-                press: press_of(p.id),
-                sense: p.sense,
-                inactive,
-                ..PartResult::IDLE
-            };
+            let result =
+                PartResult { rect: bounds(p.shape).translate(origin.to_vec2()), press: press_of(p.id), sense: p.sense, inactive, ..PartResult::IDLE };
             ((p.part.key, p.part.index), result)
         })
         .collect();

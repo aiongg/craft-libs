@@ -542,12 +542,17 @@ impl Runtime {
         if let Some(cell) = self.hovered_parts.get(&node) {
             return Some(*cell);
         }
-        let value = self.windows.keys().find_map(|&w| self.input(w)?.hover_hit.filter(|(h, _)| h.node == node).map(|(h, _)| h.part));
+        let value = self.hovered_part(node);
         let n = self.tree.nodes.get_mut(&node)?;
         let cell = self.store.create(value);
         n.owned.push(cell.slot_ref());
         self.hovered_parts.insert(node, cell);
         Some(cell)
+    }
+
+    /// The part of `node` the hover hit is on (0 for its own shape), as of now, without recording a read.
+    pub fn hovered_part(&self, node: NodeId) -> Option<u64> {
+        self.windows.keys().find_map(|&w| self.input(w)?.hover_hit.filter(|(h, _)| h.node == node).map(|(h, _)| h.part))
     }
 
     /// The pointer's place (window coordinates) while it hovers `node` or a node under it.
@@ -1370,6 +1375,11 @@ impl crate::build::BuildCx<'_> {
             Some(cell) => cell.get(self),
             None => false,
         }
+    }
+
+    /// The part of `node` the pointer hovers, as of now, without recording a read.
+    pub fn hovered_part(&self, node: NodeId) -> Option<u64> {
+        self.runtime().hovered_part(node)
     }
 
     /// The part of `node` the pointer hovers (as `PaintCx::hovered_part` reads it for its own node),

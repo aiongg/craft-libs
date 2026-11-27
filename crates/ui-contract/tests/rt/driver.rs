@@ -518,3 +518,222 @@ mod nested {
         assert_eq!(app.selection.lead(), Some(&1), "the inner collection still takes the click");
     }
 }
+
+/// A members collection (`Collection::MEMBERS`): each row runs as a part of the collection's node.
+mod members {
+    use std::cell::RefCell;
+
+    use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection, SpanLayout};
+    use craft_ui_contract::contract::{
+        Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome, PaintUi,
+        Response, Role, SelectMode, Show, ShowCollection as _,
+    };
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Pos2, Rect, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    use crate::skeleton::IconButton;
+
+    const ROW_H: f32 = 20.0;
+    const ROWS: usize = 3;
+
+    thread_local! {
+        /// Each member hook as it runs: the hook and the member's key.
+        static HOOKS: RefCell<Vec<(&'static str, usize)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn take_hooks() -> Vec<(&'static str, usize)> {
+        HOOKS.with(|hooks| std::mem::take(&mut *hooks.borrow_mut()))
+    }
+
+    struct Count;
+
+    impl DisplayOrder<usize> for Count {
+        fn len(&self) -> usize {
+            ROWS
+        }
+
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+
+        fn index_of(&self, key: &usize) -> Option<usize> {
+            (*key < ROWS).then_some(*key)
+        }
+    }
+
+    impl ItemSource<usize> for Count {}
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Never {}
+
+    struct RowOut {
+        response: Response,
+    }
+
+    impl Outcome for RowOut {
+        type Value = NoValue;
+
+        fn response(&self) -> &Response {
+            &self.response
+        }
+    }
+
+    impl ItemOutput<Never> for RowOut {
+        fn into_event(self) -> Option<Never> {
+            None
+        }
+    }
+
+    #[derive(Component)]
+    struct Member {
+        #[common]
+        common: Common,
+        key: usize,
+    }
+
+    impl Component for Member {
+        const ROLE: Role = Role::TAB;
+        type Style = PlainStyle;
+        type Output = RowOut;
+
+        fn style(_: &StyleCx<'_>, _: MemberStyleKey) -> PlainStyle {
+            PlainStyle::min(Vec2::new(10.0, ROW_H))
+        }
+
+        fn update(&mut self, _: &mut Cx<'_, Self>) {
+            HOOKS.with(|hooks| hooks.borrow_mut().push(("update", self.key)));
+        }
+
+        fn paint(&mut self, _: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+            HOOKS.with(|hooks| hooks.borrow_mut().push(("paint", self.key)));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> RowOut {
+            HOOKS.with(|hooks| hooks.borrow_mut().push(("finish", self.key)));
+            RowOut { response: cx.response.clone() }
+        }
+    }
+
+    #[derive(Component)]
+    #[component(collection)]
+    struct Strip<'a> {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        items: CollectionProps,
+        selection: Option<Bind<'a, Selection<usize>>>,
+    }
+
+    impl Component for Strip<'_> {
+        const ROLE: Role = Role::TAB_LIST;
+        type Style = PlainStyle;
+        type Output = CollectionResponse<usize, Never>;
+
+        fn style(_: &StyleCx<'_>, _: StripStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+            cx.collection_response()
+        }
+    }
+
+    impl Collection for Strip<'_> {
+        type Key = usize;
+        type ItemLayout = SpanLayout;
+        type Selection = Selection<usize>;
+        type Item<'r> = Member;
+        type ItemEvent = Never;
+        const MEMBERS: bool = true;
+
+        fn items(&self) -> &CollectionProps {
+            &self.items
+        }
+
+        fn selection(&mut self) -> Option<BindMut<'_, Selection<usize>>> {
+            self.selection.as_mut().map(Bind::reborrow)
+        }
+
+        fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+            SpanLayout::new(source, width, ROW_H)
+        }
+    }
+
+    #[derive(Default)]
+    struct App {
+        selection: Selection<usize>,
+        strip: Rect,
+        button: Rect,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                app.button = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
+                let strip = Strip {
+                    common: Common::new(),
+                    props: ContainerProps::new(),
+                    items: CollectionProps::new().select(SelectMode::Single),
+                    selection: Some(Bind::bound(&mut app.selection)),
+                };
+                app.strip = strip.show_items(ui, &Count, &mut |key, _| Member { common: Common::new(), key: *key }).response.rect;
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig, app)
+    }
+
+    fn row(app: &App, at: usize) -> Pos2 {
+        Pos2::new(app.strip.center().x, app.strip.min.y + ROW_H * (at as f32 + 0.5))
+    }
+
+    #[test]
+    fn a_collection_run_runs_each_member_once_in_hook_order_and_a_hover_runs_none() {
+        let mut app = App::default();
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        let mut settled = false;
+        for _ in 0..5 {
+            if !step(&mut rig, &mut app).ran {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "the rig did not settle");
+
+        input(&mut rig, &mut app, Input::mouse_move(row(&app, 0)));
+        take_hooks();
+        let report = input(&mut rig, &mut app, Input::mouse_move(row(&app, 1)));
+        assert!(take_hooks().is_empty(), "a hover moving between member rows runs no member: {report:?}");
+
+        input(&mut rig, &mut app, Input::mouse_down(row(&app, 1)));
+        take_hooks();
+        input(&mut rig, &mut app, Input::mouse_up(row(&app, 1)));
+        assert_eq!(app.selection.lead(), Some(&1), "the click on a member row selects it");
+        let hooks = take_hooks();
+        assert!(!hooks.is_empty(), "the selection change runs the collection and its members");
+        for key in 0..ROWS {
+            let mine: Vec<&str> = hooks.iter().filter(|(_, k)| *k == key).map(|(hook, _)| *hook).collect();
+            let runs = mine.iter().filter(|hook| **hook == "update").count();
+            assert!(runs >= 1, "member {key} ran: {mine:?}");
+            // One collection run per change: each run gives the member one update, its paint looks and one finish.
+            assert_eq!(mine.iter().filter(|hook| **hook == "finish").count(), runs, "member {key}: one finish per update: {mine:?}");
+            let first_update = mine.iter().position(|hook| *hook == "update").unwrap();
+            let first_paint = mine.iter().position(|hook| *hook == "paint").unwrap();
+            let first_finish = mine.iter().position(|hook| *hook == "finish").unwrap();
+            assert!(first_update < first_paint && first_paint < first_finish, "member {key} hook order: {mine:?}");
+        }
+        let updates = hooks.iter().filter(|(hook, _)| *hook == "update").count();
+        assert_eq!(updates % ROWS, 0, "every member runs in every collection run: {hooks:?}");
+        assert!(updates <= 2 * ROWS, "the click runs the collection at most once more than the release itself: {hooks:?}");
+    }
+}

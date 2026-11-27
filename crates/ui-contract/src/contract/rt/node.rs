@@ -611,7 +611,7 @@ impl Element for ComponentNode {
         if kept.close_guard {
             cx.close_guard();
         }
-        for p in &kept.parts {
+        for p in kept.parts.iter().chain(kept.members.iter().flat_map(|row| &row.parts)) {
             if let Some(hit) = p.exclusive {
                 cx.window_zone(p.shape, super::windows::zone_tag(hit));
             }
