@@ -112,7 +112,7 @@ fn family_sample(key: u64, font: FontRef, italic: bool) -> FacePaint {
         let runs = [run];
         let layout = painter.layout(&DocText { wrap: Some(rect.width()), ..DocText::new(&runs) }.elide());
         let at = pos2(rect.left(), rect.center().y - layout.size().y / 2.0);
-        painter.painter.galley(at, layout.galley, Color32::PLACEHOLDER);
+        painter.painter.text(layout.rt(), at);
     })
 }
 

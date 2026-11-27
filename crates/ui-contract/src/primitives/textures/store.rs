@@ -183,6 +183,14 @@ impl CachedTexture {
         )
     }
 
+    /// The texture as the display list names it, for `Draw::texture` and `ContentPainterCx::picture`. The store's
+    /// textures are egui ids until the store sits on the frame's `ImageStore`; a managed id keeps its number.
+    pub fn key(&self) -> craft_ui_rt::ImageKey {
+        match self.id {
+            TextureId::User(id) | TextureId::Managed(id) => craft_ui_rt::ImageKey(id),
+        }
+    }
+
     /// `size` as a vector, for fitting: only the aspect matters to a cell. It is the picture's own size, also for a
     /// packed texture.
     pub fn size_vec2(&self) -> Vec2 {

@@ -1227,7 +1227,7 @@ impl Tile<'_> {
                 let run = TextRun::new(detail.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).wrap(Wrap::Wrap);
                 let mut layout = draw.layout(&run, picture.width());
                 // More than the two reserved lines would run into the action: cut that description with an ellipsis.
-                if layout.galley.rows.len() > 2 {
+                if layout.rows() > 2 {
                     layout = draw.layout(&run.elide(), picture.width());
                 }
                 draw.galley(egui::pos2(Self::text_x(picture, layout.size().x, cx), icon.bottom() + style.sizes.tight), &layout);

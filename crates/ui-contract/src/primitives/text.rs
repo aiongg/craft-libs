@@ -547,6 +547,11 @@ impl TextLayout {
         self.metrics.rows.len()
     }
 
+    /// The height of the first row; zero for no rows.
+    pub fn first_row_height(&self) -> f32 {
+        self.metrics.rows.first().map_or(0.0, |row| row.rect.height())
+    }
+
     /// The union of the glyphs' ink, from the layout's top left; `Rect::NOTHING` for no glyphs.
     pub fn ink(&self) -> egui::Rect {
         self.metrics.ink

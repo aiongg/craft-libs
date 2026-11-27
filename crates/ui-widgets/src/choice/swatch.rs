@@ -9,7 +9,7 @@ use crate::contract::{
     Sizing, Styled as _, WordSetCx as _,
 };
 use crate::primitives::textures::UNTINTED;
-use crate::primitives::{Checker, ContentPainterCx, DataWidth, Draw, FacePaint, IconSpec, PaintShape, StrokeWidth, TextureCache, WellFill};
+use crate::primitives::{Checker, ContentPainterCx, DataWidth, Draw, FacePaint, IconSpec, PaintShape, StrokeWidth, WellFill};
 use crate::runtime::focus::FocusShape;
 use crate::runtime::requests::ColorRequest;
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
@@ -667,12 +667,12 @@ impl Face<'_> {
             }
             SwatchFill::Image(image) => {
                 self.color_well(painter, well, Some(CLEAR));
-                let texture = TextureCache::texture(painter.painter.ctx(), SwatchImageKey(image.key), || image.pixels().clone());
+                let texture = painter.with_draw(|draw| draw.cached_texture(SwatchImageKey(image.key), || image.pixels().clone()));
                 let uv = cover_uv(image.pixels().size, well.size());
                 match self.shape {
                     SwatchShape::Hexagon => {
                         let corners = hexagon(well);
-                        let mut mesh = Mesh::with_texture(texture);
+                        let mut mesh = Mesh::with_texture(egui::TextureId::User(texture.0));
                         for &pos in &corners {
                             let at = (pos - well.min) / well.size();
                             mesh.vertices.push(egui::epaint::Vertex { pos, uv: uv.lerp_inside(at), color: UNTINTED });
@@ -805,7 +805,7 @@ impl SwatchFace {
     pub fn paint(&self, cx: &ContentPainterCx<'_>, rect: Rect) {
         let key = Swatch::optional("", self.color).style_key();
         let scope = cx.style_cx();
-        let style = resolve_style(&scope, key, cx.painter.ctx(), Swatch::<()>::style);
+        let style = resolve_style(&scope, key, cx.egui_ctx(), Swatch::<()>::style);
         let (flags, on) = if self.selected { (Flags::SELECTED, 1.0) } else { (Flags::empty(), 0.0) };
         let state = StateSet::new(State::Rest, flags, StateMix::new(0.0, 0.0, on));
         let fill = SwatchFill::optional(self.color);
