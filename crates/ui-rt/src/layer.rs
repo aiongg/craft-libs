@@ -175,8 +175,9 @@ fn beside(rect: Rect, side: Side, align: Align, gap: f32, size: Vec2, viewport: 
     }
 }
 
-/// Why a layer child is asked to go.
+/// Why a layer child is asked to go. More reasons (Escape, focus leaving) come with focus scopes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DismissReason {
     /// A press outside it ([`OutsidePress`]).
     OutsidePress,
