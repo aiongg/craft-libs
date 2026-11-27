@@ -582,6 +582,12 @@ impl BuildCx<'_> {
         self.rt.interrupt_ime(node);
     }
 
+    /// Puts `text` on the platform's clipboard for this node's window (a selection's Copy).
+    pub fn set_clipboard(&mut self, text: impl Into<String>) {
+        let window = self.window;
+        self.rt.clipboard.push((window, crate::input::ClipboardRequest::Set(text.into())));
+    }
+
     /// Asks the platform for the clipboard's text; it arrives as [`crate::Event::Paste`] at the
     /// focused node of this node's window (an editor's Paste).
     pub fn request_paste(&mut self) {

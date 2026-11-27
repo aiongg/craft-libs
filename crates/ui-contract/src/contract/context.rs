@@ -356,9 +356,14 @@ impl Context {
         Rect::from_min_max(craft_ui_rt::pos2(safe.left, safe.top), craft_ui_rt::pos2(facts.viewport.x - safe.right, facts.viewport.y - safe.bottom))
     }
 
-    /// Puts `text` on the clipboard.
+    /// Puts `text` on the clipboard. Inside a build it reaches the runtime when the scope's build ends; outside one it
+    /// waits for the host.
     pub fn copy_text(&self, text: String) {
-        self.platform(PlatformRequest::CopyText(text));
+        if building() {
+            log_build_read(move |cx| cx.set_clipboard(text));
+        } else {
+            self.platform(PlatformRequest::CopyText(text));
+        }
     }
 
     /// Asks the platform for the clipboard's text from inside a build (an editor's Paste); it reaches the window's
