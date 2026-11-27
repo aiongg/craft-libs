@@ -21,6 +21,11 @@ pub struct CmykConverter {
 }
 
 impl CmykConverter {
+    /// The identity of the converter's profile: a converter is immutable, and a different profile makes a new one.
+    pub fn profile_id(&self) -> usize {
+        Arc::as_ptr(&self.profile) as usize
+    }
+
     /// The ΔE (CIE76) past which a colour is out of the CMYK gamut in a colour picker: 3.0, as
     /// PhotoCraft's picker (`GAMUT_DE`).
     pub const PICKER_GAMUT_DE: f32 = 3.0;

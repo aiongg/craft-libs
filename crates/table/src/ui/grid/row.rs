@@ -57,6 +57,7 @@ impl CellPaint<'_> {
 pub struct GridRow<'r> {
     #[common]
     common: craft_ui::contract::Common,
+    #[key(by = self.model.revision())] // the app bumps it on every change of what the model shows
     model: &'r dyn GridModel,
     row: u32,
     zoom: f32,

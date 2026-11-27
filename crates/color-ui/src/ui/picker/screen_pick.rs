@@ -45,6 +45,7 @@ impl Outcome for ScreenPickOutput {
 pub(super) struct ScreenPickButton {
     #[common]
     common: Common,
+    #[key(skip)] // the run's output
     gesture: Option<ScreenPickGesture>,
 }
 

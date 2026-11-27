@@ -44,6 +44,18 @@ pub(crate) enum SampleFace<'a> {
     Missing,
 }
 
+impl std::fmt::Debug for SampleFace<'_> {
+    /// The face's identity, for the component key.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SampleFace::Face { catalog, owner, face } => write!(f, "Face({}, {:?}, {:?})", catalog.id(), owner, face),
+            SampleFace::Subset(subset) => write!(f, "Subset({subset:?})"),
+            SampleFace::Font(font) => write!(f, "Font({font:?})"),
+            SampleFace::Missing => f.write_str("Missing"),
+        }
+    }
+}
+
 impl SampleFace<'_> {
     /// The font that draws the sample once its face is ready; none while it loads, when it is not available, or for
     /// [`SampleFace::Missing`]. A sample is laid out and drawn only in this font, never in the interface face, which
@@ -105,7 +117,8 @@ impl HeldFace {
 /// an ellipsis where the room does not fit it (`faces::sample_text`, the layout `paint` draws). Without a ready face
 /// it reserves the most that layout can take, the room's width, so the face arriving never widens it.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(content_painter)]
+// Unkeyed: the sample face is a catalogue face with no version of its load state.
+#[component(content_painter, unkeyed)]
 pub(crate) struct FontSample<'a> {
     #[common]
     common: Common,

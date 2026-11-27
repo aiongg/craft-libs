@@ -34,6 +34,10 @@ impl Sheet {
 }
 
 impl GridModel for Sheet {
+    fn revision(&self) -> u64 {
+        0
+    }
+
     fn rows(&self) -> &LineIndex {
         &self.rows
     }
@@ -293,6 +297,10 @@ struct Painted {
 }
 
 impl GridModel for Painted {
+    fn revision(&self) -> u64 {
+        self.sheet.revision()
+    }
+
     fn rows(&self) -> &LineIndex {
         self.sheet.rows()
     }
@@ -398,6 +406,10 @@ struct Merged {
 }
 
 impl GridModel for Merged {
+    fn revision(&self) -> u64 {
+        self.sheet.revision()
+    }
+
     fn rows(&self) -> &LineIndex {
         self.sheet.rows()
     }

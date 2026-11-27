@@ -13,12 +13,13 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, Outcome,
     PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
+use craft_ui::primitives::items::{self, Mesh};
 use craft_ui::primitives::{Marker, MarkerSize, PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, MarkerLook, StyleColor, StyleCx};
-use egui::{Color32, Mesh, Pos2, Rect, Response, Vec2, vec2};
+use egui::{Color32, Pos2, Rect, Response, Vec2, vec2};
 use std::f32::consts::{SQRT_2, TAU};
 
 #[cfg(feature = "suite")]
@@ -72,6 +73,7 @@ pub enum WheelPart {
 /// What a [`ColorWheel`] shows inside its ring.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum WheelInner {
     /// The saturation and brightness triangle.
     #[default]
@@ -259,6 +261,7 @@ pub struct ColorWheel<'a> {
     values: Bind<'a, ModelValues>,
     /// The host's gamut, passed to the square's `ColorArea`.
     #[prop]
+    #[key(skip)] // a closure the run only calls
     gamut: Option<Gamut<'a>>,
     /// What the ring holds: the triangle, or a square `ColorArea`.
     #[prop]
@@ -571,9 +574,9 @@ impl Component for ColorWheel<'_> {
         let corners = geometry.corners(hue, 0.0);
         {
             let painter = ui.content_painter(cx);
-            painter.painter.add(ring_mesh(&geometry));
+            painter.painter.extend(items::mesh(ring_mesh(&geometry)));
             if self.inner == WheelInner::Triangle {
-                painter.painter.add(triangle_mesh(corners, hue));
+                painter.painter.extend(items::mesh(triangle_mesh(corners, hue)));
             }
         }
         if self.inner == WheelInner::Square {
@@ -621,8 +624,8 @@ fn ring_mesh(geometry: &WheelGeometry) -> Mesh {
         let hue = k as f32 / RING_STEPS as f32 * 360.0;
         let color = vertex(hue, 100.0, 100.0);
         let dir = hue_direction(hue);
-        mesh.colored_vertex(geometry.center + dir * geometry.inner, color);
-        mesh.colored_vertex(geometry.center + dir * geometry.outer, color);
+        mesh.colored_vertex(geometry.center + dir * geometry.inner, items::rgba(color));
+        mesh.colored_vertex(geometry.center + dir * geometry.outer, items::rgba(color));
     }
     for k in 0..RING_STEPS {
         let a = k * 2;
@@ -638,7 +641,7 @@ fn triangle_mesh(corners: [Pos2; 3], hue: f32) -> Mesh {
     for j in 0..=n {
         for i in 0..=n {
             let (s, b) = (i as f32 / n as f32, j as f32 / n as f32);
-            mesh.colored_vertex(triangle_point(corners, s, b), vertex(hue, s * 100.0, b * 100.0));
+            mesh.colored_vertex(triangle_point(corners, s, b), items::rgba(vertex(hue, s * 100.0, b * 100.0)));
         }
     }
     let row = (n + 1) as u32;

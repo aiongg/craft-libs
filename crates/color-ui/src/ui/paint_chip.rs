@@ -91,6 +91,7 @@ craft_ui::words! {
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct GradientPreview {
     /// Stops as (position 0–1, colour), ascending by position.
     pub stops: Vec<(f32, Srgba)>,
@@ -127,6 +128,7 @@ impl GradientPreview {
 /// pattern or picture itself is the host's.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct ImagePreview {
     /// "Bubbles", "photo.png".
     pub name: String,
@@ -145,6 +147,7 @@ impl ImagePreview {
 /// `match` on it outside craft-color-ui needs a `_` arm.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum Paint {
     /// No paint.
     None,
@@ -208,6 +211,7 @@ impl<T> PaintEditor<'_, T> {
 /// How large a [`PaintChip`] is; every size paints the same well.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum PaintChipSize {
     /// A control high and 1.5 times as wide: a panel's or an options bar's chip.
     #[default]
@@ -402,20 +406,26 @@ pub struct PaintChip<'a> {
     /// No Color is offered; on by default (a stroke can be none, a text colour cannot).
     #[prop]
     none_allowed: bool,
+    #[key(by = self.gradient.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     gradient: Option<(GradientPreview, PaintEditor<'a, GradientPreview>)>,
+    #[key(by = self.pattern.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     pattern: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
+    #[key(by = self.picture.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     picture: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
     /// The host's answer to the screen eyedropper: a `Set` of the sampled colour that keeps the alpha.
     #[prop]
     sampled: Option<Srgba>,
+    #[key(skip)] // the run's output
     screen_pick: Option<ScreenPickGesture>,
     /// The recent colours the popover shows beside the picker.
     #[prop]
     recent: &'a [Srgba],
+    #[key(by = self.swatches.as_ref().map(|(groups, _)| *groups))] // the groups; the bound preset state is read through its Bind
     swatches: Option<(&'a [SwatchGroup], Bind<'a, PresetState<SwatchKey>>)>,
     /// The document's CMYK converter, which draws CMYK swatches and gives their colours when picked; without it they
     /// use the built-in coated CMYK, as in the Swatches panel.
     #[prop]
+    #[key(by = self.cmyk.map(|converter| converter.profile_id() as u64))] // an immutable converter: another profile is another converter
     cmyk: Option<&'a CmykConverter>,
     /// A Color Picker… button at the end of the kind row opens the full picker.
     #[prop]
@@ -437,6 +447,7 @@ pub struct PaintChip<'a> {
     #[prop]
     chip_size: PaintChipSize,
     /// The request of the Color Picker… button, for this pass.
+    #[key(skip)] // the run's output
     pick_color: Option<ColorRequest>,
     /// The modifiers of this pass's click on a chip without a popover.
     clicked: Option<Mods>,
@@ -840,14 +851,14 @@ pub(super) fn paint_image(painter: &ContentPainterCx<'_>, well: Rect, texture: C
     let tiled = tiled && tile.x > 0.0 && tile.y > 0.0 && tile.x.is_finite() && tile.y.is_finite();
     let (cols, rows) = if tiled { ((well.width() / tile.x).ceil(), (well.height() / tile.y).ceil()) } else { (1.0, 1.0) };
     if !tiled || cols * rows > MAX_TILES {
-        painter.picture(texture.id, well, whole, 0.0);
+        painter.picture(texture.key(), well, whole, 0.0);
         return;
     }
     for row in 0..rows as usize {
         for col in 0..cols as usize {
             let cell = Rect::from_min_size(well.min + vec2(col as f32 * tile.x, row as f32 * tile.y), tile).intersect(well);
             let uv_max: Pos2 = pos2(cell.width() / tile.x, cell.height() / tile.y);
-            painter.picture(texture.id, cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max), 0.0);
+            painter.picture(texture.key(), cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max), 0.0);
         }
     }
 }

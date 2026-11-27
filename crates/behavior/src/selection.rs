@@ -312,7 +312,7 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
 /// means the last range. Loading fails when the ranges are empty but an active cell is given, when `current` is out
 /// of range, when ranges are given without an active cell, and when the active column lies outside the current
 /// range's columns.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct CellSelection<K> {
     ranges: Vec<CellRange<K>>,
     /// The index in `ranges` of the current range.

@@ -150,6 +150,7 @@ pub(crate) struct ShortcutTable<'a> {
     /// The lines the rows show, for the group headers the table paints.
     lines: &'a [Line],
     /// The group headers in view this pass.
+    #[key(skip)] // the run's output
     headers: Vec<PlacedHeader>,
     /// Where the rows show this pass: the headers paint inside it, clear of the column header.
     rows_view: Option<Rect>,
@@ -317,11 +318,15 @@ pub(crate) struct CommandRow<'r> {
     #[common]
     common: Common,
     line: &'r Line,
+    #[key(by = (self.env.editable, self.env.holds, self.env.start, self.env.recording.as_ref().map(|(_, text)| text)))]
+    // the dialog state the row shows
     env: &'r RowEnv<'r>,
     cells: Vec<(ColumnKey, Rect)>,
     /// The width of every text the shortcut cell shows, measured in `measure` as the child that shows it (paint
     /// cannot lay out).
+    #[key(skip)] // the run's output
     widths: std::collections::BTreeMap<(Shown, String), f32>,
+    #[key(skip)] // the run's output
     act: Option<RowAct>,
 }
 

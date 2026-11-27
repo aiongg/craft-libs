@@ -40,6 +40,7 @@ pub const LANE_MIN_ZOOM: f32 = 0.75;
 /// (below or right; before it when `summary_before`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct OutlineGroup {
     /// The group's first line.
     pub start: u32,
@@ -56,6 +57,7 @@ pub struct OutlineGroup {
 /// One direction's outline: its deepest level and its groups.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct OutlineAxis {
     /// The deepest level.
     pub levels: u8,
@@ -217,7 +219,9 @@ pub struct OutlineBand<'a> {
     rows: &'a OutlineAxis,
     columns: &'a OutlineAxis,
     geometry: &'a SheetGeometry,
+    #[key(skip)] // the run's output
     laid: Layout,
+    #[key(skip)] // the run's output
     actions: Vec<OutlineAction>,
 }
 

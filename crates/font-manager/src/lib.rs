@@ -23,8 +23,8 @@ pub mod axes;
 #[cfg(feature = "ui")]
 pub mod glyphs;
 #[cfg(feature = "ui")]
-pub mod missing;
 #[cfg(feature = "ui")]
+pub mod missing;
 pub(crate) mod panel;
 #[cfg(feature = "ui")]
 pub mod picker;

@@ -40,6 +40,7 @@ pub(crate) use reference::edges;
 /// Where a column's resize edge is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum ColumnEdges {
     /// Only on the column headers.
     #[default]
@@ -185,7 +186,9 @@ pub struct CellGrid<'a> {
     percent: u16,
     #[style_key]
     levels: (u8, u8),
+    #[key(by = self.model.revision())] // the app bumps it on every change of what the model shows
     model: &'a dyn GridModel,
+    #[key(skip)] // the bound selection; `snapshot` keys its value
     selection: Bind<'a, CellSelection<u32>>,
     /// The selection as the app held it when the pass began, for the parts that declare before the item step runs.
     snapshot: CellSelection<u32>,
@@ -209,10 +212,13 @@ pub struct CellGrid<'a> {
     #[prop]
     column_edges: ColumnEdges,
     outline: Option<(&'a OutlineAxis, &'a OutlineAxis)>,
+    #[key(skip)] // a callback; the run only calls it
     selectable: Box<dyn Fn(CellAt<u32>) -> bool + 'a>,
+    #[key(skip)] // the run's output
     frame: Option<paint::Frame>,
     /// The row the keys of this pass moved the active cell to.
     reveal: Option<u32>,
+    #[key(skip)] // the run's output
     pass: PassOutput,
 }
 

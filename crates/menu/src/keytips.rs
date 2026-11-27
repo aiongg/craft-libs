@@ -159,11 +159,14 @@ pub struct Keytips<'a> {
     /// The inspected-region records whose elements the badges are placed at: the ribbon's, and any other region the
     /// app records (a quick access toolbar in the title bar).
     #[prop]
+    #[key(by = self.places.iter().map(|r| Arc::as_ptr(r) as usize as u64).collect::<Vec<_>>())] // records by identity
     places: &'a [Arc<inspect::Recorded>],
     /// The state this pass ends with.
+    #[key(skip)] // the run's output
     state: State,
     /// Each badge of this pass with the rect of the control it sits on, in this component's layer.
     badges: Vec<(Rect, String)>,
+    #[key(skip)] // the run's output
     reported: Reported,
 }
 
@@ -474,7 +477,7 @@ impl Component for Keytips<'_> {
 }
 
 /// A control that gets a keytip.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct KeytipControl<'a> {
     /// The control's command: its badge shows on the element of the records bound to it.

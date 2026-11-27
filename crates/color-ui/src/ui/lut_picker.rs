@@ -46,6 +46,7 @@ craft_ui::words! {
 /// The chosen LUT.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum LutChoice {
     /// No LUT.
     None,
@@ -176,6 +177,7 @@ pub struct LutPicker<'a> {
     /// The app's LUT folder (Preferences › File Handling › LUT Folder).
     #[prop(into)]
     folder: Option<PathBuf>,
+    #[key(skip)] // the file the run loaded from the choice
     loaded: Option<Result<LutFile, LutError>>,
     load_asked: bool,
 }

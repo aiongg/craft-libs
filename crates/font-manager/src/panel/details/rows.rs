@@ -183,9 +183,12 @@ impl ItemOutput<Pressed> for RowOut {
 
 /// One style: its name, its action and its sample.
 #[derive(craft_ui::contract::Component)]
+// Unkeyed: its style line holds a `HeldFace` with no version.
+#[component(unkeyed)]
 pub(super) struct StyleRow<'r> {
     #[common]
     common: Common,
+    // what the style shows
     line: &'r StyleLine,
     family: &'r str,
     sample: &'r str,
@@ -193,6 +196,7 @@ pub(super) struct StyleRow<'r> {
     words: &'r DetailsWords,
     pressed: bool,
     /// The width of the action, measured in the pass's measure step and read by its paint.
+    #[key(skip)] // the run's output
     action: Cell<f32>,
 }
 

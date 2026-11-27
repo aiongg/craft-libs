@@ -76,6 +76,7 @@ impl SelectionStats {
 /// Which statistics show; one settings section (Excel's status bar menu is app-wide).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct StatsShown {
     /// Show the average.
     pub average: bool,
@@ -115,6 +116,7 @@ impl Default for StatsShown {
 /// One statistic of the status bar: the label with its value, and the value alone, which a click copies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct StatPart {
     /// "Average: 3.5".
     pub text: String,

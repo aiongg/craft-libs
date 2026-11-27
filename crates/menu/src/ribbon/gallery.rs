@@ -58,16 +58,20 @@ craft_ui::words! {
 ///   set), and with `CaptionPlace::Below` the tile names its item under the picture (a style gallery's 'Normal').
 #[must_use = "show the gallery with `show`"]
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(overlay, probe(Gallery<'static, usize>))]
+// Unkeyed: a tile face can be a painter closure (`GalleryFace::Paint`) that carries no version, so the gallery runs at
+// every build of its scope until the faces carry one.
+#[component(overlay, unkeyed, probe(Gallery<'static, usize>))]
 pub struct Gallery<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[common]
     common: Common,
+    // tiles by key and name; a face repaint needs a changed key
     items: &'a [GalleryItem<'a, K>],
     current: Option<&'a K>,
     full: u8,
     compact: u8,
     /// What the More button opens.
     #[prop]
+    #[key(skip)] // the More target: a command or a body closure, only run on a press
     more: GalleryMore<'a>,
     /// Whether one rounded frame holds the tiles and the buttons.
     framed: bool,
@@ -88,6 +92,7 @@ pub struct Gallery<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The column of stepper buttons, if shown.
     column: Rect,
     picked: Option<K>,
+    #[key(skip)] // the run's output
     menu: Option<ContextMenuRequest<K>>,
 }
 

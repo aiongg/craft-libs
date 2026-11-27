@@ -17,7 +17,7 @@ pub(crate) mod stories;
 /// A warning the host shows beside a colour's swatch, as the out-of-gamut and web-colour warnings of Photoshop's Color
 /// Picker and Color panel: an icon and a chip of the nearest colour that passes. A click on it sets that colour;
 /// AccessKit and the tooltip name it by its tip.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub struct ColorWarning {
     pub(crate) tip: Label,
     nearest: Srgba,
@@ -52,6 +52,7 @@ impl ColorWarning {
 /// How a [`ColorWarningChip`] arranges its icon and its chip.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum ColorWarningArrangement {
     /// The icon over the chip, both `size.icon.sm`: the column beside the Color Picker's compare swatch.
     #[default]

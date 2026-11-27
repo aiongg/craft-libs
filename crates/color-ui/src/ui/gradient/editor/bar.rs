@@ -180,6 +180,7 @@ pub struct GradientBar<'a, P: Clone + Send + Sync + 'static = ()> {
     opacity_midpoints: bool,
     /// Samples the gradient for the ramp and new stops instead of [`default_sampler`].
     #[prop]
+    #[key(skip)] // a closure the run only calls
     sampler: Option<&'a Sampler>,
     /// Decimals of a location in percent, for the accessible values.
     #[prop]
@@ -190,9 +191,11 @@ pub struct GradientBar<'a, P: Clone + Send + Sync + 'static = ()> {
     /// The selected marker.
     #[prop]
     selected_marker: Option<StopRef>,
+    #[key(skip)] // the run's output
     select: Option<Option<StopRef>>,
     color_requested: Option<(usize, Rect)>,
     field_requested: bool,
+    #[key(skip)] // the run's output
     dropped: Option<(StopDrop, P)>,
     payload: PhantomData<fn() -> P>,
 }

@@ -8,11 +8,13 @@ use craft_theme::{ModelValues, Srgba};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Sizing, WordSetCx as _,
 };
+use craft_ui::primitives::Canvas;
 use craft_ui::primitives::ContentPainterCx;
+use craft_ui::primitives::items::{self, Mesh};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, MarkerLook, StyleColor, StyleCx};
 use craft_ui::value_drag::{PointMark, PointPicker};
-use egui::{Color32, Mesh, Painter, Pos2, Rect, Stroke, Vec2, pos2};
+use egui::{Color32, Pos2, Rect, Stroke, Vec2, pos2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -71,12 +73,14 @@ pub struct ColorArea<'a> {
     /// The host's gamut: a cell of the 16 × 16 grid whose centre colour it moves is shaded with `surface.scrim`, with
     /// a dark line under a light one along the edges between shaded and unshaded cells; drawn under the marker.
     #[prop]
+    #[key(skip)] // a closure the run only calls
     gamut: Option<Gamut<'a>>,
 }
 
 /// The size of a [`ColorArea`] that does not fill its room.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum AreaShape {
     /// `size.plot.width` wide and `size.plot.height` tall: the field of the Color panel's popover and the compact
     /// pickers, wider than tall.
@@ -284,7 +288,7 @@ fn paint_field(painter: &ContentPainterCx, plot: Rect, mode: AreaMode, base: &Mo
         Some(levels) => flat_cells(&mut mesh, plot, &at, levels),
         None => smooth_mesh(&mut mesh, plot, MESH, &at),
     }
-    painter.painter.add(mesh);
+    painter.painter.extend(items::mesh(mesh));
     if let Some(shading) = shading {
         paint_shading(&painter.painter, plot, &shading);
     }
@@ -292,7 +296,7 @@ fn paint_field(painter: &ContentPainterCx, plot: Rect, mode: AreaMode, base: &Mo
 
 /// Fills the shaded cells and draws the lines between shaded and unshaded neighbours, the dark one first so the light
 /// one lies over it.
-fn paint_shading(painter: &Painter, plot: Rect, shading: &Shading) {
+fn paint_shading(painter: &Canvas<'_>, plot: Rect, shading: &Shading) {
     let cell = plot.size() / GRID as f32;
     let point = |col: usize, row: usize| pos2(plot.left() + col as f32 * cell.x, plot.top() + row as f32 * cell.y);
     let shaded = |col: usize, row: usize| shading.flags[row * GRID + col];
@@ -313,7 +317,7 @@ fn paint_shading(painter: &Painter, plot: Rect, shading: &Shading) {
     }
     for stroke in [shading.dark, shading.light] {
         for edge in &edges {
-            painter.line_segment(*edge, stroke);
+            painter.line_segment(*edge, stroke.width, stroke.color);
         }
     }
 }
@@ -325,7 +329,7 @@ pub fn smooth_mesh(mesh: &mut Mesh, plot: Rect, steps: usize, at: &dyn Fn(f32, f
     for row in 0..steps {
         for col in 0..steps {
             let (fx, fy) = (col as f32 / last, row as f32 / last);
-            mesh.colored_vertex(pos2(egui::lerp(plot.x_range(), fx), egui::lerp(plot.y_range(), fy)), at(fx, fy).into());
+            mesh.colored_vertex(pos2(egui::lerp(plot.x_range(), fx), egui::lerp(plot.y_range(), fy)), items::rgba(at(fx, fy).into()));
         }
     }
     for row in 0..steps - 1 {
@@ -346,7 +350,7 @@ fn flat_cells(mesh: &mut Mesh, plot: Rect, at: &dyn Fn(f32, f32) -> Srgba, level
         for col in 0..n {
             let (fx, fy) = ((col as f32 + 0.5) / n as f32, (row as f32 + 0.5) / n as f32);
             let min = pos2(plot.left() + col as f32 * w, plot.top() + row as f32 * h);
-            mesh.add_colored_rect(Rect::from_min_size(min, Vec2::new(w, h)), snapped(at(fx, fy), levels).into());
+            mesh.add_colored_rect(Rect::from_min_size(min, Vec2::new(w, h)), items::rgba(snapped(at(fx, fy), levels).into()));
         }
     }
 }

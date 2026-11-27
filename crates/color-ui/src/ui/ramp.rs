@@ -9,12 +9,13 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi,
     PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
+use craft_ui::primitives::items::{self, Mesh};
 use craft_ui::primitives::{Marker, PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, MarkerLook, StyleColor, StyleCx};
-use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Response, Vec2, pos2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
@@ -65,6 +66,7 @@ pub struct ColorRampStyle {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum RampKind {
     /// Hue across; white at the top through the full colour in the middle to black at the bottom.
     #[default]
@@ -81,6 +83,7 @@ pub enum RampKind {
 /// A colour the ramp picked.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct RampPick {
     /// The picked colour.
     pub color: Srgba,
@@ -226,6 +229,7 @@ pub struct ColorRamp<'a> {
     /// Maps each colour of a spectrum ramp to the host's gamut (a CMYK round trip). It runs for the cached colours
     /// only, and again for a pick.
     #[prop]
+    #[key(skip)] // a closure the run only calls
     gamut: Option<Gamut<'a>>,
     /// The host's counter for the working space `gamut` maps into; a change recomputes the colours.
     #[prop]
@@ -253,6 +257,7 @@ pub struct ColorRamp<'a> {
     cursor: (usize, usize),
     cycle: bool,
     menu_at: Option<Pos2>,
+    #[key(skip)] // the run's output
     recolor: Option<RampRecolor>,
 }
 
@@ -522,7 +527,7 @@ impl Component for ColorRamp<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let (bar, boxes) = self.layout(cx.rect, cx.style);
         let painter = ui.content_painter(cx);
-        painter.painter.add(ramp_mesh(bar, &self.colors, self.web_safe));
+        painter.painter.extend(items::mesh(ramp_mesh(bar, &self.colors, self.web_safe)));
         let draw = ui.draw();
         draw.stroke(&PaintShape::Rect(bar, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.edge);
         if cx.focus_visible() && cx.active_part() == Some(BAR.into()) {
@@ -554,14 +559,14 @@ fn ramp_mesh(bar: Rect, colors: &[Color32], flat: bool) -> Mesh {
         for j in 0..CELLS_Y {
             for i in 0..CELLS_X {
                 let color = colors.get(j * CELLS_X + i).copied().unwrap_or(Color32::from(Srgba::BLACK));
-                mesh.add_colored_rect(Rect::from_min_max(at(i, j), at(i + 1, j + 1)), color);
+                mesh.add_colored_rect(Rect::from_min_max(at(i, j), at(i + 1, j + 1)), items::rgba(color));
             }
         }
         return mesh;
     }
     for j in 0..=CELLS_Y {
         for i in 0..=CELLS_X {
-            mesh.colored_vertex(at(i, j), colors.get(j * (CELLS_X + 1) + i).copied().unwrap_or(Color32::from(Srgba::BLACK)));
+            mesh.colored_vertex(at(i, j), items::rgba(colors.get(j * (CELLS_X + 1) + i).copied().unwrap_or(Color32::from(Srgba::BLACK))));
         }
     }
     let row = (CELLS_X + 1) as u32;

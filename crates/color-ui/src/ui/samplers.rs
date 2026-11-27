@@ -83,7 +83,7 @@ pub enum ColorSamplerCommand {
 }
 
 /// The sample points of a document, in document pixels, at most [`MAX_SAMPLERS`], numbered by their order.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct ColorSamplers {
     points: Vec<[f64; 2]>,
 }
@@ -197,6 +197,7 @@ pub struct ColorSamplerMarks<'a> {
     samplers: &'a ColorSamplers,
     /// The point the tool carries: it draws at the pointer, or with no index the next number draws there.
     #[prop]
+    #[key(skip)] // the run's output
     carried: Option<SamplerCarry>,
 }
 

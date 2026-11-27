@@ -62,7 +62,7 @@ impl Filter {
 }
 
 /// A binding as a row shows it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub(crate) struct Chip {
     pub binding: Binding,
     /// Trigger text, plus ` (Scope)` for a scope other than the command's home scope (display order).
@@ -71,7 +71,7 @@ pub(crate) struct Chip {
     pub changed: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub(crate) struct Row {
     /// Position in the catalog.
     pub index: usize,
@@ -104,7 +104,7 @@ impl Row {
 }
 
 /// A read-only row from [`Options::fixed`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub(crate) struct FixedLine {
     pub label: String,
     pub keys: String,
@@ -112,7 +112,7 @@ pub(crate) struct FixedLine {
     pub now_used_by: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub(crate) enum Line {
     Header { name: String, collapsed: bool },
     Row(Row),

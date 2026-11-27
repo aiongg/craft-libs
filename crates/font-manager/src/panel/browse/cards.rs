@@ -238,11 +238,16 @@ impl ItemOutput<CardEvent> for CardOut {
 /// One family: its name and meta line, its state at the reading end and a sample in the face below. The controls at the
 /// end and the sample are child components of the card, so a press on a control never selects the card.
 #[derive(craft_ui::contract::Component)]
+// Unkeyed: its card data holds a `HeldFace` with no version.
+#[component(unkeyed)]
 pub struct FamilyCard {
     #[common]
     common: Common,
+    // what the card shows
     data: CardData,
+    #[key(skip)] // the run's output
     placed: Option<Placed>,
+    #[key(skip)] // the run's output
     event: Option<CardEvent>,
 }
 

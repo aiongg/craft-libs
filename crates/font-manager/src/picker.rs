@@ -105,6 +105,7 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum FontClass {
     /// Serif faces.
     Serif,
@@ -149,6 +150,7 @@ impl FontClass {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum FontPreviewSize {
     /// No sample in the rows.
     None,
@@ -183,6 +185,7 @@ impl FontPreviewSize {
 /// class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum FontScript {
     /// The basic Latin letters.
     Latin,
@@ -199,6 +202,7 @@ impl FontScript {
 
 /// A family set the host gives (VectorCraft: Document, Recently Added), one filter toggle each. An `ordered` set that
 /// is on lists in its own order. A disabled set's toggle is off and dimmed, with its hint as the reason.
+#[derive(Debug, craft_ui::contract::MemoProps)]
 pub struct FamilySet<'a> {
     key: &'a str,
     label: Label,
@@ -243,6 +247,7 @@ impl<'a> FamilySet<'a> {
 /// Preview Size row).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum FilterLayout {
     /// The toggle row and class column.
     #[default]
@@ -254,6 +259,7 @@ pub enum FilterLayout {
 /// What narrows the list. Every filter off shows every installed family.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct FontFilters {
     /// Only families of this class (`None`: All Classes).
     pub class: Option<FontClass>,
@@ -289,6 +295,7 @@ pub const SIMILAR_COUNT: usize = 30;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct FontPickerSettings {
     /// Starred families, in star order.
     pub favorites: Vec<String>,
@@ -410,6 +417,7 @@ pub(super) fn infos_of(ctx: &egui::Context, id: egui::Id, catalog: &Catalog) -> 
 /// How a [`FontPicker`] lays out its list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum FontPickerKind {
     /// The library picker: stars, recents, filters and the class column.
     #[default]
@@ -421,6 +429,7 @@ pub enum FontPickerKind {
 /// What the note of a shown font that is not installed advises.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum MissingAdvice {
     /// The note alone.
     #[default]
@@ -432,6 +441,7 @@ pub enum MissingAdvice {
 /// A group of host rows listed above the catalogue families, under an optional heading.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct HostFontGroup<'a> {
     /// The group's heading, if it has one.
     pub heading: Option<Label>,
@@ -449,6 +459,7 @@ impl<'a> HostFontGroup<'a> {
 /// A row the host adds to the picker: a face, an action or a notice.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct HostFontRow {
     /// The key `host_picked` reports when the row is run.
     pub key: String,
@@ -476,7 +487,7 @@ impl HostFontRow {
 }
 
 /// What a [`HostFontRow`] is.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HostFontKind {
     /// A face to pick, with the face its sample shows in.
@@ -686,6 +697,7 @@ pub struct FontPicker<'a> {
     #[common]
     common: Common,
     family: Bind<'a, String>,
+    #[key(by = (self.catalog.id(), self.catalog.generation()))] // the catalogue by id and scan generation
     catalog: &'a Arc<Catalog>,
     /// Stars, recents, the preview size and the names language; the picker records a pick as recent through it.
     #[prop]
@@ -696,6 +708,7 @@ pub struct FontPicker<'a> {
     picked: Option<String>,
     picked_style: Option<String>,
     rested: Option<String>,
+    #[key(skip)] // the hover preview state, written by the run
     preview: Preview<String>,
     /// The preview banner's text and every row's sample (the sample word when not given).
     #[prop]
