@@ -115,6 +115,10 @@ pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, c
         hover: false,
         sweep: None,
         focus: crate::runtime::focus::FocusPolicy::NONE,
+        entry: None,
+        host: None,
+        on_activate: false,
+        enter: false,
     };
     let text = kept.text.clone();
     show_layer(cx, owner.with("craft-tip"), TIP_KEY, show, ran, &mut |ui| {
