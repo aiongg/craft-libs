@@ -280,10 +280,19 @@ impl HeadlessPlatform {
         self.inject(window, Input::Text(text.to_owned()));
     }
 
-    pub fn file_drop(&mut self, window: WindowId, files: Vec<std::path::PathBuf>) {
-        let hovered: Vec<Input> = files.iter().cloned().map(Input::FileHovered).collect();
-        let dropped: Vec<Input> = files.into_iter().map(Input::FileDropped).collect();
-        self.inject_all(window, hovered.into_iter().chain(dropped));
+    /// The OS drags `files` over the window and drops them at `pos` (none, as desktop drag loops
+    /// often report).
+    pub fn file_drop(&mut self, window: WindowId, files: Vec<std::path::PathBuf>, pos: Option<Pos2>) {
+        let files: Vec<craft_ui_rt::OsFile> = files
+            .into_iter()
+            .map(|path| craft_ui_rt::OsFile {
+                name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                path: Some(path),
+                ..craft_ui_rt::OsFile::default()
+            })
+            .collect();
+        self.inject(window, Input::Files(craft_ui_rt::FileDrag::Enter { files: files.clone(), pos }));
+        self.inject(window, Input::Files(craft_ui_rt::FileDrag::Drop { files, pos }));
     }
 
     pub fn access_action(&mut self, window: WindowId, action: accesskit::Action, target: accesskit::NodeId) {

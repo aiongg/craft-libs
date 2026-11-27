@@ -396,6 +396,8 @@ pub use craft_timeline as timeline;
 pub use craft_tracked as tracked;
 #[cfg(feature = "ui")]
 pub use craft_ui as ui;
+#[cfg(feature = "ui-render-epaint")]
+pub use craft_ui_render_epaint as ui_render_epaint;
 #[cfg(feature = "ui-rt")]
 pub use craft_ui_rt as ui_rt;
 #[cfg(feature = "ui-platform-headless")]

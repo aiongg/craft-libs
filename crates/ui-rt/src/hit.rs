@@ -1,5 +1,8 @@
 //! Hit shapes. A node records them while it paints, in its own coordinates, so a node that only
 //! moves keeps them. Hit testing walks the retained tree from the top of the paint order down.
+//!
+//! Only recorded shapes take input: a layer child blocks presses to what lies under it only where
+//! it records a shape that takes the press. A drag ghost records none, so it never blocks.
 
 use craft_behavior::Sense;
 use emath::{Pos2, Rect, Vec2};
@@ -7,6 +10,7 @@ use emath::{Pos2, Rect, Vec2};
 use crate::frame::Part;
 use crate::id::NodeId;
 use crate::layer::Layer;
+use crate::platform::Cursor;
 use crate::tree::Tree;
 use crate::window::Window;
 
@@ -41,14 +45,25 @@ impl From<Rect> for HitShape {
     }
 }
 
+/// What a recorded shape is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HitKind {
+    /// Pointer, wheel and hover input, by its sense.
+    Input,
+    /// Where drags may drop ([`crate::PaintCx::drop_target`]).
+    Drop,
+}
+
 /// One recorded shape: what it senses and which part of its node it is (the node's own tag
-/// space; 0 when the node has one part).
+/// space; 0 when the node has one part), with the cursor the pointer shows over it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct HitRecord {
     pub(crate) shape: HitShape,
     pub(crate) sense: Sense,
     pub(crate) part: u64,
     pub(crate) level: Part,
+    pub(crate) kind: HitKind,
+    pub(crate) cursor: Option<Cursor>,
 }
 
 /// The topmost shape under a point that passed the filter.
@@ -69,6 +84,12 @@ pub(crate) fn contains(r: Rect, p: Pos2) -> bool {
 /// layer paint order decides: a node's overlay shapes, then its children from the last, then its
 /// content shapes. A node's clip bounds its own shapes and its whole subtree.
 pub(crate) fn hit_test(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(Sense) -> bool) -> Option<Hit> {
+    hit_records(tree, window, pos, &|h| h.kind == HitKind::Input && accept(h.sense)).map(|(hit, _)| hit)
+}
+
+/// The topmost recorded shape under `pos` that passes `accept`, with the record. Same order as
+/// [`hit_test`].
+pub(crate) fn hit_records(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(&HitRecord) -> bool) -> Option<(Hit, HitRecord)> {
     let viewport = Rect::from_min_size(Pos2::ZERO, window.viewport);
     for layer in Layer::ALL.into_iter().rev() {
         let id = window.layer(layer);
@@ -82,7 +103,14 @@ pub(crate) fn hit_test(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(
     None
 }
 
-fn visit(tree: &Tree, id: NodeId, parent_origin: Vec2, parent_clip: Rect, pos: Pos2, accept: &dyn Fn(Sense) -> bool) -> Option<Hit> {
+fn visit(
+    tree: &Tree,
+    id: NodeId,
+    parent_origin: Vec2,
+    parent_clip: Rect,
+    pos: Pos2,
+    accept: &dyn Fn(&HitRecord) -> bool,
+) -> Option<(Hit, HitRecord)> {
     let node = tree.nodes.get(&id)?;
     let origin = parent_origin + node.frame.offset;
     let clip = match node.frame.clip {
@@ -97,8 +125,8 @@ fn visit(tree: &Tree, id: NodeId, parent_origin: Vec2, parent_clip: Rect, pos: P
         node.hits
             .iter()
             .rev()
-            .filter(|h| h.level == level && accept(h.sense) && h.shape.contains(local))
-            .map(|h| Hit { node: id, part: h.part, sense: h.sense })
+            .filter(|h| h.level == level && accept(h) && h.shape.contains(local))
+            .map(|h| (Hit { node: id, part: h.part, sense: h.sense }, *h))
             .next()
     };
     if let Some(hit) = own(Part::Overlay) {

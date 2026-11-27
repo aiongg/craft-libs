@@ -1,14 +1,14 @@
 //! winit window events to `WindowEvent`s of one window. Positions and deltas are logical points.
 
-use craft_ui_rt::{Key, Mods, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, SizeU, SystemTheme, Vec2, WindowEvent, WindowId};
+use craft_ui_rt::{
+    FileDrag, Key, Mods, OsFile, PlatformEvent, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, SizeU, SystemTheme, Vec2, WheelPhase,
+    WheelSource, WheelUnit, WindowEvent, WindowId,
+};
 use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent as W};
 use winit::keyboard::{Key as WKey, ModifiersState, NamedKey};
 use winit::window::Theme;
 
 use crate::shared::{Cell, push};
-
-/// Logical points one wheel notch scrolls.
-const LINE_POINTS: f64 = 40.0;
 
 /// The mouse has pointer id 0; a touch contact's id is winit's id plus one.
 const MOUSE_ID: u64 = 0;
@@ -60,7 +60,7 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
         (f64::from(e.scale), e.mods, e.cursor)
     };
     let logical = |p: winit::dpi::PhysicalPosition<f64>| Pos2::new((p.x / scale) as f32, (p.y / scale) as f32);
-    let pointer = |pid, kind, phase, button, pos| WindowEvent::Pointer(PointerEvent { id: pid, kind, phase, button, pos, mods });
+    let pointer = |pid, kind, phase, button, pos| WindowEvent::Pointer(PointerEvent::new(pid, kind, phase, button, pos, mods));
     let put = |ev: WindowEvent| push(shared, id, ev);
     match event {
         W::Resized(size) => {
@@ -70,11 +70,7 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
             }
             put(WindowEvent::Resize(px.to_logical(scale as f32)));
         }
-        W::Moved(pos) => {
-            let p = pos.to_logical::<f64>(scale);
-            put(WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
-            shared.borrow_mut().monitors_stale = true;
-        }
+        W::Moved(_) => shared.borrow_mut().monitors_stale = true,
         W::ScaleFactorChanged { scale_factor, .. } => {
             if let Some(e) = shared.borrow_mut().entry_mut(id) {
                 e.scale = scale_factor as f32;
@@ -104,14 +100,22 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
             };
             put(pointer(MOUSE_ID, PointerKind::Mouse, phase, button_of(button), cursor));
         }
-        W::MouseWheel { delta, .. } => {
-            let delta = match delta {
-                MouseScrollDelta::LineDelta(x, y) => Vec2::new((f64::from(x) * LINE_POINTS) as f32, (f64::from(y) * LINE_POINTS) as f32),
-                MouseScrollDelta::PixelDelta(p) => Vec2::new((p.x / scale) as f32, (p.y / scale) as f32),
+        W::MouseWheel { delta, phase, .. } => {
+            let (delta, unit) = match delta {
+                MouseScrollDelta::LineDelta(x, y) => (Vec2::new(x, y), WheelUnit::Line),
+                MouseScrollDelta::PixelDelta(p) => (Vec2::new((p.x / scale) as f32, (p.y / scale) as f32), WheelUnit::Point),
             };
-            put(WindowEvent::Wheel { pos: cursor, delta, mods });
+            let phase = match phase {
+                TouchPhase::Started => WheelPhase::Start,
+                TouchPhase::Moved => WheelPhase::Move,
+                TouchPhase::Ended => WheelPhase::End,
+                TouchPhase::Cancelled => WheelPhase::Cancel,
+            };
+            put(WindowEvent::Wheel { pos: cursor, delta, unit, phase, source: WheelSource::Unknown, mods });
         }
-        W::PinchGesture { delta, .. } => put(WindowEvent::Pinch { pos: cursor, delta: delta as f32 }),
+        W::PinchGesture { delta, .. } => put(WindowEvent::Pinch { pos: cursor, zoom: (delta as f32).exp(), rotation: 0.0, mods }),
+        // winit's degrees turn counterclockwise; the runtime's radians clockwise.
+        W::RotationGesture { delta, .. } => put(WindowEvent::Pinch { pos: cursor, zoom: 1.0, rotation: -delta.to_radians(), mods }),
         W::Touch(touch) => {
             let phase = match touch.phase {
                 TouchPhase::Started => PointerPhase::Down,
@@ -139,9 +143,30 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
             Ime::Commit(text) => put(WindowEvent::ImeCommit(text)),
             Ime::Enabled | Ime::Disabled => {}
         },
-        W::HoveredFile(path) => put(WindowEvent::FileHovered(path)),
-        W::HoveredFileCancelled => put(WindowEvent::FileHoverCancelled),
-        W::DroppedFile(path) => put(WindowEvent::FileDropped(path)),
+        W::HoveredFile(path) => push_file(shared, id, path, false),
+        W::HoveredFileCancelled => put(WindowEvent::Files(FileDrag::Leave)),
+        W::DroppedFile(path) => push_file(shared, id, path, true),
         _ => {}
     }
+}
+
+/// winit reports one event per file: the files of one OS drag that arrive before the runtime
+/// polls join one `Enter` or `Drop`.
+fn push_file(shared: &Cell, id: WindowId, path: std::path::PathBuf, dropped: bool) {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let file = OsFile { name, path: Some(path), ..OsFile::default() };
+    {
+        let mut s = shared.borrow_mut();
+        if let Some(PlatformEvent::Window(w, WindowEvent::Files(drag))) = s.events.last_mut()
+            && *w == id
+        {
+            match drag {
+                FileDrag::Enter { files, .. } if !dropped => return files.push(file),
+                FileDrag::Drop { files, .. } if dropped => return files.push(file),
+                _ => {}
+            }
+        }
+    }
+    let files = vec![file];
+    push(shared, id, WindowEvent::Files(if dropped { FileDrag::Drop { files, pos: None } } else { FileDrag::Enter { files, pos: None } }));
 }

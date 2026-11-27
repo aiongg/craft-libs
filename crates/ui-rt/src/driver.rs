@@ -58,8 +58,20 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
     pub fn open_window<E: Element>(&mut self, spec: &WindowSpec, root: E) -> WindowId {
         let window = self.platform.create_window(spec);
         self.runtime.set_root(window, root);
+        self.runtime.set_window_owner(window, spec.owner);
         self.sync_window(window);
         window
+    }
+
+    /// Opens the windows nodes asked for in this step and tells each node its window's id.
+    fn open_queued_windows(&mut self) {
+        for open in self.runtime.take_window_opens() {
+            let window = self.platform.create_window(&open.spec);
+            (open.root)(&mut self.runtime, window);
+            self.runtime.set_window_owner(window, open.spec.owner);
+            self.sync_window(window);
+            self.runtime.notify(open.requester, &crate::event::Event::WindowOpened(window));
+        }
     }
 
     /// One turn: platform events, dispatch, then build, layout, paint and render over dirty nodes
@@ -137,9 +149,13 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
                 ClipboardRequest::Read => self.platform.clipboard().request_text(window),
             }
         }
+        for (window, cursor) in self.runtime.take_cursor_requests() {
+            self.platform.set_cursor(window, cursor);
+        }
         for (window, cmd) in self.runtime.take_window_commands() {
             self.platform.window(window, cmd);
         }
+        self.open_queued_windows();
         let attached = !self.attached.is_empty();
         let busy = self.runtime.needs_frame() || self.runtime.wants_time() || self.runtime.wants_input_tick();
         if attached && busy {

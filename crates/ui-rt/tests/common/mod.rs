@@ -77,6 +77,7 @@ pub struct TestPlatform {
     pub access_updates: Vec<(WindowId, accesskit::TreeUpdate)>,
     pub ime_requests: Vec<(WindowId, ImeRequest)>,
     pub commands: Vec<(WindowId, WindowCommand)>,
+    pub cursors: Vec<(WindowId, Cursor)>,
     frame_requested: bool,
     wake_at: Option<f64>,
 }
@@ -96,6 +97,7 @@ impl TestPlatform {
             access_updates: Vec::new(),
             ime_requests: Vec::new(),
             commands: Vec::new(),
+            cursors: Vec::new(),
             frame_requested: false,
             wake_at: None,
         };
@@ -173,7 +175,9 @@ impl Platform for TestPlatform {
         self.ime_requests.push((window, req));
     }
 
-    fn set_cursor(&mut self, _: WindowId, _: Cursor) {}
+    fn set_cursor(&mut self, window: WindowId, cursor: Cursor) {
+        self.cursors.push((window, cursor));
+    }
 
     fn clipboard(&mut self) -> &mut dyn Clipboard {
         &mut self.clipboard
@@ -205,6 +209,7 @@ pub fn pointer(kind: PointerKind, phase: PointerPhase, pos: Pos2) -> WindowEvent
         button: PointerButton::Primary,
         pos,
         mods: Mods::NONE,
+        sample: None,
     })
 }
 

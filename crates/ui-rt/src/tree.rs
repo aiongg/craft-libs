@@ -84,6 +84,8 @@ pub(crate) struct Node {
     pub(crate) outbox: Option<Box<dyn Any>>,
     /// Recorded by the last paint, in local coordinates, in paint order.
     pub(crate) hits: Vec<HitRecord>,
+    /// The cursor its last paint named for itself and its descendants.
+    pub(crate) cursor: Option<crate::platform::Cursor>,
     pub(crate) access: AccessData,
 }
 
@@ -116,6 +118,7 @@ impl Node {
             owned: Vec::new(),
             outbox: None,
             hits: Vec::new(),
+            cursor: None,
             access: AccessData::default(),
         }
     }
