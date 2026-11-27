@@ -9,9 +9,10 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use craft_behavior::{ColumnKey, Sense};
+use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
 use craft_ui::contract::{
     BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps,
-    MemoView, Mount, Overlay, Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
+    MemoView, Mount, Overlay, PaneEdge, Response, RowAlign, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, Ui,
 };
 use craft_ui::layout::{BodyLayout, ColumnGroup};
 use craft_ui::runtime::edit::OuterEdit;
@@ -81,7 +82,7 @@ struct Boxed {
 
 impl Boxed {
     fn new(props: ContainerProps, measures: &Rc<Cell<u32>>) -> Boxed {
-        Boxed { common: Common::new(), props, title: None, footer: false, measures: measures.clone(), footer_rect: Rc::default() }
+        Boxed { common: Common::new(), props, title: None, footer: false, measures: measures.clone(), footer_rect: Rc::new(Cell::new(Rect::NOTHING)) }
     }
 }
 
@@ -384,7 +385,7 @@ fn sheet_ui(ui: &mut Ui, sheet: &mut Sheet) {
 
 #[test]
 fn a_click_in_a_footer_reuses_the_body_plan() {
-    let mut sheet = Sheet { body_runs: 0, measures: Rc::default(), done: Rc::default() };
+    let mut sheet = Sheet { body_runs: 0, measures: Rc::default(), done: Rc::new(Cell::new(Rect::NOTHING)) };
     let mut rig = rig();
     let step = |rig: &mut Rig<RecordingRenderer>, sheet: &mut Sheet| rig.step_with(&mut |_, cx| root(cx, |ui| sheet_ui(ui, sheet)));
     settle(&mut rig, &mut |rig| step(rig, &mut sheet));
@@ -449,33 +450,33 @@ fn memo_row(props: &mut RowProps, ui: &mut Ui) -> bool {
 #[test]
 fn a_kept_memo_view_returns_its_value_and_no_fresh_event() {
     let measures = Rc::new(Cell::new(0));
-    let (mut row, mut other, mut seen) = (Rect::NOTHING, Rect::NOTHING, Vec::new());
+    let (row, other, seen) = (Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING), std::cell::RefCell::new(Vec::new()));
     let mut rig = rig();
     let mut step = |rig: &mut Rig<RecordingRenderer>| {
         rig.step_with(&mut |_, cx| {
             root(cx, |ui| {
                 let start = ui.cursor().min;
                 let shown = MemoView::new("row", RowProps { label: "Row", measures: measures.clone() }, memo_row).show(ui).expect("in view");
-                row = Rect::from_min_size(start, Vec2::new(40.0, ROW));
-                seen.push((shown.value, shown.fresh, shown.clone().value_if_fresh()));
-                other = chip(ui, "Other", ROW, &measures).rect;
+                row.set(Rect::from_min_size(start, Vec2::new(40.0, ROW)));
+                seen.borrow_mut().push((shown.value, shown.fresh, shown.clone().value_if_fresh()));
+                other.set(chip(ui, "Other", ROW, &measures).rect);
             })
         })
     };
     settle(&mut rig, &mut step);
     let main = rig.main;
-    for at in [row.center(), other.center()] {
+    for at in [row.get().center(), other.get().center()] {
         rig.inject(main, Input::mouse_move(at));
         step(&mut rig);
         rig.inject(main, Input::mouse_down(at));
         step(&mut rig);
-        seen.clear();
+        seen.borrow_mut().clear();
         rig.inject(main, Input::mouse_up(at));
         step(&mut rig);
-        if at == row.center() {
-            assert_eq!(seen.last(), Some(&(true, true, Some(true))), "the click runs the view: its event is fresh");
+        if at == row.get().center() {
+            assert_eq!(seen.borrow().last(), Some(&(true, true, Some(true))), "the click runs the view: its event is fresh");
         } else {
-            assert_eq!(seen.last(), Some(&(true, false, None)), "a click elsewhere keeps the view: the kept value, no event");
+            assert_eq!(seen.borrow().last(), Some(&(true, false, None)), "a click elsewhere keeps the view: the kept value, no event");
         }
     }
 }
@@ -556,7 +557,6 @@ impl Container for Fold {
 }
 
 /// A folding section with a body of three chips, and a chip after it.
-#[derive(Default)]
 struct Folds {
     toggle: Rc<Cell<Rect>>,
     after: Rect,
@@ -564,6 +564,12 @@ struct Folds {
     /// The last body chip's rect and its clicks.
     last: Rect,
     last_clicks: u32,
+}
+
+impl Default for Folds {
+    fn default() -> Folds {
+        Folds { toggle: Rc::new(Cell::new(Rect::NOTHING)), after: Rect::NOTHING, measures: Rc::default(), last: Rect::NOTHING, last_clicks: 0 }
+    }
 }
 
 fn folds_ui(ui: &mut Ui, folds: &mut Folds) {
@@ -888,4 +894,127 @@ fn a_held_picture_shows_at_its_columns_width_and_never_holds_it_across_a_shrink(
     settle(&mut rig, &mut |rig| step(rig, &mut held));
     assert_eq!(held.column.width(), 80.0, "{:?}", held.column);
     assert_eq!(held.square.width(), 80.0, "{:?}", held.square);
+}
+
+#[test]
+fn a_held_picture_keeps_its_columns_width_when_the_real_run_reuses_the_plan() {
+    let mut held = Held { wide: 120, column: Rect::NOTHING, square: Rect::NOTHING };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, held: &mut Held| rig.step_with(&mut |_, cx| root(cx, |ui| held_ui(ui, held)));
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    let (column, square) = (held.column, held.square);
+    // A build that changes nothing under the row: the row's real run shows the column without measuring it, and the
+    // column lays its children out at the width its kept plan settled at.
+    rig.driver.runtime.mark_root(main);
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    assert_eq!(held.column, column, "the column keeps its settled rect");
+    assert_eq!(held.square.width(), 120.0, "the picture shows at the column's width in the real run: {:?}", held.square);
+    assert_eq!(held.square, square);
+}
+
+/// A content-sized popup holding a `Wide` leaf and a `Square` under it.
+struct HeldPopup {
+    square: Rect,
+}
+
+fn held_popup_ui(ui: &mut Ui, held: &mut HeldPopup) {
+    let measures = Rc::new(Cell::new(0));
+    let square = &mut held.square;
+    let _ = Boxed::new(props(|p| p.mount(Mount::Layer(Overlay::popover()))), &measures).show(ui, |ui, _| {
+        Wide { common: Common::new(), w: 120 }.show(ui);
+        *square = Square { common: Common::new() }.show(ui).rect;
+    });
+}
+
+#[test]
+fn a_content_sized_popup_is_a_content_column_for_its_held_picture() {
+    let mut held = HeldPopup { square: Rect::NOTHING };
+    let mut rig = rig();
+    let mut step = |rig: &mut Rig<RecordingRenderer>, held: &mut HeldPopup| rig.step_with(&mut |_, cx| root(cx, |ui| held_popup_ui(ui, held)));
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    assert_eq!(held.square.width(), 120.0, "the popup takes the leaf's width and the picture shows across it: {:?}", held.square);
+}
+
+/// A container on an edge pane that keeps the placement changes it is told of.
+#[derive(craft_ui::contract::Component)]
+#[component(container, unregistered)]
+struct Paned {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    #[key(skip)]
+    changes: Rc<std::cell::RefCell<Vec<PlacementChange>>>,
+}
+
+impl Component for Paned {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PanedStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Paned {
+    fn placement_changed(&mut self, change: &PlacementChange) {
+        self.changes.borrow_mut().push(*change);
+    }
+}
+
+/// A start-edge pane as wide as a 100-point leaf, then a chip in the rest of the window.
+struct Panes {
+    pane: Rect,
+    after: Rect,
+    changes: Rc<std::cell::RefCell<Vec<PlacementChange>>>,
+    measures: Rc<Cell<u32>>,
+}
+
+fn panes_ui(ui: &mut Ui, panes: &mut Panes) {
+    let pane = ShellPane::new("side").edge(PaneEdge::Start);
+    let paned = Paned { common: Common::new(), props: props(|p| p.mount(Mount::Pane(pane))), changes: panes.changes.clone() };
+    panes.pane = paned.show(ui, |ui, _| Wide { common: Common::new(), w: 100 }.show(ui)).output.rect;
+    panes.after = chip(ui, "After", ROW, &panes.measures).rect;
+}
+
+#[test]
+fn a_pane_edge_drag_saves_its_placement_once() {
+    let mut panes = Panes { pane: Rect::NOTHING, after: Rect::NOTHING, changes: Rc::default(), measures: Rc::default() };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, panes: &mut Panes| rig.step_with(&mut |_, cx| root(cx, |ui| panes_ui(ui, panes)));
+    settle(&mut rig, &mut |rig| step(rig, &mut panes));
+    assert_eq!(panes.pane.width(), 100.0, "the pane first takes its content's width: {:?}", panes.pane);
+    assert!(panes.after.min.x >= panes.pane.max.x, "the rest of the flow lies past the pane: {:?}", panes.after);
+
+    // The grip lies along the pane's inner (right) edge, inside it.
+    let at = Pos2::new(panes.pane.max.x - 1.0, panes.pane.center().y);
+    for input in
+        [Input::mouse_move(at), Input::mouse_down(at), Input::mouse_move(at + Vec2::new(20.0, 0.0)), Input::mouse_move(at + Vec2::new(40.0, 0.0))]
+    {
+        rig.inject(main, input);
+        step(&mut rig, &mut panes);
+    }
+    assert_eq!(panes.pane.width(), 140.0, "the pane follows the grip in the frame of the step: {:?}", panes.pane);
+    rig.inject(main, Input::mouse_up(at + Vec2::new(40.0, 0.0)));
+    settle(&mut rig, &mut |rig| step(rig, &mut panes));
+    let changes = panes.changes.borrow().clone();
+    let commits: Vec<_> = changes.iter().filter(|c| c.phase == craft_behavior::GesturePhase::Commit).collect();
+    assert_eq!(commits.len(), 1, "one commit: {changes:?}");
+    assert_eq!(commits[0].rect.width(), 140.0);
+    assert!(changes.iter().all(|c| c.kind == PlacementKind::Size(craft_ui::runtime::windows::ResizeEdge::Right)), "{changes:?}");
+    assert_eq!(changes.iter().filter(|c| c.phase == craft_behavior::GesturePhase::Begin).count(), 1, "one begin: {changes:?}");
+
+    // The extent stays across later builds, and nothing more is reported.
+    rig.driver.runtime.mark_root(main);
+    settle(&mut rig, &mut |rig| step(rig, &mut panes));
+    assert_eq!(panes.pane.width(), 140.0, "the pane keeps the extent the drag saved: {:?}", panes.pane);
+    assert!(panes.after.min.x >= 140.0, "{:?}", panes.after);
+    assert_eq!(panes.changes.borrow().len(), changes.len(), "a build reports no placement change");
 }

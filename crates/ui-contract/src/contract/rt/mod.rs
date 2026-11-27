@@ -27,6 +27,7 @@
 pub(crate) mod access;
 pub(crate) mod commands;
 pub(crate) mod container;
+pub(crate) mod container_shape;
 pub(crate) mod cursor;
 pub(crate) mod dialog;
 pub(crate) mod drag;
