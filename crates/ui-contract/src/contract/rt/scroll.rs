@@ -146,8 +146,14 @@ struct Look {
     strip: f32,
 }
 
+/// The colour a scroll view's edge fades blend its content into: the fill of the surface the content sits on in `env`.
+pub(crate) fn fade_under(env: &crate::runtime::env::Env) -> Rgba {
+    crate::primitives::items::rgba(crate::style::surface_style(&env.tokens, env.surface).fill)
+}
+
 impl Look {
-    fn of(tokens: &Tokens) -> Look {
+    /// `fade` is the fill of the surface the content sits on, which the edge fades blend it into.
+    fn of(tokens: &Tokens, fade: Rgba) -> Look {
         let bar = scroll_bar_look(tokens);
         let fill = |states: States<StyleColor>| {
             let rgba = |color: StyleColor| crate::primitives::items::rgba(color.egui());
@@ -159,7 +165,7 @@ impl Look {
             min_thumb: bar.min_thumb,
             thumb: fill(bar.thumb.off),
             track: fill(bar.track.off),
-            fade: tokens.color.surface.chrome,
+            fade,
             fade_extent: tokens.space.gap.section,
             line: tokens.size.button,
             strip: tokens.size.control.sm,
@@ -235,12 +241,22 @@ impl ScrollKept {
     /// Takes over what the body's build found: the content's extent and placement, the band it
     /// covered, a reveal; keeps the anchors and clamps the offset.
     /// `content` is the node holding the body's children, which the offset moves as one transform.
-    pub(crate) fn finish_build(&mut self, cx: &mut BuildCx<'_>, view: Rect, content: NodeId, flow: &mut Flow, scroll: Scroll, tokens: &Tokens) {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn finish_build(
+        &mut self,
+        cx: &mut BuildCx<'_>,
+        view: Rect,
+        content: NodeId,
+        flow: &mut Flow,
+        scroll: Scroll,
+        tokens: &Tokens,
+        fade: Rgba,
+    ) {
         let extent = flow.content_size();
         let content_origin = flow.origin;
         let placed = &flow.placed;
         let before = (self.offset, self.extent, self.view);
-        self.look = Look::of(tokens);
+        self.look = Look::of(tokens, fade);
         self.view = view.size();
         // The first child in view keeps its place when content before it changed extent.
         if let Some((node, y)) = self.anchor

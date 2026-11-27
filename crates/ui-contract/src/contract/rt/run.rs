@@ -301,7 +301,10 @@ pub(crate) fn show_shaped<C: Component>(
                         return settle_shaped(component, kept, cx, rect, &begun, value, context, &tokens, hooks);
                     }
                     if state.path {
-                        // A node in one of its layer children is marked: reach them.
+                        // A node in one of its children is marked: reach the ones its paint showed, then its layer
+                        // children.
+                        let shown = (value.value.clone(), value.mixed);
+                        reach_painted(&mut component, kept, cx, rect, &begun, &flow.tokens, context.clone(), shown);
                         reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, context.clone());
                     } else {
                         cx.keep_children();
@@ -731,7 +734,8 @@ pub(crate) fn run_shaped<C: Component>(
     let open = facts.overlays && cxx.core.popups.any_open();
     let host = RunHost::shared(&build, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
     let at = Pointing { origin: rect.min, clip: Rect::EVERYTHING, now: host.cx().interaction(node) };
-    let (variants, values, one_look) = record_variants(&mut component, &mut cxx, &host, begun, (own, &kept.parts), open, &*hooks, at);
+    let Looks { variants, values, one_look, children } =
+        record_variants(&mut component, &mut cxx, &host, begun, (own, &kept.parts), open, &*hooks, at);
     if let Some(read) = one_look {
         // The looks showed different children: one look, so the node reruns when a pointer fact its paint read flips.
         let mut cx = host.cx();
@@ -743,6 +747,7 @@ pub(crate) fn run_shaped<C: Component>(
         }
     }
     kept.variants = variants;
+    kept.shown = children;
     kept.parts.extend(crate::contract::text::selection_parts(cxx.core, rect.min));
     crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
@@ -997,7 +1002,7 @@ pub(crate) fn run_member<I: Component>(
     // 12 state and 13 paint, once per pointer look the paint read, at the row inside its clip.
     let host = RunHost::new(&mut *ui.cx, run_flow(id, origin, room, tokens, None), context, begun.env.clone());
     let at = Pointing { origin, clip: run.clip, now };
-    let (variants, _, one_look) = record_variants(&mut item, &mut cxx, &host, &begun, (own, &member_parts), false, &NoShape, at);
+    let Looks { variants, one_look, .. } = record_variants(&mut item, &mut cxx, &host, &begun, (own, &member_parts), false, &NoShape, at);
     if let Some(read) = one_look {
         // The looks showed different children: one look, so the collection reruns when the row's pointer state flips.
         let mut cx = host.cx();
@@ -1307,6 +1312,69 @@ pub(crate) fn reach_layers<C: Component>(
     tip::show(&mut kept.tip, None, Vec::new(), false, cx, id, rect, tokens);
 }
 
+/// A kept node with `PATH` (15.6 rule 5): the children its last run's paint showed stay as that run reconciled them.
+/// When one of them carries `BUILD` or `PATH`, its component exists only in the paint, so the paint runs once more on
+/// the node's settled `Cx`, in the current pointer state: the children reconcile there (the marked one runs, the
+/// others keep their outputs) and what the paint draws is dropped, since the kept looks stay. When the paint shows
+/// other children there than in its run, the node runs in a later round of this frame.
+#[allow(clippy::too_many_arguments)]
+fn reach_painted<C: Component>(
+    component: &mut C,
+    kept: &mut Kept,
+    cx: &mut BuildCx<'_>,
+    rect: Rect,
+    begun: &Begun<C>,
+    tokens: &Arc<Tokens>,
+    context: Context,
+    (value, mixed): (Option<Arc<ValueOf<C>>>, bool),
+) {
+    let node = cx.node();
+    let marked = kept.shown.iter().any(|shown| cx.peek::<ComponentNode>(node, shown.id.value()).is_some_and(|p| p.state.marked || p.state.path));
+    if !marked {
+        for shown in &kept.shown {
+            cx.keep_keyed(shown.id.value());
+        }
+        return;
+    }
+    let id = kept.id;
+    let interact = cx.interaction(node);
+    let look = match (interact.hovered, interact.pressed) {
+        (_, true) if kept.sense.takes_press() => Pointer::Press,
+        (true, _) | (_, true) => Pointer::Hover,
+        _ => Pointer::Rest,
+    };
+    let response = Response::new(id, rect, Some(node), interact, kept.dragging, InputFacts::default());
+    let resolved = begun.resolved(id);
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+    place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
+    core.node = true;
+    core.faded = begun.facts.faded && !resolved.enabled;
+    let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: value, mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
+    let host = RunHost::new(cx, run_flow(id, rect.min, kept.place.room, tokens.clone(), None), context, begun.env.clone());
+    let (children, _) = crate::style::pointer_reads(|| {
+        steps::state(component, &mut cxx, false, look != Pointer::Rest, look == Pointer::Press, begun.env.ink);
+        let canvas = Canvas::new(&host, rect.min, Rect::EVERYTHING);
+        let fade = steps::fade(&canvas, &begun.env, cxx.core);
+        let mut lent: &RunHost<'_, '_, '_> = &host;
+        let mut pui = paint_ui(&mut lent, &canvas, &begun.env, cxx.core, &*begun.style, look);
+        component.paint(&mut pui, &cxx);
+        let mut children = pui.children.take();
+        drop(pui);
+        let mut pui = paint_ui(&mut lent, &canvas, &begun.env, cxx.core, &*begun.style, look);
+        component.paint_over(&mut pui, &cxx);
+        children.extend(pui.children.take());
+        drop(pui);
+        steps::unfade(&canvas, cxx.core, fade);
+        drop(canvas.finish());
+        children
+    });
+    drop(host);
+    drop(cxx);
+    if children != kept.shown {
+        cx.rebuild();
+    }
+}
+
 /// Steps 12 and 13 per pointer look: `Rest` always; `Hover` when the paint read `Hovered`; `Press`
 /// when it read `Pressed` and the node takes presses. During a look's recording the pointer facts
 /// answer that look's state. The first recording shows the current pointer state and reconciles
@@ -1323,7 +1391,7 @@ fn record_variants<C: Component>(
     open: bool,
     hooks: &dyn ShapeHooks<C>,
     at: Pointing,
-) -> (SmallVec<[Variant; 1]>, AppValues, Option<crate::style::PointerReads>) {
+) -> Looks {
     let now = at.now;
     let takes_press = sense.takes_press() || parts.iter().any(|p| p.sense.takes_press());
     let scale = host.scale;
@@ -1416,13 +1484,22 @@ fn record_variants<C: Component>(
     if !same_children {
         // A look shows other children than the first: one look, recorded in the current pointer state; the
         // node reruns when a pointer fact its paint read flips.
-        return (smallvec::smallvec![Variant { look: Pointer::Rest, ..first }], values, Some(read));
+        return Looks { variants: smallvec::smallvec![Variant { look: Pointer::Rest, ..first }], values, one_look: Some(read), children };
     }
     let mut first = Some(Variant { look: shown, ..first });
     let mut later = later.into_iter();
-    let out =
+    let variants =
         looks.into_iter().filter(|&(_, wanted)| wanted).filter_map(|(look, _)| if look == shown { first.take() } else { later.next() }).collect();
-    (out, values, None)
+    Looks { variants, values, one_look: None, children }
+}
+
+/// What `record_variants` recorded: the looks, the app values the rest look's content takes, the pointer reads
+/// that became build reads when the run keeps one look, and the children the first look showed.
+struct Looks {
+    variants: SmallVec<[Variant; 1]>,
+    values: AppValues,
+    one_look: Option<crate::style::PointerReads>,
+    children: Vec<Shown>,
 }
 
 /// Where a run records its looks: the canvas origin (the node's top left) and clip, and the pointer state of

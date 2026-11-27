@@ -503,6 +503,9 @@ pub(crate) struct Kept {
     pub(crate) claim: Option<craft_ui_rt::Rect>,
     /// Empty until the first run; one entry when the paint read no pointer state.
     pub(crate) variants: smallvec::SmallVec<[Variant; 1]>,
+    /// The children the last run's paint showed, in order (15.6 rule 5): kept, or reached through the paint, while
+    /// the node's outputs are kept.
+    pub(crate) shown: Vec<crate::contract::paint_ui::Shown>,
     /// What the last build drew through `Ui::draw` in this node's flow, in its coordinates: shown after the look's
     /// lists under and over its children, whichever look shows (`Flow::take_drawn`).
     pub(crate) drawn: (DisplayList, DisplayList),
@@ -632,6 +635,7 @@ impl Kept {
             sense: Sense::empty(),
             claim: None,
             variants: smallvec::SmallVec::new(),
+            shown: Vec::new(),
             drawn: (DisplayList::default(), DisplayList::default()),
             parts: Vec::new(),
             access: None,

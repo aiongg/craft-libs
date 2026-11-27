@@ -183,3 +183,26 @@ fn an_idle_window_runs_no_frame_once_the_thumbnails_have_landed() {
         }
     }
 }
+
+#[test]
+fn a_landing_thumbnail_runs_only_its_own_node() {
+    // Few enough layers that every row shows, so the access tree lists every row the band built.
+    for n in [5, 10] {
+        let mut settings = LayersSettings::default();
+        settings.options.thumbnail_size = ThumbSize::Medium;
+        let app = App { tree: Tracked::new(FakeLayers::flat(n)), settings };
+        let mut h = Harness::builder().with_size(PANEL).build_ui_state(view, app);
+        let mut runs = Vec::new();
+        for _ in 0..30 {
+            let report = h.step_dt(FRAME);
+            if !report.ran {
+                break;
+            }
+            runs.push(report.frame.runs);
+        }
+        let rows = h.query_all_by_role(accesskit::Role::TreeItem).len() as u32;
+        // The first frame builds the panel; each later one runs only the thumbnails whose pictures landed, one run each.
+        let landed: u32 = runs.iter().skip(1).sum();
+        assert_eq!(landed, rows, "N={n}: every row's thumbnail lands with one run of its own node and no row runs: {runs:?}");
+    }
+}

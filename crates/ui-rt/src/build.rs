@@ -478,6 +478,19 @@ impl BuildCx<'_> {
         Some(Peek { node: id, local, state })
     }
 
+    /// Keeps the inline child of this node that `keyed(key, |cx| cx.inline(..))` reconciles, as it is and without
+    /// reaching it, where that call would place it among this build's children: an owner whose content is kept keeps
+    /// the children it reconciled in its last build one by one, while it reaches others (its layer children). Returns
+    /// false, and keeps nothing, when no such child exists.
+    pub fn keep_keyed(&mut self, key: impl Hash) -> bool {
+        let id = self.node.child(ChildKey::Keyed(hash_key(&key), 0));
+        let kept = self.rt.tree.nodes.get(&id).is_some_and(|node| node.inline && node.parent == Some(self.node));
+        if kept {
+            self.children.push(id);
+        }
+        kept
+    }
+
     /// The inline child of this node on `layer` that `inline_layer(layer, key, ..)` reconciles, when
     /// it exists with an element of type `E`: its `Local` and marks, left as they are. An owner
     /// reads a layer child's dismissal this way before deciding to show it again.

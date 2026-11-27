@@ -46,7 +46,7 @@ use crate::runtime::access::scope::FieldMessage;
 use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, Shrink, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
-use crate::style::ComponentStyle;
+use crate::style::{ComponentStyle, SurfaceKind};
 
 /// A container's last measurement of its body (module docs).
 #[derive(Clone, Debug)]
@@ -607,6 +607,11 @@ enum Hook {
 }
 
 impl<'f> Frame<'f> {
+    /// The env the body is built under.
+    fn body_scope(&self) -> &Env {
+        self.body_env.as_ref().unwrap_or(self.env)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         body_id: Id,
@@ -732,10 +737,12 @@ fn write_gate<C: Container>(component: &mut C, on: bool, resolved: &crate::contr
 
 /// The env a container's regions and body are built under: the place env with what the props give the container's
 /// content (its enabled state, label scheme, control size and glyph role, fallback collection, paragraph width), and
-/// the room, inside label and cell fill of the container's own place cleared.
-fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: bool) -> Env {
+/// the room, inside label and cell fill of the container's own place cleared. The content sits on `own`, the surface
+/// the container paints, or on the one under the container when it paints none.
+fn regions_env(props: &ContainerProps, place: &Env, own: Option<SurfaceKind>, enabled: bool, takes_width: bool) -> Env {
     place.derive(|scoped| {
         scoped.enabled &= enabled;
+        scoped.surface = SurfaceKind::under(own, scoped.surface);
         if let Some(collection) = props.fallback_collection {
             scoped.fallback_collection = Some(collection);
         }
@@ -757,6 +764,11 @@ fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: 
             scoped.measure = Some(wrap.points(scoped.tokens.tokens()));
         }
     })
+}
+
+/// The surface a container paints under its regions: its props' surface, else its style's at rest.
+fn own_surface(props: &ContainerProps, style: &dyn crate::style::StyleView) -> Option<SurfaceKind> {
+    props.surface.or_else(|| style.surface().and_then(|look| look.kind_in(&crate::style::StateSet::default())))
 }
 
 /// Shows a container: its body always runs; its own hooks run when its key, size or a region's
@@ -1164,7 +1176,7 @@ fn show_plain<C: Container, R>(
     // The layer scope's untaken Escape reaches the body of the container that is the layer's content.
     let cancel = hosted.is_some() && measuring.is_none() && std::mem::take(&mut ui.flow.scope.clear);
     let stage = if measuring.is_some() { MemoryStage::open(&ctx, body_id).peek_only() } else { MemoryStage::open(&ctx, body_id) };
-    let regions = regions_env(&props, &place, resolved.enabled, shape.takes_room().0);
+    let regions = regions_env(&props, &place, own_surface(&props, &*begun.style), resolved.enabled, shape.takes_room().0);
     // A container that is an instance of a command scope heads the command chain its regions and body run under: the
     // scope's commands resolve, publish and fire for this instance there.
     let regions = match props.command_scope.or(common.command_scope) {
@@ -1415,7 +1427,7 @@ fn measure_in<C: Container, R>(
     let size = {
         let resolved = begun.resolved(id);
         let body_id = sub(id, "body");
-        let regions = regions_env(&props, &begun.env, resolved.enabled, shape.takes_room().0);
+        let regions = regions_env(&props, &begun.env, own_surface(&props, &*begun.style), resolved.enabled, shape.takes_room().0);
         let stage = MemoryStage::open(&ctx, body_id).peek_only();
         let value = steps::value(component, &mut MemoryStage::open_peek(&ctx, id), id, begun.step1.command.as_deref());
         let gate = gate_of(props.gates, &value);
@@ -2195,7 +2207,8 @@ fn scroll_body(
                 })
             });
             let shown = view_of(shape, scroll, view, flow.content_size());
-            sk.finish_build(cx, Rect::from_min_size(view.min, shown), inner, &mut flow, scroll, tokens);
+            let fade = super::scroll::fade_under(frame.body_scope());
+            sk.finish_build(cx, Rect::from_min_size(view.min, shown), inner, &mut flow, scroll, tokens, fade);
             (shown, Some(node), flow)
         })
     })

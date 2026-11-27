@@ -163,6 +163,8 @@ pub(crate) fn rows_view<R>(
         return None;
     }
     let (id, tokens) = (ui.flow.id, ui.flow.tokens.clone());
+    // The rows fade into the surface they sit on.
+    let fade = super::scroll::fade_under(&crate::runtime::env::Env::of(ui));
     let Ui { cx, flow, .. } = ui;
     let ((out, inner, node), placed) = match scroll {
         Some(scroll) => cx.keyed(Region::Rows, |cx| {
@@ -174,7 +176,7 @@ pub(crate) fn rows_view<R>(
                 }
                 let at = RowsView { offset: ScrollPos { x: f64::from(sk.offset.x), y: f64::from(sk.offset.y) }, ..view };
                 let (out, mut inner, content) = content_node(cx, id, at, extent, &tokens, build);
-                sk.finish_build(cx, view.rect, content, &mut inner, scroll, &tokens);
+                sk.finish_build(cx, view.rect, content, &mut inner, scroll, &tokens, fade);
                 ((out, inner, cx.node()), placed)
             })
         }),
