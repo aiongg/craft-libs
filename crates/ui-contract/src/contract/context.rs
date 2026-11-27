@@ -573,6 +573,10 @@ pub(crate) enum CellRead {
     CommandState(CommandBoard, CommandRef, Option<Id>),
     /// A command's state published for an instance of its scope (`Commands::publish`).
     Publish(CommandBoard, CommandRef, Option<Id>, CommandState),
+    /// A read of an app model `Tracked` (its source id) and its place in the thread's order of source reads and edits.
+    Source(u64, u64),
+    /// A write of an app model `Tracked`: a `DerefMut` or `edit`, or a bound field's edit that changed the field.
+    SourceEdit(u64, u64),
     /// A read made with the node's `BuildCx` when its build ends, for a service whose cell may not exist yet (a
     /// texture entry read from a hook: `CxCore::texture_state`).
     Build(Box<dyn FnOnce(&mut BuildCx<'_>)>),
@@ -583,6 +587,39 @@ thread_local! {
     static LOG: RefCell<Vec<CellRead>> = const { RefCell::new(Vec::new()) };
     /// How many scope builds are open on this thread.
     static OPEN: Cell<usize> = const { Cell::new(0) };
+    /// The place of the next source read or edit in the thread's order (`CellRead::Source`).
+    static SOURCE_AT: Cell<u64> = const { Cell::new(0) };
+}
+
+fn next_source_at() -> u64 {
+    SOURCE_AT.with(|at| {
+        let next = at.get().wrapping_add(1);
+        at.set(next);
+        next
+    })
+}
+
+/// A `Tracked` read through `Deref` inside a build: logged for the node whose build runs, once per run of reads of the
+/// same source in a row (the first is the one an edit compares with).
+fn log_source_read(source: u64) {
+    if !building() {
+        return;
+    }
+    LOG.with(|log| {
+        let Ok(mut log) = log.try_borrow_mut() else { return };
+        if !matches!(log.last(), Some(CellRead::Source(last, _)) if *last == source) {
+            log.push(CellRead::Source(source, next_source_at()));
+        }
+    });
+}
+
+/// A write of the `Tracked` with source id `source` inside a build: the nodes that read it earlier in the frame run
+/// again in a later build round of the same frame. Outside a build there is no frame to rerun: the next one sees the
+/// write through the readers' keys.
+pub(crate) fn log_source_edit(source: u64) {
+    if building() {
+        log(CellRead::SourceEdit(source, next_source_at()));
+    }
 }
 
 fn log(read: CellRead) {
@@ -600,6 +637,7 @@ pub(crate) fn begin_cell_reads(root: bool) -> usize {
     if root {
         OPEN.with(|open| open.set(0));
         crate::runtime::env::clear_scopes();
+        craft_tracked::__watch(craft_tracked::Watch { read: log_source_read, wrote: log_source_edit });
     }
     OPEN.with(|open| open.set(open.get() + 1));
     LOG.with(|log| {
@@ -685,6 +723,8 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cell.get(cx);
             }
             CellRead::Publish(board, command, instance, state) => board.set_state_of(cx, &command, instance, state),
+            CellRead::Source(source, at) => cx.read_source(source, at),
+            CellRead::SourceEdit(source, at) => cx.edit_source(source, at),
             CellRead::Build(read) => read(cx),
         }
     }

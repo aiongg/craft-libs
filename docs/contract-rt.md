@@ -314,6 +314,7 @@ Sources: `contract/mod.rs` (the real traits), `contract/cx*`, `contract/paint_ui
 
   Generic methods (`child<C: Show>`, `show<R>`) call `with_ui` with a closure that runs the generic code on the rebuilt `&mut Ui`; results leave the closure through a local `Option<R>`.
 - **Read registration.** "Tracked" below means the read registers with ui-rt (a cell read, or `read_interaction(node, fact)` for one interaction fact), so a change reruns exactly the readers. "Untracked" means a peek.
+- **App model reads.** A `Tracked<T>` read through `Deref` inside a build goes to the same read log as `CellRead::Source(source, at)`, and a write (`DerefMut`, `edit`, a `bind_tracked!` field's edit that changed the field) as `CellRead::SourceEdit(source, at)`; `at` orders every source read and edit on the thread (craft-tracked reports them to the log through its hidden `Watch` hooks, installed by the window root's build). The scope's build hands them to ui-rt's per-frame `SourceReads` (`BuildCx::read_source`, `BuildCx::edit_source`): an edit marks for a later build round of the same frame exactly the nodes that read the source before it in that frame, whether their build ended before the edit or ends after it. A write nothing read before it in the frame reruns nothing (a field's own bound write: the field reads its binding, not the `Tracked`); readers kept from earlier frames rerun through their keys. Writes outside a build reach the next frame through the keys.
 
 ### 15.1 Traits and contexts
 

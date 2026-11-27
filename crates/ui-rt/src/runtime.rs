@@ -22,7 +22,7 @@ use crate::layer::Layer;
 use crate::layout::{layout_pass, place_layers};
 use crate::paint::paint_pass;
 use crate::platform::{Cursor, ImeRequest, PlatformEvent, WindowCommand, WindowEvent, WindowSpec};
-use crate::state::{Access, Reads, State, Store, Writes};
+use crate::state::{Access, Reads, SourceReads, State, Store, Writes};
 use crate::text::TextEngine;
 use crate::tree::{Node, Role, Tree};
 use crate::window::{Env, Window, WindowGeometry, Windows};
@@ -117,6 +117,8 @@ pub(crate) struct Hosted {
 pub struct Runtime {
     pub(crate) tree: Tree,
     pub(crate) store: Store,
+    /// Reads and edits of app model sources in the frame running (`BuildCx::read_source`).
+    pub(crate) sources: SourceReads,
     shared: Shared,
     pub(crate) windows: Windows,
     pub(crate) images: ImageStore,
@@ -190,6 +192,7 @@ impl Runtime {
         Runtime {
             tree: Tree::default(),
             store,
+            sources: SourceReads::default(),
             shared,
             windows: Windows::new(),
             images: ImageStore::default(),
@@ -855,6 +858,7 @@ impl Runtime {
     fn run_frame(&mut self, text: &mut dyn TextEngine, mut roots: Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>) -> FrameReport {
         let mut report = FrameReport::default();
         self.counters = Counters::default();
+        self.sources.clear();
         self.note_text_stack(text.stack_generation());
         if std::mem::take(&mut self.away_check) && !self.windows.values().any(|w| *self.store.peek(w.env.window_focused)) {
             self.dismiss_away(None);

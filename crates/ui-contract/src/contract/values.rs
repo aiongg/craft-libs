@@ -769,22 +769,24 @@ impl<T: Value> BindMut<'_, T> {
         match &mut self.source {
             SourceMut::Mut(value) => event.apply(&mut **value),
             SourceMut::MutMixed(value) => event.apply_mixed(&mut **value),
-            SourceMut::Tracked { value, count, .. } => write_tracked(event, count, |event| event.apply(&mut **value)),
-            SourceMut::TrackedMixed { value, count, .. } => write_tracked(event, count, |event| event.apply_mixed(&mut **value)),
+            SourceMut::Tracked { value, count, at } => write_tracked(event, count, *at, |event| event.apply(&mut **value)),
+            SourceMut::TrackedMixed { value, count, at } => write_tracked(event, count, *at, |event| event.apply_mixed(&mut **value)),
             SourceMut::Given(_) | SourceMut::Kept => Applied::Unchanged,
         }
     }
 }
 
 /// Applies `event` to a `Tracked` field through `apply`: a gesture's start and a cancel with nothing to restore never
-/// write, and a write that changes the field moves the `Tracked`'s write count.
-fn write_tracked<T: Value>(event: &EditEvent<T>, count: &Cell<u64>, apply: impl FnOnce(&EditEvent<T>) -> Applied) -> Applied {
+/// write, and a write that changes the field moves the `Tracked`'s write count and is an edit of its source, which
+/// runs again, in this frame, the nodes that read the `Tracked` before it (the field itself reads only its binding).
+fn write_tracked<T: Value>(event: &EditEvent<T>, count: &Cell<u64>, at: TrackedAt, apply: impl FnOnce(&EditEvent<T>) -> Applied) -> Applied {
     if matches!(event, EditEvent::Begin { .. } | EditEvent::Cancel { before: None, .. }) {
         return Applied::Unchanged;
     }
     let applied = apply(event);
     if applied != Applied::Unchanged {
         count.set(count.get().wrapping_add(1));
+        crate::contract::context::log_source_edit(at.source);
     }
     applied
 }
