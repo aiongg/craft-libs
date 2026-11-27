@@ -30,6 +30,7 @@ use std::fmt;
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of a footer bar. A bar of panel actions sits under a divider rule along its top edge, with the control

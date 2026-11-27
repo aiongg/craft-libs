@@ -14,6 +14,7 @@ use craft_ui::Response;
 use craft_ui::geom::{Rect, Vec2, pos2};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of a chord.

@@ -1,25 +1,35 @@
 //! `Checkbox`, `Switch`, `RadioGroup`, `Segmented` and `Rating`.
 
 pub mod check;
+#[cfg(spike_full)]
 pub mod radio;
 pub(crate) mod rating;
+#[cfg(spike_full)]
 pub(crate) mod segmented;
+#[cfg(spike_full)]
 pub(crate) mod switch;
 mod words;
 
+#[cfg(spike_full)]
 pub(crate) mod swatch;
+#[cfg(spike_full)]
 pub(crate) mod swatch_table;
 
 pub use check::{Checkbox, CheckboxStyle};
+#[cfg(spike_full)]
 pub use radio::{GroupStyle, Radio, RadioGroup, RadioKind, RadioStyle};
 pub use rating::{Rating, RatingStyle};
+#[cfg(spike_full)]
 pub use segmented::{Segmented, SegmentedStyle};
+#[cfg(spike_full)]
 pub use switch::{Switch, SwitchStyle};
 pub use words::ChoiceWords;
 
+#[cfg(spike_full)]
 pub use swatch::{
     CellMarks, RING_SHARE, Swatch, SwatchFace, SwatchFill, SwatchImage, SwatchMetrics, SwatchOutput, SwatchShape, SwatchStyle, paint_ring, ring_band,
 };
+#[cfg(spike_full)]
 pub use swatch_table::{RowMarks, SwatchArrangement, SwatchRows, SwatchSpacing, SwatchTable, SwatchTableOutput, SwatchTableStyle};
 
 /// How a check box, radio button or switch track that is on fills. An app sets it once at its root

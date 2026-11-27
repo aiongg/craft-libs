@@ -1,7 +1,7 @@
 //! `SelectFace`: the closed box of a dropdown picker, the text and a trailing chevron.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, PopupHandle, Props as _, Role, Styled as _};
-use crate::list::{RowThumb, ThumbAspect, ThumbPaint};
+use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ThumbPicture};
 use crate::primitives::{ContentPainterCx, IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
@@ -109,7 +109,7 @@ impl<'a> SelectFace<'a> {
     /// content painter, which is clipped to it. The picture's height comes from the style.
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.thumb = Some((aspect, ThumbPaint::new(Box::new(paint))));
+        self.thumb = Some((aspect, ThumbPaint::new(ThumbPicture::painter(paint))));
         self
     }
 
@@ -268,6 +268,7 @@ impl Component for SelectFace<'_> {
 }
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// Opens the popup of a picker whose face part toggles it, from the keyboard: Enter and Space (an activation by key)

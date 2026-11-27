@@ -2,6 +2,7 @@
 //! where a line limit stops the list, and Clear All.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::{FieldStyle, text_part};

@@ -4,6 +4,7 @@
 mod body;
 mod events;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 mod words;
 

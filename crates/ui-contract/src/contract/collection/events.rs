@@ -206,7 +206,7 @@ pub enum ColumnEvent {
 }
 
 /// What a collection reports, in drawing order.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum CollectionEvent<K, E> {
     /// The selection changed.

@@ -6,6 +6,7 @@
 //! in common: where the caption goes, whether a detail line is reserved, where the hover actions sit, and the zoom.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::headers::Outline;

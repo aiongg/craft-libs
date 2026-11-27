@@ -1,24 +1,30 @@
 //! `Button`, `IconButton`, `ToggleButton`, `SplitButton`, `Link` and `CommandSearch`.
 
 pub mod button;
+#[cfg(spike_full)]
 pub mod command_search;
 pub(crate) mod face;
 pub mod icon_button;
 pub mod link;
+#[cfg(spike_full)]
 pub mod split_button;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 pub mod toggle_button;
+#[cfg(spike_full)]
 mod words;
 
 use crate::contract::MemoProps;
 use crate::runtime::env::EnvValue;
 
 pub use button::{Button, ButtonChord, ButtonOutput, ButtonStyle};
+#[cfg(spike_full)]
 pub use command_search::{CommandSearch, CommandSearchStyle};
 pub use face::Arrangement;
 pub use icon_button::{IconButton, IconButtonStyle, PopupMark, PressFocus};
 pub use link::{Link, LinkStyle};
+#[cfg(spike_full)]
 pub use split_button::{MenuBody, SplitButton, SplitButtonStyle, SplitMenu, SplitOutput};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 

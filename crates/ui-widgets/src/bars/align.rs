@@ -11,6 +11,7 @@ use craft_behavior::fit::FitKeep;
 use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// One align or distribute command. The commands are app commands: the app gates them with command state and takes

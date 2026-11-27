@@ -5,24 +5,30 @@
 
 pub(crate) mod badge;
 pub(crate) mod divider;
+#[cfg(spike_full)]
 pub(crate) mod icon;
+#[cfg(spike_full)]
 pub(crate) mod inspect_overlay;
 pub(crate) mod kbd;
 pub(crate) mod picture;
 pub(crate) mod progress;
 pub(crate) mod spinner;
+#[cfg(spike_full)]
 pub(crate) mod target_mark;
 pub(crate) mod text;
 mod words;
 
 pub use badge::{Badge, BadgeStyle};
 pub use divider::{Divider, DividerStyle};
+#[cfg(spike_full)]
 pub use icon::{Icon, IconStyle};
+#[cfg(spike_full)]
 pub use inspect_overlay::{InspectLayers, InspectOverlay, InspectOverlayStyle};
 pub use kbd::{ChordWrite, Kbd, KbdStyle};
 pub use picture::{Picture, PictureSize, PictureStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use spinner::{Spinner, SpinnerSize, SpinnerStyle};
+#[cfg(spike_full)]
 pub use target_mark::{TargetMark, TargetMarkStyle};
 pub use text::{Elide, Shade, Text, TextStyle};
 pub use words::DisplayWords;

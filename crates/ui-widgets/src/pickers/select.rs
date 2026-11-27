@@ -36,6 +36,7 @@ use craft_ui::geom::{Rect, Vec2};
 use std::borrow::Cow;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The part that shows the face over the whole field and opens the list on a click.
@@ -179,7 +180,7 @@ pub struct Select<'a, T: Value + 'static> {
     look: SelectLook,
 }
 
-impl<'a, T: Value + 'static> Select<'a, T> {
+impl<'a, T: Value + 'static + crate::contract::MemoProps> Select<'a, T> {
     /// Declares the version of the data the host's closures read (`search_kept`, `decorate`, `picture`,
     /// `header_menu`, as set so far): the select reruns when it changes. Without it each closure reruns the select at
     /// every build, so call it after setting them.

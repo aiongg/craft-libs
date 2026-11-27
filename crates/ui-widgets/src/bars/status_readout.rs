@@ -16,6 +16,7 @@ use craft_ui::{Response, Ui};
 use std::time::Duration;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// Shown for an item whose value the host does not know.

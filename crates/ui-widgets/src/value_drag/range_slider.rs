@@ -17,6 +17,7 @@ use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The track both thumbs ride on.

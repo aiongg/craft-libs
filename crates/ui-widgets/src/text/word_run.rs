@@ -1,6 +1,7 @@
 //! `WordRun`: a wrapping run of pickable words in one Tab stop.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use crate::contract::{

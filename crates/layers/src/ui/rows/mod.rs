@@ -1,6 +1,7 @@
 //! `BlendRows`: Blend mode, Opacity, Lock and Fill as one block.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use craft_behavior::{EditEvent, EditEvents, IconId};

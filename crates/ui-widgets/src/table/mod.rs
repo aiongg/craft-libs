@@ -3,6 +3,7 @@
 pub(crate) mod metadata;
 mod sort;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 pub(crate) mod view;
 mod words;

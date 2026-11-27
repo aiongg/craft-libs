@@ -2,6 +2,7 @@
 //! equal (four sides).
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::NumberField;

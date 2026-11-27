@@ -597,7 +597,8 @@ impl Component for ListRow<'_> {
         let (label_hue, icon_hue) = (self.hued(ui, cx, HueTarget::Label), self.hued(ui, cx, HueTarget::Icon));
         let document = self.document_run(cx.resolved.label, craft_ui::Color32::PLACEHOLDER).map(|run| {
             let runs = [run];
-            ui.with_style(cx.resolved.variant, |scx| DocText::new(&runs).layout(cx.context(), scx.tokens, cx.env.text_direction()).size().y)
+            let draw = ui.draw();
+            ui.with_style(cx.resolved.variant, |scx| DocText::new(&runs).layout(draw.services(), scx.tokens, cx.env.text_direction()).size().y)
         });
         if let (Some(slot), Some((text, _))) = (placed.icon, &self.lead_text) {
             let draw = ui.draw();

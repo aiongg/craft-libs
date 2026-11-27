@@ -14,6 +14,7 @@ use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The entries of a colour table as an item source: keyed by index, named for type-ahead.

@@ -303,7 +303,7 @@ wgpu = { version = "30", default-features = false, features = ["std", "wgsl"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)", "cfg(spike_full)"] }
 
 [workspace.lints.cargo]
 unused_workspace_dependencies = "allow"

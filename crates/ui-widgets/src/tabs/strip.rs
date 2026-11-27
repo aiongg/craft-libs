@@ -10,6 +10,7 @@
 
 mod end;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 pub use end::StripEnd;

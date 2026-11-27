@@ -6,6 +6,7 @@
 //! `ui.set layerFilter {by, kinds, name, effect, mode, attribute, color, smart}`) without the panel.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use craft_behavior::{EditEvent, IconId, Mixed, SelectionChange};

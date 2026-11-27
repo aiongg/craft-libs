@@ -5,6 +5,7 @@
 //! is not in edit scrubs it; a click enters edit, where a drag selects text.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::adorn::{Adornment, Placed, place, reserve};
@@ -13,7 +14,7 @@ use super::{FieldStyle, text_part};
 use crate::buttons::IconButton;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, Entry, Focus as _, Input, MeasureCx, Numeric, OverlayUi, Overlays as _, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, Scrub, Sizing, Styled as _, WordSetCx as _,
+    PartsCx, Pointer as _, Props as _, Remember as _, Role, Scrub, Sizing, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::{EnvView, Label, LengthUnits, UnitKind, Units};
@@ -279,7 +280,7 @@ impl<'a> NumberField<'a, Option<f64>> {
     }
 }
 
-impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
+impl<'a, V: NumberValue + 'static + crate::contract::MemoProps> NumberField<'a, V> {
     /// A number field named `label` over a value of another type, such as [`NamedOr`].
     pub fn named(label: impl Into<Label>, value: Bind<'a, V>) -> Self {
         Self::of(label, value)
@@ -598,7 +599,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         let worded = self.mixed_word && cx.value().is_none();
         let unit = self.shown_unit(&cx.env.units(), cx.value()).filter(|_| !worded).map(|unit| {
             let unit = Adornment::text(unit, cx.style.unit.role).apart().measured(cx);
-            if shared { unit.in_column(cx.ui.ctx(), &UNITS) } else { unit }
+            if shared { unit.in_column(&cx.context(), &UNITS) } else { unit }
         });
         let arrow = crate::controls::disclosure::DisclosureGlyph::dropdown_of(cx.env.get());
         let chevrons = chevrons.iter().map(|(key, name)| Adornment::button(*key, arrow.clone(), name.clone()));
@@ -750,7 +751,7 @@ impl<V: NumberValue + 'static + crate::contract::MemoProps> Component for Number
         };
         let mut text = cx.field_text(&TextRun::new(sample.as_ref()).role(role));
         if content {
-            text.x = cx.ui.ambient_width(&VALUES, text.x).map_or(text.x, |width| width.max(text.x));
+            text.x = crate::layout::ambient_width(&cx.context(), &VALUES, text.x).map_or(text.x, |width| width.max(text.x));
         }
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         self.leading = Self::before_text(cx, self.step_arrows);

@@ -116,4 +116,5 @@ impl Component for Checkbox<'_> {
 }
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;

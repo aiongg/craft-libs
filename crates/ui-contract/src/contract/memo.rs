@@ -921,6 +921,11 @@ impl MemoProps for craft_i18n::Word {
     }
 }
 
+/// A unit codec: every `PlainText` reads and writes text the same.
+impl MemoProps for craft_behavior::PlainText {
+    fn key(&self, _: &mut MemoKey) {}
+}
+
 impl<T: MemoProps> MemoProps for craft_behavior::Mixed<T> {
     fn key(&self, key: &mut MemoKey) {
         match self {

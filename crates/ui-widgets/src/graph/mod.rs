@@ -7,6 +7,7 @@
 mod kind;
 pub(crate) mod node;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 pub use kind::{NodeEvent, NodeId, NodeKind, PortRef, Wire, WireDrag};

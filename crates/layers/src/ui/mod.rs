@@ -10,6 +10,7 @@
 //! - `sweep`: the toggle sweep helper the Layers and Layer Comps panels share.
 //! - `mock`: `FakeLayers`, a `LayerTree` for stories and tests (with the `screen-testing` feature).
 
+#[cfg(spike_full)]
 pub mod comps;
 pub mod filter;
 #[cfg(feature = "screen-testing")]

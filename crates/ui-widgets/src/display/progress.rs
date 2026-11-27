@@ -10,6 +10,7 @@ use craft_ui::geom::{Rect, Vec2};
 use craft_ui::{CornerRadius, Response};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// Seconds for the unknown-extent segment to cross the track.

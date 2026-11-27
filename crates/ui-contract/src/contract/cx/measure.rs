@@ -45,6 +45,11 @@ pub struct MeasureCx<'a, C: Component> {
 }
 
 impl<'a, C: Component> MeasureCx<'a, C> {
+    /// The window's context, for code that takes one (the OS, the item header's toggle names).
+    pub fn context(&self) -> crate::contract::Context {
+        self.with_ui(|ui| ui.ctx().clone())
+    }
+
     /// The shown value; it has the stage's lifetime, so a borrow of `cx` is not held.
     pub fn value(&self) -> Option<&'a ValueOf<C>> {
         self.value

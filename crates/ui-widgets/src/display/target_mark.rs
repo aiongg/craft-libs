@@ -15,6 +15,7 @@ use craft_ui::{CornerRadius, Response, Ui};
 use std::f32::consts::TAU;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The period of the pulse in seconds: a sine of four radians per second.

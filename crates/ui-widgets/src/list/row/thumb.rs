@@ -2,9 +2,10 @@
 
 #[cfg(doc)]
 use super::ListRow;
-use crate::contract::{Common, Component, Cx, DisabledLook, PaintUi, Role, Versioned};
+use crate::contract::{Common, Component, Cx, CxCore, DisabledLook, PaintUi, Role, Versioned};
 use crate::list::words::ListWords;
 use crate::primitives::ContentPainterCx;
+use crate::primitives::textures::{TextureState, ThumbRequest};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
@@ -129,11 +130,37 @@ impl<const N: usize> From<[ThumbTarget; N]> for ThumbTargets {
     }
 }
 
-/// Paints into a thumbnail's rect through the content painter, which is clipped to it.
+/// A thumbnail's picture: `read` asks for the texture state at the cell's request in the thumbnail's build, so the
+/// thumbnail runs again when the picture lands and nothing else does; `paint` paints that state through the content
+/// painter, which is clipped to the thumbnail's rect. A painter that reads no texture has no `read` and paints with
+/// [`TextureState::Empty`].
+pub struct ThumbPicture<'a> {
+    read: Option<ThumbRead<'a>>,
+    paint: Box<dyn FnOnce(&ContentPainterCx, Rect, &TextureState) + 'a>,
+}
+
+type ThumbRead<'a> = Box<dyn FnOnce(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a>;
+
+impl<'a> ThumbPicture<'a> {
+    /// A picture read by `read` at the cell's request and painted by `paint`.
+    pub fn new(
+        read: impl FnOnce(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a,
+        paint: impl FnOnce(&ContentPainterCx, Rect, &TextureState) + 'a,
+    ) -> Self {
+        ThumbPicture { read: Some(Box::new(read)), paint: Box::new(paint) }
+    }
+
+    /// A picture that `paint` draws without a texture.
+    pub fn painter(paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        ThumbPicture { read: None, paint: Box::new(move |painter, rect, _| paint(painter, rect)) }
+    }
+}
+
+/// A thumbnail's picture as a row holds it.
 ///
-/// A [`Versioned`] closure: `ThumbPaint::versioned(v, f)` names the version of the data `f` reads, and a painter
-/// without one reruns its row at every build.
-pub type ThumbPaint<'a> = Versioned<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>;
+/// [`Versioned`]: `ThumbPaint::versioned(v, picture)` names the version of the data the picture's closures read
+/// besides the texture, and a picture without one reruns its row at every build.
+pub type ThumbPaint<'a> = Versioned<ThumbPicture<'a>>;
 
 /// A thumbnail after the first: its painter and the link glyph before it.
 #[derive(crate::contract::MemoProps)]
@@ -166,17 +193,20 @@ pub(crate) struct RowThumb<'a> {
     #[common]
     common: Common,
     paint: Option<ThumbPaint<'a>>,
+    /// What `read` gave in this run's update, which `paint` paints: run state, not an input.
+    #[key(skip)]
+    state: TextureState,
 }
 
 impl RowThumb<'static> {
     fn sample() -> Self {
-        RowThumb::new(ThumbPaint::new(Box::new(|_, _| {})))
+        RowThumb::new(ThumbPaint::new(ThumbPicture::painter(|_, _| {})))
     }
 }
 
 impl<'a> RowThumb<'a> {
     pub(crate) fn new(paint: ThumbPaint<'a>) -> Self {
-        RowThumb { common: Common::new(), paint: Some(paint) }
+        RowThumb { common: Common::new(), paint: Some(paint), state: TextureState::Empty }
     }
 }
 
@@ -197,10 +227,16 @@ impl Component for RowThumb<'_> {
         Sense::empty()
     }
 
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(read) = self.paint.as_mut().and_then(|paint| paint.value.read.take()) else { return };
+        let request = ThumbRequest::for_cell(cx.rect.width().max(cx.rect.height()), cx.context().pixels_per_point());
+        self.state = read(cx.core, &request);
+    }
+
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let painter = ui.content_painter(cx);
         if let Some(paint) = self.paint.take() {
-            (paint.value)(&painter, cx.rect);
+            (paint.value.paint)(&painter, cx.rect, &self.state);
         }
     }
 

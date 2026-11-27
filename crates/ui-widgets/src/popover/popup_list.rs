@@ -9,6 +9,7 @@ use craft_behavior::{Metrics, Sense};
 use craft_ui::{Id, Response};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of a popup list: the surface comes from the container.

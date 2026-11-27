@@ -20,6 +20,7 @@ use craft_ui::geom::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The point: a drag on it follows the pointer.

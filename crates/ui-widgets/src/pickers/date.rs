@@ -9,6 +9,7 @@ pub(crate) mod calendar;
 mod codec;
 pub(crate) mod popover;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 pub use calendar::{Calendar, CalendarOutput, CalendarStyle, CalendarView, local_month_grid, month_grid};

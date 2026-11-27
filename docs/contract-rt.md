@@ -462,9 +462,13 @@ impl<C: Component> MeasureCx<'_, C> {
     pub fn child<D: Show>(&self, key: impl Hash + Debug, child: &mut D, proposal: Proposal) -> Vec2;
     pub fn labelled<D: Show>(&self, key: impl Hash + Debug, side: &SideLabel, child: &mut D, proposal: Proposal) -> Vec2;
     pub fn face<S: Show>(&self, face: S) -> Vec2;
+    /// The window's context (an owned handle): the OS, the item header's toggle names.
+    pub fn context(&self) -> Context;
     // value, command, resolve_command, column_room, picture_width, picture_size, cell_width, icon, gap: unchanged
 }
 ```
+
+`Draw::services(&self) -> &dyn Services` gives a painter the services it lays a `DocText` out with before it paints.
 
 `child`, `labelled` and `face` measure through the child's size cache (a kept child answers without a run). The rt `MeasureCx<'_>` (room, tokens, direction, density) is deleted.
 
@@ -815,6 +819,8 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `windows::shell_of(ctx, viewport)` | 2 | Ui `shell() -> ShellInfo` | |
 | `windows::logic`, `hold_close`, `root_close_requested`, `route_root` | 4 | `Component::close_guard`, Cx `close_request()`; host side in INT-7 | B10 |
 | `TextureCache::texture(ctx, ..)`, `TextureStore::in_context`, `Thumbnails::in_context` | 20 | `TextureCache` by `TextureKey` (Q10); hand-written | `ImageStore` |
+| `ThumbSource::revision(key, request)` | | `ThumbSource::key_revision(&self, key: &K) -> Revision` (required: the version of the key's pixels at every request, which a kept view's version includes); `revision(key, request)` is provided and defaults to it | |
+| ListRow thumbnail painters | | `ThumbPicture::new(read: FnOnce(&mut CxCore, &ThumbRequest) -> TextureState, paint: FnOnce(&ContentPainterCx, Rect, &TextureState))`, `ThumbPicture::painter(FnOnce(&ContentPainterCx, Rect))`; `ThumbPaint<'a> = Versioned<ThumbPicture<'a>>`; `ListRow::thumb_picture(size, ThumbPaint)`, `extra_thumb_picture(ThumbPaint)`; RowThumb reads in `update`, paints the state in `paint` | |
 | `testing::StoryPictures::of(ctx)` | 10 | `StoryPictures::of(ui: &Ui)` | Harness-provided value |
 | `replay::journal` | 1 | deleted | |
 | `install`, `pen::install` | 3 | deleted; `craft_ui::app::run` (INT-7) | |

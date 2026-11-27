@@ -14,6 +14,7 @@ use craft_ui::geom::{Rect, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of a unit select: the gap between the field and the select, and the number field's widths.

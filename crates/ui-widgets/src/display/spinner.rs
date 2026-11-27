@@ -12,6 +12,7 @@ use craft_ui::geom::{Pos2, Vec2, vec2};
 use std::f32::consts::{PI, TAU};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// How long the spinner takes for a turn, in seconds.

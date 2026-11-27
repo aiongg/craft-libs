@@ -87,8 +87,14 @@ pub enum ThumbRender {
 /// - Pictures are display-space sRGBA with straight alpha; colour management is the app's and happens before the
 ///   picture is returned.
 pub trait ThumbSource<K> {
-    /// The version of `key`'s pixels.
-    fn revision(&self, key: &K, request: &ThumbRequest) -> Revision;
+    /// The version of `key`'s pixels at every request: a kept view that shows `key` includes it in its version, so a
+    /// pixel edit reaches the view without a request.
+    fn key_revision(&self, key: &K) -> Revision;
+    /// The version of `key`'s picture for `request`; `key_revision` unless the picture depends on the request beyond
+    /// its side and region (a source that renders in stages per side).
+    fn revision(&self, key: &K, _request: &ThumbRequest) -> Revision {
+        self.key_revision(key)
+    }
     /// Makes `key`'s picture for `request`.
     fn render(&self, key: &K, request: &ThumbRequest) -> ThumbRender;
 }
@@ -545,7 +551,7 @@ impl<K: std::hash::Hash + PartialEq + Clone + Send + 'static> Default for FakeTh
 #[cfg(feature = "testing")]
 impl<K: std::hash::Hash + PartialEq + Clone + Send + 'static> ThumbSource<K> for FakeThumbSource<K> {
     /// `Revision::of(&(key, revision))`.
-    fn revision(&self, key: &K, _request: &ThumbRequest) -> Revision {
+    fn key_revision(&self, key: &K) -> Revision {
         Revision::of(&(key, self.revision))
     }
 

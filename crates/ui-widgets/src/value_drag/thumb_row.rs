@@ -34,6 +34,7 @@ use std::ops::RangeInclusive;
 const THUMB_WIDTH_IN_SMALL_HANDLES: f32 = 0.5;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The row-wide part: a press off the thumbs lands here.

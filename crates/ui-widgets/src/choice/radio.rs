@@ -233,4 +233,5 @@ impl<T: Value + crate::contract::MemoProps + 'static> Component for Radio<T> {
 }
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;

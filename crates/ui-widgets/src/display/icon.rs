@@ -10,6 +10,7 @@ use craft_ui::Response;
 use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of an icon.

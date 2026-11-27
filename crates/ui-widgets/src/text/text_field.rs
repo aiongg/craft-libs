@@ -1,6 +1,7 @@
 //! `TextField<C>`: a text field over a codec, with the search form and the adornment layout.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::adorn::{self, Adornment};
@@ -347,7 +348,10 @@ impl<C: Codec + Clone + 'static> TextField<'_, C> {
     }
 }
 
-impl<C: Codec + Clone + 'static> TextField<'_, C> {
+impl<C: Codec + Clone + 'static + crate::contract::MemoProps> TextField<'_, C>
+where
+    C::Value: crate::contract::MemoProps,
+{
     /// `text` as the editor sets it.
     fn run<'t>(&self, text: impl Into<Cow<'t, str>>) -> TextRun<'t> {
         if self.options.mono { TextRun::spans(vec![Span::new(text).mono()]) } else { TextRun::new(text).role(self.options.role) }

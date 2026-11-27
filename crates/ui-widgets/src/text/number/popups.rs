@@ -12,7 +12,7 @@ use craft_behavior::{DisplayOrder, ItemSource, Selection};
 use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
-impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
+impl<'a, V: NumberValue + 'static + crate::contract::MemoProps> NumberField<'a, V> {
     pub(super) fn show_presets(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, rows: &[Entry<NumberPick>]) {
         let popup = cx.popup("presets");
         let labels: Vec<Label> =

@@ -326,6 +326,7 @@ impl<'a> MetadataTable<'a> {
 }
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The rows stamp of a filter query: the same query keeps the layout, another one rebuilds it.

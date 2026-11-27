@@ -174,7 +174,8 @@ fn picture<'a, Id: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(
     extra: u64,
     fallback: impl FnOnce(&ContentPainterCx<'_>, Rect, bool) + 'a,
 ) -> Versioned<ThumbPicture<'a>> {
-    let version = craft_ui_rt::hash_key(&(&thumb, extra));
+    let pixels = host.map(|host| host.source.key_revision(&thumb));
+    let version = craft_ui_rt::hash_key(&(&thumb, extra, pixels));
     let read_thumb = thumb.clone();
     let read = move |cx: &mut CxCore<'_>, request: &ThumbRequest| -> TextureState {
         let Some(host) = host else { return TextureState::Empty };

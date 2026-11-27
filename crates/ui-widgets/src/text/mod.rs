@@ -1,31 +1,45 @@
 //! Text and number fields: `TextField<C>` and `NumberField` on the text part (18.3).
 
 mod adorn;
+#[cfg(spike_full)]
 pub(crate) mod alt_text;
+#[cfg(spike_full)]
 pub(crate) mod chips;
 mod completions;
+#[cfg(spike_full)]
 pub(crate) mod hex;
+#[cfg(spike_full)]
 pub(crate) mod linked;
 pub(crate) mod number;
+#[cfg(spike_full)]
 pub(crate) mod selectable_text;
 pub(crate) mod text_field;
+#[cfg(spike_full)]
 pub(crate) mod word_run;
 mod words;
+#[cfg(spike_full)]
 pub(crate) mod zoom_field;
 
 pub use adorn::{Adornment, Placed, place, reserve};
+#[cfg(spike_full)]
 pub use alt_text::{AltText, AltTextField, AltTextFieldStyle, AltTextWords};
+#[cfg(spike_full)]
 pub use chips::{ChipCodec, ChipField, ChipFieldOutput, ChipFieldStyle, ChipWords, PartialChips};
+#[cfg(spike_full)]
 pub use hex::{HexCodec, HexField};
+#[cfg(spike_full)]
 pub use linked::{LinkMode, LinkedFields, LinkedFieldsStyle, LinkedLayout, LinkedOutput, LinkedWords, follow_equal, follow_ratio, link_toggle};
 pub use number::{
     NamedOr, NumberField, NumberLook, NumberName, NumberOutput, NumberPick, NumberPrecision, NumberStepper, NumberStyle, NumberValue, RangeAlert,
     StepArrows, UnitPlacement,
 };
+#[cfg(spike_full)]
 pub use selectable_text::{SelectableStyle, SelectableText};
 pub use text_field::TextField;
+#[cfg(spike_full)]
 pub use word_run::{RunWord, WordRun, WordRunOutput, WordRunStyle, WordState};
 pub use words::TextWords;
+#[cfg(spike_full)]
 pub use zoom_field::{InvalidZoom, ZoomField, ZoomFieldOutput, ZoomScale};
 
 use crate::contract::Bind;

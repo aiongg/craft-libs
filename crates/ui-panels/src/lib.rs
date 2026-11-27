@@ -13,20 +13,27 @@ extern crate self as craft_ui;
 pub use craft_ui_widgets::registry;
 #[cfg(feature = "suite")]
 #[doc(hidden)]
+#[cfg(spike_full)]
 pub use craft_ui_widgets::story_kit;
 #[doc(hidden)]
 pub use craft_ui_widgets::{__private, __register_command_set, __register_contract, __register_pattern};
 pub use craft_ui_widgets::{
-    bars, buttons, choice, controls, display, edit, form, graph, layout_components, list, menu, notices, pickers, popover, table, tabs, text,
-    tile_grid, value_drag,
+    buttons, choice, controls, display, form, layout_components, list, menu, notices, pickers, popover, text, tile_grid, value_drag,
 };
+#[cfg(spike_full)]
+pub use craft_ui_widgets::{bars, edit, graph, table, tabs};
 pub use craft_ui_widgets::{contract, fonts, layout, primitives, runtime, style, words};
 
 #[doc(hidden)]
+#[cfg(spike_full)]
 pub mod canvas_data;
+#[cfg(spike_full)]
 mod collapse;
+#[cfg(spike_full)]
 pub mod dialog;
+#[cfg(spike_full)]
 pub mod docking;
+#[cfg(spike_full)]
 pub mod rails;
 pub mod sections;
 #[cfg(feature = "testing")]

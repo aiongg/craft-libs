@@ -11,6 +11,7 @@ use craft_behavior::{ColumnWidth, Insets, Metrics, Sense};
 use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of the layout components: no minimum size, and padding only at the start edge, one

@@ -14,6 +14,7 @@ use craft_ui::geom::Vec2;
 use std::borrow::Cow;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The largest count a count badge shows; more reads `99+`.

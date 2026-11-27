@@ -9,6 +9,7 @@ pub(crate) mod lead;
 pub(crate) mod status;
 pub(crate) mod status_readout;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 mod words;
 

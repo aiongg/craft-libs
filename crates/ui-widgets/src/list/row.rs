@@ -45,7 +45,7 @@ pub use style::{CommandHighlight, ListRowStyle, RowStyleCx, ThumbRows};
 pub(crate) use thumb::RowThumb;
 pub(super) use thumb::Thumb;
 use thumb::ThumbPayload;
-pub use thumb::{ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget, ThumbTargets};
+pub use thumb::{ThumbAspect, ThumbPaint, ThumbPicture, ThumbSize, ThumbTarget, ThumbTargets};
 use trailing::Hosted;
 pub(super) use trailing::{Trailing, TrailingItem};
 pub use trailing::{TrailingFace, TrailingPart};
@@ -245,7 +245,7 @@ pub(super) struct StatusCell {
     pub status: CellStatus,
 }
 
-type LeadPaintFn<'a> = Versioned<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>;
+type LeadPaintFn<'a> = ThumbPaint<'a>;
 
 /// One row of a list.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -737,10 +737,17 @@ impl<'a> ListRow<'a> {
     /// A thumbnail of `size` before the label, framed just outside; `paint` draws into the thumbnail's rect.
     /// `ThumbSize::None` draws none.
     #[must_use]
-    pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb(self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        self.thumb_picture(size, ThumbPaint::new(ThumbPicture::painter(paint)))
+    }
+
+    /// The first thumbnail at `size`, showing `picture`: its texture is read in the thumbnail's build at the request of
+    /// the cell it shows in.
+    #[must_use]
+    pub fn thumb_picture(mut self, size: ThumbSize, picture: ThumbPaint<'a>) -> Self {
         self.thumb = size;
         self.thumb_aspect = ThumbAspect::SQUARE;
-        self.first = Some(ThumbPaint::new(Box::new(paint)));
+        self.first = Some(picture);
         self
     }
 
@@ -758,7 +765,7 @@ impl<'a> ListRow<'a> {
     /// replaces the row's icon; thumbnails replace it in turn.
     #[must_use]
     pub fn lead_painter(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.lead_paint = Some(Versioned::new(Box::new(paint)));
+        self.lead_paint = Some(Versioned::new(ThumbPicture::painter(paint)));
         self
     }
 
@@ -792,8 +799,14 @@ impl<'a> ListRow<'a> {
     /// A thumbnail after the first and any earlier extra ones, of the same size and frame (a layer's mask). Extra
     /// thumbnails never drop out for width: the label is cut first. Nothing is drawn without a first thumbnail.
     #[must_use]
-    pub fn extra_thumb(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.extras.push(Thumb { paint: Some(ThumbPaint::new(Box::new(paint))), link: None });
+    pub fn extra_thumb(self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        self.extra_thumb_picture(ThumbPaint::new(ThumbPicture::painter(paint)))
+    }
+
+    /// A thumbnail after the first, showing `picture` (see [`ListRow::thumb_picture`]).
+    #[must_use]
+    pub fn extra_thumb_picture(mut self, picture: ThumbPaint<'a>) -> Self {
+        self.extras.push(Thumb { paint: Some(picture), link: None });
         self
     }
 

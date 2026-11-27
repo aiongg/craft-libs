@@ -790,7 +790,7 @@ fn write_tracked<T: Value>(event: &EditEvent<T>, count: &Cell<u64>, apply: impl 
 }
 
 /// The output of a component that edits a value. Only `cx.edit_response()` builds it.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct EditResponse<T> {
     /// The component's response.

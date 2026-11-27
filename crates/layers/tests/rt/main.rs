@@ -29,7 +29,7 @@ const NEW_LAYER: usize = 1;
 struct Grey;
 
 impl ThumbSource<LayerThumb<u32>> for Grey {
-    fn revision(&self, key: &LayerThumb<u32>, _request: &ThumbRequest) -> Revision {
+    fn key_revision(&self, key: &LayerThumb<u32>) -> Revision {
         Revision::of(&key.layer)
     }
 

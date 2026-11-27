@@ -22,6 +22,7 @@ use egui::ColorImage;
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// Opacity of the black or white ring that stands out from a well's colour.

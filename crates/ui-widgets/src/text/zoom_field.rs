@@ -10,6 +10,7 @@ use craft_ui::geom::Rect;
 use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The decimals the zoom range's ends are written with in the message, as the field shows a zoom.

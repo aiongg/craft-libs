@@ -16,7 +16,7 @@ use crate::contract::{
     Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::display::{Badge, Picture};
-use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ToggleState};
+use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ThumbPicture, ToggleState};
 use crate::primitives::{ContentPainterCx, HAlign, IconSpec, PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{Label, Units};
@@ -536,7 +536,7 @@ impl<'a> Tile<'a> {
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.aspect = aspect;
-        self.first = Some(ThumbPaint::new(Box::new(paint)));
+        self.first = Some(ThumbPaint::new(ThumbPicture::painter(paint)));
         self.picture = None;
         self.icon = None;
         self

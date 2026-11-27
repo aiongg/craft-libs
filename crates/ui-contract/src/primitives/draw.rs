@@ -474,6 +474,11 @@ impl<'a> Draw<'a> {
         run.layout(self.canvas.services(), &self.text_env(), max_width)
     }
 
+    /// The text and picture services the draw paints with, for a painter that lays out a `DocText` before it paints.
+    pub fn services(&self) -> &dyn crate::primitives::Services {
+        self.canvas.services()
+    }
+
     /// Records that the face dropped its label, so the component's tooltip text does not count it.
     pub fn drop_label(&self) {
         self.record.borrow_mut().label_dropped = true;

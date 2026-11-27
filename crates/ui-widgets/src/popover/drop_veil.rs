@@ -14,6 +14,7 @@ use craft_ui::{Response, Ui};
 use std::sync::{Arc, Mutex, PoisonError};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// The style of a drop veil: the scrim comes from the surface kind; the card is a child.

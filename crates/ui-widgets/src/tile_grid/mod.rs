@@ -8,6 +8,7 @@ mod headers;
 mod layout;
 pub(crate) mod slider;
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 pub(crate) mod tile;
 mod words;

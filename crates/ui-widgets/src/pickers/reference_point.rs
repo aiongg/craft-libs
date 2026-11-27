@@ -17,6 +17,7 @@ use craft_ui::CornerRadius;
 use craft_ui::geom::{Pos2, Rect, Vec2, vec2};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 const CELL: PartKey = PartKey::new("cell");

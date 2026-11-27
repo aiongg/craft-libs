@@ -4,17 +4,29 @@
 //! `LayersOptions` is the value the dialog edits and returns, held by the settings.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
+#[cfg(spike_full)]
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
+#[cfg(spike_full)]
 use craft_ui::contract::{Bind, FieldLayout, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel};
+#[cfg(spike_full)]
 use craft_ui::contract::{Context, Ui};
+#[cfg(spike_full)]
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, FormDialog, StackDialog, dialog_id};
+#[cfg(spike_full)]
 use craft_ui::display::{Picture, PictureSize};
+#[cfg(spike_full)]
 use craft_ui::layout_components::Stack;
-use craft_ui::list::{ListWords, ThumbSize};
+use craft_ui::list::ThumbSize;
+#[cfg(spike_full)]
+use craft_ui::list::ListWords;
+#[cfg(spike_full)]
 use craft_ui::runtime::env::Env;
+#[cfg(spike_full)]
 use craft_ui::sections::GroupBox;
+#[cfg(spike_full)]
 use craft_ui_rt::{RgbaImage, SizeU};
 
 use super::thumbs::ThumbContents;
@@ -82,6 +94,7 @@ impl Default for LayersOptions {
     }
 }
 
+#[cfg(spike_full)]
 craft_ui::words! {
     /// The words of Layers Panel Options. The size names are [`ThumbSize::label`]'s.
     pub struct LayersOptionsWords {
@@ -101,21 +114,31 @@ craft_ui::words! {
 }
 
 /// The key of the sample picture in the texture store.
+#[cfg(spike_full)]
 const SAMPLE_KEY: u64 = 0x6c61_7965_7273_7361;
 /// The side of the sample picture in pixels.
+#[cfg(spike_full)]
 const SAMPLE_SIDE: usize = 96;
 /// The sky's grey at the top and the grey it gains toward the bottom.
+#[cfg(spike_full)]
 const SKY_TOP: f32 = 119.0;
+#[cfg(spike_full)]
 const SKY_GAIN: f32 = 30.0;
 /// The grey of the far hills, the near hills and the outline.
+#[cfg(spike_full)]
 const FAR_HILLS: u8 = 80;
+#[cfg(spike_full)]
 const NEAR_HILLS: u8 = 64;
+#[cfg(spike_full)]
 const OUTLINE: u8 = 92;
 /// The ridge of the far hills and of the near hills as `(x, y)` points in fractions of the picture.
+#[cfg(spike_full)]
 const FAR_RIDGE: [(f32, f32); 5] = [(0.0, 0.60), (0.22, 0.36), (0.46, 0.56), (0.72, 0.33), (1.0, 0.62)];
+#[cfg(spike_full)]
 const NEAR_RIDGE: [(f32, f32); 4] = [(0.0, 0.76), (0.32, 0.60), (0.57, 0.69), (1.0, 0.51)];
 
 /// The height of the piecewise-linear `ridge` at `x`.
+#[cfg(spike_full)]
 fn ridge_at(ridge: &[(f32, f32)], x: f32) -> f32 {
     let Some(&(first_x, first_y)) = ridge.first() else { return 1.0 };
     let mut before = (first_x, first_y);
@@ -131,38 +154,62 @@ fn ridge_at(ridge: &[(f32, f32)], x: f32) -> f32 {
 
 /// The meadow's grass strokes: each runs from the bottom edge up to a tip `GRASS_LEAN` to the right, `GRASS_WIDTH`
 /// wide, in fractions of the picture.
+#[cfg(spike_full)]
 const GRASS: u8 = 104;
+#[cfg(spike_full)]
 const GRASS_BLADES: usize = 16;
+#[cfg(spike_full)]
 const GRASS_LEAN: f32 = 0.02;
+#[cfg(spike_full)]
 const GRASS_WIDTH: f32 = 0.01;
 /// The daisy: its centre, and its unit (a petal's reach) as a fraction of the picture.
+#[cfg(spike_full)]
 const DAISY_CENTRE: (f32, f32) = (0.49, 0.57);
+#[cfg(spike_full)]
 const DAISY_UNIT: f32 = 0.34;
 /// Petals, in daisy units: how many, where each starts and how far it reaches from the centre, and its half width
 /// at the middle. Every third petal is the shaded one.
+#[cfg(spike_full)]
 const PETALS: usize = 15;
+#[cfg(spike_full)]
 const PETAL_START: f32 = 0.22;
+#[cfg(spike_full)]
 const PETAL_REACH: f32 = 0.83;
+#[cfg(spike_full)]
 const PETAL_HALF_WIDTH: f32 = 0.22;
+#[cfg(spike_full)]
 const PETAL: u8 = 238;
+#[cfg(spike_full)]
 const PETAL_SHADED: u8 = 213;
 /// The petal's edge, in fractions of the picture, and its grey.
+#[cfg(spike_full)]
 const PETAL_EDGE: f32 = 0.005;
+#[cfg(spike_full)]
 const PETAL_EDGE_GREY: u8 = 155;
 /// The centre disc and its darker highlight (offset toward the top left), in daisy units.
+#[cfg(spike_full)]
 const DISC_RADIUS: f32 = 0.27;
+#[cfg(spike_full)]
 const DISC: u8 = 33;
+#[cfg(spike_full)]
 const DISC_HIGHLIGHT: (f32, f32, f32) = (-0.065, -0.055, 0.16);
+#[cfg(spike_full)]
 const DISC_HIGHLIGHT_GREY: u8 = 55;
 /// The seed dots: a ring of 16 alternating between two radii (daisy units), each dot `SEED_RADIUS` of the picture.
+#[cfg(spike_full)]
 const SEEDS: usize = 16;
+#[cfg(spike_full)]
 const SEED_RINGS: (f32, f32) = (0.16, 0.21);
+#[cfg(spike_full)]
 const SEED_RADIUS: f32 = 0.008;
+#[cfg(spike_full)]
 const SEED: u8 = 119;
 /// Samples per pixel along each axis.
+#[cfg(spike_full)]
 const SUPERSAMPLE: usize = 2;
 
 /// The distance from `p` to the segment `a`-`b`.
+#[cfg(spike_full)]
 fn segment_distance(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
     let length = (dx * dx + dy * dy).max(f32::EPSILON);
@@ -172,6 +219,7 @@ fn segment_distance(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
 
 /// The grey of the daisy at `(u, v)` (fractions of the picture), or `None` off the flower. Later petals lie over
 /// earlier ones, and the disc and seeds over the petals.
+#[cfg(spike_full)]
 fn daisy_at(u: f32, v: f32) -> Option<f32> {
     let (dx, dy) = ((u - DAISY_CENTRE.0) / DAISY_UNIT, (v - DAISY_CENTRE.1) / DAISY_UNIT);
     let near = |x: f32, y: f32, radius: f32| (dx - x).powi(2) + (dy - y).powi(2) <= radius * radius;
@@ -211,6 +259,7 @@ fn daisy_at(u: f32, v: f32) -> Option<f32> {
 
 /// The grey of the landscape at `(u, v)`, fractions of the picture: sky, the two ranges of hills, the meadow's
 /// grass and the daisy, each over the one before.
+#[cfg(spike_full)]
 fn landscape_at(u: f32, v: f32) -> f32 {
     if let Some(grey) = daisy_at(u, v) {
         return grey;
@@ -233,6 +282,7 @@ fn landscape_at(u: f32, v: f32) -> f32 {
 
 /// The sample picture of the thumbnail sizes: a monochrome landscape of a pale sky, two ranges of hills and a meadow
 /// with a daisy, outlined, each pixel the mean of `SUPERSAMPLE` x `SUPERSAMPLE` samples.
+#[cfg(spike_full)]
 fn sample_image() -> RgbaImage {
     let mut image = RgbaImage::new(SizeU::new(SAMPLE_SIDE as u32, SAMPLE_SIDE as u32));
     let last = SAMPLE_SIDE - 1;
@@ -277,12 +327,14 @@ fn sample_image() -> RgbaImage {
 ///   OK, Escape is Cancel.
 /// - Returns `Ok(options)` on OK, `Cancel` on Cancel or Escape; the app applies nothing while it
 ///   is open.
+#[cfg(spike_full)]
 #[derive(craft_ui::contract::Pattern)]
 pub struct LayersOptionsDialog {
     id: DialogId,
     options: LayersOptions,
 }
 
+#[cfg(spike_full)]
 impl LayersOptionsDialog {
     /// The dialog over `initial`: the panel's current Panel Options.
     pub fn new(initial: LayersOptions) -> Self {
@@ -290,6 +342,7 @@ impl LayersOptionsDialog {
     }
 }
 
+#[cfg(spike_full)]
 impl StackDialog for LayersOptionsDialog {
     type Result = LayersOptions;
 

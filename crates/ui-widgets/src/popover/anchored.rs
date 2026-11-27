@@ -220,4 +220,5 @@ impl Container for Popover<'_> {
 }
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;

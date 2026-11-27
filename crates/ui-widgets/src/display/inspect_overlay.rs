@@ -12,6 +12,7 @@ use craft_ui::{CornerRadius, Response};
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 /// Which drawings an [`InspectOverlay`] shows.

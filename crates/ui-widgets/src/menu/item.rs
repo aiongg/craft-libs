@@ -483,8 +483,9 @@ impl<'a> MenuItem<'a> {
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel, line: f32) -> Columns {
         let side = cx.icon();
         let command = cx.command();
-        let (mark, icon) = self.lead_columns(&|column, width| cx.ambient_width(column, width), side, cx.gap(), command, level);
-        let sample = self.sample_column(&|column, width| cx.ambient_width(column, width), line, cx.gap());
+        let ctx = cx.context();
+        let (mark, icon) = self.lead_columns(&|column, width| crate::layout::ambient_width(&ctx, column, width), side, cx.gap(), command, level);
+        let sample = self.sample_column(&|column, width| crate::layout::ambient_width(&ctx, column, width), line, cx.gap());
         let trail = if self.submenu { side } else { self.keys(command).map_or(0.0, |keys| cx.face(keys).x) };
         Columns { mark, icon, sample, trail }
     }
@@ -696,7 +697,7 @@ impl Component for MenuItem<'_> {
         let (rtl, side, gap) = (cx.flow.is_rtl(), cx.style.icon.side, cx.style.metrics.gap);
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
-        let (mark_column, icon_column) = self.lead_columns(&|column, width| cx.core.ambient_width(column, width), side, gap, command, &level);
+        let (mark_column, icon_column) = self.lead_columns(&|column, width| crate::layout::ambient_width(cx.core.context(), column, width), side, gap, command, &level);
         let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0;
         let mark = self.mark(command, &level);
         let draw = ui.draw();
@@ -706,7 +707,7 @@ impl Component for MenuItem<'_> {
         let detail_height = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().y);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
         let line = label_line(cx.content_rect, detail_height);
-        let sample_column = self.sample_column(&|column, width| cx.core.ambient_width(column, width), line.height(), gap);
+        let sample_column = self.sample_column(&|column, width| crate::layout::ambient_width(cx.core.context(), column, width), line.height(), gap);
         let columns = Columns { mark: mark_column, icon: icon_column, sample: sample_column, trail };
         let placed = self.place(&columns, line, rtl, cx.style.shortcut_gap.max(gap));
         let ink = cx.resolve(&cx.style.icon.color);

@@ -39,13 +39,16 @@ pub mod input {
     pub use craft_ui_rt::{CursorIcon, Key, Mods, PointerButton};
 }
 
+#[cfg(spike_full)]
 pub mod bars;
 pub mod buttons;
 pub mod choice;
 pub mod controls;
 pub mod display;
+#[cfg(spike_full)]
 pub mod edit;
 pub mod form;
+#[cfg(spike_full)]
 pub mod graph;
 pub mod layout_components;
 pub mod list;
@@ -55,8 +58,11 @@ pub mod pickers;
 pub mod popover;
 #[cfg(feature = "suite")]
 #[doc(hidden)]
+#[cfg(spike_full)]
 pub mod story_kit;
+#[cfg(spike_full)]
 pub mod table;
+#[cfg(spike_full)]
 pub mod tabs;
 pub mod text;
 pub mod tile_grid;
@@ -67,6 +73,7 @@ pub mod value_drag;
 #[cfg(feature = "testing")]
 pub mod testing {
     #[cfg(feature = "suite")]
+    #[cfg(spike_full)]
     pub use crate::story_kit::{props, story_props};
     pub use craft_ui_contract::testing::*;
 

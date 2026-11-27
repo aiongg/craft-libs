@@ -1,6 +1,7 @@
 //! `AltTextField`: an object's description for people who cannot see it, with a Mark as decorative check.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::{FieldStyle, lines_inset, text_part};

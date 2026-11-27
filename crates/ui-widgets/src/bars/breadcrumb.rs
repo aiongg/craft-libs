@@ -19,6 +19,7 @@ use craft_ui::Response;
 use craft_ui::geom::{Rect, Vec2};
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 const HIDDEN: PartKey = PartKey::new("hidden");

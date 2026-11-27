@@ -19,6 +19,7 @@
 //! matches by label, English label, menu path or command id, each as a command row with its path as detail.
 
 #[cfg(feature = "suite")]
+#[cfg(spike_full)]
 pub(crate) mod stories;
 
 use super::search::{HelpEntry, MAX_RESULTS, SearchIndex, SearchWords, Synonyms, rank};
