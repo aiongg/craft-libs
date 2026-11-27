@@ -63,7 +63,16 @@ impl<P: MemoProps, R: Clone + PartialEq + Shift + Send + Sync + 'static> MemoVie
         let key = Self::key(&Env::of(ui), &props, show);
         let scope =
             ScopeShow { id: lazy.id_source(ui), type_key: type_key::<MemoView<P, R>>(), memo: Some(key), estimate: 0.0, reveal: false, lazy: true };
-        show_scope(ui, scope, Some(R::shifted), &mut |ui| show(&mut props, ui))
+        show_scope(ui, scope, Some(R::shifted), &mut |ui| {
+            let before = props_key(&props);
+            let value = show(&mut props, ui);
+            // The run wrote through its props: its key moved, so the view runs again in a later build round of this
+            // frame, from the written value. A measuring run is no real run: it edits nothing it keeps.
+            if ui.flow.measuring.is_none() && props_key(&props) != before {
+                ui.cx.rebuild();
+            }
+            value
+        })
     }
 
     /// The key of `props` shown through `show` in the scope `env`: the props type, the `fn`'s address, the props' inputs
@@ -77,6 +86,13 @@ impl<P: MemoProps, R: Clone + PartialEq + Shift + Send + Sync + 'static> MemoVie
         props.key(&mut key);
         fold(key.finish())
     }
+}
+
+/// The part of a view's key its props feed.
+fn props_key<P: MemoProps>(props: &P) -> u64 {
+    let mut key = MemoKey::new();
+    props.key(&mut key);
+    fold(key.finish())
 }
 
 /// The events a memoized view's run sends to the code around it, in the pass it runs: what its components reported (a

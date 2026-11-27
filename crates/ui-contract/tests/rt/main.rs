@@ -237,3 +237,54 @@ fn a_theme_token_change_runs_and_repaints_the_nodes_that_read_tokens() {
     let hover = input(&mut rig, &mut app, Input::mouse_move(at));
     assert_eq!((hover.frame.painted, hover.frame.runs), (1, 0), "the new hover look is a kept variant of A");
 }
+
+#[derive(MemoProps)]
+struct CountProps<'a> {
+    count: &'a mut craft_ui_contract::contract::Tracked<u32>,
+    shown: Outbox<'a, u32>,
+}
+
+/// Shows the count on a button whose click adds one to it, through the view's props.
+fn count_view(props: &mut CountProps<'_>, ui: &mut Ui) -> Rect {
+    let shown = **props.count;
+    props.shown.send(shown);
+    let label = format!("Count {shown}");
+    let button = IconButton::new(IconId::new("plus"), label.as_str()).show(ui);
+    if button.clicked() {
+        props.count.edit(|count| *count += 1);
+    }
+    button.rect
+}
+
+/// A view whose run writes through its props runs once more in the same frame, so what it shows follows the write in
+/// the frame of the click, and then it is kept.
+#[test]
+fn a_memo_view_that_writes_through_its_props_shows_the_write_in_the_same_frame() {
+    let mut count = craft_ui_contract::contract::Tracked::new(0u32);
+    let (button, mut shown) = (std::cell::Cell::new(Rect::NOTHING), Vec::new());
+    let mut rig = Rig::inline(Vec2::new(200.0, 100.0), 1.0, RecordingRenderer::default());
+    let main = rig.main;
+    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+        if let Some(input) = input {
+            rig.inject(main, input);
+        }
+        shown.clear();
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                let props = CountProps { count: &mut count, shown: Outbox::new(&mut shown) };
+                if let Some(view) = MemoView::new("count", props, count_view).show(ui) {
+                    button.set(view.value);
+                }
+            })
+        });
+        shown.clone()
+    };
+    for _ in 0..3 {
+        frame(&mut rig, None);
+    }
+    let at = button.get().center();
+    frame(&mut rig, Some(Input::mouse_down(at)));
+    let up = frame(&mut rig, Some(Input::mouse_up(at)));
+    assert_eq!(up, [0, 1], "the click's run wrote 1, and the view ran once more in that frame and showed it");
+    assert_eq!(frame(&mut rig, None), Vec::<u32>::new(), "then the view is kept");
+}
