@@ -155,11 +155,52 @@ impl BuildCx<'_> {
     /// [`BuildCx::request_layout`] for what changed, so a kept node costs no phase work.
     pub fn inline<E: Element, R>(&mut self, el: E, f: impl FnOnce(&mut E::Local, InlineState, &mut BuildCx<'_>) -> R) -> R {
         let id = self.next_child();
-        let (parent, window) = (self.node, self.window);
+        let node = self.node;
+        self.inline_at(id, node, false, el, f)
+    }
+
+    /// Reconciles an inline child on `layer` of this node's window, placed by `spec`: a popup,
+    /// menu, tooltip, toast, dialog or drag preview whose content this build creates, as
+    /// [`BuildCx::inline`] does for a child in place. It is this node's for build and output (it
+    /// goes when a build of this node leaves it out, or this node goes) and lies on the layer for
+    /// layout, paint and input, above everything on the layers below. `key` names it among this
+    /// node's children on that layer.
+    pub fn inline_layer<E: Element, R>(
+        &mut self,
+        layer: Layer,
+        key: impl Hash,
+        spec: LayerSpec,
+        el: E,
+        f: impl FnOnce(&mut E::Local, InlineState, &mut BuildCx<'_>) -> R,
+    ) -> R {
+        let id = self.node.child(ChildKey::Layer(layer.index(), hash_key(&key)));
+        debug_assert!(!self.layered.contains(&id), "a node shows two layer children with one key");
+        self.layered.push(id);
+        let Some(w) = self.rt.windows.get_mut(&self.window) else {
+            return f(&mut el.init(self), InlineState::default(), self);
+        };
+        let parent = w.layer(layer);
+        if w.layered.insert(id, spec) != Some(spec) {
+            w.relayout = true;
+        }
+        // Listed before it builds, so what it puts on the same layer lies above it.
+        self.list_on_layer(parent, id);
+        self.inline_at(id, parent, true, el, f)
+    }
+
+    fn inline_at<E: Element, R>(
+        &mut self,
+        id: NodeId,
+        parent: NodeId,
+        on_layer: bool,
+        el: E,
+        f: impl FnOnce(&mut E::Local, InlineState, &mut BuildCx<'_>) -> R,
+    ) -> R {
+        let (owner, window) = (self.node, self.window);
         let props_key = el.props_key();
         let mut state = InlineState::default();
         let reused = match self.rt.tree.nodes.get_mut(&id) {
-            Some(node) if node.inline && node.parent == Some(parent) && node.owner == Some(parent) => {
+            Some(node) if node.inline && node.parent == Some(parent) && node.owner == Some(owner) => {
                 let mut boxed = node.element.take();
                 match boxed.as_mut().and_then(|b| b.as_any_mut().downcast_mut::<ElementBox<E>>()) {
                     Some(slot) => {
@@ -182,10 +223,15 @@ impl BuildCx<'_> {
             Err(el) => {
                 if self.rt.tree.nodes.contains_key(&id) {
                     self.rt.remove_subtree(id);
+                    if on_layer {
+                        self.list_on_layer(parent, id);
+                    }
                 }
-                let depth = self.rt.tree.depth(parent) + 1;
-                let mut node = Node::new(Some(parent), Some(parent), window, depth, None, props_key);
+                let depth = self.rt.tree.depth(owner) + 1;
+                let mut node = Node::new(Some(parent), Some(owner), window, depth, None, props_key);
                 node.inline = true;
+                // The runtime places layer children itself, so their size never reaches the layer.
+                node.boundary |= on_layer;
                 self.rt.tree.nodes.insert(id, node);
                 state.new = true;
                 Box::new(ElementBox::new(el))
@@ -225,6 +271,41 @@ impl BuildCx<'_> {
         let local = node.element.as_ref()?.as_any().downcast_ref::<ElementBox<E>>()?.local.as_ref()?;
         let state = InlineState { new: false, key_moved: false, marked: node.dirty.has(Dirty::BUILD), path: node.dirty.has(Dirty::PATH) };
         Some(Peek { node: id, local, state })
+    }
+
+    /// The inline child of this node on `layer` that `inline_layer(layer, key, ..)` reconciles, when
+    /// it exists with an element of type `E`: its `Local` and marks, left as they are. An owner
+    /// reads a layer child's dismissal this way before deciding to show it again.
+    pub fn peek_layer<E: Element>(&self, layer: Layer, key: impl Hash) -> Option<Peek<'_, E::Local>> {
+        let id = self.node.child(ChildKey::Layer(layer.index(), hash_key(&key)));
+        let node = self.rt.tree.nodes.get(&id)?;
+        if !node.inline || node.owner != Some(self.node) {
+            return None;
+        }
+        let local = node.element.as_ref()?.as_any().downcast_ref::<ElementBox<E>>()?.local.as_ref()?;
+        let state = InlineState { new: false, key_moved: false, marked: node.dirty.has(Dirty::BUILD), path: node.dirty.has(Dirty::PATH) };
+        Some(Peek { node: id, local, state })
+    }
+
+    /// The frame time, read without recording a read: a build that schedules itself with
+    /// [`BuildCx::request_build_at`] reads the clock this way.
+    pub fn now(&self) -> f64 {
+        self.rt.time
+    }
+
+    /// This node builds again at frame time `at`, and no frame runs for it before then; it
+    /// replaces an earlier build wake of this node. `None` cancels it.
+    pub fn request_build_at(&mut self, at: Option<f64>) {
+        let node = self.node;
+        self.rt.set_build_wake(node, at);
+    }
+
+    /// This node gets [`crate::Event::Hover`] when the pointer enters or leaves it or a node under
+    /// it (a tooltip's owner times its delay from it).
+    pub fn hover_events(&mut self, on: bool) {
+        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
+            n.hover_events = on;
+        }
     }
 
     /// This inline node runs again in a later build round of this frame: what its build decided

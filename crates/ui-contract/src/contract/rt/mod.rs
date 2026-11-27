@@ -11,19 +11,29 @@
 //! children out of view keep only their extent.
 
 mod container;
+mod dialog;
+mod drag;
 mod key;
 mod lazy;
 mod node;
+mod overlay;
 mod run;
 mod scope;
 mod scroll;
 pub mod skeleton;
+mod tip;
+mod toast;
 mod ui;
 
 pub use container::{Container, show_container};
+pub use dialog::show_dialog;
+pub use drag::{DragSource, DropRule};
 pub use key::ComponentKey;
 pub use lazy::Lazy;
 pub use node::{NodeInput, Pointer};
+pub use overlay::{OverlayUi, PopupHandle};
 pub use run::{Component, Cx, MeasureCx, Paint, show_leaf};
 pub use scope::{MemoView, window_root};
+pub use tip::DELAY as TOOLTIP_DELAY;
+pub use toast::{ToastHost, ToastQueue};
 pub use ui::Ui;

@@ -131,6 +131,19 @@ impl Runtime {
     /// Routes `window`'s pointer, wheel, key, text, IME, paste and accessibility events to its
     /// nodes.
     pub(crate) fn route_input(&mut self, window: WindowId, ev: &WindowEvent) {
+        if let Some(modal) = self.blocked_by(window) {
+            if let WindowEvent::Pointer(p) = ev {
+                if p.phase == PointerPhase::Down {
+                    self.window_command(modal, crate::platform::WindowCommand::Focus);
+                }
+                if let Some(input) = self.input_mut(window) {
+                    input.hover_pos = None;
+                    input.hover_pointer = None;
+                }
+                self.refresh_hover(window);
+            }
+            return;
+        }
         match ev {
             WindowEvent::Key { down: true, .. } | WindowEvent::Text(_) => self.show_focus(window, true),
             WindowEvent::Pointer(p) if p.phase == PointerPhase::Down => self.show_focus(window, false),
@@ -263,7 +276,8 @@ impl Runtime {
             return;
         }
         let old_chain = std::mem::take(&mut input.focus_chain);
-        if let Some(old) = input.focused {
+        let old_focus = input.focused;
+        if let Some(old) = old_focus {
             input.queue.push_back((old, Event::Focus(false)));
         }
         input.focused = node;
@@ -276,6 +290,30 @@ impl Runtime {
         input.focus_chain = new_chain.clone();
         let touched: Vec<NodeId> = old_chain.into_iter().chain(new_chain).collect();
         self.refresh_interact(&touched);
+        self.dismiss_on_focus_left(window, old_focus, node);
+    }
+
+    /// Queues [`DismissReason::FocusLeft`] for each layer child of `window` that asks for it and
+    /// held the focus (it or a node it owns) before a move to `new`, which is outside it and not
+    /// its anchor.
+    fn dismiss_on_focus_left(&mut self, window: WindowId, old: Option<NodeId>, new: Option<NodeId>) {
+        let Some(old) = old else { return };
+        let Some(w) = self.windows.get(&window) else { return };
+        let watching: Vec<(NodeId, Option<NodeId>)> = w.layered.iter().filter(|(_, s)| s.focus_left).map(|(id, s)| (*id, s.anchor_node())).collect();
+        if watching.is_empty() {
+            return;
+        }
+        let old_chain = self.tree.owner_chain(old);
+        let new_chain = new.map(|n| self.tree.owner_chain(n)).unwrap_or_default();
+        let left: Vec<NodeId> = watching
+            .into_iter()
+            .filter(|(id, anchor)| old_chain.contains(id) && !new_chain.contains(id) && anchor.is_none_or(|a| !new_chain.contains(&a)))
+            .map(|(id, _)| id)
+            .collect();
+        let Some(input) = self.input_mut(window) else { return };
+        for id in left {
+            input.queue.push_back((id, Event::Dismiss(DismissReason::FocusLeft)));
+        }
     }
 
     /// Moves `window`'s focus to the next (or previous) Tab stop in tree order, wrapping around.
@@ -387,8 +425,17 @@ impl Runtime {
             return;
         }
         let old = std::mem::replace(&mut input.hovered, now.clone());
+        let wants = |id: &NodeId| self.tree.nodes.get(id).is_some_and(|n| n.hover_events);
+        let left: Vec<NodeId> = old.iter().filter(|id| !now.contains(id) && wants(id)).copied().collect();
+        let entered: Vec<NodeId> = now.iter().filter(|id| !old.contains(id) && wants(id)).copied().collect();
         let touched: Vec<NodeId> = old.into_iter().chain(now).collect();
         self.refresh_interact(&touched);
+        for id in left {
+            self.deliver(id, id, &Event::Hover(false));
+        }
+        for id in entered {
+            self.deliver(id, id, &Event::Hover(true));
+        }
     }
 
     fn set_pressed(&mut self, window: WindowId, nodes: Vec<NodeId>) {
@@ -630,6 +677,41 @@ impl Runtime {
         if !handled && k.down && plain_tab {
             self.move_focus(window, !k.mods.shift);
         }
+        if !handled && k.down && k.key == Key::Escape {
+            self.dismiss_on_escape(window);
+        }
+    }
+
+    /// The layer children of `window`, topmost first.
+    fn layered_top_first(&self, window: WindowId) -> Vec<NodeId> {
+        let Some(w) = self.windows.get(&window) else { return Vec::new() };
+        let mut out = Vec::new();
+        for layer in Layer::ALL.into_iter().rev().filter(|l| *l != Layer::Content) {
+            if let Some(n) = self.tree.nodes.get(&w.layer(layer)) {
+                out.extend(n.children.iter().rev().copied());
+            }
+        }
+        out
+    }
+
+    /// Sends [`DismissReason::Escape`] to the topmost layer child of `window` that asks for it.
+    fn dismiss_on_escape(&mut self, window: WindowId) {
+        let Some(w) = self.windows.get(&window) else { return };
+        let top = self.layered_top_first(window).into_iter().find(|id| w.layered.get(id).is_some_and(|s| s.escape));
+        if let Some(id) = top {
+            self.deliver(id, id, &Event::Dismiss(DismissReason::Escape));
+        }
+    }
+
+    /// The window whose app-modal layer child blocks `window`'s input: another window with a
+    /// child on its modal layer whose spec is [`crate::LayerSpec::app_modal`]. A blocked window
+    /// drops pointer, wheel, key, text, IME, file and accessibility input; a press there focuses
+    /// the blocking window.
+    pub fn blocked_by(&self, window: WindowId) -> Option<WindowId> {
+        self.windows.iter().filter(|(id, _)| **id != window).find_map(|(id, w)| {
+            let modal = self.tree.nodes.get(&w.layer(Layer::Modal))?;
+            modal.children.iter().any(|c| w.layered.get(c).is_some_and(|s| s.app_modal)).then_some(*id)
+        })
     }
 
     fn send_to_focused(&mut self, window: WindowId, ev: Event) {

@@ -147,6 +147,9 @@ pub enum Event {
     DragEnd(DragOutcome),
     /// The window this node asked for ([`EventCx::open_window`]) is open. Not bubbled.
     WindowOpened(WindowId),
+    /// The pointer entered (`true`) or left the node or the nodes under it. Only nodes that asked
+    /// ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
+    Hover(bool),
 }
 
 /// The context of one node's event handler.
@@ -298,6 +301,21 @@ impl EventCx<'_> {
     /// For changes to the node's `Local` that no cell tracks.
     pub fn request_build(&mut self) {
         self.rt.tree.mark_build(self.node);
+    }
+
+    /// The node's owner builds in the next frame: a layer child tells the node that showed it
+    /// that it was dismissed.
+    pub fn request_owner_build(&mut self) {
+        if let Some(owner) = self.rt.tree.owner(self.node) {
+            self.rt.tree.mark_build(owner);
+        }
+    }
+
+    /// The node builds at frame time `at`, and no frame runs for it before then; it replaces an
+    /// earlier build wake of the node. `None` cancels it.
+    pub fn request_build_at(&mut self, at: Option<f64>) {
+        let node = self.node;
+        self.rt.set_build_wake(node, at);
     }
 
     pub fn request_layout(&mut self) {

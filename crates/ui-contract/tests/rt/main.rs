@@ -2,6 +2,7 @@
 //! the hooks it must. Relations only, no times.
 
 mod layout;
+mod overlay;
 
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};

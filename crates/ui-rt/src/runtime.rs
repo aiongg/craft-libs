@@ -102,6 +102,9 @@ pub struct Runtime {
     pub(crate) wakes: Vec<(NodeId, f64)>,
     /// Nodes that lay out again at a frame time (`LayoutCx::time_until`): (node, time).
     pub(crate) layout_wakes: Vec<(NodeId, f64)>,
+    /// Nodes that build again at a frame time (`BuildCx::request_build_at`,
+    /// `EventCx::request_build_at`): (node, time), one entry per node.
+    pub(crate) build_wakes: Vec<(NodeId, f64)>,
     /// Nodes showing each image or surface.
     pub(crate) media: HashMap<Media, SmallVec<[NodeId; 2]>>,
     pub(crate) window_commands: Vec<(WindowId, WindowCommand)>,
@@ -148,6 +151,7 @@ impl Runtime {
             clipboard: Vec::new(),
             wakes: Vec::new(),
             layout_wakes: Vec::new(),
+            build_wakes: Vec::new(),
             media: HashMap::new(),
             window_commands: Vec::new(),
             closing: Vec::new(),
@@ -266,6 +270,7 @@ impl Runtime {
         self.z_order.retain(|&w| w != window);
         self.wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
         self.layout_wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
+        self.build_wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
     }
 
     /// The open windows.
@@ -482,9 +487,17 @@ impl Runtime {
     }
 
     /// Queues the paint of every node whose wake time (`PaintCx::time_until`) is at or before
-    /// `now`, and the layout of every node whose layout wake (`LayoutCx::time_until`) is.
+    /// `now`, the layout of every node whose layout wake (`LayoutCx::time_until`) is, and the build
+    /// of every node whose build wake is.
     pub fn wake_due(&mut self, now: f64) {
         let tree = &mut self.tree;
+        self.build_wakes.retain(|&(id, at)| {
+            let due = at <= now;
+            if due {
+                tree.mark_build(id);
+            }
+            !due
+        });
         self.wakes.retain(|&(id, at)| {
             let due = at <= now;
             if due {
@@ -501,9 +514,18 @@ impl Runtime {
         });
     }
 
-    /// The earliest frame time a node asked to repaint or lay out at.
+    /// The earliest frame time a node asked to repaint, lay out or build at.
     pub fn next_wake(&self) -> Option<f64> {
-        self.wakes.iter().chain(&self.layout_wakes).map(|&(_, at)| at).reduce(f64::min)
+        self.wakes.iter().chain(&self.layout_wakes).chain(&self.build_wakes).map(|&(_, at)| at).reduce(f64::min)
+    }
+
+    /// `node` builds at frame time `at` (an inline node: its owners take `PATH`), replacing an
+    /// earlier build wake of it; `None` cancels it.
+    pub(crate) fn set_build_wake(&mut self, node: NodeId, at: Option<f64>) {
+        self.build_wakes.retain(|&(n, _)| n != node);
+        if let Some(at) = at {
+            self.build_wakes.push((node, at));
+        }
     }
 
     /// Every pixel of every window is drawn in the next frame (new surfaces, lost content).
@@ -775,6 +797,7 @@ impl Runtime {
                 p.children.retain(|&c| c != id);
             }
             self.forget_node(node.window, id);
+            self.build_wakes.retain(|&(n, _)| n != id);
             for (media, _) in &node.media {
                 if let Some(users) = self.media.get_mut(media) {
                     users.retain(|&mut u| u != id);

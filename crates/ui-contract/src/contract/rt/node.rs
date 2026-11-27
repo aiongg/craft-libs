@@ -4,9 +4,13 @@
 use std::any::Any;
 
 use craft_ui_rt::{
-    AccessCx, Constraints, DisplayList, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx, Mods, NodeId, PaintCx, PointerButton, Pos2,
-    Sense, Vec2,
+    AccessCx, Constraints, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx, Mods,
+    NodeId, PaintCx, PointerButton, Pos2, Sense, Vec2,
 };
+
+use super::drag::{DragSource, DropRule};
+use super::overlay::PopupStates;
+use super::tip::TipKept;
 use egui::Id;
 
 /// The pointer state a paint variant was recorded for (section 8).
@@ -40,6 +44,10 @@ pub enum NodeInput {
     },
     /// An assistive technology's action on the node.
     Access(accesskit::Action),
+    /// The drag the node started ended.
+    DragEnd(DragOutcome),
+    /// A payload the node's drop rule takes was dropped on it.
+    Drop(DragData),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -93,6 +101,17 @@ pub(crate) struct Kept {
     pub(crate) plan: Option<super::container::Plan>,
     /// Whether the last real run of the body under this node met fill children; `None` before it.
     pub(crate) body_fills: Option<bool>,
+    /// The component's popups and whether each is open.
+    pub(crate) popups: PopupStates,
+    /// The component's tooltip and where it stands.
+    pub(crate) tip: Option<TipKept>,
+    /// What a drag from the component carries, from its last run.
+    pub(crate) drag: Option<DragSource>,
+    /// The payloads the component takes as drops, from its last run.
+    pub(crate) drop: Option<DropRule>,
+    /// A ui-rt drag session the node started is running: its press moves are the session's, not
+    /// input for a run.
+    pub(crate) dragging: bool,
 }
 
 impl Kept {
@@ -111,6 +130,11 @@ impl Kept {
             sizes: smallvec::SmallVec::new(),
             plan: None,
             body_fills: None,
+            popups: PopupStates::new(),
+            tip: None,
+            drag: None,
+            drop: None,
+            dragging: false,
         }
     }
 
@@ -199,16 +223,65 @@ impl Element for ComponentNode {
             let bounds = cx.bounds();
             cx.hit(HitShape::Rect(bounds), kept.sense, 0);
         }
+        if kept.drop.is_some() {
+            let bounds = cx.bounds();
+            cx.drop_target(HitShape::Rect(bounds), 0);
+        }
     }
 
     /// Queues what the next run consumes and marks the node, which marks the path to its window
     /// root. A press's `Down` only takes the press.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
+        match ev {
+            Event::Hover(on) => {
+                if let Some(tip) = kept.tip.as_mut() {
+                    tip.hover(*on, cx);
+                }
+                return Handled::Yes;
+            }
+            Event::DragEnd(outcome) => {
+                kept.dragging = false;
+                kept.queue.push(NodeInput::DragEnd(*outcome));
+                cx.request_build();
+                return Handled::Yes;
+            }
+            Event::Drop(d) => {
+                let Some(rule) = kept.drop else { return Handled::No };
+                return match d.phase {
+                    DropPhase::Over if rule.accepts(&d.data) => cx.accept_drop(rule.op),
+                    DropPhase::Over => Handled::No,
+                    DropPhase::Drop => {
+                        kept.queue.push(NodeInput::Drop(d.data.clone()));
+                        cx.request_build();
+                        Handled::Yes
+                    }
+                    _ => Handled::Yes,
+                };
+            }
+            _ => {}
+        }
         if !kept.sense.takes_press() {
             return Handled::No;
         }
         match ev {
             Event::Pointer(p) => {
+                match p.gesture {
+                    Gesture::Down { .. } => {
+                        if let Some(tip) = kept.tip.as_mut() {
+                            tip.pressed(cx);
+                        }
+                    }
+                    Gesture::DragStart { .. } if kept.drag.is_some() => {
+                        let tokens = cx.env().tokens;
+                        let tokens = tokens.get(cx);
+                        if let Some(source) = &kept.drag {
+                            kept.dragging = cx.start_drag(source.start(&tokens));
+                        }
+                    }
+                    // The session moves the preview; the source does not run per move.
+                    Gesture::Drag { .. } if kept.dragging => return Handled::Yes,
+                    _ => {}
+                }
                 if !matches!(p.gesture, Gesture::Down { .. }) {
                     let part = p.hit.map_or(0, |h| h.part);
                     kept.queue.push(NodeInput::Pointer { gesture: p.gesture, pos: cx.to_local(p.pos), button: p.button, mods: p.mods, part });

@@ -86,11 +86,36 @@ pub struct LayerSpec {
     pub outside_press: OutsidePress,
     /// The child is at least as wide as its anchor (a dropdown list under its field).
     pub match_anchor_width: bool,
+    /// An Escape no focused node handled goes to the topmost such child as
+    /// [`DismissReason::Escape`].
+    pub escape: bool,
+    /// Key focus moving from inside the child (or anything it owns) to a node outside it sends
+    /// [`DismissReason::FocusLeft`].
+    pub focus_left: bool,
+    /// On the modal layer: the child blocks pointer and key input to every other window of the
+    /// runtime while it is shown (an app-modal dialog). A press in a blocked window focuses the
+    /// child's window.
+    pub app_modal: bool,
 }
 
 impl LayerSpec {
     pub const fn new(placement: Placement) -> LayerSpec {
-        LayerSpec { placement, outside_press: OutsidePress::Ignore, match_anchor_width: false }
+        LayerSpec { placement, outside_press: OutsidePress::Ignore, match_anchor_width: false, escape: false, focus_left: false, app_modal: false }
+    }
+
+    pub const fn dismiss_on_escape(mut self) -> LayerSpec {
+        self.escape = true;
+        self
+    }
+
+    pub const fn dismiss_on_focus_left(mut self) -> LayerSpec {
+        self.focus_left = true;
+        self
+    }
+
+    pub const fn app_modal(mut self) -> LayerSpec {
+        self.app_modal = true;
+        self
     }
 
     pub const fn outside_press(mut self, outside: OutsidePress) -> LayerSpec {
@@ -111,7 +136,7 @@ impl LayerSpec {
     }
 
     /// The constraints the child is laid out with, given its anchor's window rect.
-    pub(crate) fn constraints(&self, viewport: Vec2, anchor: Option<Rect>) -> Constraints {
+    pub fn constraints(&self, viewport: Vec2, anchor: Option<Rect>) -> Constraints {
         match self.placement {
             Placement::Fill => Constraints::tight(viewport),
             _ => {
@@ -128,7 +153,7 @@ impl LayerSpec {
 
     /// The child's top left for `size`, given its anchor's window rect (`None` when the anchor
     /// node is gone: the child stays where it is, `current`).
-    pub(crate) fn place(&self, size: Vec2, viewport: Vec2, anchor: Option<Rect>, current: Vec2) -> Vec2 {
+    pub fn place(&self, size: Vec2, viewport: Vec2, anchor: Option<Rect>, current: Vec2) -> Vec2 {
         let pos = match self.placement {
             Placement::At(p) => p.to_vec2(),
             Placement::Center => (viewport - size) / 2.0,
@@ -175,12 +200,16 @@ fn beside(rect: Rect, side: Side, align: Align, gap: f32, size: Vec2, viewport: 
     }
 }
 
-/// Why a layer child is asked to go. More reasons (Escape, focus leaving) come with focus scopes.
+/// Why a layer child is asked to go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DismissReason {
     /// A press outside it ([`OutsidePress`]).
     OutsidePress,
+    /// Escape reached no focused node that handled it ([`LayerSpec::escape`]).
+    Escape,
+    /// Key focus left it ([`LayerSpec::focus_left`]).
+    FocusLeft,
 }
 
 #[cfg(test)]

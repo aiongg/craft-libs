@@ -11,8 +11,11 @@ use craft_theme::Tokens;
 use craft_ui_rt::{BuildCx, CornerRadii, DisplayList, Gesture, ImageKey, InlineState, Item, PointerButton, Pos2, Rect, Rgba, Sense, Stroke, Vec2};
 use smallvec::SmallVec;
 
+use super::drag::{DragSource, DropRule};
 use super::key::{ComponentKey, component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, NodeInput, Place, Pointer, Variant};
+use super::overlay::OverlayUi;
+use super::tip;
 use super::ui::Ui;
 use crate::contract::IdSource;
 
@@ -141,6 +144,26 @@ pub trait Component: ComponentKey + Sized {
     /// Fills the node's AccessKit node (its role is set).
     fn access(&self, _node: &mut accesskit::Node, _cx: &Cx<'_>) {}
 
+    /// Shows the component's popups (step 10): after `update` in a run, and on a pass that reaches
+    /// a marked node in one of its popups while the component keeps its outputs.
+    fn overlay(&mut self, _ui: &mut OverlayUi<'_, '_>) {}
+
+    /// The tooltip text; it shows after [`tip::DELAY`] with the pointer resting on the component.
+    fn tooltip(&self) -> Option<String> {
+        None
+    }
+
+    /// What a drag from the component carries; ui-rt starts the session when a press on it moves
+    /// past slop.
+    fn drag_source(&self) -> Option<DragSource> {
+        None
+    }
+
+    /// The payloads the component takes as drops.
+    fn drop_target(&self) -> Option<DropRule> {
+        None
+    }
+
     /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
     fn finish(self, cx: &Cx<'_>) -> Self::Output;
 }
@@ -180,8 +203,18 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
             };
             let rect = flow.allocate(Some(cx.node()), size, false);
             if kept_outputs && size == kept.size {
-                cx.keep_children();
                 kept.cache(room, size);
+                if state.path {
+                    // A node in one of its layer children is marked: reach them, keep its own
+                    // outputs. A popup that opened or closed here makes it run in this frame.
+                    let (id, tokens) = (kept.id, flow.tokens.clone());
+                    if overlay_pass(&mut component, kept, cx, id, rect, &tokens, false) {
+                        cx.rebuild();
+                    }
+                    tip::show(&mut kept.tip, None, false, cx, id, rect, &tokens);
+                } else {
+                    cx.keep_children();
+                }
                 return component.finish(&Cx::settled(rect, &flow.tokens));
             }
             let tokens = cx.tokens();
@@ -209,6 +242,10 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     let input = std::mem::take(&mut kept.queue);
     let mut rcx = Cx { rect: ran.rect, tokens: ran.tokens, input: &input, settled: false };
     component.update(&mut rcx);
+    overlay_pass(&mut component, kept, cx, ran.id, ran.rect, ran.tokens, true);
+    tip::show(&mut kept.tip, component.tooltip(), true, cx, ran.id, ran.rect, ran.tokens);
+    kept.drag = component.drag_source();
+    kept.drop = component.drop_target();
     kept.variants = record_variants(&mut component, &rcx, ran.size, sense);
     let mut node = accesskit::Node::new(C::ROLE);
     component.access(&mut node, &rcx);
@@ -221,6 +258,22 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.cache(ran.place.room, ran.size);
     kept.sense = sense;
     component.finish(&rcx)
+}
+
+/// Runs the component's `overlay` hook over its kept popups; `ran` says whether its own hooks ran
+/// in this build. Returns whether a popup opened or closed.
+pub(crate) fn overlay_pass<C: Component>(
+    component: &mut C,
+    kept: &mut Kept,
+    cx: &mut BuildCx<'_>,
+    id: egui::Id,
+    rect: Rect,
+    tokens: &Arc<Tokens>,
+    ran: bool,
+) -> bool {
+    let mut ui = OverlayUi::new(cx, id, rect, &mut kept.popups, ran, tokens.clone());
+    component.overlay(&mut ui);
+    ui.changed
 }
 
 /// One paint, then one per further pointer state when the paint read it (`Press` only for a
