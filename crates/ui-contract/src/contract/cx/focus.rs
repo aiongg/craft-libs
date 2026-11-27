@@ -2,7 +2,6 @@
 
 use super::context::{Cx, CxCore};
 use crate::contract::Component;
-use crate::runtime::focus::{self};
 use crate::runtime::keys::{Intents, MenuKey};
 use craft_behavior::{MoveMods, NavMove, PartRef};
 use craft_keymap::Chord;
@@ -90,26 +89,32 @@ impl Focus for CxCore<'_> {
     }
 
     fn take_scroll_moves(&mut self) -> Vec<(NavMove, MoveMods)> {
-        crate::contract::steps::scroll_moves(self.context(), self.id, self.is_measuring())
+        // The page and end moves queued on the node: its own untaken ones and those its focused descendants left,
+        // which the key stage queues on the scroll owner they bubble to.
+        let scrolls = |mv: NavMove, _| matches!(mv, NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End);
+        let mut moves = Vec::new();
+        if self.is_measuring() {
+            return moves;
+        }
+        while let Some(mv) = self.intents.take_move_where(scrolls) {
+            moves.push(mv);
+        }
+        moves
     }
 
     fn take_reveal(&mut self, view: Rect) -> Option<Vec2> {
-        let quiet = self.is_measuring();
-        let context = self.context();
-        let rect = if quiet { crate::contract::peek_reveal(context, self.id) } else { crate::contract::take_reveal(context, self.id) }?;
-        let (by, shown) = crate::contract::steps::reveal_move(rect, view);
-        if !quiet {
-            self.reveal = Some(shown);
-        }
-        Some(by)
+        let _ = view;
+        todo!(
+            "reveals addressed to a component that scrolls its own content (Component::scroll): rt/scroll.rs reveal bubbling stops at it and queues the rect on its node, INT-2b"
+        )
     }
 
     fn register_menu_bar(&mut self) {
-        focus::register_menu_bar(self.context(), self.id, false);
+        self.run.menu_bar.set(Some(false));
     }
 
     fn register_menu_bar_by_claim(&mut self) {
-        focus::register_menu_bar(self.context(), self.id, true);
+        self.run.menu_bar.set(Some(true));
     }
 
     fn take_first_claimed(&mut self, chords: &[Chord]) -> Option<Chord> {
@@ -117,7 +122,13 @@ impl Focus for CxCore<'_> {
     }
 
     fn take_menu_keys(&mut self) -> Vec<MenuKey> {
-        crate::runtime::keys::take_menu_keys(self.context())
+        self.input()
+            .iter()
+            .filter_map(|input| match input {
+                crate::contract::rt::node::NodeInput::Menu(key) => Some(*key),
+                _ => None,
+            })
+            .collect()
     }
 }
 

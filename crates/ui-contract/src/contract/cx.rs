@@ -17,6 +17,7 @@ mod styled;
 mod words;
 
 pub use access::Accessible;
+pub(crate) use access::apply_field_label;
 pub use body::BodyCx;
 pub(crate) use body::{BodyOwner, RegionShare};
 pub use context::{Activation, Cx, CxCore};

@@ -1,11 +1,12 @@
 //! The `Pointer` trait: presses, hover, drags and cursors, on `CxCore` and `Cx`.
 
 use super::context::{Activation, Cx, CxCore};
+use crate::contract::rt::drag::DragSource;
+use crate::contract::rt::node::NodeInput;
 use crate::contract::{Component, Hover};
 use crate::primitives::Id;
 use crate::primitives::PartResult;
-use crate::runtime::drag::{self, DragPreview, DropTarget, DropZone, Typed, WindowDropTarget};
-use crate::runtime::{pointer, wheel};
+use crate::runtime::drag::{DragPreview, DropTarget, Typed, WindowDropTarget};
 use craft_behavior::{Cursor, CursorPriority, DropOperation, MultiTap, PartKey, PartRef, PressCancel, PressState, Wheel};
 use craft_ui_rt::{Pos2, Vec2};
 use std::any::{Any, TypeId};
@@ -41,9 +42,6 @@ pub trait Pointer {
     /// This pass's tap, once, when it lies in this component's rect and this component (an arena root with its members)
     /// wins a press there.
     fn take_multi_tap(&mut self) -> Option<MultiTap>;
-    /// Marks the wheel gesture this component owns, while it runs, as moved (its view changed): later shares of the
-    /// gesture report `Wheel::moved`.
-    fn mark_wheel_moved(&mut self);
     /// Feeds `pan`, the line pan this pass gave, to this component's wheel ease and returns the eased step for this
     /// pass. `Vec2::ZERO` on a pass with no line pan lets owed motion keep paying.
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2;
@@ -133,25 +131,57 @@ impl Pointer for CxCore<'_> {
     }
 
     fn take_wheel(&mut self) -> Option<Wheel> {
-        wheel::take(self.context(), self.id)
+        if self.run.wheel_taken.replace(true) {
+            return None;
+        }
+        // The steps queued since the last run, folded into one share.
+        let mut steps = self.run.input.iter().filter_map(|input| match input {
+            NodeInput::Wheel(wheel) => Some(*wheel),
+            _ => None,
+        });
+        let mut share = steps.next()?;
+        for step in steps {
+            share.scroll += step.scroll;
+            share.lines += step.lines;
+            share.touch_pan += step.touch_pan;
+            share.zoom *= step.zoom;
+            share.touch_zoom *= step.touch_zoom;
+            share.rotation += step.rotation;
+            share.touch_rotation += step.touch_rotation;
+            (share.phase, share.at, share.mods, share.gathered) = (step.phase, step.at, step.mods, step.gathered);
+        }
+        Some(share)
     }
 
     fn take_multi_tap(&mut self) -> Option<MultiTap> {
-        let rect = self.response.rect;
-        let tap = pointer::take_multi_tap(self.context(), self.id, |at| rect.contains(at))?;
-        Some(MultiTap::new(tap.fingers, tap.at))
-    }
-
-    fn mark_wheel_moved(&mut self) {
-        wheel::mark_moved(self.context(), self.id);
+        let _ = self;
+        todo!("multi-finger taps: ui-rt's touch tracker queues a NodeInput on the node under the fingers, INT-1c")
     }
 
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2 {
-        wheel::ease(self.context(), self.id, pan)
+        let slot = crate::runtime::memory::sub(self.id, "wheel_ease");
+        let mut ease = self.memory.recall::<Option<craft_behavior::WheelEase>>(slot);
+        if pan == Vec2::ZERO && ease.is_none() {
+            return Vec2::ZERO;
+        }
+        let now = self.context().time();
+        let running = ease.get_or_insert_default();
+        running.feed(pan, now);
+        let step = running.step(now);
+        // While motion is owed the node runs in the next frame to pay it out; the ease is kept with the node.
+        self.run.wake.set(running.owes());
+        if !self.is_measuring() {
+            *self.memory.shown::<Option<craft_behavior::WheelEase>>(slot) = ease;
+        }
+        step
     }
 
     fn stop_wheel_ease(&mut self) {
-        wheel::stop_ease(self.context(), self.id);
+        let slot = crate::runtime::memory::sub(self.id, "wheel_ease");
+        if !self.is_measuring() {
+            *self.memory.shown::<Option<craft_behavior::WheelEase>>(slot) = None;
+        }
+        self.run.wake.set(false);
     }
 
     fn cursor(&mut self, cursor: impl Into<Cursor>, priority: CursorPriority) {
@@ -161,12 +191,13 @@ impl Pointer for CxCore<'_> {
     }
 
     fn cancel_press(&mut self, reason: PressCancel) {
-        pointer::cancel_press(self.context(), reason);
+        // The driver ends the node's press with ui-rt's press machine after the run.
         self.press_cancel = Some(reason);
     }
 
     fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview) {
-        drag::start(self.context(), self.id, &self.env, Arc::new(payload), Vec::new(), preview);
+        // The driver starts ui-rt's payload session from the node's press after the run.
+        *self.run.drag_start.borrow_mut() = Some(DragSource::new(payload, preview));
     }
 
     fn start_drag_also<P: Clone + Send + Sync + 'static>(
@@ -175,7 +206,8 @@ impl Pointer for CxCore<'_> {
         also: Vec<Arc<dyn std::any::Any + Send + Sync>>,
         preview: DragPreview,
     ) {
-        drag::start(self.context(), self.id, &self.env, Arc::new(payload), also, preview);
+        let _ = (payload, also, preview);
+        todo!("drags that carry extra payloads: ui-rt's DragStart takes one payload; the session needs the `also` list beside it, INT-1c")
     }
 
     fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
@@ -191,19 +223,16 @@ impl Pointer for CxCore<'_> {
         if target.requires_pointer() && self.dragging::<P>().is_none() {
             return None;
         }
-        // A target under the pointer in another window takes the drop of a drag that left this one.
-        let ctx = self.context().clone();
-        let payload = drag::active::<P>(&ctx).filter(|_| !drag::moves_viewport(&ctx) && !drag::held_elsewhere(&ctx))?;
-        let op = drag::current_operation(&ctx, craft_behavior::CopyKeys::Alt);
-        let drop = target.accept(&payload, op)?;
-        let ordinal = drag::next_ordinal(&ctx, self.id);
-        let reach = drag::TargetReach { window: true, under_modal: target.under_modal() };
-        drag::register(&ctx, self.id, self.response.node(), target.mark(&drop), op, self.env.shared_tokens(), reach);
-        drag::take_drop(&ctx, self.id, ordinal, op, TypeId::of::<P>()).then_some(drop)
+        todo!("window-wide drop targets: a drop rule on the window root's node in ui-rt's routing (Component::drop_target with window reach), INT-1c")
     }
 
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {
-        drag::ended::<P>(self.context(), self.id)
+        // The end of the node's own drag reaches its next run; the node starts drags of one payload, so the type is
+        // the one it started with.
+        self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::DragEnd(craft_ui_rt::DragOutcome::Dropped { op, .. }) => Some(*op),
+            _ => None,
+        })
     }
 
     fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>> {
@@ -215,13 +244,17 @@ impl Pointer for CxCore<'_> {
 impl CxCore<'_> {
     /// The active drag payload whose type is `payload` and the pointer in window coordinates.
     pub(crate) fn dragging_of(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
-        drag::dragging_of(self.context(), payload)
+        let _ = payload;
+        todo!("the running drag session's payload and pointer as a tracked read the driver hands the run (BuildCx drag session), INT-1c")
     }
 
     /// `Pointer::drop_target` for the payload whose type is `payload_type`, chosen at run time: a collection takes the
     /// payload types its drop kinds name. The target lies over this component's visible shapes on its own layer.
     pub(crate) fn drop_target_of<T: DropTarget<dyn Any + Send + Sync>>(&mut self, payload_type: TypeId, target: &T) -> Option<T::Drop> {
-        drag::target_of(self.context(), self.id, DropZone::new(self.response.node(), self.visible), self.env.shared_tokens(), payload_type, target)
+        let _ = (payload_type, target);
+        todo!(
+            "drop targets chosen in a run: the node's DropRule (Component::drop_target) takes the payload in ui-rt's routing and its run reads NodeInput::Drop, INT-1c"
+        )
     }
 }
 
@@ -264,10 +297,6 @@ impl<C: Component> Pointer for Cx<'_, C> {
 
     fn take_multi_tap(&mut self) -> Option<MultiTap> {
         self.core.take_multi_tap()
-    }
-
-    fn mark_wheel_moved(&mut self) {
-        self.core.mark_wheel_moved();
     }
 
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2 {
