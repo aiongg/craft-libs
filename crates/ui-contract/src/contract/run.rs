@@ -96,6 +96,10 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// content (a collection's surface).
     fn paint(&self, _comp: &C, _ui: &mut PaintUi<'_>, _rect: Rect) {}
 
+    /// Step 16, after the component's own `access`: the shape's sub-nodes (a collection's toggle cells and section
+    /// headings).
+    fn access(&self, _comp: &C, _access: &mut Access) {}
+
     /// After `content`: the member rows' looks this run recorded, for the node's `Kept.members`.
     fn take_member_looks(&mut self) -> Vec<crate::contract::rt::items::MemberLooks> {
         Vec::new()
@@ -153,10 +157,39 @@ pub(crate) fn show_items<'r, C: crate::contract::Collection>(
     source: &dyn craft_behavior::ItemSource<C::Key>,
     item: &mut super::ItemFn<'r, C>,
 ) -> C::Output {
-    let component = slot.take().expect("a collection is shown once");
+    let mut component = slot.take().expect("a collection is shown once");
+    // The collection is an instance of its command scope as a container is (`Begun::enter_instance`).
+    if let Some(scope) = component.props(Internal::new()).command_scope {
+        component.common_mut(Internal::new()).command_scope = Some(scope);
+    }
+    let theme = component.props(Internal::new()).theme.clone();
     let mut hooks = crate::contract::items::ItemsHooks::<C>::new(source, item);
     let place = Env::of(ui);
-    crate::contract::rt::run::show_shaped(component, ui, (ShowAt::Flow, place), None, &mut hooks)
+    let Some(theme) = theme else {
+        return crate::contract::rt::run::show_shaped(component, ui, (ShowAt::Flow, place), None, &mut hooks);
+    };
+    // A collection with a theme is shown inside a scope that gives it and its rows that theme, as a container is
+    // (`rt::container::show_container`); the scope always runs its content.
+    use crate::contract::rt::scope::{ScopeShow, show_scope};
+    let scope = crate::runtime::env::EnvScope::new().theme(theme);
+    let show = ScopeShow {
+        id: crate::contract::IdSource::Auto,
+        type_key: crate::contract::rt::key::type_key::<crate::runtime::env::EnvScope>(),
+        memo: None,
+        estimate: 0.0,
+        reveal: false,
+        lazy: false,
+    };
+    let (mut slot, mut out) = (Some(component), None);
+    let _ = show_scope(ui, show, None, &mut |ui| {
+        scope.enter(ui);
+        let themed = Env::of(ui);
+        let place = place.derive(|scoped| scoped.inherited_mut().tokens = themed.tokens.clone());
+        if let Some(component) = slot.take() {
+            out = Some(crate::contract::rt::run::show_shaped(component, ui, (ShowAt::Flow, place), None, &mut hooks));
+        }
+    });
+    out.expect("a theme scope with no out-of-view rule always runs its content")
 }
 
 /// Where a component is placed.

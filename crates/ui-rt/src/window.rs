@@ -51,6 +51,9 @@ pub struct Env {
     pub held_keys: State<Vec<crate::Key>>,
     /// Where the pointer is in the window and which buttons are down.
     pub pointer: State<PointerFacts>,
+    /// Moves at each wheel or pinch event the window takes: a mode that a wheel ends (a middle-button auto-scroll
+    /// latch) reads it while it lasts.
+    pub wheels: State<u64>,
     /// A revision of the window's listed layer children ([`crate::LayerSpec::listed`]): it moves when one goes, and
     /// code that changes what a shown one lists writes it. A reader of the window's layer stack reads it.
     pub layers: State<u64>,

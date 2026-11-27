@@ -143,19 +143,27 @@ struct App {
     content_width: bool,
     /// What the pointer moving over the rows changes.
     hover: HoverLead,
+    /// Props a trial adds (reorder, middle-button auto-scroll).
+    tune: fn(&mut CollectionProps),
+    /// The last response's drop preview, visible rows and auto-scroll latch.
+    pending: Option<craft_ui::contract::PendingDrop<usize>>,
+    visible: std::ops::Range<usize>,
+    auto_scrolling: bool,
 }
 
 fn app_ui(ui: &mut Ui, app: &mut App) {
     app.calls.set(0);
     let calls = &app.calls;
+    let mut items = if app.content_width {
+        CollectionProps::new().select(SelectMode::Single).rows_stamp(1)
+    } else {
+        CollectionProps::new().select(SelectMode::Single).hover_lead(app.hover)
+    };
+    (app.tune)(&mut items);
     let list = List {
         common: Common::new(),
         props: ContainerProps::new().sizing(if app.content_width { Sizing::Content } else { Sizing::Fill }),
-        items: if app.content_width {
-            CollectionProps::new().select(SelectMode::Single).rows_stamp(1)
-        } else {
-            CollectionProps::new().select(SelectMode::Single).hover_lead(app.hover)
-        },
+        items,
         selection: Some(Bind::bound(&mut app.selection)),
     };
     let out = list.show_items(ui, &Count(app.rows), &mut |_, _| {
@@ -163,6 +171,9 @@ fn app_ui(ui: &mut Ui, app: &mut App) {
         Row { common: Common::new() }
     });
     app.rect = out.response.rect;
+    app.pending = out.pending_drop;
+    app.visible = out.visible;
+    app.auto_scrolling = out.auto_scrolling;
 }
 
 fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
@@ -192,7 +203,18 @@ fn row_center(app: &App, at: usize) -> Pos2 {
 }
 
 fn app(rows: usize) -> App {
-    App { rows, selection: Selection::default(), calls: Cell::new(0), rect: Rect::NOTHING, content_width: false, hover: HoverLead::Off }
+    App {
+        rows,
+        selection: Selection::default(),
+        calls: Cell::new(0),
+        rect: Rect::NOTHING,
+        content_width: false,
+        hover: HoverLead::Off,
+        tune: |_| {},
+        pending: None,
+        visible: 0..0,
+        auto_scrolling: false,
+    }
 }
 
 #[test]
@@ -285,4 +307,83 @@ fn a_list_without_hover_lead_runs_nothing_on_a_move() {
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
     let moved = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3) + Vec2::new(4.0, 2.0)));
     assert_eq!(moved.frame.runs, 0, "only a list with hover lead reads the hover point: {moved:?}");
+}
+
+/// A drag's edge scroll and the middle-button auto-scroll glide the rows view (`rt::scroll::glide`): ui-rt pays the
+/// glide out in layout. A row drag follows the moving rows with one list run per glide frame; with no drag, a glide
+/// frame runs nothing.
+mod glide {
+    use super::*;
+    use craft_ui::contract::{MiddleButton, PendingDrop, ReorderRule};
+    use craft_ui_platform_headless::{Contact, Input};
+    use craft_ui_rt::PointerPhase;
+
+    const FRAME: f64 = 1.0 / 60.0;
+
+    /// One frame later with no input.
+    fn frame(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.driver.platform.advance(FRAME);
+        app.calls.set(0);
+        step(rig, app)
+    }
+
+    #[test]
+    fn a_reorder_drag_at_the_edge_glides_and_its_drop_spot_follows_with_one_list_run_per_frame() {
+        let mut app = App { tune: |items| items.reorder = Some(ReorderRule::new()), ..app(600) };
+        let mut rig = rig(&mut app);
+        let grab = row_center(&app, 2);
+        input(&mut rig, &mut app, Input::mouse_move(grab));
+        input(&mut rig, &mut app, Input::mouse_down(grab));
+        input(&mut rig, &mut app, Input::mouse_move(grab + Vec2::new(0.0, 12.0)));
+        // Into the bottom edge band of the narrow list: the run notes the rate and asks for a glide.
+        let edge = Pos2::new(grab.x, app.rect.max.y - 2.0);
+        input(&mut rig, &mut app, Input::mouse_move(edge));
+        let first = app.pending.clone();
+        assert!(matches!(first, Some(PendingDrop::Reorder(_))), "the drag over the rows previews a reorder: {first:?}");
+        let mut runs = Vec::new();
+        for _ in 0..6 {
+            let report = frame(&mut rig, &mut app);
+            runs.push((report.frame.runs, app.calls.get() > 0));
+        }
+        assert!(runs.iter().all(|&(_, list_ran)| list_ran), "each glide frame runs the list once to follow the offset: {runs:?}");
+        assert_ne!(app.pending, first, "the drop spot follows the rows the glide moved under the pointer");
+        input(&mut rig, &mut app, Input::mouse_up(edge));
+        frame(&mut rig, &mut app);
+        let after = frame(&mut rig, &mut app);
+        assert_eq!((after.frame.runs, app.calls.get()), (0, 0), "with no drag the glide is stopped and nothing runs: {after:?}");
+    }
+
+    #[test]
+    fn the_middle_button_latch_scrolls_with_no_run_per_frame_and_escape_ends_it() {
+        let mut app = App { tune: |items| items.middle_button = MiddleButton::AutoScroll, ..app(600) };
+        let mut rig = rig(&mut app);
+        let main = rig.main;
+        let anchor = row_center(&app, 3);
+        let middle = Contact { button: craft_behavior::PointerButton::Middle, ..Contact::MOUSE };
+        input(&mut rig, &mut app, Input::mouse_move(anchor));
+        input(&mut rig, &mut app, Input::pointer(middle, PointerPhase::Down, anchor));
+        input(&mut rig, &mut app, Input::pointer(middle, PointerPhase::Up, anchor));
+        assert!(app.auto_scrolling, "a middle click on the rows latches the auto-scroll");
+        // Below the anchor past the dead zone: the rows view glides toward the end.
+        input(&mut rig, &mut app, Input::mouse_move(anchor + Vec2::new(0.0, 80.0)));
+        let quiet: Vec<(usize, bool)> = (0..6)
+            .map(|_| {
+                let report = frame(&mut rig, &mut app);
+                (report.frame.runs, app.calls.get() > 0)
+            })
+            .collect();
+        // Only a glide that leaves the band the last build covered builds the list (new rows come into the band).
+        assert!(quiet.iter().filter(|&&(_, list_ran)| list_ran).count() <= 1, "a glide frame runs no list: {quiet:?}");
+        input(&mut rig, &mut app, Input::mouse_move(anchor + Vec2::new(1.0, 80.0)));
+        assert!(app.visible.start > 0, "the latch scrolled the rows: {:?}", app.visible);
+        rig.driver.platform.key_press(main, craft_ui_rt::Key::Escape, craft_ui_rt::Mods::NONE);
+        step(&mut rig, &mut app);
+        assert!(!app.auto_scrolling, "Escape ends the latch though the list has no key focus");
+        let at = app.visible.clone();
+        for _ in 0..6 {
+            frame(&mut rig, &mut app);
+        }
+        input(&mut rig, &mut app, Input::mouse_move(anchor + Vec2::new(2.0, 80.0)));
+        assert_eq!(app.visible, at, "after Escape the rows stay where the latch left them");
+    }
 }

@@ -101,6 +101,8 @@ pub(crate) struct ScrollKept {
     band: Rect,
     /// Written by layout when the view left the band; the build reads it, so it runs again.
     misses: Option<State<u64>>,
+    /// The offset layout placed the content at, for a build that follows it (`read_offset`); written by layout only.
+    placed_at: Option<State<Vec2>>,
     ease: WheelEase,
     glide: Option<Vec2>,
     /// The velocity [`glide`] sets, in points per second, positive toward the content's end. Only this node's layout
@@ -160,6 +162,7 @@ impl ScrollKept {
             view: Vec2::ZERO,
             band: Rect::EVERYTHING,
             misses: None,
+            placed_at: None,
             ease: WheelEase::default(),
             glide: None,
             rate,
@@ -186,6 +189,13 @@ impl ScrollKept {
     pub(crate) fn subscribe(&mut self, cx: &mut BuildCx<'_>) {
         let misses = *self.misses.get_or_insert_with(|| cx.state(0));
         misses.get(cx);
+    }
+
+    /// The offset, as a tracked read: the body builds again each time layout moves it (a glide, a wheel, a bar drag).
+    pub(crate) fn read_offset(&mut self, cx: &mut BuildCx<'_>) -> Vec2 {
+        let offset = self.offset;
+        let placed_at = *self.placed_at.get_or_insert_with(|| cx.state(offset));
+        placed_at.get(cx)
     }
 
     fn max_offset(&self) -> Vec2 {
@@ -343,6 +353,9 @@ impl Element for ScrollNode {
             && let Some(misses) = sk.misses
         {
             misses.update(cx, |n| *n = n.wrapping_add(1));
+        }
+        if let Some(placed_at) = sk.placed_at {
+            placed_at.set_if_changed(cx, sk.offset);
         }
         sk.kept.place_children(cx, sk.offset);
         // A collapsing container places its scroll body at the share of the view it shows; the clip in paint follows.

@@ -137,6 +137,9 @@ pub(crate) struct InputState {
     /// The last Space press went to the node a modal lets input through to ([`crate::ModalReach`]): its release goes
     /// there too.
     space_to_reach: Option<NodeId>,
+    /// The node that takes some of the window's keys ahead of the focused node while it holds a
+    /// mode (`BuildCx::capture_keys`), and those keys: a key it does not handle goes on to focus.
+    key_capture: Option<(NodeId, smallvec::SmallVec<[Key; 2]>)>,
     pub(crate) touches: Touches,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
@@ -224,6 +227,9 @@ impl Runtime {
         };
         if let Some(held) = held {
             env.held_keys.set(&mut self.store, held);
+        }
+        if matches!(ev, WindowEvent::Wheel { .. } | WindowEvent::Pinch { .. }) {
+            env.wheels.update(&mut self.store, |n| *n = n.wrapping_add(1));
         }
         let WindowEvent::Pointer(p) = ev else { return };
         let mut facts = *self.store.peek(env.pointer);
@@ -624,6 +630,20 @@ impl Runtime {
         Some(cell)
     }
 
+    /// The cell of whether the pointer hovers `part` of `node`, created on first use and owned by
+    /// the node.
+    pub(crate) fn part_hover_cell(&mut self, node: NodeId, part: u64) -> Option<State<bool>> {
+        if let Some(&(_, cell)) = self.part_hovers.get(&node).and_then(|cells| cells.iter().find(|(held, _)| *held == part)) {
+            return Some(cell);
+        }
+        let value = self.hovered_part(node) == Some(part);
+        let n = self.tree.nodes.get_mut(&node)?;
+        let cell = self.store.create(value);
+        n.owned.push(cell.slot_ref());
+        self.part_hovers.entry(node).or_default().push((part, cell));
+        Some(cell)
+    }
+
     /// The part of `node` the hover hit is on (0 for its own shape), as of now, without recording a read.
     pub fn hovered_part(&self, node: NodeId) -> Option<u64> {
         self.windows.keys().find_map(|&w| self.input(w)?.hover_hit.filter(|(h, _)| h.node == node).map(|(h, _)| h.part))
@@ -661,6 +681,13 @@ impl Runtime {
             && let Some(cell) = self.hovered_parts.get(&n.node).copied()
         {
             cell.set_if_changed(&mut self.store, Some(n.part));
+        }
+        for node in [before.map(|b| b.node), now.map(|n| n.node).filter(|n| before.is_none_or(|b| b.node != *n))].into_iter().flatten() {
+            let Some(cells) = self.part_hovers.get(&node) else { continue };
+            let hovered = now.filter(|n| n.node == node).map(|n| n.part);
+            for &(part, cell) in cells.clone().iter() {
+                cell.set_if_changed(&mut self.store, hovered == Some(part));
+            }
         }
     }
 
@@ -1089,6 +1116,11 @@ impl Runtime {
             self.cancel_press(window, PressCancel::Escape);
             return;
         }
+        if let Some(node) = self.input(window).and_then(|i| i.key_capture.as_ref()).filter(|(_, keys)| keys.contains(&k.key)).map(|(node, _)| *node)
+            && self.deliver(node, node, &Event::Key(k)) == Handled::Yes
+        {
+            return;
+        }
         // Space over the canvas a modal keeps open goes to that canvas, not to the dialog's focused control: held, it
         // turns the canvas's primary press into its pan. Its release follows it there.
         let space = k.key == Key::Space && !(k.mods.cmd || k.mods.ctrl || k.mods.alt);
@@ -1280,6 +1312,10 @@ impl Runtime {
         self.interact.remove(&id);
         self.interact_facts.remove(&id);
         self.hovered_parts.remove(&id);
+        self.part_hovers.remove(&id);
+        if let Some(input) = self.input_mut(window).filter(|i| i.key_capture.as_ref().is_some_and(|(node, _)| *node == id)) {
+            input.key_capture = None;
+        }
         self.hover_points.remove(&id);
         self.forget_drag_node(id);
         self.forget_touch_node(window, id);
@@ -1547,6 +1583,30 @@ impl crate::build::BuildCx<'_> {
         match self.runtime_mut().hovered_part_cell(node) {
             Some(cell) => cell.get(self),
             None => None,
+        }
+    }
+
+    /// Whether the pointer hovers the part `part` of `node` (0 for its own shape), recording a build
+    /// read that flips only when that part's hover does: a pointer moving between `node`'s other
+    /// parts builds nothing here.
+    pub fn read_part_hovered(&mut self, node: NodeId, part: u64) -> bool {
+        match self.runtime_mut().part_hover_cell(node, part) {
+            Some(cell) => cell.get(self),
+            None => false,
+        }
+    }
+
+    /// This node takes `keys` in its window ahead of the focused node while it holds a mode (a
+    /// middle-button auto-scroll latch, which Escape ends whatever has focus); a key it does not
+    /// handle goes on to focus. No keys releases the capture if this node holds it; a node that
+    /// goes releases it too.
+    pub fn capture_keys(&mut self, keys: &[Key]) {
+        let (node, window) = (self.node(), self.window());
+        let Some(input) = self.runtime_mut().input_mut(window) else { return };
+        if !keys.is_empty() {
+            input.key_capture = Some((node, keys.iter().copied().collect()));
+        } else if input.key_capture.as_ref().is_some_and(|(held, _)| *held == node) {
+            input.key_capture = None;
         }
     }
 

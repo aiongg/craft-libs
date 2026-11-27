@@ -394,12 +394,50 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     ) -> Vec<(ItemOpener, crate::contract::Response)> {
         item_openers(ui, input, enabled, openers)
     }
+
+    /// The response of each opener part of the member row whose row part id is `row`, from the member's parts kept as
+    /// the collection node's hit shapes (`MemberLooks::parts`): the part's shape gives its rect, the collection node's
+    /// hover of that part alone gives hover (a tracked read that flips only with that part, so a pointer moving between
+    /// rows runs nothing), the node's press while the part is hovered gives press (as `run_member` reads its row's), and
+    /// a click the collection's queue took on the part gives the click.
+    pub(super) fn member_openers(
+        &self,
+        ui: &mut Ui,
+        (owner, row, parts): (Id, u64, &[crate::contract::rt::node::KeptPart]),
+        input: &[crate::contract::rt::NodeInput],
+        enabled: bool,
+        openers: Vec<ItemOpener>,
+    ) -> Vec<(ItemOpener, crate::contract::Response)> {
+        if openers.is_empty() {
+            return Vec::new();
+        }
+        let cx = ui.build_cx();
+        let Some(node) = crate::contract::rt::ids::node_of(cx, owner) else { return Vec::new() };
+        let Some(origin) = cx.runtime().window_rect(node).map(|rect| rect.min) else { return Vec::new() };
+        openers
+            .into_iter()
+            .filter_map(|opener| {
+                let id = crate::contract::rt::run::member_part(row, opener.part);
+                let shape = parts.iter().find(|kept| kept.id == id)?.shape;
+                let rect = shape.bounds().translate(origin.to_vec2());
+                let hovered = cx.read_part_hovered(node, id);
+                let pressed = enabled && hovered && cx.read_interaction(node, craft_ui_rt::InteractFact::Pressed);
+                let clicked = enabled
+                    && input.iter().any(|event| {
+                        matches!(event, crate::contract::rt::NodeInput::Pointer { gesture: craft_ui_rt::Gesture::Up { click: true, .. }, part, .. } if *part == id)
+                    });
+                let interact = craft_ui_rt::Interact { hovered, pressed, ..craft_ui_rt::Interact::default() };
+                let facts = crate::contract::rt::response::InputFacts { clicked, ..Default::default() };
+                Some((opener, crate::contract::Response::new(opener_id(opener.item, opener.part), rect, None, interact, false, facts)))
+            })
+            .collect()
+    }
 }
 
 /// The response of each opener part on its item's node, found through the Id map: the part's kept hit shape gives its
 /// rect, the node's hovered part and held press give hover and press (tracked reads, so the collection reruns only when
 /// the opener's own facts flip), and the press a descendant ended this run (`NodeInput::DescendantPress`) gives the
-/// click. An item without a node this frame (a member row, or a row not yet laid out) has no opener response.
+/// click. A row not yet laid out has no opener response; a member row's come from `member_openers`.
 fn item_openers(
     ui: &mut Ui,
     input: &[crate::contract::rt::NodeInput],
