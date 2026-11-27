@@ -2,7 +2,7 @@
 //! read from tokens.
 
 use super::tokens::UiTokens;
-use craft_theme::{Rgba, Stateful};
+use craft_theme::{Rgba, Stateful, Tokens};
 use egui::Color32;
 
 use super::look::StyleColor;
@@ -203,15 +203,15 @@ pub struct ScrollBarLook {
 }
 
 /// The shortest a scroll bar's thumb gets along the bar, whatever the bar's kind.
-pub(crate) fn min_thumb(tokens: &UiTokens) -> f32 {
+pub(crate) fn min_thumb(tokens: &Tokens) -> f32 {
     tokens.size.handle.md * 2.0
 }
 
-pub(crate) fn scroll_bar_look(tokens: &UiTokens) -> ScrollBarLook {
+pub(crate) fn scroll_bar_look(tokens: &Tokens) -> ScrollBarLook {
     scroll_bar_look_of(tokens, ScrollBarKind::Floating)
 }
 
-pub(crate) fn scroll_bar_look_of(tokens: &UiTokens, kind: ScrollBarKind) -> ScrollBarLook {
+pub(crate) fn scroll_bar_look_of(tokens: &Tokens, kind: ScrollBarKind) -> ScrollBarLook {
     let c = &tokens.color;
     let clear = style_color(Rgba::TRANSPARENT);
     let disabled = style_color(c.state.disabled_fill);

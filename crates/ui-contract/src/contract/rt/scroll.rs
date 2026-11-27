@@ -18,14 +18,15 @@
 //!   frame; point steps (touchpads, which bring their own momentum) apply at once.
 //! - Indicators: `ScrollIndicator::Bar` draws the bars always, `Overlay` only while the pointer is
 //!   over the view (or always with `at_rest`), `Strips` a strip at each end the view does not reach,
-//!   which scrolls while pressed. A thumb is drawn stronger while the pointer is over the view.
+//!   which scrolls while pressed. A bar takes the floating scroll bar's look: a thin thumb at rest, the full
+//!   thickness and a stronger fill while the pointer is on the thumb or the thumb is dragged.
 //! - ScrollIntoView: an assistive technology's request on a node inside the body bubbles to the
 //!   nearest scroll body, which glides until the node is in view, and goes on to the bodies around
 //!   it.
 
 use craft_behavior::scroll::{drag, thumb};
 use craft_behavior::{ScrollSpan, WheelEase};
-use craft_theme::Tokens;
+use craft_theme::{State as LookState, States, Tokens};
 use craft_ui_rt::{
     AccessCx, BuildCx, Constraints, Element, Event, EventCx, Gesture, Handled, HitShape, InteractFact, LayoutCx, NodeId, PaintCx, Pos2, Rect, Rgba,
     Sense, State, Vec2, WheelUnit,
@@ -35,6 +36,7 @@ use super::ids::node_of;
 use super::node::{Kept, NodeInput, Placed};
 use super::ui::{Flow, Ui};
 use crate::contract::{Id, Notch, Scroll, ScrollAnchor};
+use crate::style::{StyleColor, scroll_bar_look};
 
 /// The share of the view's extent built beyond each of its edges: a step within it moves the kept
 /// content and builds nothing.
@@ -123,14 +125,20 @@ pub(crate) struct ScrollKept {
     look: Look,
 }
 
-/// The bar and fade look, resolved from the tokens at the last build.
+/// The bar and fade look, resolved from the tokens at the last build. The bar takes the floating scroll bar's look
+/// (`scroll_bar_look`), the one every scroll bar shares.
 #[derive(Clone, Copy)]
 struct Look {
+    /// The bar's thickness: its track, and its thumb at its widest.
     thickness: f32,
+    /// The thumb's thickness per state: thin at rest along the track's outer edge, the bar's thickness under the
+    /// pointer or while dragged.
+    thumb_width: States<f32>,
     min_thumb: f32,
-    thumb: Rgba,
-    /// The thumb while the pointer is over the view.
-    thumb_hover: Rgba,
+    /// The thumb's fill per state.
+    thumb: States<Rgba>,
+    /// The track's fill per state.
+    track: States<Rgba>,
     fade: Rgba,
     fade_extent: f32,
     line: f32,
@@ -140,17 +148,39 @@ struct Look {
 
 impl Look {
     fn of(tokens: &Tokens) -> Look {
+        let bar = scroll_bar_look(tokens);
+        let fill = |states: States<StyleColor>| {
+            let rgba = |color: StyleColor| crate::primitives::items::rgba(color.egui());
+            States::new(rgba(states.rest), rgba(states.hover), rgba(states.pressed), rgba(states.disabled))
+        };
         Look {
-            thickness: tokens.size.handle.sm,
-            min_thumb: tokens.size.button,
-            thumb: tokens.color.text.faint,
-            thumb_hover: tokens.color.text.muted,
+            thickness: bar.thickness,
+            thumb_width: bar.thumb_width.off,
+            min_thumb: bar.min_thumb,
+            thumb: fill(bar.thumb.off),
+            track: fill(bar.track.off),
             fade: tokens.color.surface.chrome,
             fade_extent: tokens.space.gap.section,
             line: tokens.size.button,
             strip: tokens.size.control.sm,
         }
     }
+
+    /// The look before the first build.
+    const NONE: Look = {
+        let clear = States::new(Rgba([0; 4]), Rgba([0; 4]), Rgba([0; 4]), Rgba([0; 4]));
+        Look {
+            thickness: 0.0,
+            thumb_width: States::new(0.0, 0.0, 0.0, 0.0),
+            min_thumb: 0.0,
+            thumb: clear,
+            track: clear,
+            fade: Rgba([0; 4]),
+            fade_extent: 0.0,
+            line: 0.0,
+            strip: 0.0,
+        }
+    };
 }
 
 impl ScrollKept {
@@ -172,16 +202,7 @@ impl ScrollKept {
             at_end: true,
             anchor: None,
             strip: None,
-            look: Look {
-                thickness: 0.0,
-                min_thumb: 0.0,
-                thumb: Rgba([0; 4]),
-                thumb_hover: Rgba([0; 4]),
-                fade: Rgba([0; 4]),
-                fade_extent: 0.0,
-                line: 0.0,
-                strip: 0.0,
-            },
+            look: Look::NONE,
         }
     }
 
@@ -380,7 +401,8 @@ impl Element for ScrollNode {
         // The pointer over the view shows overlay bars and the stronger thumb: a flip repaints this node only.
         let hovered = cx.interaction_fact(InteractFact::Hovered);
         let bars = !self.scroll.overlay_hides_at_rest() || hovered || sk.grab.is_some();
-        let thumb_color = if hovered || sk.grab.is_some() { look.thumb_hover } else { look.thumb };
+        // A bar is in its hover look while the pointer is on its thumb and in its pressed look while dragged.
+        let on_bar = cx.hovered_part();
         cx.over(|cx| {
             if self.scroll.vertical_on() {
                 let clear = look.fade.faded(0.0);
@@ -405,8 +427,26 @@ impl Element for ScrollNode {
             }
             for axis in [0, 1] {
                 let on = if axis == 1 { self.scroll.vertical_on() } else { self.scroll.horizontal_on() };
-                if let Some((_, thumb)) = sk.bar(axis, bounds).filter(|_| on && bars) {
-                    cx.rect(thumb, look.thickness / 2.0, thumb_color, None);
+                if let Some((track, thumb)) = sk.bar(axis, bounds).filter(|_| on && bars) {
+                    let state = match (sk.grab.is_some_and(|(at, ..)| at == axis), on_bar == Some(BAR_PARTS[axis])) {
+                        (true, _) => LookState::Pressed,
+                        (false, true) => LookState::Hover,
+                        _ => LookState::Rest,
+                    };
+                    let radius = look.thickness / 2.0;
+                    let track_fill = look.track.get(state);
+                    if track_fill.0[3] > 0 {
+                        cx.rect(track, radius, track_fill, None);
+                    }
+                    // The thumb lies along the track's outer edge: its end side, or its bottom for a sideways bar.
+                    let width = look.thumb_width.get(state).min(look.thickness);
+                    let mut edge = thumb;
+                    if axis == 1 {
+                        edge.min.x = edge.max.x - width;
+                    } else {
+                        edge.min.y = edge.max.y - width;
+                    }
+                    cx.rect(edge, width / 2.0, look.thumb.get(state), None);
                     cx.hit(HitShape::Rect(thumb), Sense::DRAG | Sense::HOVER, BAR_PARTS[axis]);
                 }
             }

@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{ColumnWidth, Mixed, resolve_columns};
+use craft_behavior::{ColumnWidth, Insets, Mixed, resolve_columns};
 use craft_theme::Tokens;
 use craft_ui_rt::{BuildCx, Constraints, Element, InlineState, LayoutCx, NodeId, PaintCx, Pos2, Rect, Rgba, State, Vec2};
 
@@ -46,6 +46,7 @@ use crate::runtime::access::scope::FieldMessage;
 use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, Shrink, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
+use crate::style::ComponentStyle;
 
 /// A container's last measurement of its body (module docs).
 #[derive(Clone, Debug)]
@@ -167,7 +168,10 @@ impl Bands {
 /// The facts of `ContainerProps` the layout reads, resolved against the tokens.
 struct Shape {
     layout: BodyLayout,
-    pad: Vec2,
+    /// The padding between the container's edge and its regions at the top left and at the bottom right: the style's
+    /// padding (`ComponentStyle::metrics`, mirrored right to left) plus the props' `pad` on the edges it applies to.
+    pad_min: Vec2,
+    pad_max: Vec2,
     sizing: Sizing,
     gap: f32,
     header: Option<HeaderRegion>,
@@ -207,8 +211,8 @@ struct Shape {
 }
 
 impl Shape {
-    /// `parent` is the flow the container is shown in.
-    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, parent: &Flow) -> Shape {
+    /// `parent` is the flow the container is shown in; `padding` is the style's.
+    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, parent: &Flow, padding: Insets) -> Shape {
         let at_start = parent.sizes.is_empty();
         let pad = props.pad.points(tokens);
         let pad = match props.pad_edges {
@@ -216,10 +220,13 @@ impl Shape {
             PadEdges::Inline => Vec2::new(pad, 0.0),
             _ => Vec2::splat(pad),
         };
+        let rtl = env.direction.is_rtl();
+        let (left, right) = if rtl { (padding.end, padding.start) } else { (padding.start, padding.end) };
         let gap = props.body_gap.points_in(tokens);
         Shape {
             layout: props.layout.clone(),
-            pad,
+            pad_min: pad + Vec2::new(left, padding.top),
+            pad_max: pad + Vec2::new(right, padding.bottom),
             sizing: props.sizing,
             gap,
             header: props.header,
@@ -406,7 +413,7 @@ impl Shape {
     /// The container's size from its inner content size, by its sizing, in `room`. A scroll body's inner size is
     /// already its view: as large as its content until the content outgrows the room.
     fn outer(&self, inner: Vec2, room: Vec2) -> Vec2 {
-        let content = (inner + 2.0 * self.pad).max(self.least);
+        let content = (inner + self.pad_min + self.pad_max).max(self.least);
         match self.sizing {
             Sizing::Fill => room,
             Sizing::FillWidth => Vec2::new(room.x, content.y),
@@ -1132,7 +1139,10 @@ fn show_plain<C: Container, R>(
     // that holds the open decision while the layer is closed (`show_on_layer`).
     let driving = driving_opener(&mut component, &props);
     let gate = driving.is_some() && hosted.is_none();
-    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place).in_popup(&props, hosted.is_some()).in_pane(&props);
+    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow, ComponentStyle::metrics(&*begun.style).padding)
+        .in_bar(&props, &place)
+        .in_popup(&props, hosted.is_some())
+        .in_pane(&props);
     // A window mount is the whole content of its window.
     let at = match (&props.mount, at) {
         (Mount::Window { .. }, ShowAt::Flow) => ShowAt::Rect(ui.ctx().content_rect()),
@@ -1397,7 +1407,9 @@ fn measure_in<C: Container, R>(
         return *size;
     }
     let props = component.props(Internal::new()).clone();
-    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, &ui.flow).in_bar(&props, &begun.env).in_popup(&props, hosted);
+    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, &ui.flow, ComponentStyle::metrics(&*begun.style).padding)
+        .in_bar(&props, &begun.env)
+        .in_popup(&props, hosted);
     let open = read_open(component, &props, peeked.as_ref().and_then(|p| p.1), &ctx);
     shape.closed = !open;
     let size = {
@@ -1488,7 +1500,7 @@ fn lay_out<C: Container>(
     tokens: &Arc<Tokens>,
     body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>),
 ) -> (Vec2, Flow) {
-    let inner = Rect::from_min_size(origin + shape.pad, (room - 2.0 * shape.pad).max(Vec2::ZERO));
+    let inner = Rect::from_min_size(origin + shape.pad_min, (room - shape.pad_min - shape.pad_max).max(Vec2::ZERO));
     let real = into.kept.is_some();
     frame.geometry = HeaderGeometry { body_top: inner.min.y, ..HeaderGeometry::default() };
     if !shape.has_regions() {
@@ -1579,7 +1591,7 @@ fn lay_out<C: Container>(
         header_w = header.x + controls.x + 2.0 * inset;
         frame.geometry.line = Some(Rect::from_min_max(Pos2::new(line_rect.min.x, top), Pos2::new(line_rect.max.x, top + header.y.max(controls.y))));
         let band_bottom = top + header.y.max(controls.y);
-        let band_width = if room.x.is_finite() { room.x } else { header_w + 2.0 * shape.pad.x };
+        let band_width = if room.x.is_finite() { room.x } else { header_w + shape.pad_min.x + shape.pad_max.x };
         place(band, Rect::from_min_size(Pos2::new(origin.x, band_top), Vec2::new(band_width, band_bottom - band_top)));
         if h.inline {
             // The body shares the header's line: it starts past the header (before it, right to left).
@@ -1599,7 +1611,8 @@ fn lay_out<C: Container>(
             place(rule_node(cx, real, Region::RuleUnder, divider), rule);
             top += shape.bands.under;
         }
-        if !shape.closed && !h.inline {
+        // An empty header (nothing shown this pass) takes no gap.
+        if !shape.closed && !h.inline && header.y.max(controls.y) > 0.0 {
             top += shape.header_gap;
         }
     }
