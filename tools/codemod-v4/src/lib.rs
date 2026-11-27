@@ -238,6 +238,18 @@ fn chain_call(e: &Expr) -> Option<&ExprCall> {
     }
 }
 
+/// The events a `Fixture::frame` argument lists: `vec![..]` or `Vec::new()`. `None` for any other argument.
+fn frame_events(e: &Expr) -> Option<Vec<Expr>> {
+    match strip_all(e) {
+        Expr::Macro(em) if em.mac.path.is_ident("vec") => {
+            let parsed = em.mac.parse_body_with(syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated).ok()?;
+            Some(parsed.into_iter().collect())
+        }
+        Expr::Call(c) if c.args.is_empty() && call_path(c) == ["Vec", "new"] => Some(Vec::new()),
+        _ => None,
+    }
+}
+
 fn call_path(c: &ExprCall) -> Vec<String> {
     match &*c.func {
         Expr::Path(p) => path_names(&p.path),
@@ -596,12 +608,15 @@ impl<'a> Pass<'a> {
             && self.tracked.contains(&recv)
         {
             if name == "frame" {
-                let empty_vec = nargs == 1 && matches!(&mc.args[0], Expr::Macro(em) if em.mac.path.is_ident("vec") && em.mac.tokens.is_empty());
-                if empty_vec {
-                    let end = self.range(mc).1;
-                    self.edit(m.0, end, "step()".to_owned(), "24 Fixture::frame");
-                } else {
-                    self.skip("fixture-frame-args", m.0, ".frame(..)");
+                let events = if nargs == 1 { frame_events(&mc.args[0]) } else { None };
+                let end = self.range(mc).1;
+                match events.as_deref() {
+                    Some([]) => self.edit(m.0, end, "step()".to_owned(), "24 Fixture::frame"),
+                    Some([event]) => {
+                        let text = self.text(self.range(event)).to_owned();
+                        self.edit(m.0, end, format!("send({text})"), "24 Fixture::frame");
+                    }
+                    _ => self.skip("fixture-frame-args", m.0, ".frame(..)"),
                 }
             } else if name == "access" {
                 self.skip("fixture-access", m.0, ".access(kind, t)");

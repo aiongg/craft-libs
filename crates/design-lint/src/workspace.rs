@@ -86,19 +86,6 @@ const CLOSED: &[&str] = &[
     "VariantParts",     // built or matched in craft-ui-widgets
 ];
 
-/// Permission keys whose only allowed location is craft-ui-contract's `runtime::egui`.
-const EGUI_KEYS: [&str; 9] = [
-    "contract/egui-import",
-    "contract/allocate",
-    "contract/egui-widget",
-    "contract/access",
-    "contract/keys",
-    "contract/pointer",
-    "contract/motion",
-    "contract/containers",
-    "contract/platform",
-];
-
 /// One allowed location: files of `krate` whose module path starts with `module` (the whole crate when empty).
 struct Place {
     krate: &'static str,
@@ -112,19 +99,6 @@ const fn place(krate: &'static str, module: &'static [&'static str]) -> Place {
 /// The locations that may use what `key` forbids. A key not listed here is allowed nowhere.
 fn places(key: &str) -> Vec<Place> {
     match key {
-        k if EGUI_KEYS.contains(&k) => vec![place("craft-ui-contract", &["runtime", "egui"])],
-        "style-mutation" => {
-            vec![place("craft-ui-contract", &["runtime", "egui", "style"]), place("craft-ui-contract", &["runtime", "egui", "scale"])]
-        }
-        "contract/text-edit" => {
-            vec![
-                place("craft-ui-contract", &["runtime", "egui"]),
-                place("craft-ui-contract", &["primitives", "text_adapter"]),
-                place("craft-ui-contract", &["testing"]),
-            ]
-        }
-        "contract/memory" => vec![place("craft-ui-contract", &["runtime", "egui", "memory"])],
-        "contract/layers" => vec![place("craft-ui-contract", &["runtime", "egui", "areas"])],
         "contract/motion:clock" => vec![place("craft-ui-contract", &["runtime", "motion"])],
         "contract/platform:target" => vec![place("craft-platform", &[]), place("craft-host", &["target"])],
         "behavior/pipeline-only" => {

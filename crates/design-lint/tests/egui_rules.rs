@@ -10,13 +10,13 @@ use std::path::Path;
 use craft_design_lint::{StaticScope, analyze_contract};
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/egui-rules");
-const ALLOWED_DIR: &str = "src/runtime/egui";
+const ALLOWED_DIR: &str = "src/allowed";
 
 fn fixture(dir: &str, name: &str) -> String {
     std::fs::read_to_string(Path::new(FIXTURES).join(dir).join(name)).unwrap()
 }
 
-/// The scope that allows every egui call and target check in `runtime/egui`, and lists the crate as egui-linked.
+/// The scope that allows every egui call and target check in `ALLOWED_DIR`, and lists the crate as egui-linked.
 fn scope() -> StaticScope {
     ["contract", "test/kit"]
         .into_iter()
@@ -84,25 +84,12 @@ fn allowed_location_passes_the_same_source() {
 }
 
 #[test]
-fn family_modules_neither_import_runtime_egui_nor_build_egui_text() {
+fn family_modules_build_no_egui_text() {
     let src = fixture("reject", "family-raw-egui.rs");
-    let layered = StaticScope::new().layer("crates/x/src/text", 5).layer("crates/x/src/shell", 7);
+    let layered = StaticScope::new().layer("crates/x/src/text", 5);
     let findings = analyze_contract(&src, Path::new("crates/x/src/text/mod.rs"), &layered, false);
     let hits: Vec<_> = findings.iter().map(|f| (f.rule, f.line)).collect();
-    assert_eq!(
-        hits,
-        [
-            ("contract/runtime-egui", 1),
-            ("contract/text-edit", 1),
-            ("contract/egui-widget", 5),
-            ("contract/egui-widget", 7),
-            ("contract/egui-widget", 8),
-            ("contract/runtime-egui", 9),
-            ("contract/text-edit", 9),
-        ]
-    );
-    let shell = analyze_contract(&src, Path::new("crates/x/src/shell/app.rs"), &layered, false);
-    assert!(shell.iter().all(|f| f.rule != "contract/runtime-egui"), "layer 7 hosts the adapter");
+    assert_eq!(hits, [("contract/egui-widget", 3), ("contract/egui-widget", 5), ("contract/egui-widget", 6)]);
 }
 
 #[test]

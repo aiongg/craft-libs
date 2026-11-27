@@ -1,13 +1,11 @@
-//! Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` over a frame.
+//! Style helpers: token sets, a `StyleCx`, the style cache and the styles a harness resolved.
 
-use crate::primitives::{Draw, DrawEnv, PaintRecord};
-use crate::runtime::env::{AppValues, Scale};
-use crate::runtime::pass_state;
+use crate::contract::{Context, Id};
+use crate::runtime::env::{AppValues, Env, Scale};
 use crate::style::{ComponentStyle, EnvKey, Ink, StyleCx, StyleKey, UiTokens, resolve_style};
 use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::{Appearance, Contrast, ControlSize, Mode, Size, TextSize, Variant, Variants, builtins, resolve};
-use egui::{Context, Shape};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -82,12 +80,12 @@ pub fn env_key(tokens: &UiTokens) -> EnvKey {
     EnvKey::new(tokens.key(), Direction::Ltr, Scale::default(), Os::Linux, true, 0)
 }
 
-/// Runs `f` with a `StyleCx` over `tokens` in a left-to-right Linux window at scale 1.
+/// Runs `f` with a `StyleCx` over `tokens` in a left-to-right Linux window at scale 1. `ctx` is a window's context
+/// (a stepped harness's): its root scope gives the line height ratio of the interface face.
 pub fn with_cx<R>(ctx: &Context, tokens: &UiTokens, variant: Variant, size: ControlSize, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {
     let values = AppValues::default();
-    let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
+    let line_ratio = Env::of_root(ctx).line_ratio;
     let cx = StyleCx::new(
-        ctx,
         tokens,
         &values,
         size,
@@ -104,12 +102,12 @@ pub fn with_cx<R>(ctx: &Context, tokens: &UiTokens, variant: Variant, size: Cont
 
 /// The cached style for `key` in `cx`, built by `default` on a miss.
 pub fn style_of<K: StyleKey, S: ComponentStyle>(ctx: &Context, cx: &StyleCx<'_>, key: K, default: for<'a> fn(&StyleCx<'a>, K) -> S) -> Arc<S> {
-    resolve_style(cx, key, ctx, default)
+    resolve_style(cx, key, ctx.styles(), default)
 }
 
 /// The base id of the face painted for `part` of the composite `id`.
-pub fn face_id(composite: &str, part: craft_behavior::PartRef) -> egui::Id {
-    crate::primitives::face_id(crate::runtime::egui::memory::unique(composite), part)
+pub fn face_id(composite: &str, part: craft_behavior::PartRef) -> Id {
+    crate::primitives::face_id(Id::new(composite), part)
 }
 
 /// What `Draw` recorded in one frame.
@@ -219,18 +217,15 @@ pub(crate) struct StyleRecord {
     seen: Vec<std::sync::Arc<StyleSeen>>,
 }
 
-/// Records the style step 2 resolved for `C`, once per style key, env, variant and size, in frames a test fixture
-/// drives.
+/// Records the style step 2 resolved for `C`, once per style key, env, variant and size. The pipeline calls it under
+/// the `testing` feature after it resolves a style, so a harness reads what its stories showed ([`Harness::styles_of`]).
 pub(crate) fn record<C: crate::contract::Component>(ctx: &Context, scx: &crate::style::StyleCx<'_>, key: C::StyleKey, style: &C::Style) {
     use std::hash::{Hash, Hasher};
-    if !crate::runtime::egui::fixture::driving() {
-        return;
-    }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     key.hash(&mut hasher);
     let inputs = hasher.finish();
     let type_name = std::any::type_name::<C>();
-    let known = pass_state::with::<StyleRecord, _>(ctx, |record| {
+    let known = ctx.service::<StyleRecord, _>(|record| {
         record.seen.iter().any(|seen| {
             seen.type_name == type_name && seen.inputs == inputs && seen.env == scx.key && seen.variant == scx.variant && seen.size == scx.size
         })
@@ -248,10 +243,18 @@ pub(crate) fn record<C: crate::contract::Component>(ctx: &Context, scx: &crate::
         env: scx.key,
         again: std::sync::Arc::new(move |cx| looks_of(&resolve(cx, key))),
     };
-    pass_state::with::<StyleRecord, _>(ctx, |record| record.seen.push(std::sync::Arc::new(seen)));
+    ctx.service::<StyleRecord, _>(|record| record.seen.push(std::sync::Arc::new(seen)));
 }
 
 /// Every style the pipeline resolved on `ctx` for the component type `type_name`.
 pub(crate) fn styles_of(ctx: &Context, type_name: &str) -> Vec<std::sync::Arc<StyleSeen>> {
-    pass_state::with::<StyleRecord, _>(ctx, |record| record.seen.iter().filter(|seen| seen.type_name == type_name).cloned().collect())
+    ctx.service::<StyleRecord, _>(|record| record.seen.iter().filter(|seen| seen.type_name == type_name).cloned().collect())
+}
+
+impl<S, R: craft_ui_rt::Renderer> crate::contract::rt::harness::Harness<S, R> {
+    /// Every style the pipeline resolved for the component type `type_name` (`std::any::type_name`) in the steps taken so
+    /// far, one per style key, env, variant and size.
+    pub fn styles_of(&self, type_name: &str) -> Vec<std::sync::Arc<StyleSeen>> {
+        styles_of(&self.ctx(), type_name)
+    }
 }

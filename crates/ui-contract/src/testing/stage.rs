@@ -1,9 +1,9 @@
 //! The room a story that fills both axes is shown in.
 
-use crate::layout::flow_room;
+use crate::contract::Ui;
 use crate::runtime::env::Env;
 use craft_theme::Tokens;
-use egui::{Rect, Ui};
+use craft_ui_rt::{Rect, Vec2};
 
 /// The stage's height, in control heights (`size.control.md`): 360 in Compact.
 const HEIGHT_IN_CONTROLS: f32 = 15.0;
@@ -36,7 +36,7 @@ pub fn stage(ui: &mut Ui) -> Rect {
 /// canvas): the room its card's view gives, or the stage height where the room is unbounded.
 pub fn room_height(ui: &Ui) -> f32 {
     let env = Env::of(ui);
-    let room = flow_room(ui, &env).y;
+    let room = ui.available_height();
     if room.is_finite() { room } else { stage_height(&env.tokens) }
 }
 
@@ -44,7 +44,8 @@ pub fn room_height(ui: &Ui) -> f32 {
 /// and returns its rect: the stage of a canvas whose document is only as tall as its content (a text being edited).
 pub fn stage_fitting(ui: &mut Ui, height: impl FnOnce(f32) -> f32) -> Rect {
     let width = stage_width(ui);
-    crate::runtime::egui::alloc::space(ui, egui::vec2(width, height(width)))
+    let size = Vec2::new(width, height(width));
+    ui.allocate(size)
 }
 
 /// The width of the stage [`stage_fitting`] allocates: the width left in `ui` between the least and greatest stage
@@ -52,7 +53,6 @@ pub fn stage_fitting(ui: &mut Ui, height: impl FnOnce(f32) -> f32) -> Rect {
 pub fn stage_width(ui: &Ui) -> f32 {
     let env = Env::of(ui);
     let tokens = &env.tokens;
-    let room = flow_room(ui, &env).x;
-    let room = if room.is_finite() { room } else { ui.available_width() };
+    let room = ui.available_width();
     room.clamp(least_stage_width(tokens), WIDTH_MAX_IN_CONTROLS * tokens.size.control.md)
 }

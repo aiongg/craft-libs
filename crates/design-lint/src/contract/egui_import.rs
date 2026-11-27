@@ -1,4 +1,4 @@
-//! `contract/egui-import`: egui's behavioural APIs outside `runtime::egui`.
+//! `contract/egui-import`: egui's behavioural APIs in library and app code.
 
 use crate::report::Finding;
 
@@ -40,17 +40,11 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
                 let data_types = cx.scope.layer(cx.path) == Some(DATA_LAYER);
                 let accesskit_root = path.first().filter(|f| *f == "accesskit" && !data_types);
                 if let Some(seg) = path.iter().skip(1).find(|s| SEGMENTS.contains(&s.as_str())).or(accesskit_root) {
-                    cx.flag(
-                        out,
-                        ID,
-                        ID,
-                        site,
-                        format!("`{}` is an egui behavioural API (`{seg}`); reach it through `runtime::egui`", path.join("::")),
-                    );
+                    cx.flag(out, ID, ID, site, format!("`{}` is an egui behavioural API (`{seg}`); use the `craft_ui` equivalent", path.join("::")));
                 }
             }
             Kind::Method { name, args, .. } if METHODS.contains(&name.as_str()) || (args.has_closure && CLOSURE_METHODS.contains(&name.as_str())) => {
-                cx.flag(out, ID, ID, site, format!("{} is an egui behavioural API; reach it through `runtime::egui`", super::call(name)));
+                cx.flag(out, ID, ID, site, format!("{} is an egui behavioural API; use the `craft_ui` equivalent", super::call(name)));
             }
             _ => {}
         }

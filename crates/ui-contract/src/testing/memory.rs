@@ -1,37 +1,36 @@
-//! The memory services the trials check: a stage fixture that implements `Remember`, eviction, `forget` and
-//! the id derivations.
+//! The memory services the trials check: a stage fixture that implements `Remember`, `forget` and the id
+//! derivations.
 
-use crate::runtime::egui::{child, memory as store};
-use crate::runtime::memory::{self, Facts, MemoryStage, SaveKey, StageAccess, register_owner, sealed};
-use egui::{Context, Id, Ui};
+use crate::contract::rt::memory::Memory;
+use crate::contract::{Context, Id, Ui};
+use crate::runtime::memory::{self, MemoryStage, SaveKey, StageAccess, sealed};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-/// A memory stage opened the way the pipeline opens one at step 3: the owner is registered, then the stage
-/// opens for `base`. `finish` is the write-back of step 17. It implements `Remember` over `base`.
+/// A memory stage opened the way the pipeline opens one for a component: over a node memory owned by `owner`.
+/// `finish` is the write-back after the component's hooks. It implements `Remember` over `base`.
 pub struct Stage {
     stage: MemoryStage,
     base: Id,
 }
 
 impl Stage {
-    /// A stage whose entries belong to `base`, which is registered as its own owner.
+    /// A stage whose entries belong to `base`.
     pub fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
     }
 
-    /// A stage keyed by `base` whose entries belong to `owner`, registered here.
+    /// A stage keyed by `base` whose node memory belongs to `owner`.
     pub fn open_owned(ctx: &Context, base: Id, owner: Id) -> Self {
-        register_owner(ctx, owner);
-        Stage { stage: MemoryStage::open_owned(ctx, base, owner), base }
+        Stage { stage: MemoryStage::on_node(ctx, owner, Memory::default()), base }
     }
 
-    /// The stage of a sizing pass: it reads kept values and writes nothing.
+    /// The stage of a measuring run: it reads kept values and writes nothing.
     pub fn open_peek(ctx: &Context, base: Id) -> Self {
-        Stage { stage: MemoryStage::open_peek(ctx, base), base }
+        Stage { stage: MemoryStage::open(ctx, base).peek_only(), base }
     }
 
-    /// Writes every slot back to context data.
+    /// Writes every slot back to the window's memory.
     pub fn finish(self) {
         self.stage.write_back();
     }
@@ -63,21 +62,6 @@ pub fn forget_saved(ctx: &Context, key: &SaveKey) {
     memory::forget_saved(ctx, key);
 }
 
-/// How many slot records the stages' write-backs have written in `ctx` so far.
-pub fn records_written(ctx: &Context) -> usize {
-    memory::records_written(ctx)
-}
-
-/// Drops the slots the end hook evicted.
-pub fn dispose_evicted(ctx: &Context) {
-    memory::dispose_evicted(ctx);
-}
-
-/// Stores `value` in context data under `id`, as a slot's `Drop` may.
-pub fn put<T: std::any::Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T) {
-    store::put(ctx, id, value);
-}
-
 /// The runtime sub-id of `base` for `tag`.
 pub fn sub(base: Id, tag: impl Hash + Debug) -> Id {
     memory::sub(base, tag)
@@ -88,22 +72,13 @@ pub fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
     memory::global(name, scope)
 }
 
-/// Registers `fact` for the next pass of the running viewport.
-pub fn register_fact<T: Clone + PartialEq + Debug + crate::runtime::Shift + Send + Sync + 'static>(ctx: &Context, fact: T) {
-    Facts::register(ctx, fact);
-}
-
-/// The facts the running viewport's previous pass registered.
-pub fn facts_of_last_pass<T: Clone + Send + Sync + 'static>(ctx: &Context) -> Vec<T> {
-    Facts::with_last_pass(ctx, <[T]>::to_vec)
-}
-
-/// Runs `f` on a child `Ui` of `ui`.
+/// Runs `f` on a child `Ui` of `ui` under an id of its own.
 pub fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
-    child::scoped(ui, f)
+    let id = ui.unique_id();
+    ui.push_id(id, f)
 }
 
 /// Runs `f` on a child `Ui` of `ui` with its own id scope named by `salt`.
-pub fn scoped_by<R>(ui: &mut Ui, salt: impl std::hash::Hash + std::fmt::Debug, f: impl FnOnce(&mut Ui) -> R) -> R {
-    crate::runtime::egui::memory::scoped_by(ui, salt, f)
+pub fn scoped_by<R>(ui: &mut Ui, salt: impl Hash + Debug, f: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.push_id(salt, f)
 }

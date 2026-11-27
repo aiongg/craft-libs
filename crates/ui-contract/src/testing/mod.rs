@@ -32,28 +32,14 @@ pub mod story_run;
 pub mod style;
 #[cfg(feature = "suite")]
 pub mod suite;
-pub mod text;
 pub mod windows;
 
 pub use crate::contract::rt::harness::{FRAME, Harness, HarnessBuilder, LayerInfo, Look, ScrollRegion, Target};
 pub use crate::contract::{Exemption, PatternKind, PatternProbe, Probe, Registration};
 #[cfg(feature = "testing")]
 pub use crate::fonts::document::set_budget as document_face_budget;
-pub use crate::runtime::audit::{in_run as in_audit_run, set as audit_replays};
 #[cfg(feature = "testing")]
 pub use crate::runtime::env::env_walks;
-#[cfg(feature = "testing")]
-pub use crate::runtime::layout_memory::forget_kept as forget_measurements;
-#[cfg(feature = "testing")]
-pub use crate::runtime::layout_memory::kept_leaves as kept_measurement_leaves;
-pub use crate::runtime::measure::{
-    MemoRun, active as is_measuring, body_runs as measuring_runs, contributions as measured_contributions, last_frame_derived_builds,
-    last_frame_memo_runs, last_pass_access_builds, last_pass_body_runs as last_pass_measuring_runs, last_pass_derived_builds, last_pass_measure_asks,
-    last_pass_memo_key_bytes, last_pass_memo_runs, last_pass_runs, last_pass_text_layouts, last_pass_tip_texts, least_runs as shrink_least_runs,
-    row_builds, row_measures, run as measuring_run, take_effects, widest_runs,
-};
-#[cfg(feature = "testing")]
-pub use crate::runtime::pass_state::unbound_reads as unbound_pass_state_reads;
 pub use craft_ui_macros::{story, trial};
 pub use paint::{Painted, PaintedText};
 #[cfg(feature = "suite")]
@@ -65,7 +51,6 @@ pub use story::{
     show_as_only_item, show_as_only_item_across,
 };
 pub use story_run::{Impure, Room, StoryHarness, StoryRun};
-pub use windows::install_spec;
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]

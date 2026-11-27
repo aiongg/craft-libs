@@ -3,13 +3,14 @@
 
 use std::sync::Arc;
 
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Response, Role};
 use crate::fonts::{FaceBytes, deflated_default_definitions};
-use crate::primitives::{FaceRun, PaintShape, StrokeWidth};
+use crate::primitives::{FaceRun, FrameServices, PaintShape, StrokeWidth};
 use crate::runtime::access::{Access, Name};
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::Metrics;
-use egui::{Color32, Context, Pos2, Response, Vec2};
+use craft_ui_rt::{Pos2, Vec2};
+use egui::Color32;
 
 /// The face the runs are set in, standing in for a document's font: egui's Hack, which has no kana.
 const FACE: &str = "Hack";
@@ -59,11 +60,13 @@ impl FaceRuns {
     }
 
     /// Each run with the size it asks for, the size it is drawn at and its baseline from the card's top.
-    fn baselines(ctx: &Context) -> Vec<(&'static str, f32, f32, f32)> {
+    fn baselines(scale: f32) -> Vec<(&'static str, f32, f32, f32)> {
+        let mut images = craft_ui_rt::ImageStore::default();
+        let services = FrameServices::new(None, &mut images, scale);
         let mut top = 0.0;
         RUNS.into_iter()
             .map(|(text, size)| {
-                let drawn = FaceRun::new(text, KEY, size, DataColor::new(Color32::PLACEHOLDER)).drawn_size(ctx);
+                let drawn = FaceRun::new(text, KEY, size, DataColor::new(Color32::PLACEHOLDER)).drawn_size(&services);
                 let baseline = top + drawn;
                 top += drawn * LEADING;
                 (text, size, drawn, baseline)
@@ -95,7 +98,8 @@ impl Component for FaceRuns {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let height = Self::baselines(cx.ui.ctx()).last().map_or(0.0, |(_, _, drawn, baseline)| baseline + drawn * (LEADING - 1.0));
+        let height =
+            Self::baselines(cx.with_ui(|ui| ui.pixels_per_point())).last().map_or(0.0, |(_, _, drawn, baseline)| baseline + drawn * (LEADING - 1.0));
         Vec2::new(cx.room.unwrap_or(0.0), height)
     }
 
@@ -103,7 +107,7 @@ impl Component for FaceRuns {
         let rect = cx.rect;
         let draw = ui.draw();
         let ink = DataColor::new(cx.style.ink.egui());
-        for (text, size, _, baseline) in Self::baselines(&cx.core.ctx) {
+        for (text, size, _, baseline) in Self::baselines(cx.context().pixels_per_point()) {
             let start = Pos2::new(rect.left(), rect.top() + baseline);
             let layout = draw.face_run(start, &FaceRun::new(text, KEY, size, ink), load);
             let end = Pos2::new(rect.left() + layout.size().x, start.y);

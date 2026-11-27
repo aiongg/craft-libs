@@ -11,7 +11,7 @@ pub const ID: &str = "contract/motion";
 const CLOCK: &str = "contract/motion:clock";
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
-    let why = "drives egui animation or repaint timing; go through `runtime::egui`";
+    let why = "drives egui animation or repaint timing; use `Context::request_repaint_after` and the motion specs";
     cx.flag_methods(out, ID, ID, why, |name, _| {
         name.starts_with("animate_") || matches!(name, "request_repaint_after" | "animation_time" | "prefers_reduced_motion" | "reduced_motion")
     });

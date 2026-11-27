@@ -1,4 +1,4 @@
-//! `contract/keys`: raw key reads and key events outside `runtime::egui`.
+//! `contract/keys`: raw key reads and key events in library and app code.
 
 use crate::report::Finding;
 

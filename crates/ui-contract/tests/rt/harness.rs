@@ -2,13 +2,14 @@
 //! `run` stops when no frame is asked for, and motion is off unless a test turns it on.
 
 use crate::skeleton::{IconButton, Stack};
-use accesskit::Role;
+use accesskit::Role as NodeRole;
 use craft_behavior::IconId;
-use craft_ui_contract::contract::rt::harness::{FRAME, Harness};
-use craft_ui_contract::contract::rt::{Component, ComponentKey, Cx, MeasureCx, Paint, Response, show_leaf, spec};
-use craft_ui_contract::contract::{MemoKey, MemoProps};
-use craft_ui_rt::Vec2;
-use egui::Color32;
+use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, PaintUi, Response, Role, Show, Ui, spec};
+use craft_ui_contract::primitives::PaintShape;
+use craft_ui_contract::style::{StyleColor, StyleCx, UiTokens, rgba_color};
+use craft_ui_contract::testing::{FRAME, Harness};
+use craft_ui_rt::{Sense, Vec2};
+use craft_ui_test_kit::contract::PlainStyle;
 
 #[derive(Default)]
 struct App {
@@ -17,7 +18,7 @@ struct App {
     view_runs: u32,
 }
 
-fn view(ui: &mut craft_ui_contract::contract::rt::Ui<'_, '_>, app: &mut App) {
+fn view(ui: &mut Ui<'_, '_>, app: &mut App) {
     app.view_runs += 1;
     Stack::new().show(ui, |ui| {
         if IconButton::new(IconId::new("brush"), "A").show(ui).clicked() {
@@ -33,7 +34,7 @@ fn view(ui: &mut craft_ui_contract::contract::rt::Ui<'_, '_>, app: &mut App) {
 fn a_harness_click_returns_clicked_and_runs_only_the_clicked_path() {
     let mut h = Harness::new_ui_state(view, App::default());
     h.run();
-    assert_eq!(h.query_all_by_role(Role::Button).len(), 2);
+    assert_eq!(h.query_all_by_role(NodeRole::Button).len(), 2);
     let a = h.get_by_label("A");
     assert!(h.query_by_label("nothing").is_none());
     h.click(&a);
@@ -60,40 +61,55 @@ fn run_stops_when_no_frame_is_asked_for_and_state_mut_builds_the_view_again() {
     assert_eq!(h.now(), h.steps_taken() as f64 * FRAME, "the clock moves only through steps");
 }
 
-/// A leaf that aims its opacity at `open` through B9's fade.
-struct Fader {
+/// A leaf that aims its opacity at `open` through the open fade.
+#[derive(Component)]
+pub struct Fader {
+    #[common]
+    common: Common,
     open: bool,
 }
 
-impl ComponentKey for Fader {
-    fn key(&self, key: &mut MemoKey) {
-        self.open.key(key);
+impl Fader {
+    fn new(open: bool) -> Fader {
+        Fader { common: Common::new(), open }
     }
 }
 
 impl Component for Fader {
-    const ROLE: Role = Role::GenericContainer;
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+    fn style(_: &StyleCx<'_>, _: FaderStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.fade_to(if self.open { 1.0 } else { 0.0 }, spec::OPEN_FADE);
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        paint.draw().canvas().rect_filled(paint.bounds(), 0.0, Color32::RED);
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let ink = ui.env.tokens.theme().color.text.normal;
+        ui.draw().fill(&PaintShape::Rect(cx.rect, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
 
 fn close_fader(motion: bool) -> Harness<bool> {
-    let mut h = Harness::builder().with_motion(motion).build_ui_state(|ui, open: &mut bool| drop(show_leaf(Fader { open: *open }, ui)), true);
+    let mut h = Harness::builder().with_motion(motion).build_ui_state(|ui, open: &mut bool| drop(Show::show(Fader::new(*open), ui)), true);
     h.run_to_rest();
     *h.state_mut() = false;
     h.step();

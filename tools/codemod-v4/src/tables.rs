@@ -235,11 +235,11 @@ pub fn is_hand_written(module: &str, name: &str) -> bool {
     HAND_WRITTEN.iter().any(|(m, f)| *m == module && (f.is_empty() || *f == name))
 }
 
-/// Method names of rule 24's Fixture methods without a Harness twin (prefix match for `story` and `frame_shapes`).
+/// Method names of rule 24's Fixture methods without a Harness twin of the same shape: `frame_shapes_with` takes a
+/// closure over the harness where the fixture took events, and the `story*` and `hosted` fixtures are Harness
+/// constructors.
 pub fn fixture_without_twin(method: &str) -> bool {
-    method.starts_with("frame_shapes")
-        || method.starts_with("story")
-        || matches!(method, "take_paint" | "texts" | "shape_bounds" | "ctx" | "cursor_icon" | "hosted" | "probe_purity")
+    method.starts_with("story") || matches!(method, "frame_shapes_with" | "hosted")
 }
 
 /// Skip class of an egui or epaint item name the do-not-touch list names.

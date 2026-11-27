@@ -10,6 +10,7 @@ mod id;
 mod input;
 mod int5b;
 mod items;
+mod keys;
 mod layout;
 mod overlay;
 mod pipeline;
