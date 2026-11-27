@@ -10,50 +10,51 @@ use crate::primitives::Id;
 use crate::runtime::access::{self, Role};
 use crate::runtime::focus;
 use craft_behavior::ColumnKey;
-use craft_ui_rt::Rect;
+use craft_ui_rt::{Pos2, Rect};
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The access sub-node of each toggle cell of row `(at, key)`, named by its cell, else by its column's header, and carrying its state,
-    /// below the row's node for the cell, else the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
-    pub(super) fn report_toggle_cells(
+    /// The access node of each shown toggle cell of row `(at, key)`, for the band row `item` to report under its cell:
+    /// named by its cell, else by its column's header, carrying its state, and served by the collection `owner`. The
+    /// collection claims each cell's part with a `Role::None` sub-node, so an AccessKit click the row hands on reaches
+    /// `toggle_by_access`.
+    pub(super) fn toggle_cell_nodes(
         &mut self,
         ctx: &Context,
-        item: Id,
+        (owner, item): (Id, Id),
         (at, key): (usize, &C::Key),
         (cells, enabled): (&[(ColumnKey, Rect)], bool),
         env: &crate::runtime::env::EnvView<'_>,
-    ) {
-        let mut sub_nodes = std::mem::take(&mut self.sub_nodes);
+    ) -> Vec<(ColumnKey, access::SubNode)> {
+        let mut nodes = Vec::new();
         for (column, toggle) in self.header.toggle_columns() {
-            let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
+            if !cells.iter().any(|(held, _)| *held == column) {
+                continue;
+            }
             let Some(cell) = self.header.toggle_cell(ctx, item, &column, env) else { continue };
             let role = match (toggle.exclusive, cell.check_box) {
                 (true, _) => Role::RADIO_BUTTON,
                 (false, true) => Role::CHECK_BOX,
                 (false, false) => Role::SWITCH,
             };
-            let mut node = access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), role);
+            let part = TOGGLE_CELL.at(key_hash(&(key, &column)));
+            let mut node = access::SubNode::new(part, role);
             node.name = access::Name::Text(cell.name);
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             node.flags.set(crate::style::Flags::MIXED, cell.mixed);
             node.disabled = !(enabled && self.source.enabled(at) && self.toggle_open(at, &column));
-            node.bounds(*rect);
             if let Some(chord) = toggle.key {
                 node.shortcut(chord.display(ctx.os()));
             }
-            // A member row is a sub-node of the collection, so its cells nest below it; a band row is a node of its
-            // own, which the collection's sub-nodes cannot nest under.
-            if C::MEMBERS {
-                node.under(ITEM_NODE.at(key_hash(key)));
-            }
-            sub_nodes.push(node);
+            node.served_by(owner, part);
+            self.sub_nodes.push(access::SubNode::new(part, Role::None));
+            nodes.push((column, node));
         }
-        self.sub_nodes = sub_nodes;
+        nodes
     }
 
     /// The collection's node for the section row `at` that the component does not lay out itself: a heading named by
     /// the row's text, expandable when it has children, that serves Click, Expand and Collapse.
-    pub(super) fn report_section_node(&mut self, at: usize, rect: Rect, enabled: bool) {
+    pub(super) fn report_section_node(&mut self, at: usize, rect: Rect, enabled: bool, origin: Pos2) {
         let mut node = access::SubNode::new(section_part(&self.source.key(at)), Role::HEADING);
         node.name = access::Name::Text(self.source.text(at).map(|text| text.into_owned()).unwrap_or_default());
         node.level(self.source.depth(at) + 1);
@@ -61,12 +62,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             node.expanded = Some(self.source.open(at));
         }
         node.disabled = !(enabled && self.source.enabled(at));
-        node.bounds(rect);
+        node.bounds(rect.translate(Pos2::ZERO - origin));
         self.sub_nodes.push(node);
     }
 
-    /// The sub-nodes the rows declared this run (toggle cells, section rows the component does not lay out), for the
-    /// collection's access hook on the driver seam.
+    /// The sub-nodes the rows declared this run (the toggle cells the band rows report, as claims; section rows the
+    /// component does not lay out), for the collection's access hook on the driver seam.
     pub(super) fn access_nodes(&self, access: &mut access::Access) {
         access.nodes.extend(self.sub_nodes.iter().cloned());
     }

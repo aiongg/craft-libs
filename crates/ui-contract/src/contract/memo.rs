@@ -776,7 +776,8 @@ impl<T: PlainData> MemoProps for Tracked<T> {
 }
 
 /// A view's write access to a model: by revision, as `Tracked<T>`. A write the view makes moves the key, so the view
-/// runs once more, from the written value, and replays from then on. `&mut` of any other type is not props: a write to
+/// runs once more, from the written value (in the same frame when something in it read the model before the write,
+/// [`MemoView`](super::MemoView)), and replays from then on. `&mut` of any other type is not props: a write to
 /// it would not move a key.
 impl<T: PlainData> MemoProps for &mut Tracked<T> {
     fn key(&self, key: &mut MemoKey) {

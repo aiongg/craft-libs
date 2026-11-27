@@ -251,6 +251,33 @@ tuples!(
     (A, B, C, D, E, F, G, H, I, J, K, L),
 );
 
+/// What a UI runtime does with the reads and writes of every `Tracked` on this thread: `read` gets the source of each
+/// read through `Deref`, `wrote` the source of each write through `DerefMut` or `edit`. craft-ui's runtime installs
+/// it to log reads for the node whose build makes them and to run, in the same frame, the nodes that read a value
+/// a later write changed. A crate that is no UI runtime has no use for it.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct Watch {
+    pub read: fn(u64),
+    pub wrote: fn(u64),
+}
+
+thread_local! {
+    static WATCH: Cell<Option<Watch>> = const { Cell::new(None) };
+}
+
+/// Called by craft-ui's runtime only: every `Tracked` on this thread reports its reads and writes to `watch`.
+#[doc(hidden)]
+pub fn __watch(watch: Watch) {
+    WATCH.with(|cell| cell.set(Some(watch)));
+}
+
+fn watched(each: impl FnOnce(Watch)) {
+    if let Some(watch) = WATCH.with(Cell::get) {
+        each(watch);
+    }
+}
+
 /// The next source id. Ids start at 1 and are never reused in a process.
 static NEXT_SOURCE: AtomicU64 = AtomicU64::new(1);
 
@@ -307,7 +334,7 @@ impl<T: PlainData> Tracked<T> {
 
     /// Called by craft-ui's `bind_tracked!` only: the value without moving the revision, the write count and the
     /// source id. The macro borrows each bound field from the value through a field path and gives the binding the
-    /// count, which it moves on every write that changes the field, and the source, which names the field's reads. A direct call can write any part of the value without moving the
+    /// count, which it moves on every write that changes the field, and the source, which names the field's reads and writes. A direct call can write any part of the value without moving the
     /// revision, so readers keyed by it would miss the write; design-lint rejects direct calls in UI crates.
     #[doc(hidden)]
     pub fn __split_for_bind(&mut self) -> (&mut T, &Cell<u64>, u64) {
@@ -362,6 +389,7 @@ impl<T: PlainData> Deref for Tracked<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
+        watched(|watch| (watch.read)(self.revision.source));
         &self.value
     }
 }
@@ -369,6 +397,7 @@ impl<T: PlainData> Deref for Tracked<T> {
 impl<T: PlainData> DerefMut for Tracked<T> {
     fn deref_mut(&mut self) -> &mut T {
         self.revision.count = self.revision.count.wrapping_add(1);
+        watched(|watch| (watch.wrote)(self.revision.source));
         &mut self.value
     }
 }

@@ -20,7 +20,12 @@ use std::hash::Hash;
 ///
 /// The key is the props type, the `fn` and every input the props feed, and what the scope hands down beyond its style
 /// inputs (`Scoped::scope_key`). A run that writes through its props (a `&mut Tracked<T>` model, a
-/// [`Bind`](super::Bind)) moves its key: the view runs once more, reads the written value, and is kept from then on.
+/// [`Bind`](super::Bind)) moves its key. A `Tracked` read through `Deref` inside a build is a tracked read: a write of
+/// that `Tracked` later in the frame (`DerefMut`, `edit`, a `bind_tracked!` field's edit) runs every node that read it
+/// before the write again in a later build round of the same frame, this view included when its own run read it (an
+/// app that applies its panel's events in the view's body shows them in that frame). A write that nothing in the
+/// frame read before it reruns nothing then: a field's own bound write shows in the field, and the view runs once more
+/// when a pass next reaches it, and is kept from then on.
 ///
 /// Its content is a layout room of its own: the flow of the body around it does not reach in. To the body around it
 /// the view is one unit, sized by what its content took.

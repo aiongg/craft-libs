@@ -498,10 +498,18 @@ impl Component for ListRow<'_> {
             cell.name = Name::Text(label.to_owned());
             cell.grid.column_index = column_of(&toggle.column);
             cell.flags.set(Flags::SELECTED, selected);
-            // The collection reports the toggle of its own toggle column under this cell, with its state and click: the
-            // painted toggle adds no node of its own.
+            // A toggle of the collection's own toggle column is the collection's node, with its state, and its
+            // requests go to the collection; the row reports it under this cell, where the painted toggle stands.
             if self.toggle_columns.contains(&toggle.column) {
-                access.node(TOGGLE.at(at as u64), Role::None);
+                let row = cx.env.facts_of(cx.resolved.id);
+                if let Some((_, node)) = row.and_then(|facts| facts.toggle_nodes.iter().find(|(column, _)| *column == toggle.column)) {
+                    let rect = self.cell_rect(TOGGLE_CELL.at(at as u64));
+                    let node = access.adopt(TOGGLE.at(at as u64), node.clone());
+                    node.under(TOGGLE_CELL.at(at as u64));
+                    if let Some(rect) = rect {
+                        node.bounds(rect);
+                    }
+                }
                 continue;
             }
             let role = if toggle.check_box { Role::CHECK_BOX } else { Role::BUTTON };

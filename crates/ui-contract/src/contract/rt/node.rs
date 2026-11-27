@@ -491,6 +491,13 @@ pub(crate) fn part_id(part: PartRef) -> u64 {
     craft_ui_rt::hash_key(&part) | 1
 }
 
+/// The part an access request on sub-node `sub` names: a declared part (`parts`), the part of a sub-node the last run
+/// reported (`subs`), or a part it claimed for a sub-node another node reports (`claimed`, `Built::claimed`).
+pub(crate) fn request_part(parts: &[KeptPart], subs: &[super::access::BuiltSub], claimed: &[PartRef], sub: u64) -> Option<PartRef> {
+    let declared = parts.iter().find(|p| p.id == sub).map(|p| p.part);
+    declared.or_else(|| subs.iter().find(|s| s.key == sub).map(|s| s.part)).or_else(|| claimed.iter().copied().find(|part| part_id(*part) == sub))
+}
+
 /// What the last run of a node produced; the `Local` of both node elements.
 pub(crate) struct Kept {
     /// The craft `Id` services key by.
@@ -515,8 +522,13 @@ pub(crate) struct Kept {
     pub(crate) access: Option<accesskit::Node>,
     /// The sub-nodes of the access node; empty with it.
     pub(crate) access_subs: Vec<super::access::BuiltSub>,
+    /// The parts other nodes report sub-nodes for, whose requests reach this node (`Built::claimed`).
+    pub(crate) access_claimed: Vec<PartRef>,
     /// The control folded into the node's access node (`PaintUi::inner`), which the node stands for.
     pub(crate) access_stands: Option<NodeId>,
+    /// The node is its collection's lead row: assistive technologies see it as focused while the collection holds
+    /// focus (AccessKit has no active descendant).
+    pub(crate) access_active: bool,
     pub(crate) queue: Vec<NodeInput>,
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
@@ -530,6 +542,9 @@ pub(crate) struct Kept {
     pub(crate) plan: Option<super::container::Plan>,
     /// A container node's body state (open state of a collapsing body).
     pub(crate) body: super::container::BodyKept,
+    /// A container node's body memory: the shown and press slots its body keys by the body's id (`BodyCx`), shared
+    /// with the real run's settle (`Inner::settle`) until the settle hands it back.
+    pub(crate) body_memory: std::rc::Rc<std::cell::RefCell<super::memory::Memory>>,
     /// Whether the last real run of the body under this node met fill children; `None` before it.
     pub(crate) body_fills: Option<bool>,
     /// The node's memory slots (`Remember`, the pipeline's records), freed with the node.
@@ -642,7 +657,9 @@ impl Kept {
             parts: Vec::new(),
             access: None,
             access_subs: Vec::new(),
+            access_claimed: Vec::new(),
             access_stands: None,
+            access_active: false,
             type_name: "",
             command: None,
             queue: Vec::new(),
@@ -651,6 +668,7 @@ impl Kept {
             sizes: smallvec::SmallVec::new(),
             plan: None,
             body: super::container::BodyKept::default(),
+            body_memory: Default::default(),
             body_fills: None,
             memory: Default::default(),
             sweep: None,
@@ -995,6 +1013,14 @@ impl Element for ComponentNode {
                 Handled::Yes
             }
             Event::Access(a) if a.target == cx.node() && !matches!(a.action, accesskit::Action::Focus | accesskit::Action::ScrollIntoView) => {
+                // A sub-node another component describes and serves (a band row's toggle): the request goes there,
+                // naming that component's sub-node.
+                if let Some((owner, sub)) = a.sub.and_then(|key| kept.access_subs.iter().find(|s| s.key == key)).and_then(|s| s.forward)
+                    && let Some(to) = kept.node_of(owner)
+                {
+                    cx.forward_as(to, Event::Access(craft_ui_rt::AccessInput { action: a.action, data: a.data.clone(), target: to, sub: Some(sub) }));
+                    return Handled::No;
+                }
                 if a.action == accesskit::Action::Click && !kept.takes_press() && a.sub.is_none() {
                     return Handled::No;
                 }
@@ -1011,6 +1037,9 @@ impl Element for ComponentNode {
     fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
         if let Some(control) = kept.access_stands {
             cx.stand_for(control);
+        }
+        if kept.access_active {
+            cx.set_active();
         }
         for s in &kept.access_subs {
             let mut sub = s.node.clone();

@@ -303,6 +303,13 @@ impl CxCore<'_> {
         })
     }
 
+    /// The payload of type `P` dropped on this node in this run and where it landed (window coordinates): the run a drop
+    /// lands in has no drag over the node any more.
+    pub(crate) fn dropped_here<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
+        let (payload, at, _) = self.dropped(TypeId::of::<P>())?;
+        Some((payload.downcast::<P>().ok()?, at?))
+    }
+
     /// `Pointer::drop_target` for the payload whose type is `payload_type`, chosen at run time: a collection takes the
     /// payload types its drop kinds name. The target lies over this component's visible shapes on its own layer.
     /// The node takes drags of the type in ui-rt's routing from the run that asks; the target decides from the payload

@@ -236,8 +236,8 @@ pub struct EventCx<'a> {
     pub(crate) target: NodeId,
     /// The node that handed this event on ([`EventCx::forward_to`]); `None` for an event the input stage routed.
     pub(crate) from: Option<NodeId>,
-    /// The node this handler hands the event on to.
-    pub(crate) forward: Option<NodeId>,
+    /// The node this handler hands the event on to, with the event it hands on when that is not this one.
+    pub(crate) forward: Option<(NodeId, Option<Event>)>,
 }
 
 impl Reads for EventCx<'_> {
@@ -269,7 +269,13 @@ impl EventCx<'_> {
     /// [`Handled::No`] lets an event `node` declines go on up its path. A text field hands its list keys to the
     /// collection it drives this way.
     pub fn forward_to(&mut self, node: NodeId) {
-        self.forward = Some(node);
+        self.forward = Some((node, None));
+    }
+
+    /// [`EventCx::forward_to`] with `ev` in place of this event: a band row hands an assistive technology's request
+    /// on its toggle to the collection that serves it, naming the collection's sub-node in place of its own.
+    pub fn forward_as(&mut self, node: NodeId, ev: Event) {
+        self.forward = Some((node, Some(ev)));
     }
 
     /// The node that handed this event on with [`EventCx::forward_to`].

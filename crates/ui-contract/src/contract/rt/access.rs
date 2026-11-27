@@ -19,11 +19,15 @@ pub use crate::runtime::access::{Access, GridPlace, Name, Numeric, Politeness, P
 pub(crate) struct NodeFacts<'a> {
     pub(crate) label: &'a str,
     pub(crate) flags: Flags,
+    /// The component's own selected prop, when it sets one.
+    pub(crate) selected: Option<bool>,
     pub(crate) enabled: bool,
     pub(crate) clickable: bool,
     pub(crate) focusable: bool,
     /// The parts whose sense takes a press: their sub-nodes offer Click.
     pub(crate) pressable: &'a [PartRef],
+    /// The node's declared parts in its own coordinates: a sub-node that sets no bounds takes its part's.
+    pub(crate) parts: &'a [super::node::KeptPart],
     /// A context-menu opener ran: the node offers `ShowContextMenu`.
     pub(crate) context_menu: bool,
 }
@@ -37,7 +41,14 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         None => default,
     };
     let mut subs = Vec::with_capacity(access.nodes.len());
+    let mut claimed = Vec::new();
     for sub in std::mem::take(&mut access.nodes) {
+        // A sub-node declared `Role::None` claims its part for no node: another node reports it, and the requests on
+        // it still reach this node's run on that part.
+        if sub.run.is_none() && sub.role == Role::None {
+            claimed.push(sub.part);
+            continue;
+        }
         let role = match (&sub.run, sub.role) {
             (Some(_), _) => NodeRole::TextRun,
             (None, Role::Node(role)) => role,
@@ -80,20 +91,22 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         if sub.current {
             node.set_aria_current(accesskit::AriaCurrent::True);
         }
-        states(&mut node, sub.flags);
+        states(&mut node, sub.flags, None);
         actions(&mut node, &sub.custom_actions);
-        if let Some(b) = sub.bounds {
+        let bounds = sub.bounds.or_else(|| facts.parts.iter().find(|p| p.part == sub.part).map(|p| p.shape.bounds()));
+        if let Some(b) = bounds {
             node.set_bounds(accesskit::Rect::new(f64::from(b.min.x), f64::from(b.min.y), f64::from(b.max.x), f64::from(b.max.y)));
         }
         if !facts.enabled || sub.disabled {
             node.set_disabled();
-        } else if facts.pressable.contains(&sub.part) {
+        } else if facts.pressable.contains(&sub.part) || sub.forward.is_some() {
             node.add_action(Action::Click);
         }
-        subs.push(BuiltSub { key: part_id(sub.part), part: sub.part, parent: sub.under.map(part_id), node });
+        let forward = sub.forward.map(|(owner, part)| (owner, part_id(part)));
+        subs.push(BuiltSub { key: part_id(sub.part), part: sub.part, parent: sub.under.map(part_id), node, forward });
     }
     let node = write(&access, role, facts);
-    Some(Built { node, subs })
+    Some(Built { node, subs, claimed })
 }
 
 /// The AccessKit node of the component's own facts.
@@ -163,7 +176,7 @@ fn write(a: &Access, role: NodeRole, facts: &NodeFacts<'_>) -> Node {
     if a.busy {
         node.set_busy();
     }
-    states(&mut node, facts.flags);
+    states(&mut node, facts.flags, facts.selected);
     if !facts.enabled {
         node.set_disabled();
         return node;
@@ -274,15 +287,23 @@ fn grid(node: &mut Node, g: &GridPlace) {
     }
 }
 
-/// The AccessKit states of the state flags.
-fn states(node: &mut Node, flags: Flags) {
-    if flags.contains(Flags::SELECTED) {
-        node.set_selected(true);
+/// The AccessKit states of the state flags. A node whose role is checked or not, or selected or not, always carries
+/// that state. `selected` is the component's own selected prop: on a node that is neither checked nor selected by its
+/// role and shows no checked value, it reports as pressed (a tool's button is down while it is the tool).
+fn states(node: &mut Node, flags: Flags, selected: Option<bool>) {
+    let role = node.role();
+    let (checkable, selectable) = (craft_behavior::is_checkable(role), craft_behavior::is_selectable(role));
+    let pressed = selected.filter(|_| !checkable && !selectable && !flags.intersects(Flags::CHECKED | Flags::MIXED));
+    if pressed.is_none() && (flags.contains(Flags::SELECTED) || selectable) {
+        node.set_selected(flags.contains(Flags::SELECTED));
     }
+    let toggled = |on: bool| if on { accesskit::Toggled::True } else { accesskit::Toggled::False };
     if flags.contains(Flags::MIXED) {
         node.set_toggled(accesskit::Toggled::Mixed);
-    } else if flags.contains(Flags::CHECKED) {
-        node.set_toggled(accesskit::Toggled::True);
+    } else if flags.contains(Flags::CHECKED) || checkable {
+        node.set_toggled(toggled(flags.contains(Flags::CHECKED)));
+    } else if let Some(on) = pressed {
+        node.set_toggled(toggled(on));
     }
     if flags.contains(Flags::EXPANDED) || flags.contains(Flags::OPEN) {
         node.set_expanded(true);
@@ -316,12 +337,16 @@ pub(crate) struct BuiltSub {
     pub(crate) part: PartRef,
     pub(crate) parent: Option<u64>,
     pub(crate) node: Node,
+    /// The component that serves the sub-node's requests and its sub-node key there (`SubNode::served_by`).
+    pub(crate) forward: Option<(crate::primitives::Id, u64)>,
 }
 
 /// What a run keeps of its access facts.
 pub(crate) struct Built {
     pub(crate) node: Node,
     pub(crate) subs: Vec<BuiltSub>,
+    /// The parts of the `Role::None` sub-nodes: other nodes report them, and their requests arrive here.
+    pub(crate) claimed: Vec<PartRef>,
 }
 
 /// An assistive technology's action on a node, as a component sees it in [`crate::contract::rt::Cx::input`].

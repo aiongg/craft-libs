@@ -3,7 +3,7 @@
 //! re-register when they run again, so a write clears the set.
 
 use std::any::Any;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasherDefault;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -510,5 +510,49 @@ mod tests {
         assert_eq!(fired.get(), 1);
         store.note_gone();
         assert!(store.take_unread(|_| false).is_empty(), "a watch runs once");
+    }
+}
+
+/// Reads and edits, in the frame running, of values the runtime holds no cell for: an app model whose writes the
+/// compiler sees (craft-ui's `Tracked`), named by its source id. An edit marks for a later build round exactly the
+/// nodes that read the source before it in this frame; a node that read it only in an earlier frame and is kept reruns
+/// through its own key. `at` orders reads and edits: the caller's read log numbers them on its thread as they happen,
+/// so a node whose build ends after an edit still compares its read with it.
+#[derive(Default)]
+pub(crate) struct SourceReads {
+    /// Per source: each node that read it in this frame, with its first read's place in the order.
+    reads: HashMap<u64, SmallVec<[(NodeId, u64); 2]>, BuildHasherDefault<StableHasher>>,
+    /// Per source: the place of each edit in this frame.
+    edits: HashMap<u64, SmallVec<[u64; 2]>, BuildHasherDefault<StableHasher>>,
+}
+
+impl SourceReads {
+    /// A new frame: what the last one read and edited no longer reruns anything.
+    pub(crate) fn clear(&mut self) {
+        self.reads.clear();
+        self.edits.clear();
+    }
+
+    /// `node` read `source` at `at`. True when the frame already edited the source after `at`: the node read a value
+    /// since changed and runs again (it then reads afresh, so it is not kept as a reader here).
+    pub(crate) fn read(&mut self, source: u64, node: NodeId, at: u64) -> bool {
+        if self.edits.get(&source).is_some_and(|edits| edits.iter().any(|&edit| edit > at)) {
+            return true;
+        }
+        let readers = self.reads.entry(source).or_default();
+        match readers.iter_mut().find(|(reader, _)| *reader == node) {
+            Some((_, first)) => *first = (*first).min(at),
+            None => readers.push((node, at)),
+        }
+        false
+    }
+
+    /// An edit of `source` at `at`: the nodes that read it before, which run again and leave the readers.
+    pub(crate) fn edit(&mut self, source: u64, at: u64) -> SmallVec<[NodeId; 4]> {
+        self.edits.entry(source).or_default().push(at);
+        let Some(readers) = self.reads.get_mut(&source) else { return SmallVec::new() };
+        let stale = readers.iter().filter(|(_, first)| *first < at).map(|(node, _)| *node).collect();
+        readers.retain(|(_, first)| *first >= at);
+        stale
     }
 }

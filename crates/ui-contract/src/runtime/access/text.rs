@@ -105,7 +105,7 @@ pub(crate) fn write(built: &mut Built, facts: &TextFacts, node: NodeId) -> Vec<E
                 sub.set_character_positions(run.positions.clone());
                 sub.set_character_widths(run.widths.clone());
                 sub.set_text_direction(if run.rtl { TextDirection::RightToLeft } else { TextDirection::LeftToRight });
-                built.subs.push(BuiltSub { key, part, parent: None, node: sub });
+                built.subs.push(BuiltSub { key, part, parent: None, node: sub, forward: None });
                 entries.push(Entry { node: craft_ui_rt::access_sub_id(node, key), line: line_at, bytes: run.bytes.clone(), text: text.to_owned() });
             }
         }

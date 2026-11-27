@@ -2,17 +2,18 @@
 //! `Tracked` tree, as the experiment's glue and PhotoCraft's dock do): a hover repaints the rows it leaves and enters
 //! and runs nothing, a select runs the same nodes at any list length and one row more when it moves the selection, a
 //! footer click adds one layer at the same cost at any list length, and an idle window runs no frame once the
-//! thumbnails have landed. Every assertion is a relation between counts, never a time.
+//! thumbnails have landed. Every count assertion is a relation between counts, never a time. A row's eye flips its
+//! layer from a click and from an assistive technology's click on the toggle under the row's cell.
 
 // The derives' output names the UI library as `craft_ui`.
 extern crate craft_ui_panels as craft_ui;
 
-use craft_behavior::{IconId, SelectionChange};
+use craft_behavior::{EditEvent, IconId, SelectionChange};
 use craft_layers::ui::mock::FakeLayers;
 use craft_layers::ui::options::LayersSettings;
-use craft_layers::ui::panel::{LayersEvent, LayersPanel};
+use craft_layers::ui::panel::{LayerColumn, LayersEvent, LayersPanel};
 use craft_layers::ui::thumbs::LayerThumb;
-use craft_layers::ui::tree::{LayerPart, LayerSelection};
+use craft_layers::ui::tree::{LayerPart, LayerRowKey, LayerSelection};
 use craft_ui_panels::contract::{MemoProps, MemoView, Tracked, Ui};
 use craft_ui_panels::list::ThumbSize;
 use craft_ui_panels::primitives::IconSpec;
@@ -74,16 +75,32 @@ impl Body<'_> {
             .document(0u64)
             .show(ui);
         let mut selection = None;
+        let mut shown = Vec::new();
         for event in out.events {
-            if let LayersEvent::Select(select) = event
-                && let SelectionChange::Set(ids) = select.change
-            {
-                let active = ids.last().copied();
-                selection = Some(LayerSelection::new(ids, active, LayerPart::Pixels));
+            match event {
+                LayersEvent::Select(select) => {
+                    if let SelectionChange::Set(ids) = select.change {
+                        let active = ids.last().copied();
+                        selection = Some(LayerSelection::new(ids, active, LayerPart::Pixels));
+                    }
+                }
+                // As the experiment's glue applies them: a plain press is a `Set`, a sweep ends with a `Commit`.
+                LayersEvent::Toggle(toggle) if toggle.column == LayerColumn::Visibility => {
+                    if let EditEvent::Set { after, .. } | EditEvent::Commit { after, .. } = toggle.edit {
+                        shown.extend(toggle.rows.iter().filter_map(|row| match row {
+                            LayerRowKey::Layer(id) => Some((*id, after)),
+                            _ => None,
+                        }));
+                    }
+                }
+                _ => {}
             }
         }
-        if selection.is_some() || picked == Some(NEW_LAYER) {
+        if selection.is_some() || picked == Some(NEW_LAYER) || !shown.is_empty() {
             self.tree.edit(|tree| {
+                for (id, on) in shown {
+                    tree.layer_mut(id).info.visible = on;
+                }
                 if let Some(selection) = selection {
                     tree.selection = selection;
                 }
@@ -205,4 +222,18 @@ fn a_landing_thumbnail_runs_only_its_own_node() {
         let landed: u32 = runs.iter().skip(1).sum();
         assert_eq!(landed, rows, "N={n}: every row's thumbnail lands with one run of its own node and no row runs: {runs:?}");
     }
+}
+
+#[test]
+fn a_rows_eye_flips_its_layer_from_a_click_and_from_its_toggle_node() {
+    let mut h = panel(20);
+    let visible = |h: &Harness<App>| h.state().tree.layers.iter().find(|layer| layer.id == 3).map(|layer| layer.info.visible);
+    assert_eq!(visible(&h), Some(true), "Layer 3 starts visible");
+    let eye = h.get_by_label("Visibility Layer 3");
+    click(&mut h, eye);
+    assert_eq!(visible(&h), Some(false), "a click on the eye hides Layer 3");
+    let eye = h.get_by_label("Visibility Layer 3");
+    h.access(accesskit::Action::Click, &eye);
+    h.step();
+    assert_eq!(visible(&h), Some(true), "an assistive technology's click on the eye's node shows Layer 3 again");
 }

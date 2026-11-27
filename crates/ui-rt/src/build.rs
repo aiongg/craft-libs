@@ -554,6 +554,23 @@ impl BuildCx<'_> {
         self.rt.tree.mark_build(node);
     }
 
+    /// This node read the app model `source` (a `Tracked`'s source id) at `at`, its place in the order the caller
+    /// gives every read and edit of a source on this thread: an edit of `source` after `at` in this frame, made before
+    /// or after this call, runs this node again in a later build round of the frame.
+    pub fn read_source(&mut self, source: u64, at: u64) {
+        if self.rt.sources.read(source, self.node, at) {
+            self.rebuild();
+        }
+    }
+
+    /// An edit of the app model `source` at `at`: every node that read it before `at` in this frame runs again in a
+    /// later build round. A node that only wrote it, or read it after the edit, runs nothing again.
+    pub fn edit_source(&mut self, source: u64, at: u64) {
+        for node in self.rt.sources.edit(source, at) {
+            self.rt.tree.mark_build(node);
+        }
+    }
+
     /// This inline node runs again in a later build round of this frame: what its build decided
     /// from turned out stale (a reused measurement its content no longer matches).
     pub fn rebuild(&mut self) {

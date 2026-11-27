@@ -1458,7 +1458,7 @@ impl Runtime {
     }
 
     /// Delivers `ev` to `node`, handed on by `from` ([`EventCx::forward_to`]), then to the node its handler hands
-    /// it on to.
+    /// it on to, as it is or as the handler replaced it ([`EventCx::forward_as`]).
     fn deliver_from(&mut self, node: NodeId, target: NodeId, ev: &Event, from: Option<NodeId>) -> Handled {
         let Some(mut el) = self.tree.nodes.get_mut(&node).and_then(|n| n.element.take()) else {
             return Handled::No;
@@ -1470,7 +1470,9 @@ impl Runtime {
             n.element = Some(el);
         }
         match forward {
-            Some(to) if to != node && self.deliver_from(to, to, ev, Some(node)) == Handled::Yes => Handled::Yes,
+            Some((to, replaced)) if to != node && self.deliver_from(to, to, replaced.as_ref().unwrap_or(ev), Some(node)) == Handled::Yes => {
+                Handled::Yes
+            }
             _ => handled,
         }
     }

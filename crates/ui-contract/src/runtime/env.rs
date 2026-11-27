@@ -409,6 +409,10 @@ pub struct ItemFacts {
     /// The row's menu is open (`RowState::menu_open`).
     #[doc(hidden)]
     pub menu_open: bool,
+    /// The access node of each shown toggle cell of the collection's own toggle columns, by column: a band row is a
+    /// node of its own, so it reports them under its cells (`Access::adopt`) and their requests go to the collection.
+    #[doc(hidden)]
+    pub toggle_nodes: Vec<(craft_behavior::ColumnKey, crate::runtime::access::SubNode)>,
 }
 
 /// The innermost body that owns the scroll of a scope (`Scoped::scroll_owner`).
