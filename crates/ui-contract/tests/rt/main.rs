@@ -5,6 +5,7 @@ extern crate craft_ui_contract as craft_ui;
 
 mod access;
 mod content;
+mod driver;
 mod env;
 mod focus;
 mod harness;
