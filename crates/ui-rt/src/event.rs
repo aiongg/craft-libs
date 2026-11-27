@@ -418,4 +418,16 @@ impl EventCx<'_> {
         let window = self.window();
         self.rt.clipboard.push((window, ClipboardRequest::Read));
     }
+
+    /// The key press being handled is taken for something other than typing (a shortcut ran): the
+    /// text the platform sends with it does not reach the focused node.
+    pub fn withhold_text(&mut self) {
+        let window = self.window();
+        self.rt.withhold_text(window);
+    }
+
+    /// Asks every window to close, through each window's close path ([`Runtime::quit`]).
+    pub fn quit(&mut self) {
+        self.rt.quit();
+    }
 }

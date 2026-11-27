@@ -122,6 +122,11 @@ pub(crate) struct InputState {
     /// Modality, as craft keeps it: a key press or typed text shows the focus ring, a pointer
     /// press or an accessibility click hides it.
     focus_shown: bool,
+    /// The last focus move came from a pointer press on the focused node (`Runtime::focus_pressed`).
+    focus_pressed: bool,
+    /// The handler of the last key press asked that the text the platform sends with it not type
+    /// (`EventCx::withhold_text`): the next text event of the window is dropped.
+    withhold_text: bool,
     pub(crate) touches: Touches,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
@@ -254,7 +259,12 @@ impl Runtime {
             WindowEvent::Pinch { pos, zoom, rotation, mods } => self.route_touchpad_pinch(window, *pos, *zoom, *rotation, *mods),
             WindowEvent::Files(drag) => self.file_drag(window, drag),
             WindowEvent::Key { key, mods, down, repeat } => self.route_key(window, KeyInput { key: *key, mods: *mods, down: *down, repeat: *repeat }),
-            WindowEvent::Text(text) => self.send_to_focused(window, Event::Text(text.clone())),
+            WindowEvent::Text(text) => {
+                let withheld = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.withhold_text));
+                if !withheld {
+                    self.send_to_focused(window, Event::Text(text.clone()));
+                }
+            }
             WindowEvent::ImePreedit { text, cursor } => {
                 self.send_to_focused(window, Event::ImePreedit { text: text.clone(), cursor: cursor.clone() })
             }
@@ -353,6 +363,20 @@ impl Runtime {
         self.input(window)?.focused
     }
 
+    /// Whether a pointer press gave the focused node of `window` its focus; false after a key,
+    /// a request or an assistive technology moved focus there.
+    pub fn focus_pressed(&self, window: WindowId) -> bool {
+        self.input(window).is_some_and(|i| i.focused.is_some() && i.focus_pressed)
+    }
+
+    /// Drops the next text event of `window` before the next key press: the text the platform sends
+    /// with a key press a handler took for something else.
+    pub(crate) fn withhold_text(&mut self, window: WindowId) {
+        if let Some(input) = self.input_mut(window) {
+            input.withhold_text = true;
+        }
+    }
+
     /// Moves `window`'s key focus. The old and the new node get [`Event::Focus`] once the current
     /// handler returns; paint readers of their interaction state repaint. A node outside the
     /// window is ignored.
@@ -369,6 +393,7 @@ impl Runtime {
         }
         input.focused = node;
         input.focus_moved = true;
+        input.focus_pressed = false;
         let new_chain = node.map(|n| chain(&self.tree, n)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
         if let Some(new) = node {
@@ -828,6 +853,11 @@ impl Runtime {
             if !hit.sense.contains(Sense::KEEP_FOCUS) {
                 let stop = self.nearest_focusable(hit.node);
                 self.set_focus(window, stop);
+                if stop.is_some()
+                    && let Some(input) = self.input_mut(window)
+                {
+                    input.focus_pressed = true;
+                }
             }
             let owner = self.dispatch(hit.node, &ev, true);
             if let Some(press) = self.input_mut(window).and_then(|i| i.press.as_mut()) {
@@ -847,6 +877,11 @@ impl Runtime {
 
     fn route_key(&mut self, window: WindowId, k: KeyInput) {
         self.drag_mods(k.mods);
+        if k.down
+            && let Some(input) = self.input_mut(window)
+        {
+            input.withhold_text = false;
+        }
         if k.down && k.key == Key::Escape && self.input(window).is_some_and(|i| i.press.is_some()) {
             self.cancel_press(window, PressCancel::Escape);
             return;

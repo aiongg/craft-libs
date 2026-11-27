@@ -27,7 +27,8 @@ use super::overlay::LayerScope;
 use super::ui::Ui;
 use crate::primitives::Id;
 use crate::runtime::commands::{
-    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand, Shown,
+    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, QuitCommand, Registry,
+    ResolvedCommand, Shown,
 };
 use crate::runtime::env::Label;
 
@@ -416,29 +417,36 @@ impl CommandBoard {
         self.run(store, &[], &fired, ModalAt::Free)
     }
 
-    /// Runs the command a press of `k` is bound to, when it is enabled. `typing`: the focused stop
-    /// types, so the keymap's typing rule holds back the chords that type.
-    fn dispatch(&self, cx: &mut EventCx<'_>, k: &KeyInput, typing: bool) -> Handled {
-        let chord = Chord::new(k.mods, k.key);
+    /// The command a press of `chord` runs: the enabled command the keymap binds it to (the first of a tool group that
+    /// shares the chord: the app's handler picks the next). `typing`: the focused stop types, so the keymap's typing
+    /// rule holds back the chords that type. `in_dialog`: a modal dialog is open, so a command whose modal rule blocks
+    /// it there is passed over.
+    pub(crate) fn command_for(&self, chord: &Chord, typing: bool, in_dialog: bool) -> Option<CommandRef> {
         let lookup = {
             let board = self.0.borrow();
             let active = Active { panel: None, contexts: &[], typing };
-            board.keymap.lookup_where(&chord, false, &active, &[], &|command| self.enabled(command))
+            let accept = |command: &CommandRef| self.enabled(command) && !(in_dialog && self.blocks_in_dialogs(command));
+            board.keymap.lookup_where(chord, false, &active, &[], &accept)
         };
-        let command = match lookup {
-            Lookup::Run(command) => command,
-            // Tools of one group share the chord: the app's handler picks the next; the first stands in.
-            Lookup::Cycle(group) => match group.into_iter().next() {
-                Some(command) => command,
-                None => return Handled::No,
-            },
-            _ => return Handled::No,
-        };
-        let fired = Fired::new(command, FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
+        match lookup {
+            Lookup::Run(command) => Some(command),
+            Lookup::Cycle(group) => group.into_iter().next(),
+            _ => None,
+        }
+    }
+
+    /// Whether `command` blocks while a modal dialog is open; false for a command the keymap does not define.
+    fn blocks_in_dialogs(&self, command: &CommandRef) -> bool {
+        self.0.borrow().keymap.catalog().iter().any(|def| def.command == *command && matches!(def.modal, ModalRule::Blocked | ModalRule::Declared))
+    }
+
+    /// Runs `command` as fired by the key press `k`, along the focused node's path; whether a handler ran.
+    pub(crate) fn run_key(&self, cx: &mut EventCx<'_>, command: CommandRef, k: &KeyInput) -> bool {
+        let phase = if k.repeat { FirePhase::Repeat } else { FirePhase::Press };
+        let fired = Fired::new(command, FireSource::Key, phase, cx.time()).mods(k.mods);
         let path = self.path(cx.runtime(), cx.focused());
         let modal = ModalAt::of(cx.runtime(), cx.focused());
-        self.run(cx.store_mut(), &path, &fired, modal);
-        Handled::Yes
+        self.run(cx.store_mut(), &path, &fired, modal)
     }
 }
 
@@ -455,10 +463,13 @@ struct ShownFact {
 #[derive(Default)]
 struct ShownFacts(Vec<ShownFact>);
 
-/// The window root's command stage, after Tab and F6: the command a key press no node took is bound
-/// to runs.
+/// The window root's command stage, after Tab and the pane keys: the command a key press no node took is bound to
+/// runs, and the text the platform sends with the press does not type. A plain Escape is the scopes' (ui-rt dismisses
+/// the topmost layer child that asks); an Escape with Shift or Alt that the keymap binds runs its command. Quit, run
+/// from its key, then asks the windows to close through their close path, so the app's close guard asks about unsaved
+/// work as for a window's close button.
 pub(crate) fn window_command(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) -> Handled {
-    if !k.down || matches!(k.key, Key::Tab | Key::Escape) {
+    if !k.down || k.key == Key::Tab || (k.key == Key::Escape && k.mods.is_none()) {
         return Handled::No;
     }
     let Some(board) = root.commands.clone() else { return Handled::No };
@@ -468,7 +479,22 @@ pub(crate) fn window_command(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) ->
         let command_key = Chord::new(k.mods, k.key).has_command() || is_function(k.key);
         typing && !(keys.command_keys && command_key)
     });
-    board.dispatch(cx, k, typing)
+    let chord = Chord::new(k.mods, k.key);
+    let Some(mut command) = board.command_for(&chord, typing, false) else { return Handled::No };
+    // The window walk runs only for a command a modal dialog would block.
+    if board.blocks_in_dialogs(&command) && super::focus::dialog_open(root, cx) {
+        match board.command_for(&chord, typing, true) {
+            Some(open) => command = open,
+            None => return Handled::No,
+        }
+    }
+    let quits = !k.repeat && QuitCommand::from_ref(&command).is_some();
+    board.run_key(cx, command, k);
+    cx.withhold_text();
+    if quits {
+        cx.quit();
+    }
+    Handled::Yes
 }
 
 fn is_function(key: Key) -> bool {
