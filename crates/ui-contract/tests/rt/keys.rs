@@ -162,7 +162,11 @@ mod window {
         }
 
         fn sense(&self) -> Sense {
-            if self.drag { Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::KEEP_FOCUS } else { Sense::HOVER | Sense::CLICK | Sense::FOCUS }
+            if self.drag {
+                Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::KEEP_FOCUS
+            } else {
+                Sense::HOVER | Sense::CLICK | Sense::FOCUS
+            }
         }
 
         fn drag_source(&self) -> Option<DragSource> {

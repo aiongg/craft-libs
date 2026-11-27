@@ -10,7 +10,7 @@ use craft_ui_contract::contract::{
 use craft_ui_contract::primitives::{TextKey, TextOptions};
 use craft_ui_contract::runtime::commands::{CommandBoard, EditCommands, linked_keymap};
 use craft_ui_contract::style::StyleCx;
-use craft_ui_contract::testing::Harness;
+use craft_ui_contract::testing::{Harness, HarnessBuilder};
 use craft_ui_rt::{Key, Mods, Rect, Sense, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
 
@@ -122,8 +122,13 @@ impl Component for TextField<'_> {
 /// A harness of `view` with the window's commands and the linked edit commands, on Linux's chords; the harness runs
 /// on Linux to match, so the edit chords a trial presses do not depend on the host.
 pub(crate) fn edit_harness(view: impl FnMut(&mut Ui<'_, '_>) + 'static) -> Harness<()> {
+    edit_harness_from(Harness::builder(), view)
+}
+
+/// [`edit_harness`] from `builder`'s settings.
+pub(crate) fn edit_harness_from(builder: HarnessBuilder, view: impl FnMut(&mut Ui<'_, '_>) + 'static) -> Harness<()> {
     let keymap = linked_keymap(false, craft_keymap::Platform::Linux).expect("the linked command sets are valid");
-    let mut h = Harness::builder().with_commands(CommandBoard::new(keymap).with_edits::<EditCommands>()).build_ui(view);
+    let mut h = builder.with_commands(CommandBoard::new(keymap).with_edits::<EditCommands>()).build_ui(view);
     h.os(craft_host::target::Os::Linux);
     h
 }
@@ -170,10 +175,15 @@ struct Window {
 }
 
 fn window(password: bool) -> Window {
+    window_from(Harness::builder(), password)
+}
+
+/// [`window`] from `builder`'s settings.
+fn window_from(builder: HarnessBuilder, password: bool) -> Window {
     let text = Rc::new(RefCell::new(String::new()));
     let (field_runs, other_runs, field) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)), Rc::new(Cell::new(Rect::NOTHING)));
     let (t, fr, or, f) = (Rc::clone(&text), Rc::clone(&field_runs), Rc::clone(&other_runs), Rc::clone(&field));
-    let mut h = edit_harness(move |ui: &mut Ui<'_, '_>| {
+    let mut h = edit_harness_from(builder, move |ui: &mut Ui<'_, '_>| {
         let mut value = t.borrow().clone();
         let props = FieldView { value: &mut value, password, runs: Rc::clone(&fr) };
         f.set(MemoView::new("field", props, field_view).show(ui).expect("in view").value);
@@ -203,7 +213,8 @@ fn typing_runs_only_the_field() {
 
 #[test]
 fn a_caret_blink_repaints_and_builds_nothing() {
-    let mut w = window(false);
+    // A blinking caret is motion: the harness holds it solid unless motion is on.
+    let mut w = window_from(Harness::builder().with_motion(true), false);
     w.h.type_text("a");
     w.h.run();
     let (field_runs, other_runs) = (w.field_runs.get(), w.other_runs.get());
@@ -340,7 +351,8 @@ fn a_wheel_over_a_multi_line_field_is_the_field_s_alone() {
         .inject(h.window(), craft_ui_platform_headless::Input::Wheel { pos: field.get().center(), delta: Vec2::new(0.0, 30.0), mods: Mods::NONE });
     let report = h.step_now();
     assert!(report.frame.runs >= 1, "the field takes the wheel over its text");
-    assert_eq!(outer.get(), before, "the view around runs nothing for a wheel inside the field");
+    // The field is shown by the window's view, so the view runs once to reach it (as typing does), and only then.
+    assert_eq!(outer.get(), before + 1, "the view around runs only to reach the field for a wheel inside it");
     h.type_text("9");
     h.run();
     assert!(text.borrow().ends_with("89"), "the wheel scrolled the text and left the caret where it was");

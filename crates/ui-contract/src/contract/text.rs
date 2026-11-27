@@ -189,6 +189,16 @@ pub(crate) fn selection_parts(core: &mut CxCore<'_>, origin: Pos2) -> Vec<KeptPa
     parts
 }
 
+/// After the text step: a scrubbing field's text takes the pointer only once it is in edit (`CxCore::text_takes_pointer`),
+/// so until then its part shape takes no press and the root's shape gets the press that scrubs or enters the text.
+pub(crate) fn yield_pointer(core: &CxCore<'_>, parts: &mut [KeptPart]) {
+    let Some((key, _)) = core.texts.as_ref().filter(|_| !core.text_takes_pointer) else { return };
+    for part in parts.iter_mut().filter(|part| part.part.key == *key) {
+        part.sense.remove(Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS);
+        part.cursor = None;
+    }
+}
+
 pub(crate) struct TextDecl {
     pub part: TextPart,
     /// A `Resolve<V>` for the component's value type, which the text step takes and invokes after the adapter records

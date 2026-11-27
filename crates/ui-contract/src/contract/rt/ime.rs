@@ -153,10 +153,12 @@ fn text(kept: &mut Kept, text: &str) {
     kept.queue.push(NodeInput::Intent { intent: Intent::Text(std::sync::Arc::from(text)), horizontal: false, shift: false });
 }
 
+/// A commit goes to the editor as input method input, so a commit queued as focus leaves (the focus already moved
+/// when the run reads it) still inserts: typed intents are a focused editor's only.
 fn commit(kept: &mut Kept, committed: &str) {
     kept.queue.push(NodeInput::Ime(EditorInput::ImeCommit));
     if !committed.is_empty() {
-        text(kept, committed);
+        kept.queue.push(NodeInput::Ime(EditorInput::Text(std::sync::Arc::from(committed))));
     }
 }
 
