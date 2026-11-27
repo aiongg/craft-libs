@@ -1,7 +1,6 @@
 //! Per-pass and per-frame services and the one egui adapter.
 
 pub mod access;
-#[cfg(feature = "testing")]
 pub mod commands;
 pub mod cursor;
 pub mod derived;
