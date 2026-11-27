@@ -18,11 +18,12 @@ use craft_ui::testing::layout::allocate;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::FakeSystem;
+use craft_ui_rt::{Pos2, Rect, Vec2, pos2, vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
 use craft_ui_test_kit::windows::Windows;
 use craft_window::policy::{Desktop, DesktopKind, Runtime, TitleBarPref};
 use egui::viewport::ResizeDirection;
-use egui::{Event, Pos2, Rect, Response, Ui, Vec2, ViewportCommand, ViewportInfo, pos2, vec2};
+use egui::{Event, Response, Ui, ViewportCommand, ViewportInfo};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 

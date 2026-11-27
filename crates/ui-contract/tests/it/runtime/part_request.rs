@@ -6,8 +6,9 @@ use craft_ui::contract::{Common, Component, Cx, Focus as _, MeasureCx, PartsCx, 
 use craft_ui::runtime::focus::{FocusTarget, KeyUse, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2, pos2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Rect, Vec2, pos2};
 use std::cell::Cell;
 use std::rc::Rc;
 

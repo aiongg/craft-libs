@@ -4,7 +4,7 @@
 use super::items;
 use crate::style::AutoScrollMarkLook;
 use craft_ui_rt::Item;
-use egui::{Pos2, vec2};
+use craft_ui_rt::{Pos2, vec2};
 
 /// The dot's radius, as a share of the mark's radius.
 const DOT: f32 = 2.0 / 13.0;

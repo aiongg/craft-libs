@@ -1,9 +1,11 @@
 //! `HostStyle`: an app's own egui code shown inside a framework part keeps the style and the background it has outside,
 //! and runs once per pass.
 
+use crate::primitives::id::Id;
 use crate::runtime::egui::{alloc, memory, style};
 use crate::runtime::{layout_memory, measure};
-use egui::{Id, Rect, Ui, UiBuilder, Vec2};
+use craft_ui_rt::{Rect, Vec2};
+use egui::{Ui, UiBuilder};
 use std::sync::Arc;
 
 /// The egui style of an app's own `Ui`, kept where a framework part takes the app's egui code into a `Ui` of its own:

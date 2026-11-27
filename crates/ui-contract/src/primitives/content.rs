@@ -58,7 +58,7 @@ impl<'a> ContentPainterCx<'a> {
 
     /// The same painter with what it paints cut to `rect` (window coordinates) until it goes: the component's rect, as
     /// `PaintUi::content_painter` gives it.
-    pub(crate) fn within(mut self, rect: egui::Rect) -> Self {
+    pub(crate) fn within(mut self, rect: craft_ui_rt::Rect) -> Self {
         if !self.clips {
             self.painter.push_clip(rect);
             self.clips = true;
@@ -106,7 +106,7 @@ impl<'a> ContentPainterCx<'a> {
     }
 
     /// Runs `paint` with a `ContentPainterCx` whose painting is clipped to `rect` (inside the clip it already has).
-    pub fn clipped(&self, rect: egui::Rect, paint: impl FnOnce(&ContentPainterCx<'_>)) {
+    pub fn clipped(&self, rect: craft_ui_rt::Rect, paint: impl FnOnce(&ContentPainterCx<'_>)) {
         self.painter.clipped(rect, || paint(self));
     }
 

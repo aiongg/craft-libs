@@ -6,9 +6,11 @@
 use crate::runtime::drag;
 use crate::runtime::egui::areas;
 
+use crate::primitives::id::Id;
 use craft_behavior::{Buttons, MultiTap, MultiTouch, PartRef, PointerButton, PointerEvent, PointerKind, PointerSample, PressStart, Shape, Winner};
 use craft_keymap::Mods;
-use egui::{Id, IdMap, IdSet, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{IdMap, IdSet};
 use smallvec::SmallVec;
 
 /// The pointer input of one pass of one viewport, egui-converted. Input enters a frame's first pass only (egui hands

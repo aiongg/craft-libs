@@ -6,8 +6,9 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::Pos2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Pos2, Response};
+use egui::Response;
 use std::cell::Cell;
 use std::time::Duration;
 
@@ -26,7 +27,7 @@ impl Component for Hovered<'_> {
     type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: HoveredStyleKey) -> PlainStyle {
-        PlainStyle::min(egui::vec2(40.0, 20.0))
+        PlainStyle::min(craft_ui_rt::vec2(40.0, 20.0))
     }
 
     fn sense(&self) -> Sense {
@@ -96,7 +97,7 @@ impl Component for Animator<'_> {
     type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: AnimatorStyleKey) -> PlainStyle {
-        PlainStyle::min(egui::vec2(40.0, 20.0))
+        PlainStyle::min(craft_ui_rt::vec2(40.0, 20.0))
     }
 
     fn sense(&self) -> Sense {

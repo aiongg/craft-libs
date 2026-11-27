@@ -6,7 +6,8 @@ use crate::runtime::egui::pass;
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::keys::Intents;
 use craft_behavior::{Axis, Intent, NavOutline, keys};
-use egui::{Context, Pos2, Rect};
+use craft_ui_rt::{Pos2, Rect};
+use egui::Context;
 
 /// Rows per second the view scrolls at when the pointer is a full edge band beyond the view's edge.
 pub(crate) const EDGE_ROWS_PER_SECOND: f32 = 4.0;

@@ -4,6 +4,7 @@
 
 use super::Component;
 use super::cx::{Cx, Edit as _, PartsCx};
+use crate::primitives::id::Id;
 use crate::primitives::{EditorPurpose, EditorState, ImeStamp, ImeSurface};
 use crate::runtime::access::text::{self as text_access, Line, Run, TextFacts};
 
@@ -12,7 +13,8 @@ use crate::runtime::egui::{editor as egui_editor, focus as egui_focus};
 use crate::runtime::focus::KeyUse;
 use crate::runtime::ime;
 use craft_behavior::{EditCommand, EditorInput, PartKey};
-use egui::{Rect, Ui};
+use craft_ui_rt::Rect;
+use egui::Ui;
 
 /// What `PartsCx::editor` leaves for step 8b.
 pub(crate) struct EditorDecl {
@@ -37,7 +39,7 @@ pub enum EditorStep<S> {
 
 /// The editor part as step 8b set it up, for `editor_state`.
 pub(crate) struct EditorInfo {
-    pub widget: egui::Id,
+    pub widget: Id,
     pub rect: Rect,
     pub purpose: EditorPurpose,
     pub focused: bool,
@@ -117,7 +119,7 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, ui: &mut Ui, step: &mut supe
 /// component reports through for the component's editor part.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EditorHandle {
-    widget: egui::Id,
+    widget: Id,
     rect: Rect,
     purpose: EditorPurpose,
     focused: bool,
@@ -134,7 +136,7 @@ impl EditorHandle {
     /// editor record, which the owning component's report step reads in the same pass.
     pub fn report(&self, ctx: &egui::Context, state: EditorState<'_>) {
         if let Some(facts) = self.note(ctx, state) {
-            // PLAN: assumed `pub(crate) fn note_editor_facts(ctx: &egui::Context, widget: egui::Id, facts: TextFacts)` in `contract/steps/report.rs` (ribbon-w5): the pass-scoped slot step 16 reads for `core.editor`'s widget.
+            // PLAN: assumed `pub(crate) fn note_editor_facts(ctx: &egui::Context, widget: Id, facts: TextFacts)` in `contract/steps/report.rs` (ribbon-w5): the pass-scoped slot step 16 reads for `core.editor`'s widget.
             super::steps::report::note_editor_facts(ctx, self.widget, facts);
         }
     }

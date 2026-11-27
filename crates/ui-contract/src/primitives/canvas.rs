@@ -10,7 +10,8 @@ use craft_ui_rt::{
     Clip, DisplayList, FaceInstall, FontFace, ImageKey, ImageOptions, ImageStore, Item, RgbaImage, RichText, TextEngine, TextLayout as RtLayout,
     TextMetrics,
 };
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 

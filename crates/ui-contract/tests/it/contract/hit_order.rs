@@ -6,8 +6,9 @@ use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Paint
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::RefCell;
 
 const OVER_PART: PartKey = PartKey::new("grip");

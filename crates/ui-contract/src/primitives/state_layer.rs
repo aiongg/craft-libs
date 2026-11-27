@@ -2,8 +2,9 @@
 
 use super::items;
 use crate::style::StyleColor;
+use craft_ui_rt::Rect;
 use craft_ui_rt::{Item, StrokeAlign};
-use egui::{CornerRadius, Rect};
+use egui::CornerRadius;
 
 /// How a state layer paints its colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

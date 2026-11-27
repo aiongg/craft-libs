@@ -14,7 +14,8 @@ use craft_ui::fonts::{self, FaceBytes, FaceState};
 use craft_ui::primitives::{DocRun, DocText};
 use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
 use craft_ui::testing::{Frames, MemoRun, document_face_budget, last_frame_memo_runs, trial};
-use egui::{Color32, FontId, Response, Vec2};
+use craft_ui_rt::Vec2;
+use egui::{Color32, FontId, Response};
 
 const FONT: &[u8] = include_bytes!("../../fonts/NotoSans-test.ttf");
 /// A variable font (`wght`, 400 to 900).

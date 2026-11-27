@@ -3,7 +3,7 @@
 
 use crate::runtime::Shift;
 
-use egui::Rect;
+use craft_ui_rt::Rect;
 use std::any::Any;
 use std::sync::Arc;
 

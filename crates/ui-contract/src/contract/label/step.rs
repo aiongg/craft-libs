@@ -6,6 +6,7 @@ use super::props::{FieldLayout, LabelKind, SideLabel};
 use crate::contract::Props;
 use crate::contract::Show;
 use crate::contract::cx::Under;
+use crate::primitives::id::Id;
 use crate::runtime::access::{
     self,
     scope::{self, FieldLabel},
@@ -15,7 +16,8 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use craft_behavior::Flow;
-use egui::{Id, Rect, Ui, UiBuilder, Vec2};
+use craft_ui_rt::{Rect, Vec2};
+use egui::{Ui, UiBuilder};
 
 /// What the step needs of the row it runs for.
 pub(crate) struct LabelIn<'a> {
@@ -285,7 +287,7 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
         let (_, unslotted) = Flow::new(placed.label, rtl).take_end(slot);
         let cell = unslotted.take_end(input.trailing.x).0;
         let middle = cell.top() + leaf.first_line.get() / 2.0;
-        placed.trailing = Rect::from_min_size(egui::pos2(cell.min.x, middle - input.trailing.y / 2.0), input.trailing);
+        placed.trailing = Rect::from_min_size(craft_ui_rt::pos2(cell.min.x, middle - input.trailing.y / 2.0), input.trailing);
     }
     Decided { placed, leaf: Some(DecidedLeaf { leaf, kids, installed, reset }), facts }
 }
@@ -408,7 +410,7 @@ fn flow_leaf_row<C: Show>(
     // in flow as any other child does: its control's line is the row's line, on a row's or bracket's line, centred in a
     // grid's cell or a horizontal layout. The row spans the room's own edges: a room that scrolls along x is unbounded
     // at its start edge, the left one under RTL.
-    let row = Rect::from_min_max(avail.min, egui::pos2(avail.max.x, avail.min.y + ideal.y));
+    let row = Rect::from_min_max(avail.min, craft_ui_rt::pos2(avail.max.x, avail.min.y + ideal.y));
     // An `egui::Grid` offers a column with no width from the last frame its least cell width, where the label would
     // wrap and keep the column that narrow: in its cell the label is decided at its own width.
     let egui_cell = env.egui_cell;

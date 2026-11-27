@@ -12,9 +12,11 @@ use craft_ui::layout::BodyLayout;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Fixture, Frames, is_measuring, pointer, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
 use craft_ui_test_kit::contract::{Panel, PlainStyle, Probe, Seen};
-use egui::{Pos2, Rect, Response, Vec2};
+use egui::Response;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -369,7 +371,7 @@ fn a_fill_child_of_a_content_sized_row_takes_its_measured_width_and_the_next_mem
 /// asks every frame must not make every frame run twice (egui's "request_discard has been called N frames in a row").
 #[trial]
 fn a_reveal_of_a_rect_in_a_scroll_bodys_view_runs_no_second_pass() {
-    let owner = egui::Id::unique("revealed body");
+    let owner = Id::new("revealed body");
     let mut frames = Frames::new();
     let mut show = |ui: &mut egui::Ui| {
         let props = ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical());

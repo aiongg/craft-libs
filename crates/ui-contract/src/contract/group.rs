@@ -1,8 +1,8 @@
 //! Group forms (20.3): a container and arena root whose members, placed anywhere in its body, join its arena and
 //! register with its `GroupHandle`.
 
+use crate::primitives::id::Id;
 use crate::runtime::env::EnvValue;
-use egui::Id;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 

@@ -5,9 +5,10 @@ use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::access::{NodeKey, focused_key};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
 use craft_ui_test_kit::contract::{Probe, Seen};
 use craft_ui_test_kit::windows::Windows;
-use egui::{Id, Ui, ViewportBuilder, ViewportId};
+use egui::{Ui, ViewportBuilder, ViewportId};
 use std::cell::RefCell;
 
 /// Gives egui focus to a widget that is never shown, so it has no node in the pass's update.

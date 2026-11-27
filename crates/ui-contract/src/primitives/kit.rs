@@ -12,7 +12,8 @@ use super::textures::UNTINTED;
 use crate::style::{Corners, DataColor, RuleLook, RuleWidth, SurfaceKind, UiTokens, ink_color, rgba_color, rule_look, surface_style};
 use craft_behavior::{Axis, CanvasView, kurbo};
 use craft_ui_rt::{Clip, Dash, ImageKey, Item, Mesh, Stroke, StrokeAlign, Vertex};
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2, pos2};
+use craft_ui_rt::{Pos2, Rect, Vec2, pos2};
+use egui::{Color32, CornerRadius};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
 /// Which edge of a rect a tick row sits on, and so which way its marks point.
@@ -414,10 +415,10 @@ fn rounded_mesh(mut mesh: Mesh, rect: Rect, radius: CornerRadius) -> Vec<Item> {
     let most = rect.width().min(rect.height()) / 2.0;
     let r = |corner: u8| f32::from(corner).min(most);
     let corners = [
-        (r(radius.nw), rect.left_top(), egui::vec2(1.0, 1.0)),
-        (r(radius.ne), rect.right_top(), egui::vec2(-1.0, 1.0)),
-        (r(radius.sw), rect.left_bottom(), egui::vec2(1.0, -1.0)),
-        (r(radius.se), rect.right_bottom(), egui::vec2(-1.0, -1.0)),
+        (r(radius.nw), rect.left_top(), craft_ui_rt::vec2(1.0, 1.0)),
+        (r(radius.ne), rect.right_top(), craft_ui_rt::vec2(-1.0, 1.0)),
+        (r(radius.sw), rect.left_bottom(), craft_ui_rt::vec2(1.0, -1.0)),
+        (r(radius.se), rect.right_bottom(), craft_ui_rt::vec2(-1.0, -1.0)),
     ];
     for vertex in &mut mesh.vertices {
         for &(r, corner, toward) in &corners {

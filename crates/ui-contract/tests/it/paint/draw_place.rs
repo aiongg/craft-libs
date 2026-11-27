@@ -6,8 +6,9 @@ use craft_ui::runtime::env::Direction;
 use craft_ui::style::Ink;
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, pos2};
 use egui::epaint::{Mesh, TessellationOptions, Tessellator};
-use egui::{CornerRadius, Pos2, Rect, Shape, pos2};
+use egui::{CornerRadius, Shape};
 
 /// Slack for the polygon a tessellated circle is.
 const EPS: f32 = 0.05;

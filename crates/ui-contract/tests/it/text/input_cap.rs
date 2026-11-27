@@ -12,8 +12,10 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Event, Id, ImeEvent, Key, Modifiers, Pos2, Rect, Response};
+use egui::{Event, ImeEvent, Key, Modifiers, Response};
 use std::cell::RefCell;
 
 const AT: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(210.0, 90.0) };
@@ -85,9 +87,9 @@ impl Component for Probe<'_> {
         let positions: Vec<f32> = (0..shown.len()).map(|at| at as f32 * 8.0).collect();
         let widths = vec![8.0; shown.len()];
         let runs = [EditorRun::new(0..shown.len(), false, &positions, &widths)];
-        let line = Rect::from_min_size(cx.content_rect.min, egui::vec2(cx.content_rect.width(), 16.0));
+        let line = Rect::from_min_size(cx.content_rect.min, craft_ui_rt::vec2(cx.content_rect.width(), 16.0));
         let lines = [EditorLine::new(shown, line, line.bottom(), &runs)];
-        let caret = Rect::from_min_size(line.min + egui::vec2(shown.len() as f32 * 8.0, 0.0), egui::vec2(0.0, 16.0));
+        let caret = Rect::from_min_size(line.min + craft_ui_rt::vec2(shown.len() as f32 * 8.0, 0.0), craft_ui_rt::vec2(0.0, 16.0));
         cx.editor_state(EditorState::new(caret, &lines, TextPos::new(0, shown.len())));
     }
 
@@ -166,7 +168,7 @@ fn oversized_text_events_are_cut_before_components_see_them() {
     // Tab and a paste in one frame: the paste reaches only the field Tab moves to, cut as any paste is.
     let (first, second) = (RefCell::new(Vec::new()), RefCell::new(Vec::new()));
     let (first_pastes, second_pastes) = (RefCell::new(Vec::new()), RefCell::new(Vec::new()));
-    let (first_at, second_at) = (AT, AT.translate(egui::vec2(0.0, 100.0)));
+    let (first_at, second_at) = (AT, AT.translate(craft_ui_rt::vec2(0.0, 100.0)));
     let mut fields = |ui: &mut egui::Ui| {
         Probe { purpose: EditorPurpose::Text, pastes: Some(&first_pastes), ..Probe::new(&first) }
             .label("First")

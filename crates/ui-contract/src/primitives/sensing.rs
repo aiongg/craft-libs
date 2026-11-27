@@ -6,6 +6,7 @@
 //! and every root reads its hover and its press from that answer, so the winner never depends on show order.
 //! Every root runs the lifecycle, arena root or not: a leaf is an arena of its own id with no members.
 
+use crate::primitives::id::Id;
 use crate::runtime::edit::{RemovalWatch, gesture_key};
 use crate::runtime::egui::areas::{self, Layer, LayerMap};
 use crate::runtime::egui::pass;
@@ -21,7 +22,8 @@ use craft_behavior::{
 };
 use craft_keymap::Mods;
 use craft_theme::Flags;
-use egui::{Context, Id, IdMap, Pos2, Rect, Response, Ui, ViewportId};
+use craft_ui_rt::{Pos2, Rect};
+use egui::{Context, IdMap, Response, Ui, ViewportId};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -1016,7 +1018,7 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
     let (slop, delta, pos, buttons) = pass_pointer
         .frame
         .as_ref()
-        .map_or((0.0, egui::Vec2::ZERO, None, craft_behavior::Buttons::empty()), |frame| (frame.slop, frame.delta, frame.pos, frame.buttons));
+        .map_or((0.0, craft_ui_rt::Vec2::ZERO, None, craft_behavior::Buttons::empty()), |frame| (frame.slop, frame.delta, frame.pos, frame.buttons));
     let (body_layer, host_cancel) = with_arena(ctx, arena, pass_nr, |state| (state.layer, std::mem::take(&mut state.host_cancel)));
     let cancel = if enabled {
         pointer::cancel_of_pass(ctx).or(host_cancel.then_some(craft_behavior::PressCancel::Host))

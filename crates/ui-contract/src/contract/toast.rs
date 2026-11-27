@@ -10,7 +10,8 @@ use crate::runtime::focus;
 use crate::runtime::memory::sub;
 use crate::runtime::motion;
 use crate::runtime::toast::{self, Toast, ToastEnd};
-use egui::{Align2, IdSalt, Rect, Ui};
+use craft_ui_rt::Rect;
+use egui::{Align2, IdSalt, Ui};
 
 /// The toasts of the cards shown last, so the layer's exit fade still shows them after the queue emptied.
 #[derive(Clone, Default)]

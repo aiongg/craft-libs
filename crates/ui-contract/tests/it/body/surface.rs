@@ -5,8 +5,9 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Frames, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Key, Modifiers, Ui};
 use std::cell::{Cell, RefCell};
 
 const PROBE: Vec2 = Vec2::new(40.0, 40.0);

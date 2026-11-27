@@ -2,10 +2,11 @@
 
 use super::route::push;
 use super::{Nudge, Source};
+use crate::primitives::id::Id;
 use crate::runtime::focus;
 use craft_behavior::{EditCommand, EditorInput, Intent, NavMove, PartRef};
 use craft_keymap::{Chord, Mods};
-use egui::{Id, Vec2};
+use craft_ui_rt::Vec2;
 use std::sync::Arc;
 
 /// An owned copy of the intents routed to one id this pass; read through `cx.intents()`.

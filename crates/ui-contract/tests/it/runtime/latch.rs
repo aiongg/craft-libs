@@ -8,8 +8,10 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::Pos2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Key, Modifiers, Pos2, Response, Ui};
+use egui::{Key, Modifiers, Response, Ui};
 use std::cell::{Cell, RefCell};
 
 /// The probe claims K plain and with Shift: which one a press of K takes tells the modifiers key routing read.
@@ -41,7 +43,7 @@ impl Component for LatchProbe<'_> {
     type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: LatchProbeStyleKey) -> PlainStyle {
-        PlainStyle::min(egui::vec2(80.0, 30.0))
+        PlainStyle::min(craft_ui_rt::vec2(80.0, 30.0))
     }
 
     fn sense(&self) -> Sense {
@@ -68,7 +70,7 @@ impl Component for LatchProbe<'_> {
 /// The probe's frame closure, the probe's id and rect once shown, and a switch that discards the next pass.
 struct Rig {
     log: RefCell<Log>,
-    shown: Cell<Option<(Id, egui::Rect)>>,
+    shown: Cell<Option<(Id, craft_ui_rt::Rect)>>,
     discard: Cell<bool>,
 }
 

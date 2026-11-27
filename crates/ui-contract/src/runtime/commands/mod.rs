@@ -29,6 +29,7 @@ pub(crate) use keymap::{BuiltKeymap, build_keymap, keymap_for};
 pub use keymap::{chord_text_builds, keymap_builds};
 
 use crate::contract::{MemoKey, MemoProps, PlainData, Revision, Tracked};
+use crate::primitives::id::Id;
 use crate::runtime::egui::areas::{self, LayerKey};
 use crate::runtime::egui::pass;
 use crate::runtime::env::Label;
@@ -38,7 +39,7 @@ use crate::runtime::{RecordShift, Shift};
 use craft_behavior::CommandFlags;
 use craft_behavior::edit_history::Step;
 use craft_keymap::{Chord, Overrides};
-use egui::{Context, Id, ViewportId};
+use egui::{Context, ViewportId};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
@@ -197,7 +198,7 @@ pub struct Fired {
     /// whose content the app reads from the clipboard itself.
     pub pasted: Option<ClipContent>,
     /// The screen point supplied when requesting this paste, if any.
-    pub paste_at: Option<egui::Pos2>,
+    pub paste_at: Option<craft_ui_rt::Pos2>,
 }
 
 impl Fired {
@@ -702,7 +703,7 @@ pub fn fire(ctx: &Context, command: impl Into<CommandRef>, source: FireSource) -
 
 /// Requests a paste at a screen point; the delivered command carries the point with its content. The next clipboard
 /// delivery in this viewport completes the request. A new request replaces any previous pending point there.
-pub fn request_paste_at(ctx: &Context, at: egui::Pos2) {
+pub fn request_paste_at(ctx: &Context, at: craft_ui_rt::Pos2) {
     if crate::runtime::measure::effect(ctx, "commands::request_paste_at") {
         board::request_paste_at(ctx, at);
     }
@@ -753,7 +754,7 @@ pub fn holder(ctx: &Context, chord: &Chord) -> Option<CommandRef> {
 struct ShownFact {
     commands: ShownCommands,
     layer: LayerKey,
-    rect: egui::Rect,
+    rect: craft_ui_rt::Rect,
     label: Label,
 }
 
@@ -786,13 +787,13 @@ impl Shift for ShownFact {
 }
 
 /// Registers `commands` as shown for the next pass of the running viewport.
-fn register_shown(ctx: &Context, layer: LayerKey, rect: egui::Rect, label: Label, commands: ShownCommands) {
+fn register_shown(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, label: Label, commands: ShownCommands) {
     Facts::register(ctx, ShownFact { commands, layer, rect, label });
 }
 
 /// Records that a container at `rect` holds `commands`, for this pass and viewport. Not [`CommandInput::holds`], which
 /// turns hold bindings on.
-pub fn holds(ctx: &Context, layer: LayerKey, rect: egui::Rect, commands: &Arc<[CommandRef]>, label: Label) {
+pub fn holds(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, commands: &Arc<[CommandRef]>, label: Label) {
     if !commands.is_empty() {
         register_shown(ctx, layer, rect, label, ShownCommands::Held(Arc::clone(commands)));
     }
@@ -801,7 +802,7 @@ pub fn holds(ctx: &Context, layer: LayerKey, rect: egui::Rect, commands: &Arc<[C
 /// Records that the bound component of `command` was shown at `rect` in `layer`, with `label`, for this pass and
 /// viewport: the report step calls it for a component wholly inside its clip.
 // PLAN: the caller is the report step (menus-w3); until it lands nothing in this crate calls it.
-pub(crate) fn note_shown(ctx: &Context, layer: LayerKey, rect: egui::Rect, label: Label, command: &Arc<CommandRef>) {
+pub(crate) fn note_shown(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, label: Label, command: &Arc<CommandRef>) {
     register_shown(ctx, layer, rect, label, ShownCommands::Bound(Arc::clone(command)));
 }
 
@@ -849,7 +850,7 @@ pub fn shown(ctx: &Context, command: &CommandRef) -> Option<Shown> {
 #[non_exhaustive]
 pub struct Shown {
     /// The rect it was shown in.
-    pub rect: egui::Rect,
+    pub rect: craft_ui_rt::Rect,
     /// The viewport it was shown in.
     pub viewport: ViewportId,
     /// The label it was shown with.

@@ -7,10 +7,11 @@ use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::NoWindows;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
 use craft_ui_test_kit::windows::Windows;
 use craft_window::restore::Store;
-use egui::{Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportInfo};
+use egui::{Ui, ViewportEvent, ViewportInfo};
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 

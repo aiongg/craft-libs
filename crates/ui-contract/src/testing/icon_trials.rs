@@ -13,7 +13,8 @@ use craft_behavior::IconId;
 use craft_i18n::Direction;
 use craft_theme::{AppSizes, Appearance, Contrast, IconPackId, Mode, Rgba, Size, TextSize, builtins};
 use craft_ui_rt::{ImageKey, ImageStore, Item, RichText, TextEngine, TextHandle, TextLayout, TextSpec};
-use egui::{Color32, ColorImage, Pos2, Rect, Vec2, pos2, vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2, pos2, vec2};
+use egui::{Color32, ColorImage};
 use std::cell::RefCell;
 use std::sync::Arc;
 

@@ -10,8 +10,9 @@ use craft_ui::runtime::env::{Env, RootEnv};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::style::root_token_resolves;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::Cell;
 use std::sync::Arc;
 

@@ -2,7 +2,7 @@
 
 use craft_ui::runtime::derived::derived;
 use craft_ui::testing::{Fixture, MemoRun, last_frame_memo_runs, last_pass_derived_builds, trial};
-use egui::Id;
+use craft_ui_contract::contract::Id;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -67,7 +67,7 @@ fn an_absent_derived_value_is_dropped_by_the_memo_rule() {
 fn a_replayed_view_keeps_the_values_it_derived() {
     use craft_ui::contract::MemoView;
     use craft_ui::testing::pointer;
-    let at: Rc<Cell<egui::Pos2>> = Rc::default();
+    let at: Rc<Cell<craft_ui_rt::Pos2>> = Rc::default();
     let shown = Rc::clone(&at);
     let mut fixture = Fixture::new(move |ui| {
         let out = MemoView::new("deriving", 1u32, |key: &mut u32, ui: &mut egui::Ui| {
@@ -79,7 +79,7 @@ fn a_replayed_view_keeps_the_values_it_derived() {
             shown.set(out);
         }
     });
-    fixture.room(egui::Vec2::new(200.0, 100.0));
+    fixture.room(craft_ui_rt::Vec2::new(200.0, 100.0));
     fixture.settle().idle(3);
     for _ in 0..3 {
         fixture.frame(Vec::new());

@@ -3,11 +3,13 @@
 use super::place::{Anchor, Place};
 use super::popups::with_popups;
 use super::props::Overlay;
+use crate::primitives::id::Id;
 use crate::runtime::egui::areas::{self};
 use crate::runtime::egui::response;
 use crate::runtime::{keys, pointer};
 use craft_behavior::PointerButton;
-use egui::{Context, Id, Rect, Response};
+use craft_ui_rt::Rect;
+use egui::{Context, Response};
 
 /// How a free-standing popup's trigger fires.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]

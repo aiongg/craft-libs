@@ -5,8 +5,9 @@ use craft_theme::Srgba;
 use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 

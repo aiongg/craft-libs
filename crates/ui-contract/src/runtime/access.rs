@@ -4,12 +4,12 @@
 //! the only one that calls `runtime::egui::access`, which writes nodes and makes the parent and focus calls. One
 //! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
+use crate::primitives::id::Id;
 use crate::runtime::egui::access::NodeRole;
 pub use crate::runtime::egui::access::bounds;
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
 use craft_theme::{Flags, Srgba};
-use egui::Id;
 pub(crate) use emit::PopupShown;
 #[doc(hidden)]
 pub use emit::SubDecl;
@@ -480,7 +480,7 @@ pub struct SubNode {
     pub flags: Flags,
     pub(crate) custom_actions: Vec<(i32, Label)>,
     pub(crate) steps: bool,
-    pub(crate) bounds: Option<egui::Rect>,
+    pub(crate) bounds: Option<craft_ui_rt::Rect>,
     pub(crate) run: Option<RunFacts>,
 }
 
@@ -518,7 +518,7 @@ impl SubNode {
 
     /// The node's rectangle on screen, for a node that has no part of its own to take it from (a block of text a
     /// content painter draws).
-    pub fn bounds(&mut self, rect: egui::Rect) -> &mut Self {
+    pub fn bounds(&mut self, rect: craft_ui_rt::Rect) -> &mut Self {
         self.bounds = Some(rect);
         self
     }

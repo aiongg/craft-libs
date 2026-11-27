@@ -2,9 +2,10 @@
 
 use craft_ui::contract::{ContainerProps, Pad, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::testing::{Frames, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
 use craft_ui_test_kit::contract::{Probe, Seen};
-use egui::{Pos2, Rect, Shape, Ui, Vec2};
+use egui::{Shape, Ui};
 use std::cell::RefCell;
 
 /// The container's rect: shorter than the padding above and below its view.

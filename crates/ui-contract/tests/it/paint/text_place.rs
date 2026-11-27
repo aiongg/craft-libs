@@ -5,8 +5,9 @@ use craft_ui::primitives::{HAlign, TextRun};
 use craft_ui::runtime::env::Direction;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_rt::{Pos2, Rect};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Pos2, Rect, Response};
+use egui::Response;
 
 const AT: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
 

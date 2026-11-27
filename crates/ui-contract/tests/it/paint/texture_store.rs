@@ -7,7 +7,8 @@ use craft_ui::primitives::{
     LoadResult, LoadedPicture, LoaderOptions, Priority, Revision, TextureBudget, TextureLoader, TextureState, TextureStore, TextureStoreOptions,
 };
 use craft_ui::testing::{Frames, trial};
-use egui::{Color32, ColorImage, Context, Rect, TextureId, pos2};
+use craft_ui_rt::{Rect, pos2};
+use egui::{Color32, ColorImage, Context, TextureId};
 use std::cell::Cell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -98,7 +99,7 @@ fn a_packed_store_shares_pages_and_a_full_store_never_restarts_a_page_drawn_this
     assert_ne!(a.uv(), b.uv());
     assert!(unit.contains_rect(a.uv()) && unit.contains_rect(b.uv()), "both lie in the page");
     assert!(!a.uv().intersects(b.uv()), "the two pictures do not overlap");
-    assert_eq!(a.size_vec2(), egui::vec2(TILE as f32, TILE as f32), "a packed texture's size is the picture's own");
+    assert_eq!(a.size_vec2(), craft_ui_rt::vec2(TILE as f32, TILE as f32), "a packed texture's size is the picture's own");
 
     // Every page is full and drawn from in this frame: the next picture takes a texture of its own.
     let own = packed.put(&ctx, 16, Revision::new(1), square(TILE, shade(200)));

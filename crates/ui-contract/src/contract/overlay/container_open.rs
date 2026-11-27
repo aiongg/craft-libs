@@ -3,10 +3,10 @@
 use super::opener::{Opener, Opening, Trigger};
 use super::popups::{HOLD, PopupHandle, dwell, with_popups};
 use crate::contract::{Component, Cx};
+use crate::primitives::id::Id;
 use crate::runtime::frame;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay::{self};
-use egui::Id;
 
 /// Open state a container with no `open` binding keeps in its opener's slot, and the readers of a popup's frame.
 #[derive(Clone, Copy, Default)]

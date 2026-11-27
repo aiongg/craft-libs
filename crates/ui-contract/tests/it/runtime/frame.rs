@@ -9,8 +9,10 @@ use craft_ui::runtime::commands::{CommandGate, CommandInput, CommandRef};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, MemoRun, last_frame_memo_runs, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Event, Id, Modifiers, PointerButton, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Event, Modifiers, PointerButton, Response, Ui};
 use std::cell::{Cell, RefCell};
 
 const AT: Pos2 = Pos2::new(20.0, 12.0);

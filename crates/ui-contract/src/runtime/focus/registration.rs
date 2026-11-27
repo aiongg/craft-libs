@@ -2,8 +2,8 @@
 //! name them; the module is crate-private, so no other path reaches them.
 
 use super::{KeyUse, Roving, StopKey};
+use crate::primitives::id::Id;
 use craft_behavior::{KeyRole, PartRef};
-use egui::Id;
 
 /// A stop as registered at step 7 of the pipeline.
 #[derive(Clone, Debug, PartialEq, Eq)]

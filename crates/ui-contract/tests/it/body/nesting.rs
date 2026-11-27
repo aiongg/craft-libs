@@ -4,8 +4,9 @@ use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::layout::BodyLayout;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::Panel;
-use egui::{Ui, Vec2};
+use egui::Ui;
 use std::cell::Cell;
 
 /// Containers sixteen deep, rows inside stacks, show on a thread with a 512 KiB stack: their measuring runs and their

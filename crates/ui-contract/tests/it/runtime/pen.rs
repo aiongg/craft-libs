@@ -6,7 +6,8 @@ use craft_ui::runtime::pen::PenSource;
 use craft_ui::runtime::pointer::with_pass_pointer;
 use craft_ui::testing::pointer::{self, moved};
 use craft_ui::testing::{Frames, install_spec, trial};
-use egui::{Event, Pos2, ViewportId};
+use craft_ui_rt::Pos2;
+use egui::{Event, ViewportId};
 use std::cell::RefCell;
 
 /// The pressure each pointer move of the running pass carries.

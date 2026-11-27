@@ -11,8 +11,9 @@ use craft_ui::runtime::env::{Direction, with_env};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::layout::{Block, body};
 use craft_ui::testing::{Fixture, Frames, audit_replays, is_measuring, trial};
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::contract::{Panel, PlainStyle, Probe, Seen};
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

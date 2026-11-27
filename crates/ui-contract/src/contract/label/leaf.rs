@@ -13,7 +13,7 @@ use crate::runtime::words::CommonWords;
 use crate::style::{ComponentStyle, ResetMarkLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Flow, Metrics, PartKey, PressState, Sense};
 use craft_theme::States;
-use egui::{Rect, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 use std::cell::Cell;
 
 /// The part key of the reset dot.
@@ -345,7 +345,8 @@ impl Component for LabelLeaf {
             }
             return;
         }
-        let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
+        let centred =
+            |rect: Rect, height: f32| Rect::from_min_size(craft_ui_rt::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(glyph) = &self.glyph {
             match glyph {
                 Glyph::Icon(icon) => {
@@ -384,12 +385,16 @@ impl Component for LabelLeaf {
             let name = draw.layout(&run, (rest.rect().width() - colon_width).max(0.0)).size();
             let (name_rect, after) = rest.take_start(name.x);
             let name_at =
-                if wrapped { Rect::from_min_size(egui::pos2(name_rect.min.x, middle - line / 2.0), name) } else { centred(name_rect, name.y) };
+                if wrapped { Rect::from_min_size(craft_ui_rt::pos2(name_rect.min.x, middle - line / 2.0), name) } else { centred(name_rect, name.y) };
             draw.text(name_at, &run);
             if let Some(width) = underline {
                 // egui's underline lies on the text box's bottom edge, which a rect shorter than the box would clip.
                 let y = name_at.bottom().min(cx.rect.bottom()) - width / 2.0;
-                draw.stroke(&PaintShape::Path(vec![egui::pos2(name_at.left(), y), egui::pos2(name_at.right(), y)]), StrokeWidth::Thin, name_ink);
+                draw.stroke(
+                    &PaintShape::Path(vec![craft_ui_rt::pos2(name_at.left(), y), craft_ui_rt::pos2(name_at.right(), y)]),
+                    StrokeWidth::Thin,
+                    name_ink,
+                );
             }
             let after = match colon {
                 Some(run) => {
@@ -402,7 +407,7 @@ impl Component for LabelLeaf {
             if let Some(detail) = &self.detail {
                 let run = self.detail_run(detail, cx.resolve(&cx.style.detail));
                 if wrapped {
-                    let under = Rect::from_min_max(egui::pos2(rest.rect().min.x, name_at.bottom()), rest.rect().max);
+                    let under = Rect::from_min_max(craft_ui_rt::pos2(rest.rect().min.x, name_at.bottom()), rest.rect().max);
                     let size = draw.layout(&run, under.width()).size();
                     let at = Flow::new(under, cx.core.env.direction().is_rtl()).take_start(size.x).0;
                     draw.text(Rect::from_min_size(at.min, size), &run);

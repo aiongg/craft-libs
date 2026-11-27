@@ -6,8 +6,10 @@ use craft_ui::contract::{MemoProps, MemoView, Props as _, Show as _, ShowContain
 use craft_ui::layout::BodyLayout;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, MemoRun, last_frame_memo_runs, last_pass_memo_runs, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::Ui;
 use std::cell::{Cell, RefCell};
 
 /// A view that shows one probe `width` wide.
@@ -22,7 +24,7 @@ fn widened(props: &mut Widened, ui: &mut Ui) {
 }
 
 /// How the `Widened` views took part in `runs`.
-fn of_view(runs: Vec<(&'static str, egui::Id, MemoRun)>) -> Vec<MemoRun> {
+fn of_view(runs: Vec<(&'static str, Id, MemoRun)>) -> Vec<MemoRun> {
     runs.into_iter().filter(|(name, _, _)| name.contains("Widened")).map(|(_, _, run)| run).collect()
 }
 

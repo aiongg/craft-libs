@@ -9,7 +9,8 @@ use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use craft_behavior::{ColumnWidth, Flow, LabelColumn};
-use egui::{Align, Rect, Ui, UiBuilder, Vec2};
+use craft_ui_rt::{Align, Rect, Vec2};
+use egui::{Ui, UiBuilder};
 
 /// Where the label step put the label and the control.
 pub(crate) struct Placed {
@@ -46,7 +47,7 @@ fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, l
     let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
     let label_size = Vec2::new(label_width, label.y);
     let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min).translate(Vec2::new(0.0, label_drop));
-    let control = Rect::from_min_max(egui::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
+    let control = Rect::from_min_max(craft_ui_rt::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
     Placed { label, control, trailing: Rect::NOTHING, caption: 0.0 }
 }
 

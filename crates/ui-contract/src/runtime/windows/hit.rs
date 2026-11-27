@@ -1,6 +1,6 @@
+use craft_ui_rt::{Pos2, Rect};
 use craft_window::Button;
 use craft_window::native::{CaptionEvent, Edge, Hits, Zone};
-use egui::{Pos2, Rect};
 use std::sync::{Arc, Mutex};
 
 /// An edge or corner a window resize starts from.

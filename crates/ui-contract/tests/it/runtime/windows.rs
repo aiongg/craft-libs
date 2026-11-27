@@ -20,11 +20,13 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release, wheel};
 use craft_ui::testing::windows::{FakeSystem, NoWindows};
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
 use craft_ui_test_kit::windows::{FilesOver, Out, Windows};
 use craft_window::policy::{Decision, Desktop, DesktopKind, Frame, MacInset, Runtime, TitleBarPref};
 use craft_window::restore::Store;
-use egui::{Event, Pos2, Rect, Response, UserAttentionType, Vec2, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
+use egui::{Event, Response, UserAttentionType, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -571,7 +573,7 @@ fn a_window_an_app_modal_in_another_window_blocks_takes_no_wheel() {
     use craft_ui::testing::wheel::{register, take};
     for open in [false, true] {
         let windows = Windows::new();
-        let view = egui::Id::unique("view");
+        let view = Id::new("view");
         let taken = Cell::new(None);
         let frame = |events: Vec<Event>| {
             windows.frame(events, vec![], |ui| {
@@ -600,8 +602,8 @@ fn wheel_over_a_modal_never_reaches_a_view_under_it_during_a_drag() {
     use craft_behavior::WheelTaker;
     use craft_ui::testing::wheel::{register, take};
     let windows = Windows::new();
-    let view = egui::Id::unique("dragging view");
-    let modal_view = egui::Id::unique("modal view");
+    let view = Id::new("dragging view");
+    let modal_view = Id::new("modal view");
     let taken = Cell::new(None);
     let modal_taken = Cell::new(None);
     let open = Cell::new(false);

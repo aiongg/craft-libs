@@ -6,9 +6,10 @@
 use craft_ui::contract::{ContainerProps, HeaderRegion, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout::{BodyLayout, RowAlign, levelled_unit};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
-use egui::{Id, Rect, Vec2};
 use std::cell::RefCell;
 
 const SNAP: f32 = 1.0;

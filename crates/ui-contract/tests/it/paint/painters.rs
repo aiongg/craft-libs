@@ -1,7 +1,7 @@
 //! The pure painters: focus rings, scroll bars, handles and the face id.
 
 use craft_ui::testing::trial;
-use egui::{pos2, vec2};
+use craft_ui_rt::{pos2, vec2};
 
 const EPS: f32 = 1e-3;
 
@@ -24,7 +24,8 @@ fn ellipse_points_lie_on_the_ellipse_whatever_the_conjugate_axes() {
 
 #[trial]
 fn a_concave_polygon_fills_its_area_once_in_either_winding() {
-    use egui::{Color32, Pos2};
+    use craft_ui_rt::Pos2;
+    use egui::Color32;
 
     let cross = |a: Pos2, b: Pos2, c: Pos2| (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     let area = |ring: &[Pos2]| (0..ring.len()).map(|i| cross(Pos2::ZERO, ring[i], ring[(i + 1) % ring.len()])).sum::<f32>().abs() / 2.0;
@@ -65,11 +66,12 @@ fn a_rounded_ramp_keeps_inside_its_corners_and_a_square_one_fills_its_rect() {
     use craft_behavior::Axis;
     use craft_ui::style::DataColor;
     use craft_ui_rt::Item;
-    use egui::{Color32, CornerRadius, Rect};
+    use craft_ui_rt::Rect;
+    use egui::{Color32, CornerRadius};
 
     let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(60.0, 20.0));
     let stops = [(0.0, DataColor::new(Color32::RED)), (0.5, DataColor::new(Color32::GREEN)), (1.0, DataColor::new(Color32::BLUE))];
-    let points = |radius: CornerRadius, axis: Axis| -> Vec<egui::Pos2> {
+    let points = |radius: CornerRadius, axis: Axis| -> Vec<craft_ui_rt::Pos2> {
         craft_ui::primitives::ramp(rect, radius, &stops, axis)
             .into_iter()
             .flat_map(|shape| match shape {
@@ -103,7 +105,8 @@ fn an_edge_rule_lies_on_the_pixels_just_inside_its_side_at_any_scale() {
     use craft_ui::primitives::{RectSide, Rule};
     use craft_ui::style::{RuleLook, RuleWidth};
     use craft_ui_rt::Item;
-    use egui::{Color32, Rect};
+    use craft_ui_rt::Rect;
+    use egui::Color32;
 
     for ppp in [1.0, 1.5, 2.0] {
         // Edges on physical pixel boundaries, as laid-out rows and cells have them.
@@ -156,7 +159,8 @@ fn a_dotted_rule_is_whole_pixel_dots_at_one_pitch_between_its_ends() {
     use craft_ui::primitives::Rule;
     use craft_ui::style::{RuleLook, RuleWidth};
     use craft_ui_rt::Item;
-    use egui::{Color32, Rect};
+    use craft_ui_rt::Rect;
+    use egui::Color32;
 
     let whole = |v: f32| (v - v.round()).abs() < EPS;
     for ppp in [1.0, 1.5, 2.0] {
@@ -172,9 +176,9 @@ fn a_dotted_rule_is_whole_pixel_dots_at_one_pitch_between_its_ends() {
                 let level = from.y == to.y;
                 let across = width.points(ppp);
                 let span = if level {
-                    Rect::from_two_pos(from, to).expand2(egui::vec2(0.0, across))
+                    Rect::from_two_pos(from, to).expand2(craft_ui_rt::vec2(0.0, across))
                 } else {
-                    Rect::from_two_pos(from, to).expand2(egui::vec2(across, 0.0))
+                    Rect::from_two_pos(from, to).expand2(craft_ui_rt::vec2(across, 0.0))
                 };
                 for dot in &dots {
                     let px = *dot * ppp;
@@ -196,7 +200,8 @@ fn ticks_stand_across_a_level_rule_and_lie_across_an_upright_one() {
     use craft_ui::primitives::Rule;
     use craft_ui::style::{RuleLook, RuleWidth};
     use craft_ui_rt::Item;
-    use egui::{Color32, Rect};
+    use craft_ui_rt::Rect;
+    use egui::Color32;
 
     let whole = |v: f32| (v - v.round()).abs() < EPS;
     for ppp in [1.0, 1.25, 1.5, 2.0] {
@@ -240,7 +245,7 @@ fn a_dotted_rule_is_the_ticks_as_long_as_the_line_is_wide() {
 fn ant_edges_are_whole_device_pixels_at_a_fractional_scale() {
     use craft_theme::{Contrast, Mode};
     use craft_ui_rt::Item;
-    use egui::Rect;
+    use craft_ui_rt::Rect;
     use std::collections::BTreeSet;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
@@ -301,7 +306,7 @@ fn a_docked_scroll_bar_keeps_its_width_at_rest_and_under_the_pointer() {
     use craft_ui::primitives::ScrollBar;
     use craft_ui::style::{Flags, ScrollBarKind, State, StateMix, StateSet};
     use craft_ui_rt::Item;
-    use egui::Rect;
+    use craft_ui_rt::Rect;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
     let look = craft_ui::testing::style::with_cx(&egui::Context::default(), &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
@@ -346,7 +351,7 @@ fn a_resting_scroll_bar_is_a_thin_line_at_its_outer_edge_that_widens_under_the_p
     use craft_ui::primitives::ScrollBar;
     use craft_ui::style::{Flags, State, StateMix, StateSet};
     use craft_ui_rt::Item;
-    use egui::Rect;
+    use craft_ui_rt::Rect;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
     let look = craft_ui::testing::style::with_cx(&egui::Context::default(), &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.scroll_bar());

@@ -2,7 +2,7 @@
 //! and `MenuItem` paint these shapes, so they look alike in a form and in a menu.
 
 use super::PaintShape;
-use egui::{Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 
 /// The check mark's corner and tip, as shares of the square's side from its top-left.
 const TICK: [(f32, f32); 3] = [(0.22, 0.52), (0.42, 0.72), (0.78, 0.30)];

@@ -8,8 +8,9 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2, pos2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Rect, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

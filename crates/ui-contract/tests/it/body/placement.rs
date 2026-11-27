@@ -16,8 +16,9 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::allocate;
 use craft_ui::testing::{Frames, MemoRun, audit_replays, last_frame_memo_runs, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Align2, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Align2, Key, Modifiers, Response, Ui};
 use std::cell::{Cell, RefCell};
 
 const SLACK: f32 = 1.5;

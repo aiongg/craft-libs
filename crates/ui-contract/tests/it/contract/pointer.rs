@@ -4,8 +4,9 @@ use craft_behavior::{PressPhase, Sense};
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::Ui;
 use std::cell::{Cell, RefCell};
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {

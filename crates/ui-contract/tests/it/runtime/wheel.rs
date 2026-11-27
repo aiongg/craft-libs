@@ -13,8 +13,10 @@ use craft_ui::testing::pointer;
 use craft_ui::testing::sensing::{ProbeRoot, show};
 use craft_ui::testing::wheel::{register, take, take_share};
 use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Event, Id, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, Rect, Response, TouchPhase, Ui, Vec2, ViewportId};
+use egui::{Event, Modifiers, MouseWheelSource, MouseWheelUnit, Response, TouchPhase, Ui, ViewportId};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

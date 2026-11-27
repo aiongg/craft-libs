@@ -6,7 +6,8 @@ use crate::primitives::SvgIcon;
 use crate::runtime::cursor::{CursorArt, CursorBitmap};
 use craft_svg::tree::draw::tiny_skia;
 use craft_ui_rt::StrokeAlign;
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius};
 
 /// A mark's line: its width in points and its colour.
 #[derive(Clone, Copy, Debug, PartialEq)]

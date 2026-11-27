@@ -5,7 +5,8 @@ use super::table::Table;
 use craft_ui::contract::{CollectionEvent, CollectionProps, MiddleButton, Props as _, SelectMode, ShowCollection as _};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Ui;
 use std::cell::{Cell, RefCell};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);

@@ -1,7 +1,7 @@
 //! Relation assertions between rects and lengths: the tests compare layouts to each other and to tokens, never to
 //! literal sizes.
 
-use egui::Rect;
+use craft_ui_rt::Rect;
 
 /// Slack for float rounding in layout, in points.
 const EPS: f32 = 0.5;

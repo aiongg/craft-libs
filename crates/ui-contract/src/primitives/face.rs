@@ -1,7 +1,7 @@
 //! The one host painter a value carries.
 
 use super::ContentPainterCx;
-use egui::Rect;
+use craft_ui_rt::Rect;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;

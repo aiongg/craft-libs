@@ -13,8 +13,9 @@ use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::windows::{FilesOver, Windows};
-use egui::{Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
+use egui::{Response, Shape, Ui, ViewportBuilder, ViewportId, ViewportInfo};
 use std::cell::RefCell;
 use std::sync::Arc;
 

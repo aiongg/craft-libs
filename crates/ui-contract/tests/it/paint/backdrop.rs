@@ -3,10 +3,11 @@
 use craft_ui::primitives::backdrop::{BackdropLayer, MAX_SIDE, MAX_TEXELS, Thumbnail, compose, upload};
 use craft_ui::primitives::{TextureStore, TextureStoreOptions};
 use craft_ui::testing::trial;
-use egui::{Color32, ColorImage, Context, Rect, TextureOptions};
+use craft_ui_rt::Rect;
+use egui::{Color32, ColorImage, Context, TextureOptions};
 
 fn area() -> Rect {
-    Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(40.0, 20.0))
+    Rect::from_min_size(craft_ui_rt::Pos2::ZERO, craft_ui_rt::vec2(40.0, 20.0))
 }
 
 fn linear_store(ctx: &Context, salt: &str) -> TextureStore<u32> {
@@ -37,12 +38,12 @@ fn downsampling_and_softening_mix_neighbours_without_changing_opaque_output() {
 
 #[trial]
 fn malformed_dimensions_empty_images_and_large_allocations_are_bounded() {
-    let malformed = ColorImage { size: [usize::MAX, 2], pixels: vec![], source_size: egui::Vec2::ZERO };
+    let malformed = ColorImage { size: [usize::MAX, 2], pixels: vec![], source_size: craft_ui_rt::Vec2::ZERO };
     assert!(Thumbnail::from_image(&malformed, usize::MAX, Color32::WHITE).is_none());
     assert!(Thumbnail::from_image(&ColorImage::new([0, 0], vec![]), 0, Color32::WHITE).is_none());
     assert!(compose(Rect::NAN, &[], Color32::WHITE).is_none());
     assert!(compose(Rect::NOTHING, &[], Color32::WHITE).is_none());
-    let large = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1_000_000.0, 1_000_000.0));
+    let large = Rect::from_min_size(craft_ui_rt::Pos2::ZERO, craft_ui_rt::vec2(1_000_000.0, 1_000_000.0));
     let image = compose(large, &[], Color32::WHITE);
     assert!(image.as_ref().is_some_and(|image| image.pixels.len() <= MAX_TEXELS && image.size.iter().all(|&side| side <= MAX_SIDE)));
 }

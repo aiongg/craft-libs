@@ -7,7 +7,7 @@ use crate::runtime::env::{Env, Label};
 use crate::style::UiTokens;
 use craft_behavior::{CopyKeys, DropOperation};
 use craft_ui_rt::NodeId;
-use egui::{Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::any::Any;
 use std::marker::PhantomData;
 use std::path::PathBuf;

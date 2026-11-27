@@ -3,7 +3,7 @@
 
 use super::{Component, MeasureCx, PaintUi, Role, Show};
 use craft_behavior::Proposal;
-use egui::{Rect, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 
 /// The key a hosted leaf is measured and shown under: the slot's name and its index among the host's slots.
 pub type HostedKey = (&'static str, usize);

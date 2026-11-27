@@ -1,7 +1,7 @@
 use craft_behavior::PartRef;
 use craft_behavior::Winner;
 
-use egui::Id;
+use crate::primitives::id::Id;
 
 /// What won a primary press at the begin hook.
 pub(crate) struct PressAt {

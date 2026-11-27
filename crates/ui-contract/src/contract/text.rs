@@ -7,6 +7,7 @@
 
 use super::cx::{Cx, CxCore, PartsCx, RecordedText, gesture_key};
 use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
+use crate::primitives::id::Id;
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome, TextRun, Wrap};
 use crate::runtime::access::text as text_access;
@@ -18,7 +19,8 @@ use craft_behavior::{
     CancelReason, Caret, Codec, EditCommand, EditRun, Ended, EscapeRule, Escaped, Gesture, NotAValue, PartKey, PartRef, Typed, TypingRun,
 };
 use craft_keymap::Mods;
-use egui::{Rect, Ui};
+use craft_ui_rt::Rect;
+use egui::Ui;
 use std::any::Any;
 use std::sync::Arc;
 
@@ -27,22 +29,22 @@ use std::sync::Arc;
 pub const EDIT_MENU: &str = "edit";
 
 /// The id of the text adapter's state in the component's memory.
-fn state_id(id: egui::Id) -> egui::Id {
+fn state_id(id: Id) -> Id {
     sub(id, "text_state")
 }
 
 /// The selection the text part of the component `id` held when its edit menu took the focus, while the menu is open.
-pub(crate) fn held_selection(memory: &mut MemoryStage, id: egui::Id) -> Option<(usize, usize)> {
+pub(crate) fn held_selection(memory: &mut MemoryStage, id: Id) -> Option<(usize, usize)> {
     memory.shown::<TextState>(state_id(id)).held_selection
 }
 
 /// Whether the text part of the component `id` has a typing run open, as its last pass left it.
-pub(crate) fn run_open(memory: &MemoryStage, id: egui::Id) -> bool {
+pub(crate) fn run_open(memory: &MemoryStage, id: Id) -> bool {
     memory.recall::<TextState>(state_id(id)).start.is_some()
 }
 
 /// The draft the text part of the component `id` holds while a typing run is open.
-pub(crate) fn draft(memory: &mut MemoryStage, id: egui::Id) -> Option<String> {
+pub(crate) fn draft(memory: &mut MemoryStage, id: Id) -> Option<String> {
     memory.shown::<TextState>(state_id(id)).draft.clone()
 }
 
@@ -81,7 +83,7 @@ impl SelectDecl {
 }
 
 /// The egui text widget of the selection part `part` of component `id`, which holds key focus.
-pub(crate) fn selection_id(id: egui::Id, part: PartRef) -> egui::Id {
+pub(crate) fn selection_id(id: Id, part: PartRef) -> Id {
     sub(id, ("selection", part.key, part.index))
 }
 
@@ -318,7 +320,7 @@ impl<C: Component> PartsCx<'_, C> {
 
 /// Serves the AccessKit requests aimed at the text part: `SetTextSelection` moves the selection and `SetValue`
 /// replaces the draft and commits it.
-fn serve_access(core: &mut CxCore<'_>, state: &mut TextState, widget: egui::Id, shown: &str, read_only: bool) {
+fn serve_access(core: &mut CxCore<'_>, state: &mut TextState, widget: Id, shown: &str, read_only: bool) {
     let (ctx, id) = (core.ctx.clone(), core.id);
     while let Some(request) = core.intents.take_access_where(text_access::is_text_request) {
         if let Some((anchor, focus)) = text_access::requested_selection(&ctx, id, &request) {
@@ -344,7 +346,7 @@ struct FieldFacts {
 }
 
 /// The text facts AccessKit reads this pass, built only while AccessKit runs.
-fn facts(core: &CxCore<'_>, state: &mut TextState, widget: egui::Id, out: &adapter::AdapterOut, rect: Rect, field: FieldFacts) {
+fn facts(core: &CxCore<'_>, state: &mut TextState, widget: Id, out: &adapter::AdapterOut, rect: Rect, field: FieldFacts) {
     let FieldFacts { masked, read_only, enabled } = field;
     if !text_access::exposed(&core.ctx, widget) {
         state.rows = None;
@@ -409,7 +411,7 @@ struct AdapterSettings {
 }
 
 struct PreparedText {
-    widget: egui::Id,
+    widget: Id,
     out: adapter::AdapterOut,
     read_only: bool,
     list_open: bool,
@@ -568,7 +570,7 @@ fn prepare(core: &mut CxCore<'_>, ui: &mut Ui, decl: &TextPart, state: &mut Text
 /// the whole text for `select_on_focus`, or when a select was asked for (`select_all`). `select_on_focus` is for focus
 /// by key or request: focus a pointer press brings (`by_pointer`) keeps the caret or range the pointer makes, and a
 /// plain click selects the whole text once it is released (`TextState::select_on_click`).
-fn arrive(ctx: &egui::Context, widget: egui::Id, decl: &TextPart, state: &mut TextState, by_pointer: bool, select_all: bool) {
+fn arrive(ctx: &egui::Context, widget: Id, decl: &TextPart, state: &mut TextState, by_pointer: bool, select_all: bool) {
     let len = decl.shown.chars().count();
     // A dialog that opens on this field selects its whole text whatever the codec's caret, so typing replaces it
     // (photocraft#15540).

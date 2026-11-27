@@ -139,8 +139,8 @@ impl CachedTexture {
     }
 
     /// `size` as a vector, for fitting: only the aspect matters to a cell.
-    pub fn size_vec2(&self) -> egui::Vec2 {
-        egui::Vec2::new(self.size.width as f32, self.size.height as f32)
+    pub fn size_vec2(&self) -> craft_ui_rt::Vec2 {
+        craft_ui_rt::Vec2::new(self.size.width as f32, self.size.height as f32)
     }
 }
 

@@ -15,7 +15,8 @@ pub(crate) use art::Art;
 use art::{LineStyle, Mark};
 use craft_behavior::{CountMark, CursorBadge, PaintedCursor, PointerGlyph};
 use craft_i18n::Direction;
-use egui::{Color32, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Color32;
 use std::cell::RefCell;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 

@@ -8,7 +8,9 @@ use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::keys;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, input, pointer, trial};
-use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Event, Key, Modifiers, Sense, Ui};
 use std::cell::{Cell, RefCell};
 
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);

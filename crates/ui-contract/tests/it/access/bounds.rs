@@ -4,8 +4,10 @@ use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Mount
 use craft_ui::runtime::access::bounds;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::Cell;
 
 /// A button-like leaf with a fixed size.
@@ -60,7 +62,7 @@ impl Container for Modal {}
 #[trial]
 fn bounds_of_a_part_behind_a_modal_is_none() {
     let mut frames = Frames::new();
-    let shown: Cell<Option<(egui::Id, Rect)>> = Cell::new(None);
+    let shown: Cell<Option<(Id, Rect)>> = Cell::new(None);
     let button = |ui: &mut Ui| {
         let response = Apply { common: Common::new() }.label("Apply").id_salt("apply").show(ui);
         shown.set(Some((response.id, response.rect)));

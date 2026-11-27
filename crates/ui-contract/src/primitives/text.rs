@@ -465,8 +465,8 @@ pub struct LeastLayout {
 
 impl LeastLayout {
     /// The size the run takes at its least: its least width and its whole line's height.
-    pub fn size(&self) -> egui::Vec2 {
-        egui::Vec2::new(self.width, self.whole.size().y)
+    pub fn size(&self) -> craft_ui_rt::Vec2 {
+        craft_ui_rt::Vec2::new(self.width, self.whole.size().y)
     }
 }
 
@@ -485,7 +485,7 @@ impl Shaped {
         Shaped { layout, metrics }
     }
 
-    fn size(&self) -> egui::Vec2 {
+    fn size(&self) -> craft_ui_rt::Vec2 {
         self.layout.size
     }
 }
@@ -553,7 +553,7 @@ impl TextLayout {
     }
 
     /// The union of the glyphs' ink, from the layout's top left; `Rect::NOTHING` for no glyphs.
-    pub fn ink(&self) -> egui::Rect {
+    pub fn ink(&self) -> craft_ui_rt::Rect {
         self.metrics.ink
     }
 
@@ -592,7 +592,7 @@ impl TextLayout {
 
     /// Every row as its text, its rect from the layout's origin and its bidi runs: the one per-row geometry, read by
     /// the AccessKit run nodes and by a component that hits parts of a wrapped run, such as a link in a sentence.
-    pub fn row_lines(&self) -> Vec<(String, egui::Rect, Vec<LayoutRun>)> {
+    pub fn row_lines(&self) -> Vec<(String, craft_ui_rt::Rect, Vec<LayoutRun>)> {
         (0..self.metrics.rows.len())
             .map(|at| {
                 let row = &self.metrics.rows[at];
@@ -604,7 +604,7 @@ impl TextLayout {
     }
 
     /// The layout size.
-    pub fn size(&self) -> egui::Vec2 {
+    pub fn size(&self) -> craft_ui_rt::Vec2 {
         self.layout.size
     }
 

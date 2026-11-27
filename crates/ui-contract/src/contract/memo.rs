@@ -1191,9 +1191,9 @@ impl MemoProps for crate::primitives::Id {
     }
 }
 
-impl MemoProps for egui::Vec2 {
+impl MemoProps for craft_ui_rt::Vec2 {
     fn key(&self, key: &mut MemoKey) {
-        let egui::Vec2 { x, y } = *self;
+        let craft_ui_rt::Vec2 { x, y } = *self;
         (x, y).key(key);
     }
 }
@@ -1220,16 +1220,16 @@ impl MemoProps for craft_behavior::LineIndex {
     }
 }
 
-impl MemoProps for egui::Pos2 {
+impl MemoProps for craft_ui_rt::Pos2 {
     fn key(&self, key: &mut MemoKey) {
-        let egui::Pos2 { x, y } = *self;
+        let craft_ui_rt::Pos2 { x, y } = *self;
         (x, y).key(key);
     }
 }
 
-impl MemoProps for egui::Rect {
+impl MemoProps for craft_ui_rt::Rect {
     fn key(&self, key: &mut MemoKey) {
-        let egui::Rect { min, max } = *self;
+        let craft_ui_rt::Rect { min, max } = *self;
         (min, max).key(key);
     }
 }

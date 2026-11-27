@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 use crate::style::{ComponentStyle, StyleCx, StyleKey, UiTokens, Variant};
 use crate::testing::style::{style_of, with_cx};
 use craft_theme::{Contrast, ControlSize};
-use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Rangef, Shadow, Stroke, Vec2};
+use craft_ui_rt::{Rangef, Vec2};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Shadow, Stroke};
 
 /// Ordered `key = value` lines.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

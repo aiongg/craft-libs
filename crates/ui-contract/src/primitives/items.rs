@@ -6,7 +6,8 @@ use craft_theme::Rgba;
 use craft_ui_rt::{CornerRadii, Dash, Fill};
 /// The display-list types painters build, for crates that paint through the contract.
 pub use craft_ui_rt::{Item, Mesh, Stroke, StrokeAlign, Vertex};
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius};
 use std::sync::Arc;
 
 /// A colour from the style as a display-list colour (straight alpha).

@@ -5,8 +5,9 @@
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Required, Story, StoryData, StoryOutput, StoryRegistration, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Ui, Vec2};
+use egui::Ui;
 
 /// The package that declares a story of [`Visited`] without registering it.
 const VISITOR: &str = "craft-ui-visitor";

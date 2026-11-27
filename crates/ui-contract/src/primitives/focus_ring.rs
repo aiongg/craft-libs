@@ -5,8 +5,9 @@ use super::items;
 use crate::runtime::focus::FocusShape;
 use crate::style::{Flags, FocusLook};
 use craft_ui_rt::{Item, StrokeAlign};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius};
 
 /// How a focus indication is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

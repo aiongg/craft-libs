@@ -9,7 +9,8 @@ use super::{
 use crate::runtime::access::Role;
 use crate::runtime::focus::KeyUse;
 use craft_behavior::{Input, ItemSource};
-use egui::{Rect, Response, Ui};
+use craft_ui_rt::Rect;
+use egui::{Response, Ui};
 use std::any::{Any, TypeId};
 
 /// Shows a leaf at a rect: the component, boxed. `None` when the box holds another type.

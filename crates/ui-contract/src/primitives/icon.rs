@@ -8,8 +8,9 @@ use crate::style::{DataColor, Ink, StyleColor, UiTokens, ink_color, log_once};
 use craft_behavior::IconId;
 use craft_i18n::Direction;
 use craft_theme::{IconPackId, Srgba};
+use craft_ui_rt::{Rect, pos2, vec2};
+use egui::Color32;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Rect, pos2, vec2};
 use std::any::Any;
 
 pub use super::svg_set::IconSet;

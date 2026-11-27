@@ -2,7 +2,7 @@
 //! key routing is `contract::rt::keys`.
 
 use craft_keymap::{Key, Mods};
-use egui::Vec2;
+use craft_ui_rt::Vec2;
 pub use intents::Intents;
 pub(crate) use intents::Lent;
 

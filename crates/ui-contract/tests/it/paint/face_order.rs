@@ -4,8 +4,9 @@ use craft_behavior::PartKey;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2, pos2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Color32, Pos2, Rect, Shape, Vec2, pos2};
+use egui::{Color32, Shape};
 
 const SLOT: PartKey = PartKey::new("slot");
 

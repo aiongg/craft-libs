@@ -3,7 +3,8 @@
 use super::items;
 use crate::style::MarkerLook;
 use craft_ui_rt::Item;
-use egui::{Color32, Pos2};
+use craft_ui_rt::Pos2;
+use egui::Color32;
 
 /// How large a marker is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

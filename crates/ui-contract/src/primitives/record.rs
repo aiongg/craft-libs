@@ -1,8 +1,8 @@
 //! What one paint pass records for later steps: text elision, the first baseline and the faces painted.
 
+use crate::primitives::id::Id;
 use crate::runtime::memory::sub;
 use craft_behavior::{EditEvent, PartRef};
-use egui::Id;
 
 /// What `Draw` calls record. Step 16 reads the elided text and step 17 the baseline.
 #[derive(Debug, Default)]

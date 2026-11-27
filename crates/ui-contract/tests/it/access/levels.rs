@@ -4,8 +4,9 @@ use craft_behavior::PartKey;
 use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, Name, PaintUi, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Pos2, Rect, Response, Vec2};
+use egui::Response;
 
 const HEADING: PartKey = PartKey::new("heading");
 const ITEM: PartKey = PartKey::new("item");

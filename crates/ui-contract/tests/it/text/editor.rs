@@ -16,9 +16,11 @@ use craft_ui::testing::pointer::{click, moved, press, release};
 use craft_ui::testing::text::ImeSeen;
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect};
 use craft_ui_test_kit::contract::{PlainStyle, Probe as Button, Seen};
 use egui::output::{IMESurroundingText, ImeChangeCause};
-use egui::{Event, Id, ImeEvent, Key, Modifiers, Pos2, Rect, Response};
+use egui::{Event, ImeEvent, Key, Modifiers, Response};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
@@ -98,10 +100,10 @@ impl Component for Probe<'_> {
         let positions: Vec<f32> = (0..shown.len()).map(|at| at as f32 * 8.0).collect();
         let widths = vec![8.0; shown.len()];
         let runs = [EditorRun::new(0..shown.len(), false, &positions, &widths)];
-        let line = Rect::from_min_size(cx.content_rect.min, egui::vec2(cx.content_rect.width(), 16.0));
+        let line = Rect::from_min_size(cx.content_rect.min, craft_ui_rt::vec2(cx.content_rect.width(), 16.0));
         let lines = [EditorLine::new(shown, line, line.bottom(), &runs)];
         let end = TextPos::new(0, shown.len());
-        let caret = Rect::from_min_size(line.min + egui::vec2(shown.len() as f32 * 8.0, 0.0), egui::vec2(0.0, 16.0));
+        let caret = Rect::from_min_size(line.min + craft_ui_rt::vec2(shown.len() as f32 * 8.0, 0.0), craft_ui_rt::vec2(0.0, 16.0));
         let mut state = EditorState::new(caret, &lines, end);
         let Some(doc) = self.doc else {
             cx.editor_state(state);
@@ -1043,7 +1045,7 @@ fn tab_never_focuses_a_disabled_editor_s_widget() {
     let (editor, button) = (Cell::new(Id::NULL), Cell::new(Id::NULL));
     // The app's own egui button, level with the editor on its right: the editor lies straight to its left.
     let app = craft_ui::testing::focus::named_id("app button");
-    let app_at = Rect::from_min_size(Pos2::new(AT.right() + 40.0, AT.center().y - 10.0), egui::vec2(60.0, 20.0));
+    let app_at = Rect::from_min_size(Pos2::new(AT.right() + 40.0, AT.center().y - 10.0), craft_ui_rt::vec2(60.0, 20.0));
     let mut show = |ui: &mut egui::Ui| {
         editor.set(Probe::new(&log, true).label("Source").enabled(false).id_salt("code").show_at(ui, AT).id);
         button.set(Button::new(&seen).id_salt("next").show_at(ui, NEXT).id);

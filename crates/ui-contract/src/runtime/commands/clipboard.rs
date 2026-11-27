@@ -1,10 +1,11 @@
 //! The clipboard handle `Commands::clipboard` returns, over the clipboard `runtime::egui::clipboard` keeps installed.
 
+use crate::primitives::id::Id;
 use crate::runtime::egui::clipboard;
 use crate::runtime::keys;
 use crate::runtime::pending::Pending;
 use craft_platform::clipboard::{ClipboardError, ClipboardImage, Flavor, HTML, MATHML, RTF, Written};
-use egui::{ColorImage, Context, Id};
+use egui::{ColorImage, Context};
 use std::path::PathBuf;
 use std::sync::Arc;
 

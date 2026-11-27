@@ -8,8 +8,10 @@ use craft_ui::testing::pointer;
 use craft_ui::testing::sensing::{ProbeRoot, show};
 use craft_ui::testing::wheel::{register, take_share};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Event, Id, Pos2, Rect, Response, TouchPhase, Ui, Vec2};
+use egui::{Event, Response, TouchPhase, Ui};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

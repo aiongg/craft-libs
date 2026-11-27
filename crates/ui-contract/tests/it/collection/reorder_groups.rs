@@ -7,7 +7,8 @@ use craft_ui::runtime::drag;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Ui;
 use std::cell::RefCell;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);

@@ -6,7 +6,8 @@ use craft_ui::primitives::{Canvas, CheckerArea, FrameServices, paint_surround};
 use craft_ui::style::{SurroundLook, UiTokens};
 use craft_ui::testing::trial;
 use craft_ui_rt::{ImageStore, Item};
-use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
+use craft_ui_rt::{Pos2, Rect, pos2, vec2};
+use egui::CornerRadius;
 use std::sync::Arc;
 
 /// `base` with its canvas pattern set to `pattern`, or to the canvas fill for none.

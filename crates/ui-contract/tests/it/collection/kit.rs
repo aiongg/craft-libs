@@ -6,8 +6,9 @@ use craft_ui::contract::{
     Role, SelectMode,
 };
 use craft_ui::style::StyleCx;
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 

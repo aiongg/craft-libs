@@ -13,8 +13,9 @@ use craft_ui::testing::focus::{named_id, widget};
 use craft_ui::testing::input::{key_press, key_repeat, text};
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Event, Key, Modifiers, Pos2, Rect, Response};
+use egui::{Event, Key, Modifiers, Response};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -74,9 +75,9 @@ impl Component for Probe<'_> {
         let positions: Vec<f32> = (0..SHOWN.len()).map(|at| at as f32 * 8.0).collect();
         let widths = vec![8.0; SHOWN.len()];
         let runs = [EditorRun::new(0..SHOWN.len(), false, &positions, &widths)];
-        let line = Rect::from_min_size(cx.content_rect.min, egui::vec2(cx.content_rect.width(), 16.0));
+        let line = Rect::from_min_size(cx.content_rect.min, craft_ui_rt::vec2(cx.content_rect.width(), 16.0));
         let lines = [EditorLine::new(SHOWN, line, line.bottom(), &runs)];
-        let caret = Rect::from_min_size(line.min + egui::vec2(SHOWN.len() as f32 * 8.0, 0.0), egui::vec2(0.0, 16.0));
+        let caret = Rect::from_min_size(line.min + craft_ui_rt::vec2(SHOWN.len() as f32 * 8.0, 0.0), craft_ui_rt::vec2(0.0, 16.0));
         cx.editor_state(EditorState::new(caret, &lines, TextPos::new(0, SHOWN.len())));
     }
 

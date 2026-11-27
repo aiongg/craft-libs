@@ -5,7 +5,8 @@ use super::rule::RectSide;
 use crate::style::{ScrollBarLook, StateSet};
 use craft_behavior::{Axis, ScrollSpan};
 use craft_ui_rt::Item;
-use egui::{Color32, CornerRadius, Direction, Rect, Vec2, pos2};
+use craft_ui_rt::{Rect, Vec2, pos2};
+use egui::{Color32, CornerRadius, Direction};
 
 /// The scroll bar painter.
 pub struct ScrollBar;

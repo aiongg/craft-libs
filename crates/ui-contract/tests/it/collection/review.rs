@@ -6,7 +6,8 @@ use craft_behavior::Selection;
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, ShowCollection as _};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Ui;
 use std::cell::RefCell;
 
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);

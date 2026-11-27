@@ -4,7 +4,8 @@ use super::items;
 use super::{DataWidth, Draw, PaintShape};
 use crate::style::{HandleLook, StateSet};
 use craft_ui_rt::{Item, StrokeAlign};
-use egui::{CornerRadius, Pos2, Rect, vec2};
+use craft_ui_rt::{Pos2, Rect, vec2};
+use egui::CornerRadius;
 
 /// The half-length of each stroke of the overflow plus, as a share of the handle side (3 of 11 points in the type
 /// tool's frame).

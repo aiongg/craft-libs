@@ -3,7 +3,7 @@
 use super::items;
 use crate::style::RuleLook;
 use craft_ui_rt::{Item, Mesh};
-use egui::{Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 
 pub use crate::style::RuleKind;
 

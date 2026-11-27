@@ -353,8 +353,8 @@ pub struct TrackLook {
 
 impl TrackLook {
     /// The groove across the middle of `rect`.
-    pub fn groove(&self, rect: egui::Rect) -> egui::Rect {
-        egui::Rect::from_center_size(rect.center(), egui::Vec2::new(rect.width(), self.thickness))
+    pub fn groove(&self, rect: craft_ui_rt::Rect) -> craft_ui_rt::Rect {
+        craft_ui_rt::Rect::from_center_size(rect.center(), craft_ui_rt::Vec2::new(rect.width(), self.thickness))
     }
 }
 

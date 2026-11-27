@@ -3,6 +3,7 @@
 
 mod completion;
 
+use crate::primitives::id::Id;
 use crate::primitives::{SubmitKey, TabKey, TextLayout, TextOptions};
 use crate::runtime::access::text::{Line, Run};
 use crate::runtime::egui::{clipboard, focus as egui_focus, input as egui_input, memory as egui_memory, repaint, text_edit};
@@ -11,7 +12,8 @@ use crate::runtime::keys::{self, Intents};
 use crate::runtime::{commands, ime, wheel};
 use craft_behavior::{EditCommand, EditorInput, Intent, PartKey, TextPos};
 use craft_keymap::Mods;
-use egui::{Context, Id, Pos2, Rect, Ui};
+use craft_ui_rt::{Pos2, Rect};
+use egui::{Context, Ui};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -316,7 +318,7 @@ fn scroll_after(ui: &Ui, widget: Id, view: Rect, shown: &text_edit::Shown, ran: 
                 .scrolls(true)
                 .gated(gated)
                 .notch(craft_behavior::WheelNotch::Points(line))
-                .room(craft_behavior::WheelRoom::new(egui::vec2(0.0, next), egui::vec2(0.0, max - next))),
+                .room(craft_behavior::WheelRoom::new(craft_ui_rt::vec2(0.0, next), craft_ui_rt::vec2(0.0, max - next))),
         );
     }
 }
@@ -708,7 +710,7 @@ pub(crate) fn show_selectable(ui: &mut Ui, text: Selectable<'_>) {
         &env,
         text_edit::Edit {
             id: widget,
-            rect: egui::Rect::from_min_size(at, layout.size()),
+            rect: craft_ui_rt::Rect::from_min_size(at, layout.size()),
             text: &mut shown,
             read_only: true,
             enabled,

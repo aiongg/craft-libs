@@ -5,8 +5,9 @@ use craft_ui::contract::{Common, Component, Cx, MeasureCx, Props as _, Role, Sho
 use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Response, Vec2};
+use egui::Response;
 use std::cell::Cell;
 use std::rc::Rc;
 

@@ -9,8 +9,9 @@ use craft_ui::contract::{
 };
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
-use egui::{Event, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Event, Modifiers, Ui};
 use std::cell::{Cell, RefCell};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);

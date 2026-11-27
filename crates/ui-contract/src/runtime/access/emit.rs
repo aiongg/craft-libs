@@ -1,8 +1,9 @@
 //! Step 16's fill of the nodes step 8 created, and of the sub-nodes below them (12.2).
 
 use super::{Numeric, PopupKind, SubNode};
+use crate::primitives::id::Id;
 use craft_theme::Flags;
-use egui::{Id, Rect};
+use craft_ui_rt::Rect;
 
 /// A popup an anchor shows this pass.
 #[derive(Clone, Copy, Debug)]

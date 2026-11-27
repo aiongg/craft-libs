@@ -2,9 +2,9 @@
 //! part an egui focus widget, the IME ownership, the key filter and the edit-command routing; the component reads
 //! `EditorInput` and reports `EditorState`.
 
+use crate::primitives::id::Id;
 use crate::runtime::memory::sub;
 use craft_behavior::PartKey;
-use egui::Id;
 
 /// The handle of an editor part's focus widget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

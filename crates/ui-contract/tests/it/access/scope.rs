@@ -4,12 +4,13 @@ use craft_ui::contract::{FieldLabel, Props as _, Show as _, ShowContainer as _};
 use craft_ui::testing::access::{AccessTree, NodeKey, begin_label_scope};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::Rect;
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
-use egui::{Id, Rect};
 use std::cell::RefCell;
 
 fn field_label() -> FieldLabel {
-    FieldLabel::new(global("access.label", "name"), Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(40.0, 10.0)), "Name")
+    FieldLabel::new(global("access.label", "name"), Rect::from_min_max(craft_ui_rt::pos2(0.0, 0.0), craft_ui_rt::pos2(40.0, 10.0)), "Name")
 }
 
 /// One frame of a container with a side label around `controls` probes.

@@ -1,12 +1,13 @@
 //! `Common`, `Props`, `Resolved` and `Tooltip` (chapter 3).
 
 use super::{IdSource, Internal, Meta, Sizing};
+use crate::primitives::id::Id;
 use crate::runtime::commands::{CommandRef, CommandScope};
 use crate::runtime::env::Label;
 use crate::style::GlyphRole;
 use craft_behavior::DocKey;
 use craft_theme::{ControlSize, Variant};
-use egui::{AsIdSalt, Id, IdSalt};
+use egui::{AsIdSalt, IdSalt};
 
 /// What every component carries: the props the pipeline reads at step 1.
 #[derive(Clone, Debug, Default, crate::contract::MemoProps)]

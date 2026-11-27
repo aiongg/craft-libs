@@ -2,8 +2,9 @@
 
 use super::{Canvas, CheckerArea, fill_polygon, items};
 use crate::style::SurroundLook;
+use craft_ui_rt::Pos2;
 use craft_ui_rt::{Filter, ImageKey, ImageOptions, RgbaImage, SizeU, Wrap};
-use egui::{Color32, Pos2};
+use egui::Color32;
 use std::sync::Arc;
 
 /// The side of the pattern's tile, in points: one dot per tile.

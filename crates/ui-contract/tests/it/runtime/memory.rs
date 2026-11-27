@@ -8,8 +8,10 @@ use craft_ui::runtime::memory::{Remember, SaveKey, saved_value, set_saved_value}
 use craft_ui::style::StyleCx;
 use craft_ui::testing::memory::{Stage, dispose_evicted, forget, forget_saved, global, records_written};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};

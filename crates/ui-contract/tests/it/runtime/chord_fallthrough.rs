@@ -20,8 +20,9 @@ use craft_ui::testing::focus::{Stop, named_id, register_stop, widget};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::allocate;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Event, Key, Modifiers, Response, Ui};
 use std::cell::RefCell;
 
 /// The app's command on Alt+F7.

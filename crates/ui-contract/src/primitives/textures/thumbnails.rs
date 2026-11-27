@@ -10,8 +10,8 @@ use crate::primitives::{ContentPainterCx, HAlign, IconSpec, Surface, TextRun, Wr
 use crate::style::{Corners, DataColor, SurfaceKind, TypeRole, surface_style};
 use craft_behavior::{IconId, PixelSize};
 use craft_ui_rt::{BuildCx, RgbaImage, SizeU};
+use craft_ui_rt::{Rect, Vec2, pos2, vec2};
 use egui::emath::GuiRounding as _;
-use egui::{Rect, Vec2, pos2, vec2};
 use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

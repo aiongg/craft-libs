@@ -5,8 +5,9 @@ use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowCont
 use craft_ui::runtime::frame::{discard_pass, running};
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::body::Slab;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::Ui;
 use std::cell::{Cell, RefCell};
 
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);

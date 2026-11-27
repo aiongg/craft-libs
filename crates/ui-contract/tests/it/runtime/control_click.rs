@@ -2,7 +2,8 @@
 
 use craft_host::target::Os;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Event, Modifiers, PointerButton};
 use std::cell::Cell;
 use std::rc::Rc;
 

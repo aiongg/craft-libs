@@ -9,8 +9,9 @@ use craft_ui::contract::{
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, input, pointer, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Key, Modifiers, Ui};
 use std::cell::RefCell;
 
 /// A list of rows at `ROW_H` with the collection props the trial gives, and the column layout it binds.

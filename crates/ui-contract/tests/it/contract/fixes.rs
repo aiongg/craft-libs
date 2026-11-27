@@ -11,8 +11,10 @@ use craft_ui::testing::contract::{findings, steps};
 use craft_ui::testing::focus::named_id;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::{Frames, is_measuring, trial};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Rect, Vec2};
 use craft_ui_test_kit::contract::{PlainStyle, Probe, Seen};
-use egui::{Rect, Response, UiBuilder, Vec2};
+use egui::{Response, UiBuilder};
 use std::cell::RefCell;
 
 type Log = RefCell<Vec<&'static str>>;
@@ -229,7 +231,7 @@ fn the_step_log_is_kept_only_for_an_inspected_region() {
     let id = seen.borrow().id.expect("the probe ran");
     assert!(steps(&fixture.ctx, id).is_empty(), "an ordinary fixture frame has no step log");
     fixture.frame(Vec::new(), |ui| {
-        craft_ui::runtime::inspect::record(ui, egui::Id::unique("inspect probe"), |ui| Probe::new(&seen).show(ui));
+        craft_ui::runtime::inspect::record(ui, Id::new("inspect probe"), |ui| Probe::new(&seen).show(ui));
     });
     assert!(!steps(&fixture.ctx, seen.borrow().id.expect("the inspected probe ran")).is_empty());
 

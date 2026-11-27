@@ -5,7 +5,7 @@ use crate::runtime::env::{Label, Message};
 use crate::style::Ink;
 use craft_behavior::{PartKey, TextPos};
 use craft_theme::TypeRole;
-use egui::Rect;
+use craft_ui_rt::Rect;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::Arc;

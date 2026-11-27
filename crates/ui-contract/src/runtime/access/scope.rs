@@ -1,6 +1,7 @@
+use crate::primitives::id::Id;
 use craft_behavior::PressState;
 use craft_theme::Flags;
-use egui::{Id, Rect};
+use craft_ui_rt::Rect;
 
 /// Whether a field label names its control or describes it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]

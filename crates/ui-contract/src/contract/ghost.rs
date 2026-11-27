@@ -13,7 +13,8 @@ use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::{cursor, pointer};
 use crate::style::{Corners, Ink, RuleWidth, SurfaceKind, UiTokens, rule_look};
 use craft_behavior::Flow;
-use egui::{Context, CornerRadius, Pos2, Rect, Vec2, vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2, vec2};
+use egui::{Context, CornerRadius};
 use std::cell::RefCell;
 
 /// The end hook's painter of the ghost layer: pass it to `InstallSpec::frame_layers`. The drag preview paints in the
@@ -42,7 +43,7 @@ pub fn readout(ctx: &Context, env: &EnvView<'_>, at: Pos2, rows: &[(Label, Strin
     let direction = env.direction();
     let painter = painter(ctx);
     let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
     let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
     let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction, ink: Ink::OnPanel });
     let runs: Vec<(String, String)> = rows.iter().map(|(label, value)| (env.resolve(label).as_str().to_owned(), value.clone())).collect();
@@ -164,7 +165,7 @@ fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, session: &drag:
         }
     }
     let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
     let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
     let draw = &Draw::new(&canvas, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
     let Some(at) = pointer::frame_raw(ctx).pos else { return };
@@ -199,7 +200,7 @@ fn paint_region_name(painter: &egui::Painter, tokens: &UiTokens, env: &Env, area
         return;
     }
     let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
     let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
     let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction: env.direction, ink: Ink::OnPanel });
     let layout = draw.layout(&TextRun::new(name.as_str()).elide(), inner.width());

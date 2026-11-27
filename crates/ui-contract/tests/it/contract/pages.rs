@@ -3,8 +3,9 @@
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Pages, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Ui, Vec2};
+use egui::Ui;
 use std::cell::{Cell, RefCell};
 
 /// A leaf as wide as its bound value, or as `fixed` when given; it sets its value to `set_to` when given.

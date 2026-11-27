@@ -7,7 +7,9 @@ use craft_ui::runtime::cursor;
 use craft_ui::runtime::env::{RootEnv, Scale};
 use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Frames, install_spec, trial};
-use egui::{CustomCursorImage, Pos2, Rect, Vec2, ViewportId};
+use craft_ui_contract::contract::Id;
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{CustomCursorImage, ViewportId};
 use std::sync::Arc;
 
 const AT: Pos2 = Pos2::new(300.0, 300.0);
@@ -377,7 +379,7 @@ fn a_turned_arrow_points_along_its_direction_about_the_hotspot() {
 fn a_tip_outline_shows_only_inside_its_region() {
     const RADIUS: f32 = 40.0;
     let canvas = egui::LayerId::background();
-    let cover = egui::Id::unique("cover");
+    let cover = Id::new("cover");
     // One frame with the pointer at `AT`, the tip requested within `clip`, and an area over `over` when given: the
     // cursor image, and each painted shape's clip with whether it is the ring or the area's fill, in paint order.
     let run = |frames: &mut Frames, clip: Rect, over: Option<Rect>| {

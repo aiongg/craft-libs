@@ -5,7 +5,8 @@ use craft_ui::contract::{MemoProps, MemoView};
 use craft_ui::testing::pointer::{self, drag};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, SenseReport, egui_click_target, show};
 use craft_ui::testing::{Frames, MemoRun, last_frame_memo_runs, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Ui;
 use std::cell::RefCell;
 use std::rc::Rc;
 

@@ -9,10 +9,11 @@ use craft_ui::fonts::{EmbeddedFace, FaceBytes, FontRef, I18nScripts, SystemFonts
 use craft_ui::primitives::FaceRun;
 use craft_ui::style::{DataColor, StyleCx};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect};
 use craft_ui_test_kit::contract::PlainStyle;
 use egui::epaint::TextShape;
 use egui::epaint::text::{Fonts, TextOptions};
-use egui::{Color32, FontData, FontDefinitions, FontFamily, FontId, Galley, Pos2, Rect, Response, Shape};
+use egui::{Color32, FontData, FontDefinitions, FontFamily, FontId, Galley, Response, Shape};
 
 /// The document face: Latin, no kana.
 const NOTO: &[u8] = include_bytes!("../../fonts/NotoSans-test.ttf");

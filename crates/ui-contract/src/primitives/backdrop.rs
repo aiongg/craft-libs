@@ -32,7 +32,8 @@
 //! effect does not feed back.
 
 use super::{CachedTexture, Revision, TextureKey, TextureStore};
-use egui::{Color32, ColorImage, Rect, pos2};
+use craft_ui_rt::{Rect, pos2};
+use egui::{Color32, ColorImage};
 
 /// The most pixels a source image may have for [`Thumbnail::from_image`].
 pub const MAX_SOURCE_PIXELS: usize = 16_777_216;

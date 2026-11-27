@@ -27,7 +27,7 @@ impl Component for Thumbnail<'_> {
     type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: ThumbnailStyleKey) -> PlainStyle {
-        PlainStyle::min(egui::vec2(40.0, 20.0))
+        PlainStyle::min(craft_ui_rt::vec2(40.0, 20.0))
     }
 
     fn sense(&self) -> Sense {

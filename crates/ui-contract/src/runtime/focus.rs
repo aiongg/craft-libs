@@ -6,9 +6,9 @@
 
 use crate::runtime::egui::focus as egui_focus;
 
+use crate::primitives::id::Id;
 use craft_behavior::PartRef;
 pub use craft_behavior::Roving;
-use egui::Id;
 pub use policy::{ActivateKeys, EditSet, EndKey, EnterRule, FocusPolicy, FocusRequest, FocusTarget, Initial, KeepKeys, KeyUse, NudgeMods, TabReach};
 pub(crate) use registration::{Group, Stop};
 
@@ -30,7 +30,7 @@ pub enum FocusShape {
     /// The circle inside the part's rect.
     Circle,
     /// A closed polygon, its points in screen points.
-    Polygon(Vec<egui::Pos2>),
+    Polygon(Vec<craft_ui_rt::Pos2>),
 }
 
 /// A focus stop: a component, or one of its parts.

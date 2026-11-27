@@ -5,8 +5,9 @@ use craft_ui::runtime::commands::{self, CommandRef};
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, MemoRun, last_frame_memo_runs, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::{Probe, Seen};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::Ui;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -18,7 +19,7 @@ fn a_container_registers_its_commands_once() {
     let held: Vec<CommandRef> = (0..100).map(|i| CommandRef::new(format!("test.held{i}"))).collect();
     let shown: Arc<[CommandRef]> = held.clone().into();
     let mut fixture = Fixture::new(move |ui| {
-        let rect = egui::Rect::from_min_size(ui.max_rect().min, egui::vec2(40.0, 20.0));
+        let rect = craft_ui_rt::Rect::from_min_size(ui.max_rect().min, craft_ui_rt::vec2(40.0, 20.0));
         commands::holds(ui.ctx(), ui.layer_id(), rect, &shown, Label::from("Image"));
     });
     fixture.settle();
@@ -26,7 +27,7 @@ fn a_container_registers_its_commands_once() {
     for command in [&held[0], &held[57], &held[99]] {
         let found = commands::shown(fixture.ctx(), command).expect("a held command is shown");
         assert!(found.holder, "{command} is shown as held");
-        assert_eq!(found.rect.size(), egui::vec2(40.0, 20.0), "{command} is shown at the container's rect");
+        assert_eq!(found.rect.size(), craft_ui_rt::vec2(40.0, 20.0), "{command} is shown at the container's rect");
     }
     assert!(commands::shown(fixture.ctx(), &CommandRef::new("test.other")).is_none(), "a command nothing holds is not shown");
 }

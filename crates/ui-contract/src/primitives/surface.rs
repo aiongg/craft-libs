@@ -4,8 +4,9 @@ use super::items;
 use crate::style::{SurfaceEdge, SurfaceStyle};
 use craft_i18n::Direction;
 use craft_ui_rt::{Item, Mesh, StrokeAlign};
+use craft_ui_rt::{Pos2, Rect, Vec2, vec2};
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2, vec2};
+use egui::{Color32, CornerRadius};
 
 use crate::style::Corners;
 

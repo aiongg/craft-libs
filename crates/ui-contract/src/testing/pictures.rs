@@ -11,7 +11,8 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use craft_behavior::PixelSize;
-use egui::{Color32, ColorImage, Pos2, Rect, pos2, vec2};
+use craft_ui_rt::{Pos2, Rect, pos2, vec2};
+use egui::{Color32, ColorImage};
 
 use crate::primitives::textures::{ThumbFit, ThumbPaint, ThumbRequest, cover_uv, fake_thumb_image};
 use crate::primitives::{ContentPainterCx, StrokeWidth};

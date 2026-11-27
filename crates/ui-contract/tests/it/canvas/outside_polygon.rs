@@ -6,8 +6,9 @@ use craft_ui::contract::{Common, Component, Cx, PartsCx, Pointer as _, Role, Sho
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Pos2, Rect, Response, Vec2};
+use egui::Response;
 use std::cell::Cell;
 
 const AROUND: PartKey = PartKey::new("around");

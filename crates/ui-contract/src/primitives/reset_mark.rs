@@ -4,7 +4,7 @@
 use super::items;
 use crate::style::ResetMarkLook;
 use craft_ui_rt::Item;
-use egui::Pos2;
+use craft_ui_rt::Pos2;
 
 /// The reset mark painter.
 pub struct ResetMark;

@@ -12,7 +12,8 @@ use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, SurfaceStyl
 use craft_i18n::Direction;
 use craft_theme::Srgba;
 use craft_ui_rt::{ImageKey, Item, Mesh, StrokeAlign};
-use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::{Color32, CornerRadius};
 use std::cell::RefCell;
 
 /// The "no colour" diagonal of a well stops this share of the well's height short of its edges.
@@ -607,7 +608,7 @@ impl<'a> Draw<'a> {
         // The run `Rule::ticks` fits exactly `count` marks into: their sides, the gaps between them and the one free
         // pixel it keeps.
         let length = f32::from(count) * side + f32::from(count.saturating_sub(1)) * gap_px + 1.0;
-        let half = egui::vec2(length / ppp / 2.0, 0.0);
+        let half = craft_ui_rt::vec2(length / ppp / 2.0, 0.0);
         self.ticked_rule_with(look, centre - half, centre + half, gap, across);
     }
 

@@ -11,7 +11,7 @@ fn requested_paste_keeps_its_point_until_clipboard_delivery() {
     let mut show = |_: &mut Ui| {};
     frames.idle(2, &mut show);
     take_output(&frames.ctx);
-    let point = egui::pos2(120.0, 180.0);
+    let point = craft_ui_rt::pos2(120.0, 180.0);
     craft_ui::runtime::commands::request_paste_at(&frames.ctx, point);
     frames.idle(1, &mut show);
     frames.frame(vec![Event::Paste("content".into())], &mut show);

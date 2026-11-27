@@ -4,8 +4,8 @@ use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
+use craft_ui_rt::Vec2;
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::Vec2;
 
 /// What a [`Dragger`] does in one pass.
 #[derive(Clone, Copy)]
