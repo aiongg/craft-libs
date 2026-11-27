@@ -18,65 +18,7 @@ use craft_ui_rt::{DisplayList, Item, PaintCx, Pos2, Rect, Stroke, Vec2};
 
 use super::env::EnvCells;
 use super::node::{Kept, Pointer, Variant};
-
-/// Which token of the theme's motion group gives a spec its duration and curve.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Token {
-    Hover,
-    Open,
-    Move,
-    Caret,
-    Outline,
-}
-
-/// A motion constant: a component picks one from [`spec`], never writes seconds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MotionSpec {
-    token: Token,
-    kind: MotionKind,
-}
-
-impl MotionSpec {
-    const fn new(token: Token, kind: MotionKind) -> Self {
-        MotionSpec { token, kind }
-    }
-
-    /// The kind that picks this spec's row of the motion table.
-    pub const fn kind(self) -> MotionKind {
-        self.kind
-    }
-
-    fn motion(self, tokens: &Tokens) -> Motion {
-        let m = &tokens.motion;
-        match self.token {
-            Token::Hover => m.hover,
-            Token::Open => m.open,
-            Token::Move => m.r#move,
-            Token::Caret => m.caret,
-            Token::Outline => m.outline,
-        }
-    }
-}
-
-/// The motion constants.
-pub mod spec {
-    use super::{MotionKind, MotionSpec, Token};
-
-    /// Hover and press feedback.
-    pub const HOVER: MotionSpec = MotionSpec::new(Token::Hover, MotionKind::Fade);
-    /// A check, a toggle or a selection turning on or off.
-    pub const CHECK: MotionSpec = MotionSpec::new(Token::Hover, MotionKind::Fade);
-    /// A popup's opacity.
-    pub const OPEN_FADE: MotionSpec = MotionSpec::new(Token::Open, MotionKind::Fade);
-    /// A popup's travel while it opens.
-    pub const OPEN_RISE: MotionSpec = MotionSpec::new(Token::Open, MotionKind::Travel);
-    /// An element moving within the screen.
-    pub const MOVE: MotionSpec = MotionSpec::new(Token::Move, MotionKind::Travel);
-    /// A text caret gliding to its new place.
-    pub const CARET: MotionSpec = MotionSpec::new(Token::Caret, MotionKind::Travel);
-    /// A selection outline gliding to its new cells.
-    pub const OUTLINE: MotionSpec = MotionSpec::new(Token::Outline, MotionKind::Travel);
-}
+use crate::runtime::motion::{MotionSpec, spec};
 
 /// A value a tween can run over.
 pub trait Interpolate: Copy + PartialEq + 'static {
@@ -276,11 +218,11 @@ fn fade_motion(cx: &mut PaintCx<'_>) -> (Motion, Playback) {
         Some(cells) => {
             let tokens = cells.tokens.get(cx);
             let mode = cells.motion.get(cx);
-            (spec::HOVER.motion(&tokens), mode.playback(MotionKind::Fade))
+            (spec::HOVER.motion_of(&tokens), mode.playback(MotionKind::Fade))
         }
         None => {
             let tokens = cx.tokens();
-            (spec::HOVER.motion(&tokens), Playback::Run)
+            (spec::HOVER.motion_of(&tokens), Playback::Run)
         }
     }
 }
@@ -297,7 +239,7 @@ pub(crate) fn paint_level(kept: &Kept, cx: &mut PaintCx<'_>) {
         None => (level.spec, cx.tokens(), MotionMode::Full),
     };
     let now = cx.time_until(|_| None);
-    let opacity = level.tween.value_at(now, spec.motion(&tokens), mode.playback(spec.kind()));
+    let opacity = level.tween.value_at(now, spec.motion_of(&tokens), mode.playback(spec.kind()));
     if level.tween.is_running() {
         cx.time();
     }

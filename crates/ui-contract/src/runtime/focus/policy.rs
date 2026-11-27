@@ -90,8 +90,10 @@ impl FocusPolicy {
         list: None,
         escape_keeps_typing: false,
     };
+
     /// A pane: an F6 stop.
     pub const PANE: FocusPolicy = FocusPolicy { kind: ScopeKind::Pane, ..FocusPolicy::NONE };
+
     /// A dialog: Tab stays inside, Enter submits, Escape closes.
     pub const DIALOG: FocusPolicy = FocusPolicy {
         kind: ScopeKind::Dialog,
@@ -105,6 +107,7 @@ impl FocusPolicy {
         list: None,
         escape_keeps_typing: false,
     };
+
     /// A popup: focus moves in, Escape closes and focus returns to the opener.
     pub const POPUP: FocusPolicy = FocusPolicy {
         kind: ScopeKind::Popup,
@@ -118,8 +121,10 @@ impl FocusPolicy {
         list: None,
         escape_keeps_typing: false,
     };
+
     /// A menu: like a popup.
     pub const MENU: FocusPolicy = FocusPolicy { kind: ScopeKind::Menu, ..FocusPolicy::POPUP };
+
     /// A layer that only Tab reaches, such as the toasts: it traps nothing and takes no focus on its own, and when it
     /// goes away with focus inside, focus returns to the stop it came from.
     pub const TAB_LAYER: FocusPolicy = FocusPolicy { restore: true, ..FocusPolicy::NONE };
@@ -148,12 +153,6 @@ impl FocusPolicy {
         self
     }
 
-    /// Whether Enter on a text opener activates the layer's list.
-    pub const fn list_enter(mut self, on: bool) -> Self {
-        self.list_enter = on;
-        self
-    }
-
     /// The collection in the layer that takes the opener's list keys.
     pub const fn list(mut self, list: Id) -> Self {
         self.list = Some(list);
@@ -163,12 +162,6 @@ impl FocusPolicy {
     /// Whether Escape in this dialog keeps the focused field's typing ([`FocusPolicy::escape_keeps_typing`]).
     pub const fn escape_keeps_typing(mut self, on: bool) -> Self {
         self.escape_keeps_typing = on;
-        self
-    }
-
-    /// Whether Ctrl+Tab cycles pages.
-    pub const fn pages(mut self, on: bool) -> Self {
-        self.pages = on;
         self
     }
 }
@@ -205,19 +198,6 @@ pub enum KeepKeys {
     BlockArrows,
 }
 
-impl KeepKeys {
-    /// Whether a focused component with these keys keeps the arrow move `mv` for itself, so a roving group around it
-    /// does not take it.
-    pub(crate) fn keeps_arrow(self, mv: craft_behavior::NavMove) -> bool {
-        use craft_behavior::NavMove;
-        match self {
-            KeepKeys::BlockArrows => matches!(mv, NavMove::Up | NavMove::Down | NavMove::Back | NavMove::Forward),
-            KeepKeys::InlineArrows => matches!(mv, NavMove::Back | NavMove::Forward),
-            KeepKeys::None | KeepKeys::Tab => false,
-        }
-    }
-}
-
 /// The keys that activate a component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -251,6 +231,7 @@ pub struct EditSet(u8);
 impl EditSet {
     /// No command.
     pub const NONE: EditSet = EditSet(0);
+
     /// Every command.
     pub const ALL: EditSet = EditSet(0b111_1111);
 
@@ -365,8 +346,10 @@ pub enum TabReach {
 impl KeyUse {
     /// A multi-line text field: Up and Down move the caret.
     pub const TEXT_MULTILINE: KeyUse = KeyUse::of(Input::Text).with_keep(KeepKeys::BlockArrows);
+
     /// A code editor: Tab inserts.
     pub const CODE: KeyUse = KeyUse::of(Input::Editor).with_keep(KeepKeys::Tab);
+
     /// A document canvas: all arrows, no activation, and the key that marks its window as showing a document.
     pub const CANVAS: KeyUse = KeyUse {
         keep: KeepKeys::BlockArrows,
@@ -388,9 +371,11 @@ impl KeyUse {
         holds_drafts: false,
         command_keys: false,
     };
+
     /// A divider between panes: it takes the arrows as moves of its value, but it is no document and no canvas tool, so
     /// it marks no window as showing a document and takes no nudges.
     pub const SPLITTER: KeyUse = KeyUse { chrome_key: false, nudge: false, ..KeyUse::CANVAS.with_moves() };
+
     /// A shortcut recorder: it takes the arrows of a canvas, but it is no document, so it marks no window and a Tab in
     /// it never toggles panels.
     pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, chrome_key: false, nudge: false, ..KeyUse::CANVAS };
@@ -439,39 +424,9 @@ impl KeyUse {
         self
     }
 
-    /// The same use letting command chords and function keys run the app's commands while it types (`command_keys`).
-    pub const fn with_command_keys(mut self) -> Self {
-        self.command_keys = true;
-        self
-    }
-
-    /// The same use taking typed letters as `Intent::Text`.
-    pub const fn with_type_ahead(mut self) -> Self {
-        self.type_ahead = true;
-        self
-    }
-
-    /// The same use claiming `claims`.
-    pub const fn with_claims(mut self, claims: &'static [Chord]) -> Self {
-        self.claims = claims;
-        self
-    }
-
-    /// The same use listing `edits`.
-    pub const fn with_edits(mut self, edits: EditSet) -> Self {
-        self.edits = edits;
-        self
-    }
-
     /// The same use marking `inactive` of its edit commands as doing nothing now (`KeyUse::inactive`).
     pub const fn with_inactive(mut self, inactive: EditSet) -> Self {
         self.inactive = inactive;
-        self
-    }
-
-    /// The same use with `activate` as the keys that activate: a value control that arrow and Page keys step takes none.
-    pub const fn with_activate(mut self, activate: ActivateKeys) -> Self {
-        self.activate = activate;
         self
     }
 
@@ -487,12 +442,6 @@ impl KeyUse {
         self
     }
 
-    /// The same use declaring that the component acts on Delete and Backspace.
-    pub const fn with_deletes(mut self) -> Self {
-        self.deletes = true;
-        self
-    }
-
     /// The same use declaring that the component holds its arena's edit session (`session`).
     pub const fn with_session(mut self) -> Self {
         self.session = true;
@@ -505,41 +454,10 @@ impl KeyUse {
         self
     }
 
-    /// The same use with `end` as the meaning of a bare End.
-    pub const fn with_end(mut self, end: EndKey) -> Self {
-        self.end = end;
-        self
-    }
-
     /// The same use with `keep` as the keys it keeps from the key stage.
     pub const fn with_keep(mut self, keep: KeepKeys) -> Self {
         self.keep = keep;
         self
-    }
-
-    /// The same use with `chrome_key` as whether the component marks its window as showing a document: a canvas
-    /// control that is no document sets it to `false`.
-    pub const fn with_chrome_key(mut self, chrome_key: bool) -> Self {
-        self.chrome_key = chrome_key;
-        self
-    }
-
-    /// The same use with `nudge_mods` as the modifiers a document canvas acts on with the arrows.
-    pub const fn with_nudge_mods(mut self, nudge_mods: NudgeMods) -> Self {
-        self.nudge_mods = nudge_mods;
-        self
-    }
-
-    /// Whether the component is a document canvas's editor part: the document (`chrome_key`) holding its editor's
-    /// text keys. It types letters as a text field does, but it is the document the window's menu keys act over, not
-    /// a field inside the chrome.
-    pub const fn is_document_editor(&self) -> bool {
-        self.chrome_key && matches!(self.owner, OwnerClass::Text)
-    }
-
-    /// Whether the component claims `chord`.
-    pub fn claims_chord(&self, chord: &Chord) -> bool {
-        self.claims.contains(chord)
     }
 }
 
@@ -551,6 +469,7 @@ pub struct NudgeMods(u16);
 impl NudgeMods {
     /// No arrow.
     pub const NONE: NudgeMods = NudgeMods(0);
+
     /// The plain arrows and the arrows with Shift: the step and the large step every nudge reads.
     pub const STEPS: NudgeMods = NudgeMods::NONE.with(Mods::NONE).with(Mods::SHIFT);
 

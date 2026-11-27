@@ -218,7 +218,7 @@ pub(crate) struct Registry {
     /// The scopes whose keys are meant for typing (`CommandSet::TYPING`).
     typing: HashSet<&'static str>,
     /// Default keymaps are shared by contexts using this exact registry.
-    pub(crate) keymaps: std::sync::Mutex<Vec<(Platform, super::board::BuiltKeymap)>>,
+    pub(crate) keymaps: std::sync::Mutex<Vec<(Platform, super::keymap::BuiltKeymap)>>,
 }
 
 impl Registry {
