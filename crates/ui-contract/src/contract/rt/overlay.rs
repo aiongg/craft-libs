@@ -33,6 +33,7 @@ use smallvec::SmallVec;
 use super::env::{EnvCells, LayerFrame};
 use super::intents::ScopeStep;
 use super::memory::Memory;
+use super::motion::Level;
 use super::node::Kept;
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
@@ -41,6 +42,7 @@ use crate::contract::{Context, Id, POPUP_PAD};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
+use crate::runtime::motion::MotionSpec;
 use crate::runtime::overlay::{CloseReason, OpenEntry, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
 
@@ -338,6 +340,8 @@ impl Element for LayerScope {
     }
 
     fn paint(&self, lk: &LayerKept, cx: &mut PaintCx<'_>) {
+        // A popup fades in as it opens: paint only, no build per frame.
+        super::motion::paint_level(&lk.kept, cx);
         cx.extend(&lk.frame);
         if self.surface != Surface::Tip {
             let bounds = cx.bounds();
@@ -691,6 +695,11 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     if state.new {
         lk.since = Some(cx.now());
         lk.closed.set(None);
+        if run.surface == Surface::Popup {
+            let level = lk.kept.level.get_mut();
+            Level::aim(level, 0.0, MotionSpec::OPEN_FADE);
+            Level::aim(level, 1.0, MotionSpec::OPEN_FADE);
+        }
     }
     // A layer shown inside a dialog host's `stack_place`, or opened from inside one, belongs to that host's dialog.
     let context = Context::of_build(cx);

@@ -14,6 +14,8 @@ struct Card {
     toast: Toast,
     /// When the timer runs out; `None` while held or for a card with no timeout.
     deadline: Option<f64>,
+    /// The host announced it (each card once, when the stack first shows it).
+    announced: bool,
 }
 
 /// One window's toasts.
@@ -40,7 +42,7 @@ impl ToastQueue {
     pub fn post(&mut self, toast: Toast) -> ToastId {
         self.next += 1;
         let id = ToastId::from_value(self.next);
-        self.cards.push(Card { id, toast, deadline: None });
+        self.cards.push(Card { id, toast, deadline: None, announced: false });
         while self.cards.len() > MAX_CARDS {
             let Some(at) = self.cards.iter().position(|c| c.toast.progress.is_none() && c.toast.actions.is_empty()).or(Some(0)) else { break };
             let card = self.cards.remove(at);
@@ -104,6 +106,11 @@ impl ToastQueue {
             self.ends.remove(0);
         }
         self.ends.push((id, end));
+    }
+
+    /// The cards not announced yet, each marked announced: the host announces each card once.
+    pub(crate) fn take_unannounced(&mut self) -> Vec<Toast> {
+        self.cards.iter_mut().filter(|c| !std::mem::replace(&mut c.announced, true)).map(|c| c.toast.clone()).collect()
     }
 
     /// Runs the timers to `now`: a held stack clears every deadline, an unheld one starts the
