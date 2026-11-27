@@ -260,7 +260,7 @@ impl DocumentFaces {
                     }
                 },
             );
-            if let Some(kept) = self.lock().faces.get_mut(name).filter(|kept| kept.ticket == ticket)
+            if let Some(kept) = self.lock().faces.get_mut(&name).filter(|kept| kept.ticket == ticket)
                 && let Made::Loading { job: slot, .. } = &mut kept.made
             {
                 *slot = Some(job);

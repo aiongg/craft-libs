@@ -923,19 +923,16 @@ impl Element for ScopeNode {
         if self.clip { constraints.constrain(kept.size) } else { kept.size }
     }
 
-    fn paint(&self, _: &Kept, cx: &mut PaintCx<'_>) {
-        if self.clip {
-            let bounds = cx.bounds();
-            cx.clip(bounds);
-        }
-    }
-
     fn relayout_boundary(&self) -> bool {
         true
     }
 
     /// What the scope's build drew through `Ui::draw`; its children paint themselves.
     fn paint(&self, kept: &Kept, cx: &mut PaintCx<'_>) {
+        if self.clip {
+            let bounds = cx.bounds();
+            cx.clip(bounds);
+        }
         paint_drawn(kept, cx);
     }
 

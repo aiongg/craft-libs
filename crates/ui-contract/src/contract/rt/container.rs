@@ -690,11 +690,12 @@ pub(crate) fn show_container<C: Container, R>(
         _ => None,
     };
     let (layer_like, theme) = (matches!(props.mount, Mount::FullWindow | Mount::Viewport { .. }), props.theme.clone());
+    let mount = props.mount.clone();
     let hosted = hosted_by(ui);
     if layer_like && let Some(output) = unshown(slot, ui) {
         return Inner { output, inner: None, settle: None };
     }
-    if let Mount::Viewport { fallback, spec } = &props.mount
+    if let Mount::Viewport { fallback, spec } = &mount
         && hosted.is_none()
     {
         if ui.flow.measuring.is_none() {
