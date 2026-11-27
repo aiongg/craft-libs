@@ -856,14 +856,9 @@ impl<'u, 'c> Ui<'u, 'c> {
         super::layers::top_modal(self.cx.runtime(), self.cx.window()).is_some_and(|top| top.entry.id == id)
     }
 
-    /// The modal layer this cursor builds in, if it builds in one.
+    /// The dialog of a dialog host this cursor builds in (`stack_place`), if it builds in one.
     pub fn running_dialog(&mut self) -> Option<Id> {
-        let open = self.open_layers();
-        let child = super::layers::layer_child_of(self.cx.runtime(), self.cx.node())?;
-        match open.iter().find(|o| o.node == child) {
-            Some(o) => o.entry.rank.is_modal().then_some(o.entry.id),
-            None => self.layer_body_id(child),
-        }
+        super::overlay::running_dialog(self.cx)
     }
 
     // Focus services (section 15.9).

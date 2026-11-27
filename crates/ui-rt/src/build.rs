@@ -171,16 +171,28 @@ impl BuildCx<'_> {
     /// node: per-node memory that needs no id map. The same key gives the same cell in every build.
     pub fn slot<T: 'static>(&mut self, key: impl Hash, init: impl FnOnce() -> T) -> State<T> {
         let key = hash_key(&(std::any::TypeId::of::<T>(), key));
-        if let Some(n) = self.rt.tree.nodes.get(&self.node)
-            && let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key)
-        {
-            return State::from_slot(*at);
+        match self.rt.tree.nodes.contains_key(&self.node) {
+            true => self.keyed_slot(self.node, key, init).expect("the node is in the tree"),
+            false => self.rt.store.create(init()),
+        }
+    }
+
+    /// [`slot`](Self::slot) on another node of the tree: the cell `node` owns under `key`, made on first use and freed
+    /// with `node`. Code that finds a node through its own id map keeps a fact there that the node's readers track
+    /// (an opener's open state, written by the popup it opens). `None` when `node` is not in the tree.
+    pub fn slot_of<T: 'static>(&mut self, node: NodeId, key: impl Hash, init: impl FnOnce() -> T) -> Option<State<T>> {
+        let key = hash_key(&(std::any::TypeId::of::<T>(), key));
+        self.keyed_slot(node, key, init)
+    }
+
+    fn keyed_slot<T: 'static>(&mut self, node: NodeId, key: u64, init: impl FnOnce() -> T) -> Option<State<T>> {
+        let n = self.rt.tree.nodes.get(&node)?;
+        if let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key) {
+            return Some(State::from_slot(*at));
         }
         let state = self.rt.store.create(init());
-        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
-            n.slots.push((key, state.slot_ref()));
-        }
-        state
+        self.rt.tree.nodes.get_mut(&node)?.slots.push((key, state.slot_ref()));
+        Some(state)
     }
 
     /// A derived cell owned by this node, freed with it. Its readers are marked when an input it
@@ -570,6 +582,50 @@ impl BuildCx<'_> {
         let out = reconcile(self.rt, id, parent, self.node, self.window, el);
         self.list_on_layer(parent, id);
         out
+    }
+
+    /// Brings the layer child `node`, with the layer children opened from inside it on the same layer, in front of
+    /// the other children of its layer, as a press on a floating window does. Nothing for a node that is not a layer
+    /// child, or one in front already.
+    pub fn raise_layer_child(&mut self, node: NodeId) {
+        let Some(root) = self.rt.window_node(self.window) else { return };
+        let Some(layer) = self.rt.tree.nodes.get(&node).and_then(|n| n.parent) else { return };
+        if self.rt.tree.nodes.get(&layer).and_then(|n| n.parent) != Some(root) {
+            return;
+        }
+        let Some(children) = self.rt.tree.nodes.get(&layer).map(|n| n.children.clone()) else { return };
+        let tree = &self.rt.tree;
+        // A layer child belongs to the family when its owner chain (parents, and from a layer child its owner) meets `node`.
+        let in_family = |child: NodeId| {
+            let mut at = child;
+            loop {
+                if at == node {
+                    return true;
+                }
+                let Some(n) = tree.nodes.get(&at) else { return false };
+                let up = match n.parent {
+                    Some(parent) if tree.nodes.get(&parent).and_then(|p| p.parent) == Some(root) => n.owner,
+                    parent => parent,
+                };
+                match up {
+                    Some(up) if up != root => at = up,
+                    _ => return false,
+                }
+            }
+        };
+        let (family, rest): (Vec<NodeId>, Vec<NodeId>) = children.iter().partition(|&&child| in_family(child));
+        let raised: Vec<NodeId> = rest.into_iter().chain(family).collect();
+        if raised == children {
+            return;
+        }
+        if let Some(n) = self.rt.tree.nodes.get_mut(&layer) {
+            n.children = raised;
+        }
+        self.rt.tree.mark_layout(layer);
+        self.rt.tree.mark_paint(layer);
+        if let Some(w) = self.rt.windows.get_mut(&self.window) {
+            w.relayout = true;
+        }
     }
 
     fn list_on_layer(&mut self, layer: NodeId, id: NodeId) {

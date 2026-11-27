@@ -1,16 +1,18 @@
 //! The toast host (15.5): a window's queued toasts as one stack on the toast layer, a layer child of the node whose
 //! build shows it (the window root's body), at the end-bottom corner of its body. The queue (`ToastQueue`) keeps the
 //! cards and their timers; a timer is a build wake of the showing node at the earliest deadline, so a waiting stack
-//! runs no frame. A component of a higher layer draws each card (`notices::ToastStack`).
+//! runs no frame. A component of a higher layer draws each card (`notices::ToastStack`). Each card is announced once,
+//! when the stack first shows it.
 
 pub use crate::contract::rt::toast::ToastQueue;
 
 use crate::contract::rt::overlay::{LayerScope, LayerShow, Surface, show_layer};
 use crate::contract::{IdSalt, POPUP_PAD, Ui};
+use crate::runtime::access::Politeness;
 use crate::runtime::env::Env;
 use crate::runtime::focus::{FocusPolicy, FocusTarget};
 use crate::runtime::toast::{Toast, ToastEnd, ToastId};
-use craft_ui_rt::{Align, Layer, LayerSpec, Placement, Rect, Side, Vec2};
+use craft_ui_rt::{Align, AnnouncePoliteness, Layer, LayerSpec, Placement, Rect, Side, Vec2};
 
 /// The stack's key among its owner's layer children.
 const STACK_KEY: u64 = 0x746f_6173_74;
@@ -60,7 +62,8 @@ impl ToastHost {
             return;
         }
         ui.ctx().set_toast_host(ui.id());
-        let rtl = Env::of(ui).direction.is_rtl();
+        let env = Env::of(ui);
+        let rtl = env.direction.is_rtl();
         let cx = &mut *ui.cx;
         let stack = cx.peek_layer::<LayerScope>(Layer::Toast, STACK_KEY);
         // The pointer over the stack's frame, or on a card as the card reported it last, holds the timers.
@@ -70,6 +73,17 @@ impl ToastHost {
         if queue.is_empty() {
             queue.cards_hovered = false;
             return;
+        }
+        // Each new card is read out once, as the stack first shows it, by the node that shows the stack.
+        let fresh = queue.take_unannounced();
+        if !fresh.is_empty() {
+            for toast in fresh {
+                let politeness = match toast.politeness {
+                    Politeness::Polite => AnnouncePoliteness::Polite,
+                    Politeness::Assertive => AnnouncePoliteness::Assertive,
+                };
+                ui.cx.announce(toast.message.resolved(&env.words).as_str(), politeness);
+            }
         }
         let shown = queue.shown_key();
         let rerun = shown != queue.shown;

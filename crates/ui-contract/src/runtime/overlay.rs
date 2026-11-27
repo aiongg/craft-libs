@@ -145,10 +145,6 @@ pub struct OpenEntry {
     pub(crate) closes_on_commands: bool,
     /// The screen rect the layer is contained in: its scrim, placement, clip and input blocking stop at it.
     pub(crate) region: Option<Rect>,
-    /// The layer's place on its dialog stack (`stack_place`): the modal families of one stack stack in its order.
-    pub(crate) place: Option<usize>,
-    /// The dialog of a dialog host the layer shows for (`stack_place`).
-    dialog: Option<Id>,
 }
 
 impl OpenEntry {
@@ -171,8 +167,6 @@ impl OpenEntry {
             absorbs: false,
             closes_on_commands: true,
             region: None,
-            place: None,
-            dialog: None,
         }
     }
 

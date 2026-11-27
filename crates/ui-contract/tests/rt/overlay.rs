@@ -1,6 +1,7 @@
 //! Count trials of a component's popups on craft-ui-rt layers, through the real `Component` trait: opening a popup
-//! runs only its opener and its content, and a press outside that dismisses it runs only the opener. Relations only,
-//! no times.
+//! runs only its opener and its content, and a press outside that dismisses it runs only the opener; a hover popup
+//! waits for its delay with no frame; a popup's body memory outlasts a close; a modal blocks the content below it; a
+//! later wake does not replace an earlier one. Relations only, no times.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -28,6 +29,8 @@ struct MenuButton {
     runs: Rc<Cell<u32>>,
     #[key(skip)]
     menu: Rc<Menu>,
+    #[key(skip)]
+    trigger: Trigger,
 }
 
 /// What the menu reports to the trial.
@@ -36,6 +39,8 @@ struct Menu {
     open: Cell<bool>,
     rows: Cell<[Rect; 3]>,
     picked: Cell<Option<usize>>,
+    /// A count the menu's body keeps in its memory, raised at every run of the body.
+    seen: Cell<u32>,
 }
 
 impl Component for MenuButton {
@@ -54,14 +59,17 @@ impl Component for MenuButton {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.runs.set(self.runs.get() + 1);
         let popup = cx.popup("menu");
-        popup.trigger(Trigger::Click, cx);
+        popup.trigger(self.trigger, cx);
         self.menu.open.set(popup.is_open(cx));
     }
 
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("menu");
         let menu = self.menu.clone();
-        ui.show(popup, Overlay::menu(), move |ui, _| {
+        ui.show(popup, Overlay::menu(), move |ui, body| {
+            let seen = body.memory.shown::<u32>(body.id.with("seen"));
+            *seen += 1;
+            menu.seen.set(*seen);
             let mut rows = [Rect::NOTHING; 3];
             for (at, row) in ROWS.iter().enumerate() {
                 let shown = Chip::new(row).show(ui);
@@ -88,10 +96,11 @@ struct App {
     beside: Rect,
     runs: Rc<Cell<u32>>,
     menu: Rc<Menu>,
+    trigger: Trigger,
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
-    let button = MenuButton { common: Common::new(), runs: app.runs.clone(), menu: app.menu.clone() }.label("Edit".to_owned());
+    let button = MenuButton { common: Common::new(), runs: app.runs.clone(), menu: app.menu.clone(), trigger: app.trigger }.label("Edit".to_owned());
     app.button = button.show(ui).rect;
     app.beside = Chip::new("Beside").show(ui).rect;
 }
@@ -114,7 +123,11 @@ fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
 }
 
 fn setup() -> (Rig<RecordingRenderer>, App) {
-    let mut app = App { button: Rect::NOTHING, beside: Rect::NOTHING, runs: Rc::default(), menu: Rc::default() };
+    setup_with(Trigger::Click)
+}
+
+fn setup_with(trigger: Trigger) -> (Rig<RecordingRenderer>, App) {
+    let mut app = App { button: Rect::NOTHING, beside: Rect::NOTHING, runs: Rc::default(), menu: Rc::default(), trigger };
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
     settle(&mut rig, &mut app);
     (rig, app)
@@ -229,4 +242,153 @@ fn a_waiting_toast_runs_nothing_until_its_timeout_ends_it() {
     assert_eq!(app.root_runs, runs + 1, "the deadline woke the showing node once");
     assert_eq!(app.queue.take_end(id), Some(craft_ui_contract::runtime::toast::ToastEnd::Expired), "the timeout ended the card");
     assert!(app.queue.is_empty());
+}
+
+#[test]
+fn a_hover_popup_waits_for_its_delay_with_no_frame_and_opens_at_it() {
+    use craft_ui_contract::contract::tooltip::DELAY;
+    let (mut rig, mut app) = setup_with(Trigger::Hover);
+    let over = app.button.center();
+    step(&mut rig, &mut app, Some(Input::mouse_move(over)));
+    settle(&mut rig, &mut app);
+    assert!(!app.menu.open.get(), "the menu waits for the hover delay");
+    let runs = app.runs.get();
+    for _ in 0..3 {
+        let idle = step(&mut rig, &mut app, None);
+        assert!(!idle.ran, "the delay is a build wake, not a frame per step: {idle:?}");
+    }
+    rig.driver.platform.advance(DELAY / 2.0);
+    step(&mut rig, &mut app, None);
+    assert!(!app.menu.open.get(), "half the delay opens nothing");
+    rig.driver.platform.advance(DELAY / 2.0 + 0.05);
+    step(&mut rig, &mut app, None);
+    settle(&mut rig, &mut app);
+    assert!(app.menu.open.get(), "the menu opens when the delay ends");
+    assert!(app.runs.get() <= runs + 3, "the opener runs at the deadline, not per frame: {} after {runs}", app.runs.get());
+}
+
+#[test]
+fn a_popup_s_body_memory_outlasts_its_close_while_its_owner_shows() {
+    let (mut rig, mut app) = setup();
+    open(&mut rig, &mut app);
+    settle(&mut rig, &mut app);
+    let first = app.menu.seen.get();
+    assert!(first >= 1, "the body ran");
+    let [down, up] = Input::key_press(Key::Escape, Mods::NONE);
+    step(&mut rig, &mut app, Some(down));
+    step(&mut rig, &mut app, Some(up));
+    settle(&mut rig, &mut app);
+    assert!(!app.menu.open.get(), "Escape closed the menu");
+    open(&mut rig, &mut app);
+    settle(&mut rig, &mut app);
+    assert!(app.menu.seen.get() > first, "the reopened body found what it kept: {} after {first}", app.menu.seen.get());
+}
+
+/// A chip under a modal dialog; it records whether a click reached it.
+struct Modal {
+    under: Rect,
+    under_clicked: bool,
+    ok: Rect,
+}
+
+fn modal_ui(ui: &mut Ui<'_, '_>, app: &mut Modal) {
+    use craft_ui_contract::contract::overlay::show_dialog;
+    let under = Chip::new("Under").show(ui);
+    app.under = under.rect;
+    app.under_clicked |= under.clicked();
+    let shown = show_dialog(ui, 7, &Overlay::modal(), |ui| Chip::new("OK").show(ui).rect);
+    if let Ok(shown) = shown {
+        app.ok = shown.value;
+    }
+}
+
+fn modal_step(rig: &mut Rig<RecordingRenderer>, app: &mut Modal, input: Option<Input>) -> StepReport {
+    if let Some(input) = input {
+        let main = rig.main;
+        rig.inject(main, input);
+    }
+    rig.step_with(&mut |_, cx| window_root_with(cx, WindowEnv::default(), |ui| modal_ui(ui, app)))
+}
+
+#[test]
+fn a_modal_blocks_pointer_input_to_the_content_below_it() {
+    let mut app = Modal { under: Rect::NOTHING, under_clicked: false, ok: Rect::NOTHING };
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    for _ in 0..6 {
+        if !modal_step(&mut rig, &mut app, None).ran {
+            break;
+        }
+    }
+    assert!(app.ok != Rect::NOTHING, "the modal shows its body");
+    let at = app.under.center();
+    assert!(!app.ok.contains(at), "the chip below lies outside the dialog's body");
+    modal_step(&mut rig, &mut app, Some(Input::mouse_move(at)));
+    let down = modal_step(&mut rig, &mut app, Some(Input::mouse_down(at)));
+    let up = modal_step(&mut rig, &mut app, Some(Input::mouse_up(at)));
+    assert!(!app.under_clicked, "the click below the modal reached nothing");
+    assert!(down.frame.runs <= 1 && up.frame.runs <= 1, "no node below the modal runs for the click: {down:?} {up:?}");
+}
+
+/// A leaf that asks for a build in one second and then in five, in that order or the other: the earlier wake stands.
+#[derive(Component)]
+struct Waits {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    runs: Rc<Cell<u32>>,
+    #[key(skip)]
+    later_first: bool,
+}
+
+impl Component for Waits {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: WaitsStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(20.0, 20.0)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.runs.set(self.runs.get() + 1);
+        let (soon, late) = (std::time::Duration::from_secs(1), std::time::Duration::from_secs(5));
+        let order = if self.later_first { [late, soon] } else { [soon, late] };
+        for after in order {
+            cx.context().request_repaint_after(after);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_later_wake_does_not_replace_an_earlier_one() {
+    for later_first in [false, true] {
+        let runs = Rc::new(Cell::new(0));
+        let mut rig = Rig::inline(Vec2::new(200.0, 100.0), 1.0, RecordingRenderer::default());
+        let mut frame = |rig: &mut Rig<RecordingRenderer>| {
+            let runs = runs.clone();
+            rig.step_with(&mut |_, cx| {
+                window_root_with(cx, WindowEnv::default(), |ui| {
+                    Waits { common: Common::new(), runs: runs.clone(), later_first }.show(ui);
+                })
+            })
+        };
+        for _ in 0..6 {
+            if !frame(&mut rig).ran {
+                break;
+            }
+        }
+        let before = runs.get();
+        assert!(!frame(&mut rig).ran, "a waiting leaf runs no frame");
+        rig.driver.platform.advance(1.1);
+        frame(&mut rig);
+        assert_eq!(runs.get(), before + 1, "the one-second wake ran the leaf once (later first: {later_first})");
+    }
 }

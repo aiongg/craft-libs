@@ -114,6 +114,9 @@ pub struct LayerSpec {
     /// A command a key, a native menu pick or the palette runs from outside the child (and the
     /// children it owns) sends [`DismissReason::Command`] ([`crate::Runtime::dismiss_on_command`]).
     pub commands: bool,
+    /// The child is one the window's layer queries list (a popup, dialog or floating window, not a tooltip): when it
+    /// goes, the window's [`Env::layers`](crate::Env::layers) cell moves.
+    pub listed: bool,
 }
 
 /// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
@@ -167,7 +170,13 @@ impl LayerSpec {
             anchor: None,
             bounds: None,
             commands: false,
+            listed: false,
         }
+    }
+
+    pub const fn listed(mut self) -> LayerSpec {
+        self.listed = true;
+        self
     }
 
     pub const fn dismiss_on_command(mut self) -> LayerSpec {
