@@ -48,6 +48,7 @@ pub(crate) fn declare_parts<'a, C: Component>(
         measure,
         items,
         stage: Some((&*cx.core.memory, id)),
+        drag_over: cx.core.drag_over(),
     };
     comp.parts(rect, &mut pcx);
     extra(comp, rect, &mut pcx);

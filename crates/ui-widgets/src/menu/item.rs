@@ -33,6 +33,10 @@ const ICONS: ColumnKey = ColumnKey::new("menu_icons");
 /// The column of a level's samples, and the gap before it, between the label and the shortcut.
 const SAMPLES: ColumnKey = ColumnKey::new("menu_samples");
 
+/// What a level's rows reach past the mark, icon and sample columns (the label or detail, the shortcut or submenu
+/// arrow, and the row's padding), shared in the menu body's column group.
+const REACH: ColumnKey = ColumnKey::new("menu_reach");
+
 /// The seconds the pointer rests on a row it crossed on its way to another row's open submenu before the row takes
 /// over: opens its own submenu, or closes the open one. A row the pointer does not cross that way takes over at once.
 const AIM_REST: f64 = 0.3;
@@ -76,13 +80,14 @@ impl RowInput {
     /// `Focus`, the app) was aimed at, and the key runs it.
     pub(crate) fn of<C: Component>(cx: &mut Cx<'_, C>, level: &MenuLevel) -> RowInput {
         // The rest restarts at each move: a tracked read.
-        let moving = cx.core.pointer().delta != Vec2::ZERO;
+        let pointer = cx.core.pointer().pos;
         let hovered = cx.response.hovered();
         let focused = cx.is_focused();
         let keyboard = level.keyboard();
         let by_key = cx.activation().is_some_and(|activation| activation.by_key);
         let id = cx.id;
         let rest = cx.memory::<Rest>();
+        let moving = rest.pointer.moved(pointer);
         let gained = focused && !rest.focused;
         rest.focused = focused;
         let started = keyboard && !rest.keyboard;
@@ -559,10 +564,11 @@ impl Component for MenuItem<'_> {
         // A sample-only row's sample stands in the label's place: the label takes no width.
         let shown = if self.sample_replaces_label() { 0.0 } else { label.x };
         let rest = shown.max(detail.x) + step(columns.trail, cx.style.shortcut_gap.max(gap));
-        // A row measured before the level's widest mark, icon or sample read narrower columns: the body's group adds
-        // the widest columns to what the rows reach past them.
-        cx.report_beyond(&[MARKS, ICONS, SAMPLES], padding.start + padding.end + rest);
-        let width = columns.mark + columns.icon + columns.sample + rest;
+        // What the row reaches past its mark, icon and sample columns is a column of the body's group too: every row
+        // takes the widest reach, so a row measured before the level's widest columns still measures the level's width.
+        let edges = padding.start + padding.end;
+        let reach = crate::layout::ambient_width(&cx.context(), &REACH, edges + rest).map_or(rest, |reach| reach - edges);
+        let width = columns.mark + columns.icon + columns.sample + reach;
         Vec2::new(cx.room.map_or(width, |room| width.min(room)), line + detail.y)
     }
 
@@ -760,6 +766,7 @@ impl Component for MenuItem<'_> {
         } else if cx.part_if_declared(SHORTCUT).is_some()
             && let Some(keys) = self.keys(command)
         {
+            drop(draw);
             ui.face(SHORTCUT, keys);
         }
     }
@@ -820,8 +827,24 @@ impl Component for MenuItem<'_> {
 /// last pass.
 #[derive(Clone, Default)]
 struct Rest {
+    /// The pointer as the row's last run saw it.
+    pointer: SeenPointer,
     since: Option<f64>,
     focused: bool,
     /// Whether the keyboard drove the menu in the last pass.
     keyboard: bool,
+}
+
+/// The pointer's position as a menu node's last run saw it: the window's pointer frame carries no movement, so a node
+/// that reads it tells a run the pointer moved from one it did not.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct SeenPointer(Option<Option<craft_ui::geom::Pos2>>);
+
+impl SeenPointer {
+    /// Whether the pointer is elsewhere than at the run before; a node's first run sees no move.
+    pub(crate) fn moved(&mut self, pos: Option<craft_ui::geom::Pos2>) -> bool {
+        let moved = self.0.is_some_and(|seen| seen != pos);
+        self.0 = Some(pos);
+        moved
+    }
 }

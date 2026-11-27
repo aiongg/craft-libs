@@ -101,23 +101,39 @@ pub(crate) fn sweep_tag<C: Component>(component: &C, flow: &Flow) -> u64 {
 /// The build of one run, lent per call (INT-1b decision 2): the canvas borrows the paint services
 /// per draw, and `PaintUi::child`, `MeasureCx::child` and a collection's content build a `Ui` over
 /// it per call. The children shown through it are placed in `flow`, the node's own flow.
-pub(crate) struct RunHost<'b, 'c> {
-    cx: RefCell<&'b mut BuildCx<'c>>,
+pub(crate) struct RunHost<'h, 'b, 'c> {
+    cx: HostBuild<'h, 'b, 'c>,
     flow: RefCell<Option<Flow>>,
     ctx: Context,
     env: Env,
     scale: f32,
 }
 
-impl<'b, 'c> RunHost<'b, 'c> {
-    pub(crate) fn new(cx: &'b mut BuildCx<'c>, flow: Flow, ctx: Context, env: Env) -> RunHost<'b, 'c> {
+/// The build a host lends per call: its own, or the run's, which the run's core shares for the hooks' window reads
+/// (`RunIo::build`).
+enum HostBuild<'h, 'b, 'c> {
+    Own(RefCell<&'b mut BuildCx<'c>>),
+    Shared(&'h RefCell<&'b mut BuildCx<'c>>),
+}
+
+impl<'h, 'b, 'c> RunHost<'h, 'b, 'c> {
+    pub(crate) fn new(cx: &'b mut BuildCx<'c>, flow: Flow, ctx: Context, env: Env) -> RunHost<'h, 'b, 'c> {
         let scale = cx.scale();
-        RunHost { cx: RefCell::new(cx), flow: RefCell::new(Some(flow)), ctx, env, scale }
+        RunHost { cx: HostBuild::Own(RefCell::new(cx)), flow: RefCell::new(Some(flow)), ctx, env, scale }
+    }
+
+    /// A host over the run's build `build`, which the run's core reads through between the host's calls.
+    pub(crate) fn shared(build: &'h RefCell<&'b mut BuildCx<'c>>, flow: Flow, ctx: Context, env: Env) -> RunHost<'h, 'b, 'c> {
+        let scale = build.borrow_mut().scale();
+        RunHost { cx: HostBuild::Shared(build), flow: RefCell::new(Some(flow)), ctx, env, scale }
     }
 
     /// The run's build, for a step that needs it between draws.
     pub(crate) fn cx(&self) -> RefMut<'_, &'b mut BuildCx<'c>> {
-        self.cx.borrow_mut()
+        match &self.cx {
+            HostBuild::Own(cx) => cx.borrow_mut(),
+            HostBuild::Shared(cx) => cx.borrow_mut(),
+        }
     }
 
     /// The flow the children were placed in.
@@ -126,16 +142,16 @@ impl<'b, 'c> RunHost<'b, 'c> {
     }
 
     fn services<R>(&self, f: impl FnOnce(&FrameServices<'_>) -> R) -> R {
-        let mut cx = self.cx.borrow_mut();
+        let mut cx = self.cx();
         let fonts = crate::fonts::stack_facts(&mut cx);
         let (text, images) = cx.paint_services();
         f(&FrameServices::new(text, images, self.scale, fonts).with_context(self.ctx.clone()))
     }
 }
 
-impl UiHost for &RunHost<'_, '_> {
+impl UiHost for &RunHost<'_, '_, '_> {
     fn with_ui(&mut self, f: &mut dyn FnMut(&mut Ui<'_, '_>)) {
-        let mut cx = self.cx.borrow_mut();
+        let mut cx = self.cx();
         let flow = self.flow.borrow_mut().take().expect("one `Ui` over a run at a time");
         let mut ui = Ui { cx: &mut **cx, flow, ctx: self.ctx.clone(), env: self.env.clone() };
         f(&mut ui);
@@ -143,7 +159,7 @@ impl UiHost for &RunHost<'_, '_> {
     }
 }
 
-impl Services for RunHost<'_, '_> {
+impl Services for RunHost<'_, '_, '_> {
     fn scale(&self) -> f32 {
         self.scale
     }
@@ -361,7 +377,7 @@ fn measure_reading<C: Component>(
     let resolved = begun.resolved(id);
     let tokens = super::env::tokens(cx);
     let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, room, tokens, Some(node)), ctx.clone(), begun.env.clone());
-    let mut lent: &RunHost<'_, '_> = &host;
+    let mut lent: &RunHost<'_, '_, '_> = &host;
     let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
     let (proposal, room_x) = if begun.env.least { (Proposal::Min, None) } else { (Proposal::Ideal, (!begun.env.content_column).then_some(room.x)) };
     let input = MeasureIn { env: &begun.env, proposal, room: room_x, host: &cell };
@@ -522,6 +538,9 @@ pub(crate) fn run_shaped<C: Component>(
     // The text engine `update` borrows for `Cx::layout_doc`, lent from the build for that call alone.
     let update_text = crate::contract::cx::UpdateText::new();
     let context_watch = Cell::new(false);
+    let hover_point = cx.hover_point(node);
+    // The run's build from here on: its hosts and the core's window reads (`RunIo::build`) borrow it per call.
+    let build = RefCell::new(cx);
     let mut core = core_for(
         &begun.env,
         &resolved,
@@ -533,15 +552,16 @@ pub(crate) fn run_shaped<C: Component>(
             text: Some(&update_text),
             ime_history: kept.ime.history(),
             ime_body: kept.ime.body.clone().into(),
-            hover_point: cx.hover_point(node),
+            hover_point,
             drag_over: kept.drag_over.clone(),
             context_watch: Some(&context_watch),
+            build: Some(&build),
             ..RunIo::new(&input, context.clone())
         },
     );
     place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
     // The popups live on the node; `PopupHandle` reads and changes them through the run's core.
-    core.popups.begin_run(cx);
+    core.popups.begin_run(&build.borrow());
     core.run.inbox = inbox;
     core.run.swept = swept;
     core.row = row.clone();
@@ -572,8 +592,9 @@ pub(crate) fn run_shaped<C: Component>(
     let mut parts = steps::PartsStep::default();
     let shaped = hooks.shaped();
     if facts.parts || shaped {
-        let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
-        let mut lent: &RunHost<'_, '_> = &host;
+        let host =
+            RunHost::shared(&build, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
+        let mut lent: &RunHost<'_, '_, '_> = &host;
         let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
         let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(place.room.x), host: &cell };
         let items =
@@ -614,11 +635,12 @@ pub(crate) fn run_shaped<C: Component>(
     // 8b the editor part takes the run's input in queue order.
     crate::contract::editor::run(&mut cxx, &mut parts.text, component.keys());
     // 8b the text part runs the editing engine over the same queue; selection parts take their edit commands.
-    let scope = cx.provided::<crate::primitives::text_adapter::ScopeEscape>().unwrap_or_default();
-    let access = cx.access_enabled();
-    let bar_returns_here = bar_returns_here(cx);
+    let scope = build.borrow().provided::<crate::primitives::text_adapter::ScopeEscape>().unwrap_or_default();
+    let access = build.borrow().access_enabled();
+    let bar_returns_here = bar_returns_here(&build.borrow());
     let text_keys = {
-        let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
+        let host =
+            RunHost::shared(&build, run_flow(id, Pos2::ZERO, place.room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
         let text_in = crate::contract::text::TextIn {
             services: &host,
             keys: component.keys(),
@@ -639,9 +661,9 @@ pub(crate) fn run_shaped<C: Component>(
     drive_toggles(cxx.core, facts.overlays, std::any::type_name::<C>());
     steps::edit_intents(&mut component, &mut cxx);
     steps::scrub_by_label(&component, &mut cxx);
-    update_text.lend(cx);
+    update_text.lend(&mut build.borrow_mut());
     component.update(&mut cxx);
-    update_text.give_back(cx);
+    update_text.give_back(&mut build.borrow_mut());
     hooks.updated(&mut component, &mut cxx);
     steps::record_context(cxx.core);
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
@@ -663,14 +685,14 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
-    cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
-    cx.take_released_focus(kept.focus.takes_released_focus());
+    build.borrow_mut().keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
+    build.borrow_mut().take_released_focus(kept.focus.takes_released_focus());
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
         let toggling = toggle_rects(cxx.core);
-        let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
-        let mut lent: &RunHost<'_, '_> = &host;
+        let host = RunHost::shared(&build, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
+        let mut lent: &RunHost<'_, '_, '_> = &host;
         run_overlay(&mut component, &mut cxx, &mut lent, &begun.env, toggling, true);
     }
 
@@ -683,7 +705,7 @@ pub(crate) fn run_shaped<C: Component>(
     // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6); then the
     // shape's content (a collection's rows), whose children join the ones the paint showed.
     let open = facts.overlays && cxx.core.popups.any_open();
-    let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
+    let host = RunHost::shared(&build, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
     let at = Pointing { origin: rect.min, clip: Rect::EVERYTHING, now: host.cx().interaction(node) };
     let (variants, values, children) = record_variants(&mut component, &mut cxx, &host, begun, (own, &kept.parts), open, &*hooks, at);
     if let Some(read) = children {
@@ -700,7 +722,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.parts.extend(crate::contract::text::selection_parts(cxx.core, rect.min));
     crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
-        let mut lent: &RunHost<'_, '_> = &host;
+        let mut lent: &RunHost<'_, '_, '_> = &host;
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
         kept.members = hooks.take_member_looks();
     }
@@ -708,7 +730,7 @@ pub(crate) fn run_shaped<C: Component>(
     let pointers = super::cursor::painted_pointers(&host, &begun.env, cursors);
     kept.pointers = pointers;
     let mut flow = host.into_flow();
-    super::node::set_drawn(&mut kept.drawn, cx, flow.take_drawn(rect.min));
+    super::node::set_drawn(&mut kept.drawn, &mut build.borrow_mut(), flow.take_drawn(rect.min));
     kept.placed = flow.placed;
 
     // 15 settle: edits a paint adopted reach the binding; a reveal goes to the scroll owner.
@@ -724,59 +746,60 @@ pub(crate) fn run_shaped<C: Component>(
     kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let mut built = cx
-        .access_enabled()
-        .then(|| report::<C>((&component, &*hooks), &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, cx))
+    let access_on = build.borrow().access_enabled();
+    let mut built = access_on
+        .then(|| report::<C>((&component, &*hooks), &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, &mut build.borrow_mut()))
         .flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
-        (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
+        (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, build.borrow().node()),
         _ => Vec::new(),
     };
     let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
     kept.access = access;
     kept.access_subs = subs;
     // The node stands for the control folded into it: the control's focus and the requests aimed at the node.
-    kept.access_stands = kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(cx, folded.inner));
+    kept.access_stands =
+        kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(&build.borrow(), folded.inner));
     for (text, politeness) in std::mem::take(&mut cxx.core.run.announcements) {
         let politeness = match politeness {
             crate::runtime::access::Politeness::Polite => craft_ui_rt::AnnouncePoliteness::Polite,
             crate::runtime::access::Politeness::Assertive => craft_ui_rt::AnnouncePoliteness::Assertive,
         };
-        cx.announce(text, politeness);
+        build.borrow_mut().announce(text, politeness);
     }
     let tip_text = crate::contract::tooltip::text_of(cxx.core, component.shows_label(), <C as Meta>::CANVAS_CONTROL, message.as_deref());
     // The parts' tooltips: the component's own parts', then its members' (a collection's).
     let part_tips = part_tips.into_iter().chain(std::mem::take(&mut cxx.core.part_tips)).collect();
-    tip::show(&mut kept.tip, tip_text, part_tips, true, cx, id, rect, tokens);
+    tip::show(&mut kept.tip, tip_text, part_tips, true, &mut build.borrow_mut(), id, rect, tokens);
     let _ = tip;
     if let Some((target, spec)) = cxx.core.run.level.take() {
         super::motion::Level::aim(kept.level.get_mut(), target, spec);
     }
-    response::end_reads(reads, cx);
+    response::end_reads(reads, &mut build.borrow_mut());
 
     // What the run asked of its node, applied after it: the menu-bar registration, a build wake (a
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
-    super::node::MenuBar::register(kept.menu_bar, cx);
-    super::node::LoneAltClaims::register(cxx.core.run.lone_alt_claim.get(), cx);
-    super::keys::KeyCaptures::keep(&mut kept.captures, std::mem::take(&mut cxx.core.captures), cx);
+    super::node::MenuBar::register(kept.menu_bar, &mut build.borrow_mut());
+    super::node::LoneAltClaims::register(cxx.core.run.lone_alt_claim.get(), &mut build.borrow_mut());
+    super::keys::KeyCaptures::keep(&mut kept.captures, std::mem::take(&mut cxx.core.captures), &mut build.borrow_mut());
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.drop_types = cxx.core.run.drop_types.take();
     kept.drop_under_modal = cxx.core.run.drop_under_modal.get();
     kept.notch = component.wheel_notch();
-    super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
-    let wake = cxx.core.run.wake.get().then(|| cx.now());
+    super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, &mut build.borrow_mut());
+    let wake = cxx.core.run.wake.get().then(|| build.borrow().now());
     if let Some(at) = [wake, cxx.core.run.build_at.get()].into_iter().flatten().reduce(f64::min) {
-        cx.request_build_at(Some(at));
+        build.borrow_mut().request_build_at(Some(at));
     }
     if let Some(source) = cxx.core.run.drag_start.borrow_mut().take() {
-        kept.drag_session = cx.start_drag(source.start(tokens));
+        kept.drag_session = build.borrow_mut().start_drag(source.start(tokens));
     }
     if let Some(reason) = cxx.core.press_cancel.take().filter(|_| kept.press.is_some()) {
-        cx.cancel_press(reason);
+        build.borrow_mut().cancel_press(reason);
     }
     if cxx.core.run.surrender.get() {
-        cx.surrender_focus();
+        build.borrow_mut().surrender_focus();
     }
 
     // Focus: the ring's shape for the part that holds focus (or the node's own), then the moves the
@@ -797,10 +820,10 @@ pub(crate) fn run_shaped<C: Component>(
     let activated = component.activated(&cxx) && resolved.enabled;
     let injected = cxx.core.injected.take().filter(|_| resolved.enabled);
     let fired = activated || injected.is_some();
-    steps::before_finish(cxx.core, fired, injected, board.as_ref(), cx);
+    steps::before_finish(cxx.core, fired, injected, board.as_ref(), &mut build.borrow_mut());
     if fired {
         // The layers the activation happened in close, unless it keeps them open.
-        note_activation(cx, cxx.core.keep_open);
+        note_activation(&mut build.borrow_mut(), cxx.core.keep_open);
     }
     let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
     let fires = std::mem::take(&mut cxx.core.run.fires);
@@ -813,7 +836,13 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sizes.push((place.room, size));
     // The run's context facts, taken before `finish` consumes the core's borrow.
     let (late, made) = (cxx.core.run.context_asks.take(), cxx.core.run.context_made.get());
+    let layer_asks = cxx.core.run.layer_asks.take();
     let out = component.finish(cxx);
+    let cx = build.into_inner();
+    // The run's layer requests, in order, then its focus moves, as `Ui` applies them in a build.
+    for ask in layer_asks {
+        ask.apply(cx);
+    }
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
@@ -919,7 +948,7 @@ pub(crate) fn run_member<I: Component>(
     let mut parts = steps::PartsStep::default();
     if begun.facts.parts {
         let host = RunHost::new(&mut *ui.cx, run_flow(id, Pos2::ZERO, room, tokens.clone(), Some(Some(node))), context.clone(), begun.env.clone());
-        let mut lent: &RunHost<'_, '_> = &host;
+        let mut lent: &RunHost<'_, '_, '_> = &host;
         let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
         let measure_in = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(run.rect.width()), host: &cell };
         steps::declare_parts(&mut item, &cxx, run.rect, &mut parts, &measure_in, Some((node, now)), None, &mut |_, _, _| {});
@@ -1105,7 +1134,7 @@ fn settle_shaped<C: Component>(
     component.content_env(&cxx, &mut values);
     let host = RunHost::new(cx, run_flow(kept.id, rect.min, room, tokens.clone(), None), context, begun.env.clone());
     {
-        let mut lent: &RunHost<'_, '_> = &host;
+        let mut lent: &RunHost<'_, '_, '_> = &host;
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
     }
     hooks.settled(&mut component, &mut cxx);
@@ -1241,7 +1270,7 @@ pub(crate) fn reach_layers<C: Component>(
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
         let host = RunHost::new(cx, run_flow(id, rect.min, kept.place.room, tokens.clone(), None), context, begun.env.clone());
         let changed = {
-            let mut lent: &RunHost<'_, '_> = &host;
+            let mut lent: &RunHost<'_, '_, '_> = &host;
             run_overlay(component, &mut cxx, &mut lent, &begun.env, Vec::new(), false)
         };
         drop(host);
@@ -1263,7 +1292,7 @@ pub(crate) fn reach_layers<C: Component>(
 fn record_variants<C: Component>(
     component: &mut C,
     cxx: &mut Cx<'_, C>,
-    host: &RunHost<'_, '_>,
+    host: &RunHost<'_, '_, '_>,
     begun: &Begun<C>,
     (sense, parts): (Sense, &[KeptPart]),
     open: bool,
@@ -1293,7 +1322,7 @@ fn record_variants<C: Component>(
                 canvas.extend(items);
             }
             steps::paint_part_layers(&canvas, &begun.env, cxx.core);
-            let mut lent: &RunHost<'_, '_> = host;
+            let mut lent: &RunHost<'_, '_, '_> = host;
             let mut pui = paint_ui(&mut lent, &canvas, &begun.env, cxx.core, &*begun.style, look);
             // What lies under the shape's content (a collection's surface), then the component's paint.
             hooks.paint(component, &mut pui, cxx.core.rect);

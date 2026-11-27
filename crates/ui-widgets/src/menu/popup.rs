@@ -443,7 +443,8 @@ impl Component for Menu<'_> {
         }
         // The rows run after this, so the pass that moved the pointer onto a row paints it, and the row it left, as the
         // level now has them.
-        if cx.core.pointer().delta != craft_ui::geom::Vec2::ZERO {
+        let pointer = cx.core.pointer().pos;
+        if cx.memory::<super::item::SeenPointer>().moved(pointer) {
             level.follow_pointer(|row| cx.core.hovers(row));
         }
         let keyboard = cx.core.keyboard_in_menu();

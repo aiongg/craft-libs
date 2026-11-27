@@ -972,7 +972,8 @@ impl Runtime {
         }
         let mut consumed = false;
         for (id, outside) in dismissed {
-            self.deliver(id, id, &Event::Dismiss(DismissReason::OutsidePress));
+            let ev = if outside == OutsidePress::Report { Event::PressedOutside } else { Event::Dismiss(DismissReason::OutsidePress) };
+            self.deliver(id, id, &ev);
             consumed |= outside == OutsidePress::DismissAndConsume;
         }
         consumed
@@ -1557,7 +1558,7 @@ impl Runtime {
             }
             let pick = stops.iter().find(|(_, text)| text_first && *text).or(stops.first()).map(|(id, _)| *id);
             if pick.is_some() {
-                self.set_focus(window, pick, FocusCause::Program);
+                self.set_focus(window, pick, FocusCause::Entered);
             }
         }
     }

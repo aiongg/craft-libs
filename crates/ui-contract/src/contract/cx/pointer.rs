@@ -283,8 +283,12 @@ impl CxCore<'_> {
     /// `drop_target` and that the drag is over. Each move over it runs it (`NodeInput::DragOver`); `None` on a
     /// settled `Cx`.
     pub(crate) fn dragging_of(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
-        let (data, at, _) = self.run.drag_over.as_ref().filter(|_| !self.run.settled)?;
-        Some((crate::contract::rt::drag::payload_of(data, payload)?, *at))
+        drag_payload(self.drag_over(), payload)
+    }
+
+    /// The drag over the node when the run began; `None` on a settled `Cx`.
+    pub(crate) fn drag_over(&self) -> Option<&(craft_ui_rt::DragData, Pos2, craft_ui_rt::Mods)> {
+        self.run.drag_over.as_ref().filter(|_| !self.run.settled)
     }
 
     /// The payload of type `payload` dropped on this node in this run, where it was dropped (window coordinates; the
@@ -422,6 +426,17 @@ impl<C: Component> Pointer for Cx<'_, C> {
 }
 
 impl<C: Component> Cx<'_, C> {
+    /// The window's pointer as a tool reads it ([`CxCore::pointer`]); tracked.
+    pub fn pointer(&self) -> crate::runtime::pointer::PointerFrame {
+        self.core.pointer()
+    }
+
+    /// Whether a primary press went down outside one of the component's popups since its last run, while the popup's
+    /// `Outside::Keep` rule kept it open: the caller decides whether that closes it.
+    pub fn pressed_outside(&self) -> bool {
+        self.core.popups.pressed_outside()
+    }
+
     /// The value a primary-button sweep sets on this toggle in this run, `None` when no sweep reached it. `on` is the
     /// value the toggle shows. Only toggles that return their value from `Component::sweep_value` and share a layout
     /// take part; the press owner's run gets the value first, each toggle the sweep crosses gets it once. A control
@@ -440,4 +455,14 @@ pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<Cursor> {
 /// (`Kept.cursor`), so the pointer shows it without a run.
 pub(crate) fn run_cursor(core: &CxCore<'_>) -> Option<Cursor> {
     core.cursor.clone().map(|(cursor, _)| cursor).or_else(|| declared_cursor(core))
+}
+
+/// The payload of type `payload` of the drag over a node (`drag_over`, as its run began) and the pointer in window
+/// coordinates: `Pointer::dragging` and `PartsCx::dragging`.
+pub(crate) fn drag_payload(
+    drag_over: Option<&(craft_ui_rt::DragData, Pos2, craft_ui_rt::Mods)>,
+    payload: TypeId,
+) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
+    let (data, at, _) = drag_over?;
+    Some((crate::contract::rt::drag::payload_of(data, payload)?, *at))
 }

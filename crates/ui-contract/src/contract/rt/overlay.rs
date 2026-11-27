@@ -64,6 +64,8 @@ struct PopupEntry {
     watch_hover: bool,
     /// The pointer is over its layer, as of the start of the run.
     hovered: bool,
+    /// A primary press went down outside its layer since the run before, while its `Outside::Keep` rule kept it open.
+    pressed_outside: bool,
     /// The ui-rt layer it showed on last, while its layer child is there (open, or fading out after it closed).
     layer: Option<Layer>,
     /// Its layer child showed open in this run.
@@ -108,6 +110,7 @@ impl PopupSet {
                     closed: None,
                     watch_hover: false,
                     hovered: false,
+                    pressed_outside: false,
                     layer: None,
                     shown: false,
                     opened_at: None,
@@ -131,10 +134,16 @@ impl PopupStates {
             entry.began = entry.open;
             entry.closed = None;
             entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
+            entry.pressed_outside = entry.layer.is_some_and(|layer| take_pressed_outside(cx, layer, entry.id.value()));
             entry.shown = false;
         }
         set.context_menu = false;
         set.now = cx.now();
+    }
+
+    /// Whether a primary press went down outside a popup that its `Outside::Keep` rule kept open, since the run before.
+    pub(crate) fn pressed_outside(&self) -> bool {
+        self.0.borrow().entries.iter().any(|e| e.pressed_outside)
     }
 
     /// Whether any popup is open: the component's `OPEN` state.
@@ -324,6 +333,9 @@ pub(crate) struct LayerKept {
     pub(crate) dismissed: Option<DismissReason>,
     /// The pointer is over it (a toast stack holds its timers while it is).
     pub(crate) hovered: bool,
+    /// A primary press went down outside it while it stays open on such presses (`Outside::Keep`); its owner's next
+    /// run takes it.
+    pub(crate) pressed_outside: Cell<bool>,
     /// The frame under the content, in the node's coordinates, recorded in the build.
     pub(crate) frame: DisplayList,
     /// The size and tokens `frame` was recorded for.
@@ -373,6 +385,7 @@ impl Element for LayerScope {
             surface: self.surface,
             dismissed: None,
             hovered: false,
+            pressed_outside: Cell::new(false),
             frame: DisplayList::default(),
             frame_for: None,
             frame_cell: None,
@@ -413,6 +426,11 @@ impl Element for LayerScope {
                     lk.dismissed = Some(*reason);
                     cx.request_owner_build();
                 }
+                Handled::Yes
+            }
+            Event::PressedOutside => {
+                lk.pressed_outside.set(true);
+                cx.request_owner_build();
                 Handled::Yes
             }
             Event::Hover(on) => {
@@ -551,7 +569,7 @@ impl LayerShow {
         let layer = layer_of(overlay);
         let (placement, anchor) = placement_of(overlay, owner, owner_rect, rtl);
         let outside = match overlay.dismiss.outside {
-            Outside::Keep => OutsidePress::Ignore,
+            Outside::Keep => OutsidePress::Report,
             Outside::Absorb => OutsidePress::DismissAndConsume,
             _ => OutsidePress::Dismiss,
         };
@@ -645,6 +663,12 @@ pub(crate) fn layer_closed(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<C
 /// reports hover).
 pub(crate) fn layer_hovered(cx: &BuildCx<'_>, layer: Layer, key: u64) -> bool {
     cx.peek_layer::<LayerScope>(layer, key).is_some_and(|p| p.local.hovered)
+}
+
+/// Whether a primary press went down outside the layer child `key` on `layer` of the node being built since its owner
+/// last took it. Taken: the next read answers `false` until another press.
+fn take_pressed_outside(cx: &BuildCx<'_>, layer: Layer, key: u64) -> bool {
+    cx.peek_layer::<LayerScope>(layer, key).is_some_and(|p| p.local.pressed_outside.take())
 }
 
 /// The frame time the layer child `key` on `layer` of the node being built opened at.
@@ -1004,18 +1028,8 @@ impl Ui<'_, '_> {
     /// Closes the layer `id` (a popup, a dialog, a container shown as a layer) for `why`: its owner builds and reads
     /// the close as one its body asked for, and reports it as the layer's close reason.
     pub fn close_layer(&mut self, id: Id, why: CloseReason) {
-        if self.is_measuring() {
-            return;
-        }
-        let Some(node) = layer_child(self.cx, id) else { return };
-        let rt = self.cx.runtime();
-        let Some(closed) = rt.local::<LayerScope>(node).map(|lk| lk.closed.clone()) else { return };
-        let owner = rt.owner(node);
-        if closed.get().is_none() {
-            closed.set(Some(why));
-        }
-        if let Some(owner) = owner {
-            self.cx.request_build_of(owner);
+        if !self.is_measuring() {
+            close_layer(self.cx, id, why);
         }
     }
 
@@ -1029,5 +1043,20 @@ impl Ui<'_, '_> {
         let out = show(self);
         context.service::<StackPlace, _>(|now| now.0 = outer);
         out
+    }
+}
+
+/// Closes the layer `id` for `why` (`Ui::close_layer`, `CxCore::close_layer`): its owner builds and reads the close as
+/// one its body asked for. Nothing when the layer has no live node.
+pub(crate) fn close_layer(cx: &mut BuildCx<'_>, id: Id, why: CloseReason) {
+    let Some(node) = layer_child(cx, id) else { return };
+    let rt = cx.runtime();
+    let Some(closed) = rt.local::<LayerScope>(node).map(|lk| lk.closed.clone()) else { return };
+    let owner = rt.owner(node);
+    if closed.get().is_none() {
+        closed.set(Some(why));
+    }
+    if let Some(owner) = owner {
+        cx.request_build_of(owner);
     }
 }

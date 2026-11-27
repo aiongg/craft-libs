@@ -47,6 +47,7 @@ pub(crate) mod motion;
 pub(crate) mod node;
 pub(crate) mod overlay;
 pub(crate) mod pending;
+pub(crate) mod reads;
 pub(crate) mod response;
 pub(crate) mod run;
 pub(crate) mod scope;
