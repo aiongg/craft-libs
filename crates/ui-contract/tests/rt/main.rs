@@ -12,6 +12,7 @@ mod id;
 mod input;
 mod int5b;
 mod items;
+mod keys;
 mod layout;
 mod motion;
 mod overlay;

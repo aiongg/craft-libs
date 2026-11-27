@@ -1,4 +1,4 @@
-//! `contract/egui-widget`: egui's widget constructors and `Ui` shortcuts outside `runtime::egui`.
+//! `contract/egui-widget`: egui's widget constructors and `Ui` shortcuts in library and app code.
 
 use crate::report::Finding;
 
@@ -26,7 +26,7 @@ const SHORTCUTS: [&str; 12] = [
 /// `Ui` text shortcuts. Only calls on a receiver named `ui` count: components and builders have their own `label`.
 const UI_TEXT: [&str; 8] = ["label", "heading", "monospace", "colored_label", "code", "small", "text_edit_singleline", "text_edit_multiline"];
 
-/// Egui text types the library crates do not build outside `runtime::egui`.
+/// Egui text types the library crates do not build in library and app code.
 const TEXT_TYPES: [&str; 2] = ["RichText", "Label"];
 
 const WIDGETS: [&str; 5] = ["Button", "TextEdit", "DragValue", "Slider", "ComboBox"];

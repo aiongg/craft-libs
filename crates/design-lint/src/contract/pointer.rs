@@ -1,4 +1,4 @@
-//! `contract/pointer`: drag and click queries, press-origin reads and hover-position reads outside `runtime::egui`.
+//! `contract/pointer`: drag and click queries, press-origin reads and hover-position reads in library and app code.
 
 use crate::report::Finding;
 

@@ -478,11 +478,8 @@ impl StoryData {
     /// picked choice or an edited number). The revision moves, and a view that read the value earlier in the pass
     /// runs again.
     #[doc(hidden)]
-    pub fn __wrote(&mut self, ctx: &Context, key: (&'static str, TypeId)) {
+    pub fn __wrote(&mut self, _ctx: &Context, _key: (&'static str, TypeId)) {
         *self.written = ();
-        let size = self.values.get(&key).map_or(0, |value| size_of_val(&**value));
-        let read = crate::runtime::reads::BindKey::Tracked(self.written.source(), slot_offset(key.0, key.1), size, key.1);
-        crate::runtime::inspect::edited(ctx, read, Id::NULL);
     }
 
     /// The value named `name` of type `T`, created from `init` on first use, with where it lies ([`ValueAt`]): a
@@ -834,7 +831,7 @@ where
 }
 
 /// A story value's place in its data, by its name and type, as the data keeps it: with the data's source it names the
-/// value in every pass (`BindKey::Tracked`), and a part of it by this plus the part's offset.
+/// value in every pass, and a part of it by this plus the part's offset.
 fn slot_offset(name: &str, ty: TypeId) -> usize {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

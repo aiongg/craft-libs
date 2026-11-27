@@ -1,4 +1,4 @@
-//! `contract/containers`: egui containers outside `runtime::egui`; `ScrollArea` nowhere.
+//! `contract/containers`: egui containers in library and app code; `ScrollArea` nowhere.
 
 use crate::report::Finding;
 
@@ -13,10 +13,8 @@ const CONTAINERS: [&str; 7] = ["Panel", "CentralPanel", "SidePanel", "TopBottomP
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     cx.flag_paths(out, ID, NEVER, "scrolls with egui's `ScrollArea`; scrolling is scroll parts", |p| p.iter().any(|s| s == "ScrollArea"));
-    cx.flag_paths(out, ID, ID, "is an egui container; go through `runtime::egui`", |p| {
+    cx.flag_paths(out, ID, ID, "is an egui container; use a `Container` component", |p| {
         p.iter().any(|s| CONTAINERS.contains(&s.as_str()) || s == "TableBuilder")
     });
-    cx.flag_methods(out, ID, ID, "is an egui virtual-list body; go through `runtime::egui`", |name, _| {
-        name == "show_rows" || name == "show_viewport"
-    });
+    cx.flag_methods(out, ID, ID, "is an egui virtual-list body; use a `Collection`", |name, _| name == "show_rows" || name == "show_viewport");
 }

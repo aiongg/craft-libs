@@ -1,4 +1,4 @@
-//! `contract/layers`: egui layers, popups and tooltips outside `runtime::egui::areas`.
+//! `contract/layers`: egui layers, popups and tooltips in library and app code.
 
 use crate::report::Finding;
 
@@ -12,7 +12,7 @@ const NEVER: &str = "contract/layers:never";
 const LAYER_TYPES: [&str; 3] = ["Area", "Popup", "Modal"];
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
-    let why = "opens or orders an egui layer; go through `runtime::egui::areas`";
+    let why = "opens or orders an egui layer; use `OverlayUi` and `Overlay`";
     cx.flag_methods(out, ID, ID, why, |name, _| {
         matches!(name, "move_to_top" | "set_sublayer" | "set_transform_layer" | "on_hover_text" | "menu_button" | "context_menu")
     });

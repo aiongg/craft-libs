@@ -23,13 +23,11 @@ mod platform;
 mod pointer;
 mod props;
 mod registry_expansion;
-mod runtime_egui;
 mod scope;
 mod shape;
 mod sites;
 mod style;
 mod test_rules;
-mod text_edit;
 mod types;
 mod unsafe_allow;
 
@@ -43,11 +41,9 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 42] = [
+pub(crate) const IDS: [&str; 40] = [
     app_no_egui::ID,
     egui_import::ID,
-    runtime_egui::ID,
-    text_edit::ID,
     allocate::ID,
     egui_widget::ID,
     access::ID,
@@ -91,11 +87,9 @@ pub(crate) const IDS: [&str; 42] = [
 type Check = fn(&Cx<'_>, &mut Vec<Finding>);
 
 /// REGISTRY: add a rule by adding its `check` here and its ids to [`IDS`].
-const REGISTRY: [Check; 24] = [
+const REGISTRY: [Check; 22] = [
     app_no_egui::check,
     egui_import::check,
-    runtime_egui::check,
-    text_edit::check,
     allocate::check,
     egui_widget::check,
     access::check,

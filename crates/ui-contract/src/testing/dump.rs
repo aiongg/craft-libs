@@ -369,7 +369,7 @@ pub fn themes() -> Vec<(String, UiTokens)> {
 /// the themes that differ. The style comes from the style cache, as in a frame.
 pub fn dump_style<K: StyleKey, S: ComponentStyle + std::fmt::Debug>(
     dump: &mut Dump,
-    ctx: &egui::Context,
+    ctx: &crate::contract::Context,
     name: &str,
     variants: &[Variant],
     size: ControlSize,

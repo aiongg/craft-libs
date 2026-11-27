@@ -88,13 +88,14 @@ fn cx_ctx_passed_on_becomes_context() {
 #[test]
 fn fixture_becomes_harness() {
     let out = run(
-        "use craft_ui::testing::{Fixture, Other};\nfn t() {\n    let mut fx = Fixture::new(show);\n    fx.frame(vec![]);\n    fx.click(a);\n    fx.take_paint();\n}\nfn h(fx: &mut Fixture) { fx.frame(vec![]); }\n",
+        "use craft_ui::testing::{Fixture, Other};\nfn t() {\n    let mut fx = Fixture::new(show);\n    fx.frame(vec![]);\n    fx.frame(Vec::new());\n    fx.frame(vec![press(k)]);\n    fx.frame(vec![a, b]);\n    fx.click(a);\n    fx.take_paint();\n    fx.frame_shapes_with(go);\n}\nfn h(fx: &mut Fixture) { fx.frame(vec![]); }\n",
     );
     assert_eq!(
         out.text,
-        "use craft_ui::testing::{Harness, Other};\nfn t() {\n    let mut fx = Harness::new_ui(show);\n    fx.step();\n    fx.click(a);\n    fx.take_paint();\n}\nfn h(fx: &mut Harness) { fx.step(); }\n"
+        "use craft_ui::testing::{Harness, Other};\nfn t() {\n    let mut fx = Harness::new_ui(show);\n    fx.step();\n    fx.step();\n    fx.send(press(k));\n    fx.frame(vec![a, b]);\n    fx.click(a);\n    fx.take_paint();\n    fx.frame_shapes_with(go);\n}\nfn h(fx: &mut Harness) { fx.step(); }\n"
     );
     assert_eq!(skipped(&out, "fixture-no-twin"), 1);
+    assert_eq!(skipped(&out, "fixture-frame-args"), 1);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! `contract/access`: AccessKit node building and reads outside `runtime::egui`.
+//! `contract/access`: AccessKit node building and reads in library and app code.
 
 use crate::report::Finding;
 
@@ -10,7 +10,7 @@ const METHODS: [&str; 6] =
     ["widget_info", "labelled_by", "register_accesskit_parent", "set_accesskit_focus", "accesskit_node_builder", "has_accesskit_action_request"];
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
-    let why = "builds or reads the accessibility tree; go through `runtime::egui::access`";
+    let why = "builds or reads the accessibility tree; use the component's `access` hook";
     cx.flag_methods(out, ID, ID, why, |name, _| {
         METHODS.contains(&name)
             || name.starts_with("accessibility_")

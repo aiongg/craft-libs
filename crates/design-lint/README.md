@@ -55,8 +55,6 @@ reason = "document-space drawing"
 |---|---|
 | `app/no-egui` | any path rooted in the `egui` crate, in a crate that depends on `craft-ui-contract` (not `craft-cloud-ui`, `craft-update`, `craft-ui-contract`) |
 | `contract/egui-import` | egui paths into memory, layers, `Order`, AccessKit, options, input and pass control; `memory`, `options`, `input_mut` closures, `begin_pass`, `end_pass`, `add_plugin`, `move_focus` |
-| `contract/runtime-egui` | a layer 5 or 6 module naming `runtime::egui` |
-| `contract/text-edit` | `runtime::egui::text_edit` outside `primitives::text_adapter` (and the adapter's own module and the test kit) |
 | `contract/allocate` | `allocate_*`, `interact`, `interact_opt`, `put`, `add_sized`, `new_child` with `max_rect` |
 | `contract/egui-widget` | `button`, `checkbox`, `selectable_*`, `radio*`, `hyperlink*`, `separator`, `image`, `ui.label`, `heading`, `monospace`, `colored_label`, `code`, `small`, `text_edit_*` and egui `RichText`/`Label` in layer-mapped modules, egui `Button`, `TextEdit`, `DragValue`, `Slider`, `ComboBox` constructors, `add_space` with an argument that is neither a literal nor a token read |
 | `contract/access` | `widget_info`, `labelled_by`, `accesskit_*`, `accessibility_*`, live settings |
@@ -108,7 +106,7 @@ The baseline stores error-finding counts per file and rule. The check fails when
 
 ## Workspace check
 
-`craft-design-lint structure --config design-lint.toml` from the repository root runs the structure checks and, over the config's paths, every rule of the egui-ban and API tables. The layer map is the rules' scope: a file's layer comes from the map, "allowed in" locations from spec 24.1 (`runtime::egui` and its submodules), egui linkage from `cargo metadata` dependencies, and `harness = false` targets from the `[[test]]` tables. Exit code 1 on any error. `cargo test -p craft-design-lint --test workspace` runs the same check.
+`craft-design-lint structure --config design-lint.toml` from the repository root runs the structure checks and, over the config's paths, every rule of the egui-ban and API tables. The layer map is the rules' scope: a file's layer comes from the map, "allowed in" locations from `workspace.rs` (`places`), egui linkage from `cargo metadata` dependencies, and `harness = false` targets from the `[[test]]` tables. Exit code 1 on any error. `cargo test -p craft-design-lint --test workspace` runs the same check.
 
 ## Structure checks
 
