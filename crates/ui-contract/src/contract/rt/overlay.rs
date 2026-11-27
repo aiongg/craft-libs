@@ -28,7 +28,7 @@ use craft_i18n::Direction;
 use craft_theme::Tokens;
 use craft_ui_rt::{
     AccessCx, BuildCx, Constraints, CornerRadii, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer,
-    LayerSpec, LayoutCx, ModalReach, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2,
+    LayerSpec, LayoutCx, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2,
 };
 use smallvec::SmallVec;
 
@@ -316,8 +316,9 @@ pub(crate) struct LayerKept {
     pub(crate) closed: BodyClose,
     /// The frame time it opened at, for `Dismiss::timeout`.
     pub(crate) since: Option<f64>,
-    /// What its modal block lets through, as its body's last run registered it (`runtime::sampler`).
-    pub(crate) reach: Option<ModalReach>,
+    /// The canvas its modal body keeps usable and what of it, as the body's last run registered it
+    /// (`runtime::sampler`); the canvas host's tool gestures join it into the ui-rt reach.
+    pub(crate) body_reach: Option<(Id, crate::runtime::sampler::Reach)>,
     /// Its entry in its window's layer stack, for the layer queries.
     pub(crate) entry: Option<OpenEntry>,
     /// The spec it was last shown open with: a leaving child shows on with it, inert ([`show_leaving`]).
@@ -357,7 +358,7 @@ impl Element for LayerScope {
             scope: Default::default(),
             closed: BodyClose::default(),
             since: None,
-            reach: None,
+            body_reach: None,
             entry: None,
             spec: None,
             hover: self.hover,
@@ -630,6 +631,22 @@ pub(crate) fn opened_at(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<f64>
     cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.since)
 }
 
+/// The canvas host of `canvas` passed other tool gestures in this build: every modal layer child of the window `cx`
+/// builds in whose body keeps `canvas` lets them through from now on, in this frame, with no run of the modal.
+pub(crate) fn refresh_reach(cx: &mut BuildCx<'_>, canvas: Id) {
+    let Some(window) = cx.runtime().window_of(cx.node()) else { return };
+    let context = Context::of_build(cx);
+    let bodies: Vec<(NodeId, (Id, crate::runtime::sampler::Reach))> = super::layers::open(cx.runtime(), window)
+        .into_iter()
+        .filter_map(|open| cx.runtime().local::<LayerScope>(open.node).and_then(|lk| lk.body_reach.clone()).map(|body| (open.node, body)))
+        .filter(|(_, (held, _))| *held == canvas)
+        .collect();
+    for (node, body) in bodies {
+        let reach = crate::runtime::sampler::reach_of(&context, cx, Some(&body));
+        cx.set_layer_reach_of(node, reach);
+    }
+}
+
 /// Keeps the layer child `key` on `layer` of the node `cx` builds shown while it fades out after it closed: inert
 /// (no hits, keys, focus or dismissals: `LayerSpec::inert`), its content kept and painted at a falling level, its
 /// entry exiting for the layer queries. Returns the frame time the fade ends, when the owner must build again and
@@ -730,9 +747,10 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
     if entry.is_some() {
         spec = spec.listed();
     }
-    // The modal reach its body registered on its last run.
+    // The modal reach its body registered on its last run, with the canvas host's tool gestures as they are now.
     if layer == Layer::Modal {
-        spec = spec.reach(cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.reach));
+        let body = cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.body_reach.clone());
+        spec = spec.reach(crate::runtime::sampler::reach_of(&Context::of_build(cx), cx, body.as_ref()));
     }
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
@@ -849,11 +867,9 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
         lk.closed.set(Some(CloseReason::Enter));
     }
     if modal {
-        let reach = crate::runtime::sampler::end_modal(&context, cx);
-        if lk.reach != reach {
-            lk.reach = reach;
-            cx.set_layer_reach(reach);
-        }
+        lk.body_reach = crate::runtime::sampler::end_modal(&context);
+        let reach = crate::runtime::sampler::reach_of(&context, cx, lk.body_reach.as_ref());
+        cx.set_layer_reach(reach);
     }
     lk.scope.clearable = flow.scope.clearable;
     let real = frame(flow.content_size());

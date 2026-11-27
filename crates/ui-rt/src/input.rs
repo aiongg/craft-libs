@@ -127,6 +127,9 @@ pub(crate) struct InputState {
     /// The handler of the last key press asked that the text the platform sends with it not type
     /// (`EventCx::withhold_text`): the next text event of the window is dropped.
     withhold_text: bool,
+    /// The last Space press went to the node a modal lets input through to ([`crate::ModalReach`]): its release goes
+    /// there too.
+    space_to_reach: Option<NodeId>,
     pub(crate) touches: Touches,
     /// The cursor last sent to the platform.
     pub(crate) cursor: Cursor,
@@ -841,6 +844,14 @@ impl Runtime {
         }
     }
 
+    /// The node a modal in `window` lets input through to ([`crate::ModalReach`]), when the pointer is over it there.
+    fn over_modal_reach(&self, window: WindowId) -> Option<NodeId> {
+        let reach = self.modal_reach(window)?;
+        let pos = self.input(window)?.hover_pos?;
+        let hit = hit_test_through(&self.tree, self.windows.get(&window)?, pos, &|_| true, Some(reach.node))?;
+        self.tree.owner_chain(hit.node).contains(&reach.node).then_some(reach.node)
+    }
+
     /// What the topmost child of `window`'s modal layer lets through to the content below it.
     pub(crate) fn modal_reach(&self, window: WindowId) -> Option<crate::layer::ModalReach> {
         let w = self.windows.get(&window)?;
@@ -867,10 +878,11 @@ impl Runtime {
         let Some(mut machine) = self.input_mut(window).map(|i| std::mem::take(&mut i.machine)) else { return };
         let reach = self.modal_reach(window);
         let Some(win) = self.windows.get(&window) else { return };
+        let space = self.store.peek(win.env.held_keys).contains(&Key::Space);
         let tree = &self.tree;
         let step = machine.step(input, |at, button| {
             let accept = |s: Sense| if button == PointerButton::Secondary { s.contains(Sense::CONTEXT_CLICK) } else { s.takes_press() };
-            let through = reach.filter(|r| r.admits_press(button, p.mods)).map(|r| r.node);
+            let through = reach.filter(|r| r.admits_press(button, p.mods, space)).map(|r| r.node);
             hit_test_through(tree, win, at, &accept, through).map(|h| PressPick::new(h, h.sense))
         });
         if let Some(i) = self.input_mut(window) {
@@ -952,7 +964,21 @@ impl Runtime {
             self.cancel_press(window, PressCancel::Escape);
             return;
         }
-        let Some(target) = self.focused(window).or_else(|| self.key_root(window)) else {
+        // Space over the canvas a modal keeps open goes to that canvas, not to the dialog's focused control: held, it
+        // turns the canvas's primary press into its pan. Its release follows it there.
+        let space = k.key == Key::Space && !(k.mods.cmd || k.mods.ctrl || k.mods.alt);
+        let to_reach = match (space, k.down) {
+            (false, _) => None,
+            (true, true) => {
+                let node = self.over_modal_reach(window);
+                if let Some(input) = self.input_mut(window) {
+                    input.space_to_reach = node;
+                }
+                node
+            }
+            (true, false) => self.input_mut(window).and_then(|i| i.space_to_reach.take()),
+        };
+        let Some(target) = to_reach.or_else(|| self.focused(window)).or_else(|| self.key_root(window)) else {
             return;
         };
         let mut handled = self.dispatch(target, &Event::Key(k), true).is_some();

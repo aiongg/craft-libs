@@ -562,7 +562,14 @@ impl BuildCx<'_> {
     /// For the layer child being built: what its modal block lets through ([`crate::ModalReach`]),
     /// as its content decided in this build. Its owner's next show of it keeps it in the spec.
     pub fn set_layer_reach(&mut self, reach: Option<crate::ModalReach>) {
-        if let Some(spec) = self.rt.windows.get_mut(&self.window).and_then(|w| w.layered.get_mut(&self.node)) {
+        let node = self.node;
+        self.set_layer_reach_of(node, reach);
+    }
+
+    /// [`set_layer_reach`](Self::set_layer_reach) for the layer child `node` of this node's window, from another
+    /// node's build: a canvas's host passed its running tool's gestures, which the modal over it lets through at once.
+    pub fn set_layer_reach_of(&mut self, node: NodeId, reach: Option<crate::ModalReach>) {
+        if let Some(spec) = self.rt.windows.get_mut(&self.window).and_then(|w| w.layered.get_mut(&node)) {
             spec.reach = reach;
         }
     }
