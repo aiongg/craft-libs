@@ -9,6 +9,8 @@ use std::rc::Rc;
 use craft_ui_contract::contract::rt::{Component, ComponentKey, Container, Cx, Lazy, MeasureCx, Paint, Ui, show_container, show_leaf, window_root};
 use craft_ui_contract::contract::{ContainerProps, Gap, HeaderRegion, IdSource, MemoKey, RowAlign, Scroll, Sizing};
 use craft_ui_contract::layout::BodyLayout;
+use craft_ui_contract::primitives::PaintShape;
+use craft_ui_contract::style::{StyleColor, UiTokens, rgba_color};
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Mods, Pos2, Rect, Sense, StepReport, Vec2};
@@ -46,10 +48,10 @@ impl Component for Chip {
         Sense::HOVER | Sense::CLICK
     }
 
-    fn paint(&mut self, paint: &mut Paint<'_>, _: &Cx<'_>) {
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_>) {
         let bounds = paint.bounds();
         let ink = paint.tokens.color.text.faint;
-        paint.rect(bounds, 0.0, ink, None);
+        paint.draw().fill(&PaintShape::Rect(bounds, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
     }
 
     fn finish(self, cx: &Cx<'_>) -> ChipOut {

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use craft_theme::Tokens;
 use std::cell::{Cell, RefCell};
 
-use craft_ui_rt::{BuildCx, CornerRadii, DisplayList, Gesture, ImageKey, InlineState, Item, PointerButton, Pos2, Rect, Rgba, Sense, Stroke, Vec2};
+use craft_ui_rt::{BuildCx, Gesture, InlineState, PointerButton, Rect, Sense, Vec2};
 use smallvec::SmallVec;
 
 use super::key::{ComponentKey, component_key, fold, type_key};
