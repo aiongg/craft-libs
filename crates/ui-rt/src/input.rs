@@ -342,6 +342,12 @@ impl Runtime {
         self.press_may_long_press(window) && self.input(window).and_then(|i| i.machine.start()).is_some_and(|s| self.time - s.time >= LONG_PRESS_TIME)
     }
 
+    /// Where focus goes in `window` when the layer child `node` goes with focus inside it
+    /// ([`crate::BuildCx::set_focus_return`]), while that node lives.
+    pub fn focus_return(&self, window: WindowId, node: NodeId) -> Option<NodeId> {
+        self.windows.get(&window)?.focus_returns.get(&node).copied().filter(|to| self.tree.nodes.contains_key(to))
+    }
+
     /// The node with key focus in `window`.
     pub fn focused(&self, window: WindowId) -> Option<NodeId> {
         self.input(window)?.focused

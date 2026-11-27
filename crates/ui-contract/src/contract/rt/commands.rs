@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_behavior::{EditCommand, OwnerClass};
-use craft_keymap::{Active, Chord, CommandRef, Keymap, Lookup};
+use craft_keymap::{Active, Chord, CommandRef, Keymap, Lookup, ModalRule};
 use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Reads, Runtime, State, Store, Writes};
 
 use super::node::{ComponentNode, Kept, ScopeNode};
@@ -27,8 +27,10 @@ use super::overlay::LayerScope;
 use super::ui::Ui;
 use crate::primitives::Id;
 use crate::runtime::commands::{
-    CommandChain, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand,
+    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, Registry, ResolvedCommand,
+    Shown,
 };
+use crate::runtime::env::Label;
 
 /// What a command does when it runs: called at event time with the store, where it writes the app
 /// state the command changes.
@@ -51,6 +53,44 @@ struct Board {
     handlers: Vec<(Option<NodeId>, CommandRef, Handler)>,
     /// The app scope's handler: every fired command with no handler on its firing path goes to it.
     app: Option<Handler>,
+    /// The app's one gate over commands (`CommandGate`), and the cell its key is written to, so a node that resolves
+    /// a command runs again when the gate's props change.
+    gate: Option<CommandGate>,
+    gate_cell: Option<State<u128>>,
+}
+
+/// Where a resolve or a fire stands against the window's modal layers (`ModalRule`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ModalAt {
+    /// No modal layer is open in the window.
+    Free,
+    /// A modal layer is open and the resolving or firing node is inside the top one.
+    Inside,
+    /// A modal layer is open and the node is outside the top one.
+    Outside,
+}
+
+impl ModalAt {
+    /// Where `node` stands in its window; `Free` for no node.
+    pub(crate) fn of(rt: &Runtime, node: Option<NodeId>) -> ModalAt {
+        let Some(node) = node else { return ModalAt::Free };
+        let Some(window) = rt.window_of(node) else { return ModalAt::Free };
+        match super::layers::top_modal(rt, window) {
+            None => ModalAt::Free,
+            Some(top) if super::layers::layer_child_of(rt, node) == Some(top.node) => ModalAt::Inside,
+            Some(_) => ModalAt::Outside,
+        }
+    }
+
+    /// Whether a command with `rule` is refused here; `declared`: its instance publishes the command's state.
+    fn refuses(self, rule: ModalRule, declared: bool) -> bool {
+        match (rule, self) {
+            (_, ModalAt::Free) | (ModalRule::Always, _) => false,
+            (ModalRule::Blocked, _) => true,
+            (ModalRule::InDialogs, at) => at == ModalAt::Outside,
+            (ModalRule::Declared, at) => !(at == ModalAt::Inside && declared),
+        }
+    }
 }
 
 struct StateEntry {
@@ -75,6 +115,8 @@ impl CommandBoard {
             states: Vec::new(),
             handlers: Vec::new(),
             app: None,
+            gate: None,
+            gate_cell: None,
         })))
     }
 
@@ -141,8 +183,8 @@ impl CommandBoard {
     /// path that registered one, else the board's own, else the app scope's. Returns whether a handler ran. Every fire
     /// goes through here: a key, `Ui::fire`, `Cx::fire`, a component's activation, the harness. The handler runs
     /// outside the board's borrow, so it may set command states or register handlers.
-    pub(crate) fn run(&self, store: &mut Store, path: &[NodeId], fired: &Fired) -> bool {
-        if !self.enabled(&fired.command) {
+    pub(crate) fn run(&self, store: &mut Store, path: &[NodeId], fired: &Fired, modal: ModalAt) -> bool {
+        if !self.enabled(&fired.command) || self.refused(&fired.command, None, modal) {
             return false;
         }
         let taken = {
@@ -184,7 +226,38 @@ impl CommandBoard {
     /// [`CommandBoard::run`] from the node `cx` builds.
     pub(crate) fn run_from(&self, cx: &mut BuildCx<'_>, fired: &Fired) -> bool {
         let path = self.path(cx.runtime(), Some(cx.node()));
-        self.run(cx.store_mut(), &path, fired)
+        let modal = ModalAt::of(cx.runtime(), Some(cx.node()));
+        self.run(cx.store_mut(), &path, fired, modal)
+    }
+
+    /// The gate's key cell, made on first use.
+    fn gate_cell(&self, store: &mut Store) -> State<u128> {
+        let mut board = self.0.borrow_mut();
+        *board.gate_cell.get_or_insert_with(|| store.create(0))
+    }
+
+    /// Sets the app's gate over commands (`None`: every command passes): a command it refuses resolves disabled and
+    /// does not fire. The nodes that resolve commands run again only when the gate's key changes.
+    pub fn set_gate(&self, cx: &mut impl Writes, gate: Option<CommandGate>) {
+        let cell = self.gate_cell(cx.store_mut());
+        let key = gate.as_ref().map_or(0, CommandGate::key);
+        self.0.borrow_mut().gate = gate;
+        cell.set_if_changed(cx, key);
+    }
+
+    /// Whether something besides the command's own state refuses it: the gate, or the modal rule where `modal` says
+    /// the resolving or firing node stands. `instance`: the instance of its scope the command resolves for.
+    fn refused(&self, command: &CommandRef, instance: Option<Id>, modal: ModalAt) -> bool {
+        let board = self.0.borrow();
+        if board.gate.as_ref().is_some_and(|gate| !gate.allows(command)) {
+            return true;
+        }
+        if modal == ModalAt::Free {
+            return false;
+        }
+        let rule = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str())).map_or(ModalRule::default(), |def| def.modal);
+        let declared = instance.is_some() && board.states.iter().any(|e| e.command == *command && e.instance == instance);
+        modal.refuses(rule, declared)
     }
 
     /// Runs `handler` for every fired command that has no handler of its own: the app scope's
@@ -270,11 +343,18 @@ impl CommandBoard {
     /// `command` as a surface in `chain` shows it: its label, icon and chord, and its state for the innermost instance
     /// of its scope in `chain`, read through the state's cell (a node that shows it runs when it changes). `None` for a
     /// scoped command with no instance in `chain`.
-    pub(crate) fn resolve<C: Reads + Writes>(&self, cx: &mut C, chain: &CommandChain, command: &CommandRef) -> Option<Arc<ResolvedCommand>> {
+    pub(crate) fn resolve<C: Reads + Writes>(
+        &self,
+        cx: &mut C,
+        chain: &CommandChain,
+        command: &CommandRef,
+        modal: ModalAt,
+    ) -> Option<Arc<ResolvedCommand>> {
         let instance = self.instance_in(chain, command)?;
         let cell = self.cell(cx.store_mut(), command, instance);
         let state = cell.get(cx);
-        Some(self.resolved(command, instance, &state))
+        self.gate_cell(cx.store_mut()).get(cx);
+        Some(self.resolved(command, instance, &state, modal))
     }
 
     /// [`CommandBoard::resolve`] for code with no store at hand (a hook's `Commands::resolve_command`): the read of the
@@ -282,10 +362,15 @@ impl CommandBoard {
     pub(crate) fn resolve_logged(&self, chain: &CommandChain, command: &CommandRef) -> Option<Arc<ResolvedCommand>> {
         let instance = self.instance_in(chain, command)?;
         crate::contract::context::log_command_read(self.clone(), command.clone(), instance);
-        Some(self.resolved(command, instance, &self.value(command, instance)))
+        let board = self.clone();
+        crate::contract::context::log_build_read(move |cx| {
+            board.gate_cell(cx.store_mut()).get(cx);
+        });
+        Some(self.resolved(command, instance, &self.value(command, instance), ModalAt::Free))
     }
 
-    fn resolved(&self, command: &CommandRef, instance: Option<Id>, state: &CommandState) -> Arc<ResolvedCommand> {
+    fn resolved(&self, command: &CommandRef, instance: Option<Id>, state: &CommandState, modal: ModalAt) -> Arc<ResolvedCommand> {
+        let refused = self.refused(command, instance, modal);
         let board = self.0.borrow();
         let def = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str()));
         let chord = board.keymap.shown_chord(command);
@@ -297,8 +382,8 @@ impl CommandBoard {
             icon: state.icon_ref().cloned().or_else(|| def.and_then(|def| def.icon.clone())),
             chord,
             chord_text,
-            enabled: flags.enabled,
-            refused: false,
+            enabled: flags.enabled && !refused,
+            refused,
             checked: flags.checked,
             marked: state.is_marked(),
             hint: state.hint_ref().cloned(),
@@ -329,7 +414,7 @@ impl CommandBoard {
     /// is enabled; whether a handler ran.
     pub(crate) fn fire(&self, store: &mut Store, command: CommandRef, source: FireSource, time: f64) -> bool {
         let fired = Fired::new(command, source, FirePhase::Press, time);
-        self.run(store, &[], &fired)
+        self.run(store, &[], &fired, ModalAt::Free)
     }
 
     /// Runs the command a press of `k` is bound to, when it is enabled. `typing`: the focused stop
@@ -352,10 +437,24 @@ impl CommandBoard {
         };
         let fired = Fired::new(command, FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
         let path = self.path(cx.runtime(), cx.focused());
-        self.run(cx.store_mut(), &path, &fired);
+        let modal = ModalAt::of(cx.runtime(), cx.focused());
+        self.run(cx.store_mut(), &path, &fired, modal);
         Handled::Yes
     }
 }
+
+/// The commands a node holds (`Ui::hold_commands`), in the node's coordinates.
+#[derive(Clone)]
+struct ShownFact {
+    node: NodeId,
+    commands: Arc<[CommandRef]>,
+    local: craft_ui_rt::Rect,
+    label: Label,
+}
+
+/// Every node's held commands in one window, kept in the window's `Context`.
+#[derive(Default)]
+struct ShownFacts(Vec<ShownFact>);
 
 /// The window root's command stage, after Tab and F6: the command a key press no node took is bound
 /// to runs.
@@ -424,7 +523,83 @@ impl Ui<'_, '_> {
     pub fn resolve_command(&mut self, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
         let board = self.cx.provided::<CommandBoard>()?;
         let chain = self.env.view().command_chain().clone();
-        board.resolve(self.cx, &chain, &command.into())
+        super::layers::track(self.cx);
+        let modal = ModalAt::of(self.cx.runtime(), Some(self.cx.node()));
+        board.resolve(self.cx, &chain, &command.into(), modal)
+    }
+
+    /// `command` as [`Ui::resolve_command`] shows it from the window under the modal layer `layer` (this cursor's own
+    /// modal layer, which closes before the command runs: the command palette): that layer does not block it.
+    pub fn resolve_beneath(&mut self, layer: Id, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
+        let board = self.cx.provided::<CommandBoard>()?;
+        let chain = self.env.view().command_chain().clone();
+        let modal = self.modal_beneath(layer);
+        board.resolve(self.cx, &chain, &command.into(), modal)
+    }
+
+    /// Fires `command` as [`Ui::fire`] does, judged as [`Ui::resolve_beneath`] judges it, for a surface that closes the
+    /// modal layer `layer` with the pick. Focus returns from the layer first, so the command reaches the stop focus
+    /// returns to, as a menu pick's does. True when a handler ran.
+    pub fn fire_beneath(&mut self, layer: Id, command: impl Into<CommandRef>, source: FireSource) -> bool {
+        if self.is_measuring() {
+            return false;
+        }
+        let Some(board) = self.cx.provided::<CommandBoard>() else { return false };
+        let modal = self.modal_beneath(layer);
+        self.return_from_pick(crate::runtime::focus::PickedIn::Layer(layer));
+        let fired = Fired::new(command.into(), source, FirePhase::Press, self.cx.now());
+        let from = self.cx.runtime().focused(self.cx.window()).unwrap_or_else(|| self.cx.node());
+        let path = board.path(self.cx.runtime(), Some(from));
+        board.run(self.cx.store_mut(), &path, &fired, modal)
+    }
+
+    /// Where this cursor stands against the modal layers below the modal layer `layer`, as the window is once it
+    /// closes.
+    fn modal_beneath(&mut self, layer: Id) -> ModalAt {
+        super::layers::track(self.cx);
+        let rt = self.cx.runtime();
+        let open = super::layers::open(rt, self.cx.window());
+        let below: Vec<_> = open.iter().take_while(|o| o.entry.id != layer).filter(|o| super::layers::counts(&o.entry, crate::runtime::overlay::OpenFilter::Modal)).collect();
+        match below.last() {
+            None => ModalAt::Free,
+            Some(top) if super::layers::layer_child_of(rt, self.cx.node()) == Some(top.node) => ModalAt::Inside,
+            Some(_) => ModalAt::Outside,
+        }
+    }
+
+    /// Records that this node shows `commands` (a menu title holds its menu's commands) at `rect`, with `label`, for
+    /// `Ui::command_shown`: one record per node, replaced by its next run and gone with the node. Nothing in a
+    /// measuring run.
+    pub fn hold_commands(&mut self, rect: craft_ui_rt::Rect, commands: &Arc<[CommandRef]>, label: Label) {
+        if self.is_measuring() || commands.is_empty() {
+            return;
+        }
+        let node = self.cx.node();
+        let local = rect.translate(-self.flow.origin.to_vec2());
+        let fact = ShownFact { node, commands: Arc::clone(commands), local, label };
+        self.ctx.service::<ShownFacts, _>(|facts| {
+            facts.0.retain(|f| f.node != node);
+            facts.0.push(fact);
+        });
+    }
+
+    /// Where `command` shows in this window: the rect of a node that holds it, now, unless the node lies under the
+    /// window's top modal layer. Untracked: a surface asks it when it acts (automation, a key tip).
+    pub fn command_shown(&mut self, command: &CommandRef) -> Option<Shown> {
+        let rt = self.cx.runtime();
+        let window = self.cx.window();
+        let top = super::layers::top_modal(rt, window).map(|top| top.node);
+        let facts: Vec<ShownFact> = self.ctx.service::<ShownFacts, _>(|facts| {
+            facts.0.retain(|f| rt.window_of(f.node).is_some());
+            facts.0.iter().filter(|f| f.commands.contains(command)).cloned().collect()
+        });
+        facts.into_iter().find_map(|fact| {
+            if top.is_some() && super::layers::layer_child_of(rt, fact.node) != top {
+                return None;
+            }
+            let origin = rt.window_rect(fact.node)?.min.to_vec2();
+            Some(Shown { rect: fact.local.translate(origin), window, label: fact.label, holder: true })
+        })
     }
 
     /// The command `chord` runs at the app scope, when it is bound to one.

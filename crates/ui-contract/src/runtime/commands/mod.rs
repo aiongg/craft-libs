@@ -28,18 +28,13 @@ pub(crate) use keymap::{BuiltKeymap, build_keymap, keymap_for};
 #[doc(hidden)]
 pub use keymap::{chord_text_builds, keymap_builds};
 
-use crate::contract::{MemoKey, MemoProps, PlainData, Revision, Tracked};
+use crate::contract::{Context, MemoKey, MemoProps, PlainData, Revision, Tracked};
 use crate::primitives::Id;
-use crate::runtime::egui::areas::{self, LayerKey};
-use crate::runtime::egui::pass;
 use crate::runtime::env::Label;
-use crate::runtime::memory::Facts;
-use crate::runtime::overlay;
-use crate::runtime::{RecordShift, Shift};
 use craft_behavior::CommandFlags;
 use craft_behavior::edit_history::Step;
 use craft_keymap::{Chord, Overrides};
-use egui::{Context, ViewportId};
+use craft_ui_rt::WindowId;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
@@ -373,7 +368,7 @@ pub struct ResolvedCommand {
     pub catalog_label: Option<Arc<str>>,
     /// The icon name: the state's icon, else the command's own.
     pub icon: Option<Cow<'static, str>>,
-    /// The chord surfaces show: the first single-press binding that runs the command ([`chord`]).
+    /// The chord surfaces show: the first single-press binding that runs the command.
     pub chord: Option<Chord>,
     /// `chord` as the platform writes it, from the table the keymap builds with its bindings.
     pub chord_text: Option<Arc<str>>,
@@ -697,214 +692,27 @@ pub trait Commands: CommandAccess {
     }
 }
 
-/// Fires `command` from a surface that has no component of its own: a menu, the palette or automation. Scoped
-/// commands go to the live instance that contains key focus, else the one that contained it most recently, else
-/// the first live one. Returns whether the command was queued: a disabled command, or a scoped command with no
-/// live instance, is not.
-pub fn fire(ctx: &Context, command: impl Into<CommandRef>, source: FireSource) -> bool {
-    if !crate::runtime::measure::effect(ctx, "commands::fire") {
-        return false;
-    }
-    board::fire_from(ctx, &command.into(), source)
-}
-
-/// Requests a paste at a screen point; the delivered command carries the point with its content. The next clipboard
-/// delivery in this viewport completes the request. A new request replaces any previous pending point there.
-pub fn request_paste_at(ctx: &Context, at: craft_ui_rt::Pos2) {
-    if crate::runtime::measure::effect(ctx, "commands::request_paste_at") {
-        board::request_paste_at(ctx, at);
-    }
-}
-
-/// `command` as a surface with no component of its own shows it: the label, icon, chord, enabled and checked state
-/// and hint, against the instance that [`fire`] would deliver it to. A scoped command with no live instance
-/// resolves disabled.
-pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> Arc<ResolvedCommand> {
-    board::resolve_global(ctx, &command.into())
-}
-
-/// A resolver for the commands as the context of `ui` shows them, as [`Commands::resolve_command`] does for a
-/// component's context: the label, icon, chord and state with the scoped bindings of the scopes above `ui`, `None`
-/// for a scoped command with no instance above. For a memoized view, which has no component context to ask; the
-/// answer is a tracked read of the command's state.
-pub fn resolver_in(ui: &egui::Ui) -> impl Fn(CommandRef) -> Option<Arc<ResolvedCommand>> + 'static {
-    let ctx = ui.ctx().clone();
-    let chain = crate::runtime::env::Env::of(ui).view().command_chain().clone();
-    move |command| board::resolve_scoped(&ctx, &chain, &command)
-}
-
-/// The keys `command` has in the runtime's keymap: its defaults under the user's overrides (`CommandInput`), on the
-/// window's platform, double presses included. Empty before the first frame.
-pub fn bindings(ctx: &Context, command: &CommandRef) -> Vec<Binding> {
-    board::bindings(ctx, command)
-}
-
-/// The chord a surface shows for `command`: its first single-press binding in the runtime's keymap that runs it
-/// where the binding applies, so a binding another command wins (a nearer scope, else catalog order) is never shown.
-/// [`ResolvedCommand::chord`] is the same. `None` before the first frame.
-pub fn chord(ctx: &Context, command: &CommandRef) -> Option<Chord> {
-    board::chord(ctx, command)
-}
-
-/// The command a key `chord` belongs to for a surface that takes it whatever has focus, such as a system menu item:
-/// the command a press runs with no panel focused, else one that binds it in a panel or context scope. `None` before
-/// the first frame.
-pub fn holder(ctx: &Context, chord: &Chord) -> Option<CommandRef> {
-    board::holder(ctx, chord)
-}
-
-/// The commands shown at `rect` in `layer`, as a pass registered them: one bound component's command, or every command
-/// a container holds. A container's commands share one fact, so a menu title that holds its menu's hundred commands
-/// registers once per pass and a replay of the menu bar makes one registration per title, not one per command
-/// (photocraft#15493).
-#[derive(Clone, Debug, PartialEq)]
-struct ShownFact {
-    commands: ShownCommands,
-    layer: LayerKey,
-    rect: craft_ui_rt::Rect,
-    label: Label,
-}
-
-/// What a [`ShownFact`] shows: a bound component's command, or the commands a container holds.
-#[derive(Clone, Debug, PartialEq)]
-enum ShownCommands {
-    Bound(Arc<CommandRef>),
-    Held(Arc<[CommandRef]>),
-}
-
-impl ShownFact {
-    /// Whether the fact shows `command`.
-    fn shows(&self, command: &CommandRef) -> bool {
-        match &self.commands {
-            ShownCommands::Bound(bound) => **bound == *command,
-            ShownCommands::Held(held) => held.contains(command),
-        }
-    }
-}
-
-/// A replay moves the rect; the rest stays.
-impl Shift for ShownFact {
-    fn shifted(&self, by: &RecordShift) -> Self {
-        ShownFact { rect: self.rect.shifted(by), ..self.clone() }
-    }
-
-    fn snapped(&self, to: &Self, within: f32) -> Self {
-        ShownFact { rect: self.rect.snapped(&to.rect, within), ..self.clone() }
-    }
-}
-
-/// Registers `commands` as shown for the next pass of the running viewport.
-fn register_shown(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, label: Label, commands: ShownCommands) {
-    Facts::register(ctx, ShownFact { commands, layer, rect, label });
-}
-
-/// Records that a container at `rect` holds `commands`, for this pass and viewport. Not [`CommandInput::holds`], which
-/// turns hold bindings on.
-pub fn holds(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, commands: &Arc<[CommandRef]>, label: Label) {
-    if !commands.is_empty() {
-        register_shown(ctx, layer, rect, label, ShownCommands::Held(Arc::clone(commands)));
-    }
-}
-
-/// Records that the bound component of `command` was shown at `rect` in `layer`, with `label`, for this pass and
-/// viewport: the report step calls it for a component wholly inside its clip.
-// PLAN: the caller is the report step (menus-w3); until it lands nothing in this crate calls it.
-pub(crate) fn note_shown(ctx: &Context, layer: LayerKey, rect: craft_ui_rt::Rect, label: Label, command: &Arc<CommandRef>) {
-    register_shown(ctx, layer, rect, label, ShownCommands::Bound(Arc::clone(command)));
-}
-
-/// How many shown-command registrations the running viewport's last pass made: one per bound component and one per
-/// container, whatever it holds.
-#[cfg(feature = "testing")]
-#[doc(hidden)]
-pub fn shown_registrations(ctx: &Context) -> usize {
-    Facts::<ShownFact>::with_last_pass(ctx, <[ShownFact]>::len)
-}
-
-/// The commands the bound components of the running viewport's last pass showed, in registration order: the values
-/// the facts hold, so two passes that copied no command give the same allocations.
-#[cfg(feature = "testing")]
-#[doc(hidden)]
-pub fn shown_commands(ctx: &Context) -> Vec<Arc<CommandRef>> {
-    Facts::<ShownFact>::with_last_pass(ctx, |facts| {
-        facts
-            .iter()
-            .filter_map(|fact| match &fact.commands {
-                ShownCommands::Bound(command) => Some(Arc::clone(command)),
-                ShownCommands::Held(_) => None,
-            })
-            .collect()
-    })
-}
-
-/// Where `command` was shown in the last pass: a bound component's clipped rect or a holder's rect. `None` unless it
-/// was wholly in view and not under another window.
-pub fn shown(ctx: &Context, command: &CommandRef) -> Option<Shown> {
-    let viewport = pass::current_viewport(ctx);
-    let scrim = overlay::top_modal_in(ctx, viewport).and_then(|top| top.cover);
-    // The rects over a fact are read outside the facts' record, which `with_last_pass` holds.
-    let showing: Vec<ShownFact> = Facts::<ShownFact>::with_last_pass(ctx, |facts| facts.iter().filter(|fact| fact.shows(command)).cloned().collect());
-    showing.into_iter().find(|fact| !areas::rects_over(ctx, fact.layer, scrim).iter().any(|over| over.intersects(fact.rect))).map(|fact| Shown {
-        rect: fact.rect,
-        viewport,
-        label: fact.label,
-        holder: matches!(fact.commands, ShownCommands::Held(_)),
-    })
-}
-
-/// Where a command was shown, from [`shown`].
+/// Where a command was shown, from `Ui::command_shown`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Shown {
-    /// The rect it was shown in.
+    /// The rect it was shown in, in window coordinates.
     pub rect: craft_ui_rt::Rect,
-    /// The viewport it was shown in.
-    pub viewport: ViewportId,
+    /// The window it was shown in.
+    pub window: WindowId,
     /// The label it was shown with.
-    pub label: crate::runtime::env::Label,
+    pub label: Label,
     /// Whether the rect is a holder's rather than a bound component's.
     pub holder: bool,
 }
 
-/// `command` as [`resolve`] shows it, from the window under the modal layer whose body is running, as that window is
-/// once the layer closes: for a surface that closes before its command runs (the command palette), whose own layer
-/// does not block the command. Outside a modal layer it is [`resolve`].
-#[doc(hidden)]
-pub fn resolve_beneath(ctx: &Context, command: impl Into<CommandRef>) -> Arc<ResolvedCommand> {
-    match crate::runtime::overlay::modal_drawing(ctx) {
-        Some(layer) => board::resolve_beneath(ctx, layer, &command.into()),
-        None => resolve(ctx, command),
-    }
-}
-
-/// Fires `command` as [`fire`] does, from the window under the modal layer whose body is running, as
-/// [`resolve_beneath`] judges it, for a surface that closes that layer with the pick. Focus returns from the layer
-/// first, so the command reaches the stop focus returns to, as a menu pick's does.
-#[doc(hidden)]
-pub fn fire_beneath(ctx: &Context, command: impl Into<CommandRef>, source: FireSource) -> bool {
-    if !crate::runtime::measure::effect(ctx, "commands::fire") {
-        return false;
-    }
-    match crate::runtime::overlay::modal_drawing(ctx) {
-        Some(layer) => {
-            crate::runtime::focus::return_from_pick(ctx, crate::runtime::focus::PickedIn::Layer(layer));
-            board::fire_beneath(ctx, layer, &command.into(), source)
-        }
-        None => board::fire_from(ctx, &command.into(), source),
-    }
-}
-
-/// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire outside it;
-/// `root` is the top modal layer of `viewport`, if it has one.
-pub(crate) fn modal_root(ctx: &Context, viewport: ViewportId) -> Option<Id> {
-    board::modal_root(ctx, viewport)
-}
-
-pub(crate) fn set_modal_open(ctx: &Context, open: bool, viewport: ViewportId, root: Option<Id>) {
-    board::set_modal_open(ctx, open, viewport, root);
-}
-
-/// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3).
+/// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3): it runs
+/// on the board from the node whose build is running, when that build ends. Outside a build nothing runs.
 pub(crate) fn fall_through(ctx: &Context, command: craft_behavior::EditCommand) {
-    board::fall_through(ctx, command);
+    let Some(command) = EditCommands::of(command) else { return };
+    let Some(board) = ctx.board() else { return };
+    let fired = Fired::new(CommandRef::from(command), FireSource::Key, FirePhase::Press, ctx.time());
+    crate::contract::context::log_build_read(move |cx| {
+        board.run_from(cx, &fired);
+    });
 }

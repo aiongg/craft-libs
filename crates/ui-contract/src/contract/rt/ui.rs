@@ -792,6 +792,48 @@ impl<'u, 'c> Ui<'u, 'c> {
         }
     }
 
+    // Focus services (section 15.9).
+
+    /// Moves focus back out of the layer a pick was made in, before the pick's command runs, so the command reaches
+    /// the stop focus returns to: the layer's focus return (its opener), as its closing would. Nothing in a measuring
+    /// run, or when the layer has no live node.
+    pub fn return_from_pick(&mut self, picked: crate::runtime::focus::PickedIn) {
+        if self.is_measuring() {
+            return;
+        }
+        let layer = match picked {
+            crate::runtime::focus::PickedIn::Menus(layer) | crate::runtime::focus::PickedIn::Layer(layer) => layer,
+        };
+        let Some(node) = super::ids::node_of(self.cx, layer) else { return };
+        let rt = self.cx.runtime();
+        // A menu pick walks out of every menu under the first: the outermost layer child that has a return names it.
+        let mut to = rt.focus_return(self.cx.window(), node);
+        if matches!(picked, crate::runtime::focus::PickedIn::Menus(_)) {
+            while let Some(at) = to {
+                match super::layers::layer_child_of(rt, at).and_then(|child| rt.focus_return(self.cx.window(), child)) {
+                    Some(next) => to = Some(next),
+                    None => break,
+                }
+            }
+        }
+        if let Some(to) = to {
+            self.cx.focus_node(to);
+        }
+    }
+
+    /// The id of the focus scope of the top layer that takes keys, if one is open: the scope a newly opened layer
+    /// nests in. Tracked through the open-layer cell.
+    pub fn open_focus_scope(&mut self) -> Option<Id> {
+        self.top_layer().filter(|entry| entry.scoped).map(|entry| entry.id)
+    }
+
+    /// The menu layer this cursor builds in, if it builds in one.
+    pub fn running_menu(&mut self) -> Option<Id> {
+        let open = self.open_layers();
+        let child = super::layers::layer_child_of(self.cx.runtime(), self.cx.node())?;
+        open.iter().find(|o| o.node == child && o.entry.keys == craft_behavior::OwnerClass::Menu).map(|o| o.entry.id)
+    }
+
     // Window services (section 15.9).
 
     /// Adds the running tool's `gesture` to what a modal layer lets through to `canvas`; it applies from the modal
