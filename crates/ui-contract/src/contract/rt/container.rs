@@ -35,15 +35,15 @@ use super::scroll::{ScrollKept, ScrollNode, overscan};
 use super::sweep::Sweep;
 use super::ui::{Dir, Flow, Ui};
 use crate::contract::cx::{BodyCx, BodyOwner, RegionShare};
+use crate::contract::label::{LabelIn, SideLabel};
 use crate::contract::run::ShowAt;
 use crate::contract::{
     Container, ContainerProps, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Id, IdSource, Inner, Internal, Mount, Outcome, Overlay, PadEdges,
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
-use crate::contract::label::{LabelIn, SideLabel};
 use crate::runtime::access::scope::FieldMessage;
-use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, ThemeScope};
+use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, Shrink, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
 
@@ -63,6 +63,9 @@ pub(crate) struct Plan {
     /// The width a content column settled at when a held child measured narrower than it (`HeldKind`): the real run
     /// lays the children out at it, so the held child shows across the column.
     settled: Option<f32>,
+    /// The plan narrows the units of a `Row` too long for its room (`layout::row_shrink`): `rooms` holds the width
+    /// each shows at most, and the real run shows them under `Shrink::Apply`.
+    shrinks: bool,
 }
 
 /// What a container node keeps besides its component's outputs: the open state of a collapsing body.
@@ -72,6 +75,20 @@ pub(crate) struct BodyKept {
     pub(crate) open: Option<bool>,
     /// The body's last measuring run met levelled units: its real runs follow a plan.
     pub(crate) levelled: bool,
+    /// The body is a `Row` that overflowed its room in its last run: its real runs follow a plan that narrows it.
+    pub(crate) shrinks: bool,
+}
+
+/// What one sweep of a body offers its children beyond its flow.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BodySweep {
+    Plain,
+    /// The first measuring sweep of a content-sized column, which offers the children no room.
+    Column,
+    /// The least sweep of a `Row` too long for its room: every leaf takes its least width (`Shrink::Least`).
+    Least,
+    /// The sweep of a `Row` whose plan narrows its units: each shows at most the room the plan gave it.
+    Apply,
 }
 
 /// What a body's flow does beyond placing children by its `Dir`: added to `Flow` (`Flow::body`).
@@ -315,6 +332,11 @@ impl Shape {
 
     /// The body needs a plan: an aligned or spread `Row`, one with levelled units, a `Grid`, or fill children last
     /// time.
+    /// The body is a `Row` that narrows its units to fit its room: an unwrapped row whose body does not scroll.
+    fn shrinks(&self) -> bool {
+        matches!(self.layout, BodyLayout::Row { wrap: false, .. }) && self.scroll.is_none()
+    }
+
     fn needs_plan(&self, had_fills: bool, levelled: bool) -> bool {
         match &self.layout {
             BodyLayout::Row { wrap: false, align, .. } => *align != RowAlign::Start || had_fills || levelled,
@@ -374,7 +396,7 @@ impl Shape {
                 (Dir::Stack, shares)
             }
         };
-        Plan { room, sizes, rooms, dir, shares, levels, settled: None }
+        Plan { room, sizes, rooms, dir, shares, levels, settled: None, shrinks: false }
     }
 
     /// The container's size from its inner content size, by its sizing, in `room`. A scroll body's inner size is
@@ -625,16 +647,23 @@ impl<'f> Frame<'f> {
         self.run(ui, env, rect, Hook::Header, f)
     }
 
-    /// Runs the body at `rect` under the body's env: disabled while the gate is off. `column`: the first measuring sweep
-    /// of a content-sized column, which offers the children no room.
-    fn with_body<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, column: bool, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
+    /// Runs the body at `rect` under the body's env: disabled while the gate is off, with the room facts of `sweep`.
+    fn with_body<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, sweep: BodySweep, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
         let mut env = self.body_env.clone().unwrap_or_else(|| self.env.clone());
-        let (gated, after_rule) = (self.gate == Some(false), self.after_rule);
-        if gated || after_rule || column {
+        let (gated, after_rule, row) = (self.gate == Some(false), self.after_rule, self.body_id);
+        if gated || after_rule || sweep != BodySweep::Plain {
             env = env.derive(|scoped| {
                 scoped.enabled &= !gated;
                 scoped.after_rule = after_rule;
-                scoped.content_column |= column;
+                match sweep {
+                    BodySweep::Plain => {}
+                    BodySweep::Column => scoped.content_column = true,
+                    BodySweep::Least => {
+                        scoped.shrink = Some(Shrink::Least(row));
+                        scoped.least = true;
+                    }
+                    BodySweep::Apply => scoped.shrink = Some(Shrink::Apply(row)),
+                }
             });
         }
         self.run(ui, env, rect, Hook::Body, f)
@@ -1602,8 +1631,9 @@ fn lay_out<C: Container>(
     // The body's real run placed its slot; a measuring run places none, and the footer takes no room of its own.
     let slot = if in_body && real { crate::contract::footer_slot::take(&ctx, id) } else { None };
     if let Some(slot) = slot {
-        let (fnode, footer) =
-            region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| frame.with_footer(ui, slot, |ui, bcx| component.footer(ui, bcx)));
+        let (fnode, footer) = region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| {
+            frame.with_footer(ui, slot, |ui, bcx| component.footer(ui, bcx))
+        });
         place(fnode, Rect::from_min_size(slot.min, footer));
     } else if shape.footer.is_some() && !in_body && !in_end {
         if shape.bands.footer > 0.0 {
@@ -1865,8 +1895,8 @@ fn run_body(
     let fresh = |dir: Dir, given: Vec<usize>| fresh_in(region, dir, given);
     // A grid's cells share a label column per grid column; the rows of a `label_column` body share one.
     // `column`: the first measuring sweep of a content-sized column (`Scoped::content_column`).
-    let mut call = |ui: &mut Ui<'_, '_>, column: bool| {
-        let mut run = |ui: &mut Ui<'_, '_>| frame.with_body(ui, region, column, |ui, bcx| body(ui, bcx));
+    let mut call = |ui: &mut Ui<'_, '_>, sweep: BodySweep| {
+        let mut run = |ui: &mut Ui<'_, '_>| frame.with_body(ui, region, sweep, |ui, bcx| body(ui, bcx));
         if columns > 0 {
             ColumnGroup::grid(ui, sub(id, "grid"), columns, run);
         } else if shape.label_column {
@@ -1883,7 +1913,8 @@ fn run_body(
         let content_column = shape.content_column;
         let mut ui = Ui::new(&mut *cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
         let ctx = ui.ctx().clone();
-        let ((), narrowest) = crate::layout::held_sweep(&ctx, id, content_column, || call(&mut ui, content_column));
+        let first = if content_column { BodySweep::Column } else { BodySweep::Plain };
+        let ((), narrowest) = crate::layout::held_sweep(&ctx, id, content_column, || call(&mut ui, first));
         let flow = ui.flow;
         let width = flow.content_size().x;
         // Half a point: less than a pixel shows at any scale the box runs.
@@ -1892,7 +1923,7 @@ fn run_body(
         }
         let settled = Rect::from_min_size(region.min, Vec2::new(width, region.height()));
         let mut ui = Ui::new(cx, fresh_in(settled, shape.base_dir(columns), Vec::new()).measuring(at.node));
-        call(&mut ui, false);
+        call(&mut ui, BodySweep::Plain);
         return (ui.flow, false);
     };
     let had_fills = kept.body_fills.unwrap_or(true);
@@ -1904,14 +1935,14 @@ fn run_body(
         None if shape.content_column => {
             let mut ui = Ui::new(&mut *cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
             let ctx = ui.ctx().clone();
-            let ((), narrowest) = crate::layout::held_sweep(&ctx, id, true, || call(&mut ui, true));
+            let ((), narrowest) = crate::layout::held_sweep(&ctx, id, true, || call(&mut ui, BodySweep::Column));
             let mut flow = ui.flow;
             let width = flow.content_size().x;
             let settled = (narrowest < width - 0.5).then_some(width);
             if let Some(width) = settled {
                 let column = Rect::from_min_size(region.min, Vec2::new(width, region.height()));
                 let mut ui = Ui::new(&mut *cx, fresh_in(column, shape.base_dir(columns), Vec::new()).measuring(at.node));
-                call(&mut ui, false);
+                call(&mut ui, BodySweep::Plain);
                 flow = ui.flow;
             }
             let units = std::mem::take(&mut flow.body.units);
@@ -1920,14 +1951,40 @@ fn run_body(
             plan.settled = settled;
             (Some(plan), true)
         }
-        None if shape.needs_plan(had_fills, kept.body.levelled) => {
-            let mut ui = Ui::new(cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
-            call(&mut ui, false);
-            let sizes = std::mem::take(&mut ui.flow.sizes);
-            let rooms = std::mem::take(&mut ui.flow.rooms);
+        None if shape.needs_plan(had_fills, kept.body.levelled || kept.body.shrinks) => {
+            let mut ui = Ui::new(&mut *cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
+            call(&mut ui, BodySweep::Plain);
+            let mut sizes = std::mem::take(&mut ui.flow.sizes);
+            let mut rooms = std::mem::take(&mut ui.flow.rooms);
             let units = std::mem::take(&mut ui.flow.body.units);
             kept.body.levelled = !units.is_empty();
-            (Some(shape.plan(room, sizes, rooms, &units, tokens)), true)
+            // The shrink step of a row too long for its room: its children measure in no room (their ideal width) and at
+            // their least, the units give way evenly down to their least, and a last sweep measures each at the width
+            // it got: the plan's sizes, which the real run shows under `Shrink::Apply`.
+            let mut shrinks = false;
+            if shape.shrinks() && units.is_empty() && crate::layout::row_overflows(&sizes, shape.gap, room.x) {
+                let open = Rect::from_min_size(region.min, Vec2::new(f32::INFINITY, region.height()));
+                let mut sweep = |sweep: BodySweep, flow: Flow| {
+                    let mut ui = Ui::new(&mut *cx, flow.measuring(at.node));
+                    call(&mut ui, sweep);
+                    (std::mem::take(&mut ui.flow.sizes), std::mem::take(&mut ui.flow.rooms))
+                };
+                let (ideal, _) = sweep(BodySweep::Plain, fresh_in(open, shape.base_dir(columns), Vec::new()));
+                let (least, _) = sweep(BodySweep::Least, fresh_in(open, shape.base_dir(columns), Vec::new()));
+                if ideal.len() == sizes.len() && least.len() == sizes.len() {
+                    let caps = crate::layout::row_shrink(&ideal, &least, shape.gap, room.x);
+                    let given: Vec<Vec2> =
+                        rooms.iter().zip(&caps).map(|(room, cap)| cap.map_or(*room, |cap| Vec2::new(cap.min(room.x), room.y))).collect();
+                    let flow = fresh(shape.base_dir(columns), Vec::new()).with_plan(Vec::new(), given.clone());
+                    (sizes, _) = sweep(BodySweep::Apply, flow);
+                    rooms = given;
+                    shrinks = true;
+                }
+            }
+            kept.body.shrinks = shrinks;
+            let mut plan = shape.plan(room, sizes, rooms, &units, tokens);
+            plan.shrinks = shrinks;
+            (Some(plan), true)
         }
         None => (None, false),
     };
@@ -1939,13 +1996,16 @@ fn run_body(
         None => fresh(shape.base_dir(columns), Vec::new()),
     };
     let mut ui = Ui::new(cx, flow);
-    call(&mut ui, false);
+    call(&mut ui, if plan.as_ref().is_some_and(|plan| plan.shrinks) { BodySweep::Apply } else { BodySweep::Plain });
     let Ui { cx, flow, .. } = ui;
+    // A row that overflows its room with no plan narrows its units by one from the next run on.
+    let overflows = plan.is_none() && shape.shrinks() && crate::layout::row_overflows(&flow.sizes, shape.gap, room.x);
+    kept.body.shrinks |= overflows;
     let stale = match &plan {
         // A content column with no settled width took its sizes offered no room: only its fill shares are planned.
         Some(plan) if shape.content_column && plan.settled.is_none() && flow.fills == 0 => false,
         Some(plan) => !same_sizes(&plan.sizes, &flow.sizes),
-        None => flow.fills > 0,
+        None => flow.fills > 0 || overflows,
     };
     if stale && !measured {
         cx.rebuild();

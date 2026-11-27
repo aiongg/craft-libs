@@ -217,7 +217,7 @@ pub(crate) fn show_shaped<C: Component>(
         let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child));
         let node = peeked.as_ref().map(|p| p.node);
         // A kept node answers from its size cache and hands the open column groups its captured reports.
-        let cached = peeked.filter(|p| !shaped && holds(p.local, key, p.state)).and_then(|p| {
+        let cached = peeked.filter(|p| !shaped && !begun.env.least && holds(p.local, key, p.state)).and_then(|p| {
             let size = p.local.cached(room)?;
             crate::layout::replay(&ui.ctx, &p.local.column_reports);
             Some(size)
@@ -344,7 +344,8 @@ fn measure<C: Component>(
     let host = RunHost::new(cx, run_flow(id, Pos2::ZERO, room, tokens, Some(node)), ctx.clone(), begun.env.clone());
     let mut lent: &RunHost<'_, '_> = &host;
     let cell: RefCell<&mut dyn UiHost> = RefCell::new(&mut lent);
-    let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: (!begun.env.content_column).then_some(room.x), host: &cell };
+    let (proposal, room_x) = if begun.env.least { (Proposal::Min, None) } else { (Proposal::Ideal, (!begun.env.content_column).then_some(room.x)) };
+    let input = MeasureIn { env: &begun.env, proposal, room: room_x, host: &cell };
     let content = component.measure(&steps::measure_cx::<C>(&input, &begun.style, &resolved, value.value.as_deref()));
     let extent = match hooks.shaped() {
         true => {
@@ -354,7 +355,8 @@ fn measure<C: Component>(
         }
         false => Vec2::ZERO,
     };
-    hooks.sized(component, steps::measure(&*begun.style, &input, content, extent, &resolved))
+    let size = hooks.sized(component, steps::measure(&*begun.style, &input, content, extent, &resolved));
+    crate::layout::shrink_cap(&begun.env, room, size)
 }
 
 /// The facts of a run decided before its hooks.

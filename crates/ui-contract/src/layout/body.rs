@@ -282,6 +282,42 @@ fn shrink_or_drop(
         .collect()
 }
 
+/// The shrink step of an unwrapped `Row` too long for its `room`: the width each child shows at most, from its width
+/// in no room (`ideal`) and its least (`least`), both from the row's measuring run, with `gap` between children. A child
+/// that fills the row (`ideal[i].1`) is no unit: it takes what the units leave, and gets `None`. The units give way
+/// evenly down to their least; a row too long even then keeps their ideal widths. Nothing drops: a row whose body does
+/// not scroll keeps every unit.
+pub(crate) fn row_shrink(ideal: &[(Vec2, bool)], least: &[(Vec2, bool)], gap: f32, room: f32) -> Vec<Option<f32>> {
+    let units: Vec<ShrinkUnit> = ideal
+        .iter()
+        .zip(least)
+        .filter(|((_, fills), _)| !*fills)
+        .map(|((ideal, _), (least, _))| ShrinkUnit { ideal: ideal.x, least: least.x.min(ideal.x) })
+        .collect();
+    let whole: Vec<f32> = units.iter().map(|unit| unit.ideal).collect();
+    let none = vec![false; units.len()];
+    let ranks = vec![None; units.len()];
+    let fixed = gap * ideal.len().saturating_sub(1) as f32;
+    let mut caps = shrink_or_drop(&units, &whole, (&none, &ranks), (fixed, gap), (room, room), ShrinkOrder::Even, false).into_iter();
+    ideal.iter().map(|(_, fills)| if *fills { None } else { caps.next().map(|cap| cap.width) }).collect()
+}
+
+/// A leaf's measured `size` in a row whose plan narrows its units (`Shrink::Apply`): at most the `room` the plan gave
+/// it, which is never below its least, so a leaf whose measure does not follow its room still fits.
+pub(crate) fn shrink_cap(env: &crate::runtime::env::Env, room: Vec2, size: Vec2) -> Vec2 {
+    match env.shrink {
+        Some(crate::runtime::env::Shrink::Apply(_)) => Vec2::new(size.x.min(room.x), size.y),
+        _ => size,
+    }
+}
+
+/// Whether the children of an unwrapped `Row`, at `sizes` with `gap` between them, overflow `room`.
+pub(crate) fn row_overflows(sizes: &[(Vec2, bool)], gap: f32, room: f32) -> bool {
+    let used = sizes.iter().filter(|(_, fills)| !*fills).map(|(size, _)| size.x).sum::<f32>() + gap * sizes.len().saturating_sub(1) as f32;
+    // Half a point: less than a pixel shows at any scale the box runs.
+    room.is_finite() && used - room >= 0.5
+}
+
 /// `shrink_widths` in two turns: the units whose content is made to be cut (`first`) give what they can of the
 /// shortfall, and the others give only the rest. A row that does not fit even with every unit at its least keeps the
 /// natural widths, as `shrink_widths` does.
