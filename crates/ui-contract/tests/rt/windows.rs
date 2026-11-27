@@ -14,10 +14,10 @@ use craft_ui::runtime::env::EnvCells;
 use craft_ui::runtime::pending::JobBoard;
 use craft_ui::runtime::windows::{CaptionRegions, HitSink, WindowEnv, WindowHit, WindowRegistry, caption_regions, rt_spec, window_root_with};
 use craft_ui::style::StyleCx;
-use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{CloseReason, MonitorInfo, Platform, Pos2, Rect, Sense, StepReport, Vec2, WindowCommand, WindowId, WindowSpec};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::Rig;
 use craft_window::Button;
 use craft_window::restore::Store;
@@ -140,7 +140,7 @@ impl Default for App {
 }
 
 fn guard(ui: &mut Ui, app: &mut App, name: &'static str) {
-    if let Some(reason) = CloseGuard { common: Common::new() }.show(ui).ask {
+    if let Some(reason) = (CloseGuard { common: Common::new() }).show(ui).ask {
         if app.allow_close {
             ui.close_window();
         } else {
