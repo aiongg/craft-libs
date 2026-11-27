@@ -242,6 +242,21 @@ impl Pointer for CxCore<'_> {
 }
 
 impl CxCore<'_> {
+    /// The pointer's place in window coordinates while it is over this node or a node under it (a collection's
+    /// rows). A tracked read: the node runs again when the pointer moves over it, enters or leaves it. `None` on a
+    /// settled `Cx`, which tracks nothing.
+    pub fn hover_point(&self) -> Option<Pos2> {
+        if self.run.settled {
+            return None;
+        }
+        if let Some(node) = self.response.node() {
+            crate::contract::context::log_build_read(move |cx| {
+                cx.read_hover_point(node);
+            });
+        }
+        self.run.hover_point
+    }
+
     /// The active drag payload whose type is `payload` and the pointer in window coordinates.
     pub(crate) fn dragging_of(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
         let _ = payload;

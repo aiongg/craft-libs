@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use craft_host::target::Os;
 use craft_theme::Tokens;
-use emath::{Rect, Vec2};
+use emath::{Pos2, Rect, Vec2};
 use smallvec::SmallVec;
 use web_time::Instant;
 
@@ -108,6 +108,9 @@ pub struct Runtime {
     pub(crate) interact_facts: IdMap<[Option<State<bool>>; InteractFact::COUNT]>,
     /// Per-node cells of the part of the node the pointer hovers, created when paint first reads one.
     pub(crate) hovered_parts: IdMap<State<Option<u64>>>,
+    /// Per-node cells of the pointer's place while it hovers the node or a node under it, created
+    /// when a build first reads one.
+    pub(crate) hover_points: IdMap<State<Option<Pos2>>>,
     pub(crate) clipboard: Vec<(WindowId, ClipboardRequest)>,
     /// Nodes that repaint at a frame time: (node, time), one entry per node.
     pub(crate) wakes: Vec<(NodeId, f64)>,
@@ -163,6 +166,7 @@ impl Runtime {
             interact: IdMap::default(),
             interact_facts: IdMap::default(),
             hovered_parts: IdMap::default(),
+            hover_points: IdMap::default(),
             clipboard: Vec::new(),
             wakes: Vec::new(),
             layout_wakes: Vec::new(),
