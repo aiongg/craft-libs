@@ -149,7 +149,7 @@ impl SkiaText {
         self.add_at(family, bytes, 0);
     }
 
-    fn add_at(&mut self, family: &str, bytes: &[u8], index: usize) -> bool {
+    fn add_at(&mut self, family: &str, bytes: &[u8], index: u32) -> bool {
         match self.mgr.new_from_data(Data::new_copy(bytes), Some(index)) {
             Some(face) => {
                 self.provider.register_typeface(face, family);
@@ -164,7 +164,7 @@ impl SkiaText {
 
     /// Registers `face` under its name at its variation coordinates.
     fn add_stack_face(&mut self, face: &StackFace) -> bool {
-        let Some(typeface) = self.mgr.new_from_data(Data::new_copy(face.data()), Some(face.index as usize)) else {
+        let Some(typeface) = self.mgr.new_from_data(Data::new_copy(face.data()), Some(face.index)) else {
             log::error!("skia could not read the {} face", face.name);
             return false;
         };
@@ -199,7 +199,7 @@ impl SkiaText {
             }
         }
         for face in std::mem::take(&mut self.installed) {
-            self.add_at(&face.family, &face.bytes, face.index as usize);
+            self.add_at(&face.family, &face.bytes, face.index);
             self.installed.push(face);
         }
         self.sync();
@@ -356,7 +356,7 @@ impl TextEngine for SkiaText {
     /// Registers the face under its family. Rich text is set by the trait's default here, which
     /// keeps every section in the interface face, so the family is not yet drawn.
     fn install_face(&mut self, face: FaceInstall) -> bool {
-        if !self.add_at(&face.family, &face.bytes, face.index as usize) {
+        if !self.add_at(&face.family, &face.bytes, face.index) {
             return false;
         }
         self.sync();
