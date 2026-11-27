@@ -113,6 +113,9 @@ fn a_label_shown_after_its_field_names_it_and_one_that_appears_later_does_too() 
     assert!(labelled_by(&rig2, "Field").is_empty(), "no node answers to the id yet");
     let before = app.field_runs.get();
     app.show_name = true;
+    // App state outside cells: the host asks the window root to run (`LogicCx::request_build`).
+    let main = rig2.main;
+    rig2.driver.runtime.mark_root(main);
     labels_step(&mut rig2, &mut app);
     assert_eq!(app.field_runs.get(), before, "the field did not run again");
     assert_eq!(labelled_by(&rig2, "Field"), ["Name"], "its access node was rebuilt when the label appeared");

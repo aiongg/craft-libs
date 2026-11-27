@@ -3,7 +3,10 @@
 //!
 //! A node that takes the commands of a `CommandSet` owns one cell per set: the last command of the set
 //! fired at it, with a sequence number. The board handler its first take registers writes that cell
-//! at event time, so a fire reruns only the node that reads it. A take returns the command when its
+//! at event time, so a fire reruns only the node that reads it. The handler stands where production
+//! delivered the take's commands: at the instance of the set's scope around the node (the innermost
+//! instance for `take_step`), so a fire whose path passes that instance reaches it; for an app-scope
+//! set, at the app instance, so any fire of the command reaches it. A take returns the command when its
 //! sequence is newer than the last one the node consumed, and records the consumed sequence in the
 //! node's memory. It never writes the cell it read, so it causes no rerun in the same frame.
 //!
@@ -15,7 +18,9 @@
 use std::any::TypeId;
 
 use craft_keymap::CommandRef;
-use craft_ui_rt::{NodeId, State, Store};
+use craft_ui_rt::{NodeId, State, Store, Writes};
+
+use crate::contract::rt::commands::Reach;
 
 use super::{CommandSet, Fired};
 use crate::contract::Id;
@@ -43,10 +48,12 @@ pub(crate) struct InboxCells(pub(crate) Vec<InboxCell>);
 #[derive(Clone, Default)]
 struct Consumed(Vec<(TypeId, u64)>);
 
-/// A set a take asked a cell for, with the commands to route to it.
+/// A set a take asked a cell for, with the commands to route to it and the instance it takes them
+/// from (`None`: the app instance).
 pub(crate) struct Want {
     set: TypeId,
     commands: Vec<CommandRef>,
+    instance: Option<Id>,
 }
 
 /// What a run's takes read: each registered set's inbox as of the run, and the sets that asked for a
@@ -63,19 +70,20 @@ impl InboxIn {
         InboxIn { read: cells.0.iter().map(|c| (c.set, c.cell.get(cx))).collect(), wants: Vec::new() }
     }
 
-    /// The next command of `S` fired at the node that it has not taken, which `filter` accepts. `None`
-    /// when there is none; a set with no cell yet asks for one.
+    /// The next command of `S` fired at the node's `instance` (`None`: the app instance) that it has
+    /// not taken, which `filter` accepts. `None` when there is none; a set with no cell yet asks for one.
     pub(crate) fn take<S: CommandSet, T>(
         &mut self,
         memory: &mut MemoryStage,
         id: Id,
+        instance: Option<Id>,
         filter: impl Fn(&CommandRef) -> Option<T>,
     ) -> Option<(T, Fired)> {
         let set = TypeId::of::<S>();
         let Some((_, inbox)) = self.read.iter().find(|(s, _)| *s == set) else {
             if !self.wants.iter().any(|w| w.set == set) {
                 let commands = S::defs().map(|defs| defs.into_iter().map(|def| def.command).collect()).unwrap_or_default();
-                self.wants.push(Want { set, commands });
+                self.wants.push(Want { set, commands, instance });
             }
             return None;
         };
@@ -97,27 +105,37 @@ impl InboxIn {
 }
 
 /// Creates the cells the run's takes asked for and keeps them in the node's memory. Each command of
-/// a set gets a board handler owned by `node` that writes the set's cell at event time, so the board's
-/// nearest-owner dispatch on the firing path routes it and an app handler never replaces it. One
-/// registration per node and set: a later run finds the cell; the board drops the handlers when the
-/// node leaves.
+/// a set gets a board handler owned by `node` that writes the set's cell at event time, standing at
+/// the take's instance on a firing path, so an app handler never replaces it. One registration per
+/// node and set: a later run finds the cell; the board drops the handlers when the node leaves. A
+/// scoped take whose instance has no node yet registers nothing and asks again in its next run.
 pub(crate) fn register(
     wants: Vec<Want>,
     node: NodeId,
     id: Id,
     memory: &mut MemoryStage,
     board: &crate::runtime::commands::CommandBoard,
-    store: &mut Store,
+    cx: &mut craft_ui_rt::BuildCx<'_>,
 ) {
     for want in wants {
         let cells = memory.shown::<InboxCells>(crate::runtime::memory::sub(id, "inbox"));
         if cells.0.iter().any(|c| c.set == want.set) {
             continue;
         }
-        let cell = store.create(Inbox::default());
+        let reach = match want.instance {
+            None => Reach::App,
+            Some(instance) => match crate::contract::rt::ids::node_of(cx, instance) {
+                Some(at) => Reach::Node(at),
+                None => continue,
+            },
+        };
+        let cell = cx.store_mut().create(Inbox::default());
+        // The run read no cell for this set (it had none): the node reads it now, so a fire reruns it.
+        cell.get(cx);
         for command in want.commands {
             board.register(
                 Some(node),
+                reach,
                 command,
                 Box::new(move |fired: &Fired, store: &mut Store| {
                     let seq = store.peek(cell).seq + 1;

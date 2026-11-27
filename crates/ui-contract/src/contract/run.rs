@@ -474,7 +474,8 @@ pub(crate) fn paint_face<C: Show>(
     stage.face = true;
     let value = steps::value(&mut face, &mut stage, id, step1.command.as_deref());
     let rect = source.result.rect;
-    let part_state = steps::part_state(source.result, source.faded || (step1.enabled && source.enabled), source.focus);
+    // A face of a faded host paints its enabled rest look: the host shows no hover or press.
+    let part_state = steps::part_state(source.result, source.faded || (step1.enabled && source.enabled), !source.faded, source.focus);
     let response = crate::contract::Response::new(id, source.result.rect, None, Default::default(), false, Default::default());
     let mut popups = Default::default();
     let mut core = core_for(env, &resolved, &mut stage, &mut popups, response, step1.command.clone(), RunIo::settled(context));
