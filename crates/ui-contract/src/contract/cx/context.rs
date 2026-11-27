@@ -333,6 +333,27 @@ pub(crate) struct RunIo<'a> {
     pub(crate) drop_under_modal: Cell<bool>,
     /// `Pointer::take_multi_tap` took the run's multi-finger tap.
     pub(crate) tap_taken: Cell<bool>,
+    /// The run's build, which the run's hosts share, for the window facts a hook reads (`CxCore::pointer`,
+    /// `CxCore::hovers` ...); `None` in measuring and settled runs.
+    pub(crate) build: Option<&'a dyn RunBuild>,
+    /// The layer requests the run made (`CxCore::return_from_pick`, `CxCore::close_layer`), in order; the driver
+    /// applies them after the run, before the focus requests.
+    pub(crate) layer_asks: RefCell<Vec<crate::contract::rt::reads::LayerAsk>>,
+}
+
+/// The build of a run, shared by the run's hosts and its core: a hook's window read borrows it for that read alone
+/// (contract-rt 15.9).
+pub(crate) trait RunBuild {
+    /// Runs `f` over the build.
+    fn with_build(&self, f: &mut dyn FnMut(&mut craft_ui_rt::BuildCx<'_>));
+}
+
+impl RunBuild for RefCell<&mut craft_ui_rt::BuildCx<'_>> {
+    fn with_build(&self, f: &mut dyn FnMut(&mut craft_ui_rt::BuildCx<'_>)) {
+        // A hook that is given a `Ui` (`content`, `overlay`) reads through it, which holds the build meanwhile.
+        let mut cx = self.try_borrow_mut().expect("a hook given a `Ui` reads the window through that `Ui`");
+        f(&mut cx);
+    }
 }
 
 /// The frame's text engine, lent to a component's `update` (`Cx::layout_doc`): the driver takes it out of the run's
@@ -437,6 +458,8 @@ impl<'a> RunIo<'a> {
             drop_mark: Cell::new(None),
             drop_under_modal: Cell::new(false),
             tap_taken: Cell::new(false),
+            build: None,
+            layer_asks: RefCell::new(Vec::new()),
         }
     }
 
@@ -448,6 +471,65 @@ impl<'a> RunIo<'a> {
     /// The node side of a measuring run: no node, no input.
     pub(crate) fn measuring(context: Context) -> RunIo<'a> {
         RunIo { settled: true, measuring: true, ..RunIo::new(&[], context) }
+    }
+}
+
+/// The window facts and layer requests a hook reaches through its run's build (contract-rt 15.9), each the one function
+/// `Ui` calls too: a tracked read subscribes this node alone. A measuring or settled `Cx` has no build: its reads answer
+/// as for no pointer, no menu and no focus, and its requests are dropped.
+impl CxCore<'_> {
+    fn read_build<R>(&self, read: impl FnOnce(&mut craft_ui_rt::BuildCx<'_>) -> R) -> Option<R> {
+        let build = self.run.build?;
+        let mut read = Some(read);
+        let mut out = None;
+        build.with_build(&mut |cx| out = read.take().map(|read| read(cx)));
+        out
+    }
+
+    /// The window's pointer as a tool reads it (`Ui::pointer`). Tracked: the node runs again at every pointer move, so
+    /// code that only needs hover or press on its own node reads its response instead.
+    pub fn pointer(&self) -> crate::runtime::pointer::PointerFrame {
+        let (slop, target) = self.env.hit_sizes();
+        let context = &self.run.context;
+        self.read_build(|cx| crate::contract::rt::reads::pointer(cx, context, slop, target)).unwrap_or_else(|| {
+            crate::runtime::pointer::PointerFrame::held(None, craft_behavior::Buttons::empty(), context.modifiers(), context.time(), slop, target)
+        })
+    }
+
+    /// Whether the pointer is over the node `id` names (`Ui::hovers`); tracked.
+    pub fn hovers(&self, id: Id) -> bool {
+        self.read_build(|cx| crate::contract::rt::ids::hovers(cx, id)).unwrap_or(false)
+    }
+
+    /// The menu layer the node runs in, if it runs in one (`Ui::running_menu`).
+    pub fn running_menu(&self) -> Option<Id> {
+        self.read_build(|cx| crate::contract::rt::reads::running_menu(cx)).flatten()
+    }
+
+    /// Whether the focused node took the focus as its menu or scope opened and kept it since; tracked through the
+    /// window's focus.
+    pub fn focus_came_with_open(&self) -> bool {
+        self.read_build(crate::contract::rt::reads::focus_came_with_open).unwrap_or(false)
+    }
+
+    /// Whether focus sits in a menu and shows, so the keyboard drives the menu; tracked through the window's focus.
+    pub fn keyboard_in_menu(&self) -> bool {
+        self.read_build(crate::contract::rt::reads::keyboard_in_menu).unwrap_or(false)
+    }
+
+    /// Moves focus back out of the layer a pick was made in, after the run and before the commands it fired run
+    /// (`Ui::return_from_pick`).
+    pub fn return_from_pick(&self, picked: focus::PickedIn) {
+        if self.run.build.is_some() {
+            self.run.layer_asks.borrow_mut().push(crate::contract::rt::reads::LayerAsk::ReturnFromPick(picked));
+        }
+    }
+
+    /// Closes the layer `id` for `why` after the run (`Ui::close_layer`).
+    pub fn close_layer(&self, id: Id, why: crate::runtime::overlay::CloseReason) {
+        if self.run.build.is_some() {
+            self.run.layer_asks.borrow_mut().push(crate::contract::rt::reads::LayerAsk::Close(id, why));
+        }
     }
 }
 

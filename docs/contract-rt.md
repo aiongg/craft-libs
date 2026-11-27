@@ -756,10 +756,10 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `measure::effect(ctx, what)` | 10 | `!is_measuring()` at the site | |
 | `layout_memory::text`, `emit_text` | 2 | deleted; the node size cache | |
 | `pass::current_viewport(ctx)` | 7 | `Context::window()` | |
-| `pointer::frame(ctx) -> PointerFrame` | 14 | Ui `pointer() -> PointerFrame` (tracked read of the window pointer cell) | ui-rt input |
+| `pointer::frame(ctx) -> PointerFrame` | 14 | Ui, Cx `pointer() -> PointerFrame` (tracked read of the window pointer cell; `Cx::pointer` as well) | ui-rt input |
 | `pointer::mods(ctx)` | 14 | `Context::modifiers()` | tracked |
 | `pointer::hover_point_in(ctx, rect)` | 4 | Ui `hover_point_in(rect) -> Option<Pos2>` (tracked) | |
-| `pointer::hovers(ctx, id)` | 1 | Ui `hovers(id) -> bool` | `read_interaction(node_of(id), Hovered)` |
+| `pointer::hovers(ctx, id)` | 1 | Ui, Cx `hovers(id) -> bool` | `read_interaction(node_of(id), Hovered)` |
 | `pointer::pressed_part(ctx, owner)` | 2 | Ui `pressed_part(owner: Id) -> Option<PartRef>` | owner's `Kept.press` |
 | `pointer::shapes_at(ctx, at)` | 1 | Ui `shapes_at(at) -> Vec<(Id, Option<PartRef>)>` | ui-rt hit test on kept shapes, untracked |
 | `pointer::with_pass_pointer`, `withhold_members` | 3 | deleted (no pass pointer, no arena) | |
@@ -771,8 +771,12 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `focus::focused_rec(ctx)` | 3 | Ui `focused_stop() -> Option<StopRec>` | `FocusKept` |
 | `focus::is_focused(ctx, id)` | 2 | Ui `is_focused(id) -> bool` | tracked `Focused` |
 | `focus::open_scope(ctx)` | 2 | Ui `open_focus_scope() -> Option<Id>` | |
-| `focus::return_from_pick(ctx, picked)` | 2 | Ui `return_from_pick(picked: PickedIn)` | `set_focus_return` |
-| `focus::running_menu(ctx)` | 2 | Ui `running_menu() -> Option<Id>` | |
+| `focus::return_from_pick(ctx, picked)` | 2 | Ui, Cx `return_from_pick(picked: PickedIn)` (Cx: recorded, applied after the run before its focus requests) | `set_focus_return` |
+| `focus::running_menu(ctx)` | 2 | Ui, Cx `running_menu() -> Option<Id>` | |
+| `focus::focus_came_with_open(ctx)` | 1 | Cx `focus_came_with_open() -> bool` (tracked through the focused-node cell) | ui-rt `FocusCause::Entered`, `FocusKept::entered` |
+| `focus::keyboard_in_menu(ctx)` | 3 | Cx `keyboard_in_menu() -> bool` (tracked: focused node, its `FocusVisible`) | |
+| `overlay::pressed_outside(ctx, id)` | 1 | Cx `pressed_outside() -> bool` (a press outside one of the component's `Outside::Keep` popups since its last run) | ui-rt `OutsidePress::Report`, `Event::PressedOutside` |
+| `drag::payload::<P>(ctx)` in `parts` | 1 | `PartsCx::dragging::<P>() -> Option<(Arc<P>, Pos2)>`, as `Pointer::dragging` | `RunIo::drag_over` |
 | `keys::capture`, `claim`, `claim_alt_tap` | 6 | `KeyUse::claims` on the component (kept) | `rt/keys.rs` |
 | `keys::take_claimed(ctx, id, chord)`, `take_alt_tap` | 8 | `NodeInput::Chord` through Cx `intents()` | |
 | `keys::held(ctx)`, `keyed(ctx)` | 5 | `Context::held_keys() -> Vec<Key>`, `Context::keyed() -> bool` (tracked) | |
@@ -796,7 +800,7 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `overlay::opening(ctx, id)`, `is_open`, `entry` | 4 | Ui `layer_opening(id)`, `layer_open(id)`, `layer_entry(id) -> Option<OpenEntry>` (tracked) | |
 | `overlay::any_open(ctx, filter)` | 2 | Ui `any_layer_open(filter: OpenFilter) -> bool` (tracked) | |
 | `overlay::top`, `drawing_parent`, `drawing_top_modal`, `is_top_modal`, `running_dialog` | 6 | Ui `top_layer()`, `layer_parent()`, `in_top_modal()`, `is_top_modal(id)`, `running_dialog()` | |
-| `overlay::request_close(ctx, id, why)` | 1 | Ui `close_layer(id, why: CloseReason)` | |
+| `overlay::request_close(ctx, id, why)` | 1 | Ui, Cx `close_layer(id, why: CloseReason)` (Cx: recorded, applied after the run) | |
 | `overlay::end_stack_dialog`, `stack_place`, `take_keys_for_new_dialog` | 7 | Ui `end_stack_dialog(id)`, `stack_place(place, id, show)`; `take_keys_for_new_dialog` deleted (layer scopes take keys) | |
 | `contract::overlay::opened_from(ctx, opener)` | 1 | Ui `opened_from(opener: Id) -> bool` | |
 | `toast::post`, `cards`, `dismiss`, `end`, `keep`, `set_progress`, `shown` | 16 | Ui `toasts() -> ToastQueue` and its methods | `rt/toast.rs` |
@@ -824,6 +828,8 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `testing::StoryPictures::of(ctx)` | 10 | `StoryPictures::of(ui: &Ui)` | Harness-provided value |
 | `replay::journal` | 1 | deleted | |
 | `install`, `pen::install` | 3 | deleted; `craft_ui::app::run` (INT-7) | |
+
+The `CxCore` reads and requests above reach the run's build, which the run's hosts share (`RunIo::build`); each is the one function `Ui`'s method calls (`rt/reads.rs`, `rt/ids.rs`, `overlay::close_layer`). A hook given a `Ui` (`content`, `overlay`) reads through the `Ui`; measuring and settled runs have no build, so their reads answer as for no pointer, no menu and no focus, and their requests are dropped. Collection members' runs have none either.
 
 Out of scope for INT-3 (crate-local services that take a context; their owners port them in P2 to P6): ui-panels `native::*` and `cross_window::*` (docking floats, onto B10), ui-shell `embed::*`, `viewports::*`, `title_bar::*` (INT-7, P2), ui-widgets `outer::keep`, `menu::any_open`, `bar::is_open`, ui-canvas `zoom_motion::steer`, color-ui `capture::store`, `craft_quit::on_menu_event`.
 

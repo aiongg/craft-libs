@@ -133,6 +133,9 @@ pub enum FocusCause {
     /// A node or the app moved it: a request, a node giving it up, a move among a group's members,
     /// a pane key, an assistive technology.
     Program,
+    /// A node that appeared moved it into itself ([`crate::BuildCx::focus_into`]): a menu's first
+    /// row as the menu shows.
+    Entered,
 }
 
 /// Why a window was asked to close.
@@ -167,6 +170,9 @@ pub enum Event {
     /// The node, a layer child, is asked to go ([`crate::OutsidePress`]); it tells its owner
     /// through its output. Not bubbled.
     Dismiss(DismissReason),
+    /// A primary press went down outside the node, a layer child that stays open on such presses
+    /// ([`crate::OutsidePress::Report`]); the press goes on to what it hit. Not bubbled.
+    PressedOutside,
     /// A drag is over one of the node's drop shapes, left it, or dropped on it. `Over` bubbles
     /// from the shape's node until a node accepts ([`EventCx::accept_drop`] or [`Handled::Yes`]);
     /// that node then gets `Leave` or `Drop`, not bubbled.

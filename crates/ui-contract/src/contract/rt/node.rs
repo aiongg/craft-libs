@@ -871,6 +871,7 @@ impl Element for ComponentNode {
                 if kept.focus.stop.is_some() {
                     kept.queue.push(NodeInput::Focus { gained: *on, cause: *cause });
                 }
+                kept.focus.entered = *on && *cause == craft_ui_rt::FocusCause::Entered;
                 if *on {
                     kept.focus.took_focus();
                     // A move from another node that named one of this node's parts.

@@ -82,6 +82,8 @@ pub enum OutsidePress {
     /// The child gets [`crate::Event::Dismiss`] and the press ends there (a menu: the click that
     /// closes it activates nothing).
     DismissAndConsume,
+    /// The child gets [`crate::Event::PressedOutside`] and stays; the press goes on to what it hit.
+    Report,
 }
 
 /// How a node shows a child on a layer.

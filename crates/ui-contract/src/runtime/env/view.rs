@@ -30,6 +30,13 @@ impl<'a> EnvView<'a> {
         }
     }
 
+    /// The theme's hit slop (the movement that turns a press into a drag) and least hit target, for the pointer frame a
+    /// hook reads (`CxCore::pointer`).
+    pub(crate) fn hit_sizes(&self) -> (f32, f32) {
+        let hit = self.scoped.tokens.size.hit;
+        (hit.slop, hit.target)
+    }
+
     /// The footer a `FooterSlot` under this scope places, if a container offers one.
     pub(crate) fn footer_slot(&self) -> Option<super::FooterSlotOf> {
         self.scoped.footer_slot

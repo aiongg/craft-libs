@@ -305,6 +305,8 @@ pub struct PartsCx<'a, C: Component> {
     pub(crate) items: Option<std::rc::Rc<dyn std::any::Any>>,
     /// The component's memory and id, for `press_slot`; none for a collection's member.
     pub(crate) stage: Option<(&'a MemoryStage, Id)>,
+    /// The drag over the node as its run began, for `dragging`; none in a measuring or settled run.
+    pub(crate) drag_over: Option<&'a (craft_ui_rt::DragData, craft_ui_rt::Pos2, craft_ui_rt::Mods)>,
 }
 
 impl<C: crate::contract::Container> PartsCx<'_, C> {
@@ -360,6 +362,13 @@ impl<'a, C: Component> Deref for PartsCx<'a, C> {
 }
 
 impl<C: Component> PartsCx<'_, C> {
+    /// The drag over the node whose payload is a `P`, and the pointer in window coordinates, as `Pointer::dragging`
+    /// answers in the run's hooks: only on a node whose last run asked for the type with `drop_target`.
+    pub fn dragging<P: Send + Sync + 'static>(&self) -> Option<(std::sync::Arc<P>, craft_ui_rt::Pos2)> {
+        let (payload, at) = super::pointer::drag_payload(self.drag_over, std::any::TypeId::of::<P>())?;
+        Some((payload.downcast::<P>().ok()?, at))
+    }
+
     /// Whether the pointer is over the component, so `parts` can declare hover-revealed parts. A change runs the
     /// component again.
     pub fn hovered(&self) -> bool {

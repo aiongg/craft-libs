@@ -772,15 +772,8 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// hover or press on its own node reads its response instead. Presses, releases, wheel and gestures reach the
     /// node they target as its input, so the frame's event fields are empty.
     pub fn pointer(&mut self) -> crate::runtime::pointer::PointerFrame {
-        use craft_behavior::{Buttons, PointerButton};
-        let facts = self.cx.env().pointer.get(self.cx);
-        let buttons = [PointerButton::Primary, PointerButton::Secondary, PointerButton::Middle, PointerButton::Extra1, PointerButton::Extra2]
-            .into_iter()
-            .filter(|button| facts.held(*button))
-            .fold(Buttons::empty(), |held, button| held | Buttons::of(button));
-        let mods = self.ctx.modifiers();
         let hit = self.flow.tokens.size.hit;
-        crate::runtime::pointer::PointerFrame::held(facts.pos, buttons, mods, self.cx.now(), hit.slop, hit.target)
+        super::reads::pointer(self.cx, &self.ctx, hit.slop, hit.target)
     }
 
     /// The focused stop of this window, from the focused node's kept facts. Tracked through the window's focused-node
@@ -875,27 +868,8 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// that F10 or a lone Alt focused, to the stop the bar took the focus from. Nothing in a measuring
     /// run, or when the layer has no live node.
     pub fn return_from_pick(&mut self, picked: crate::runtime::focus::PickedIn) {
-        if self.is_measuring() {
-            return;
-        }
-        let layer = match picked {
-            crate::runtime::focus::PickedIn::Menus(layer) | crate::runtime::focus::PickedIn::Layer(layer) => layer,
-        };
-        let Some(node) = super::ids::node_of(self.cx, layer) else { return };
-        let rt = self.cx.runtime();
-        // A menu pick walks out of every menu under the first: the outermost layer child that has a return names it.
-        let mut to = rt.focus_return(self.cx.window(), node);
-        if matches!(picked, crate::runtime::focus::PickedIn::Menus(_)) {
-            while let Some(at) = to {
-                match super::layers::layer_child_of(rt, at).and_then(|child| rt.focus_return(self.cx.window(), child)) {
-                    Some(next) => to = Some(next),
-                    None => break,
-                }
-            }
-        }
-        if let Some(to) = to {
-            let to = super::node::MenuBar::past_bar(self.cx, to);
-            self.cx.focus_node(to);
+        if !self.is_measuring() {
+            super::reads::return_from_pick(self.cx, picked);
         }
     }
 
@@ -907,8 +881,7 @@ impl<'u, 'c> Ui<'u, 'c> {
 
     /// The menu layer this cursor builds in, if it builds in one.
     pub fn running_menu(&mut self) -> Option<Id> {
-        let of = self.cx.provided::<super::layers::LayerChildOf>()?;
-        (of.1 == Some(craft_behavior::OwnerClass::Menu)).then_some(of.0)
+        super::reads::running_menu(self.cx)
     }
 
     // Window services (section 15.9).

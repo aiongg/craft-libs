@@ -54,6 +54,8 @@ pub(crate) struct FocusKept {
     pub(crate) role: Option<KeyRole>,
     /// When the node last took focus, in the focus sequence; 0 when it never did.
     pub(crate) seq: u64,
+    /// The node took focus as its layer or scope appeared (ui-rt `FocusCause::Entered`) and holds it since.
+    pub(crate) entered: bool,
 }
 
 /// The shape of a node's focus ring, in the node's coordinates.
