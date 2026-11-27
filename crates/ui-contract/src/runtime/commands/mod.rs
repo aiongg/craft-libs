@@ -2,7 +2,7 @@
 
 pub(crate) mod board;
 pub(crate) mod inbox;
-pub use crate::contract::rt::CommandBoard;
+pub use crate::contract::rt::commands::CommandBoard;
 pub use inbox::InboxIn;
 pub(crate) use inbox::{InboxCells, register as register_inboxes};
 mod clipboard;
@@ -21,7 +21,6 @@ pub use registry::{SetEntry, sets};
 #[cfg(feature = "suite")]
 pub(crate) use registry::{StorySelection, configure_story_sets, with_story_sets};
 
-pub use crate::contract::rt::CommandBoard;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub use board::clear_focus_vantage;

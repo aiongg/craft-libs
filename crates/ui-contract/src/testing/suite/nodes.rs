@@ -146,15 +146,15 @@ fn tree_order(tree: &AccessView) -> Vec<accesskit::NodeId> {
 
 /// `pairs` (a node and an action it declares) in tree order; when [`samples_repeats`], set by set, each repeated set
 /// cut to its first, middle and last node. Nodes that share a parent and a role and declare the same action are one set.
-pub(super) fn sampled_actions(tree: &AccessView, mut pairs: Vec<(accesskit::NodeId, Declared)>) -> Vec<(accesskit::NodeId, Declared)> {
+pub(super) fn sampled_actions(tree: &AccessView, mut pairs: Vec<(accesskit::NodeId, Action)>) -> Vec<(accesskit::NodeId, Action)> {
     let rank: std::collections::HashMap<accesskit::NodeId, usize> = tree_order(tree).into_iter().enumerate().map(|(at, key)| (key, at)).collect();
     pairs.sort_by_key(|(node, _)| rank.get(node).copied().unwrap_or(usize::MAX));
     let ordered = pairs;
     if !samples_repeats() {
         return ordered;
     }
-    let set_of = |(node, declared): &(accesskit::NodeId, Declared)| (tree.parent_of_key(*node), tree.role_of(*node), *declared);
-    let mut sets: Vec<Vec<(accesskit::NodeId, Declared)>> = Vec::new();
+    let set_of = |(node, declared): &(accesskit::NodeId, Action)| (tree.parent_of_key(*node), tree.role_of(*node), *declared);
+    let mut sets: Vec<Vec<(accesskit::NodeId, Action)>> = Vec::new();
     for pair in ordered {
         match sets.iter_mut().find(|set| set_of(&set[0]) == set_of(&pair)) {
             Some(set) => set.push(pair),

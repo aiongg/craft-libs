@@ -105,7 +105,14 @@ impl JobBoard {
         let options = QueueOptions { lanes: QueueOptions::default_lanes().max(1), name: "craft-jobs", ..QueueOptions::default() };
         let queue = JobQueue::new(jobs, wake.clone(), options);
         JobBoard {
-            inner: Arc::new(Inner { queue, posted: Mutex::new(Vec::new()), wake, waker, serial: AtomicU64::new(0), shared: Mutex::new(HashMap::new()) }),
+            inner: Arc::new(Inner {
+                queue,
+                posted: Mutex::new(Vec::new()),
+                wake,
+                waker,
+                serial: AtomicU64::new(0),
+                shared: Mutex::new(HashMap::new()),
+            }),
         }
     }
 

@@ -1,6 +1,6 @@
 //! Background results (14): one result per key in runtime memory, produced by a job on a `host::queue::JobQueue` per context.
 
-pub use crate::contract::rt::{Delivery, JobBoard};
+pub use crate::contract::rt::pending::{Delivery, JobBoard, JobHandle};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, repaint};
 use crate::runtime::env::Env;
@@ -127,16 +127,16 @@ impl<T: Clone, E: Clone> Shared<T, E> {
 
 /// Held by the queued job: dropped before it delivers (a panic, a cancelled or dropped job), it marks the landing
 /// lost so the next pass submits again.
-struct Delivery<T, E>(Arc<Shared<T, E>>, bool);
+struct PollDelivery<T, E>(Arc<Shared<T, E>>, bool);
 
-impl<T, E> Delivery<T, E> {
+impl<T, E> PollDelivery<T, E> {
     fn land(&mut self, result: Result<T, E>) {
         *self.0.landing.lock().unwrap_or_else(PoisonError::into_inner) = Landing::Done(result);
         self.1 = true;
     }
 }
 
-impl<T, E> Drop for Delivery<T, E> {
+impl<T, E> Drop for PollDelivery<T, E> {
     fn drop(&mut self) {
         if !self.1 {
             *self.0.landing.lock().unwrap_or_else(PoisonError::into_inner) = Landing::Lost;
@@ -294,7 +294,7 @@ pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 's
         let progress = Progress { bits: Arc::new(AtomicU32::new(NO_REPORT)), ctx: ctx.clone() };
         let shared = Arc::new(Shared { landing: Mutex::new(Landing::Running), progress: progress.clone() });
         let cancel = Cancel::new();
-        let (mut delivery, token) = (Delivery(shared.clone(), false), cancel.clone());
+        let (mut delivery, token) = (PollDelivery(shared.clone(), false), cancel.clone());
         let queue = queue_of(&ctx, host.jobs_shared());
         slot.started = Some(Started { shared, _owner: Arc::new(CancelOnDrop(cancel)) });
         queue.submit(id, priority, move |queued| {

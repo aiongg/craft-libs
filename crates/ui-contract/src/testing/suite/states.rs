@@ -3,9 +3,10 @@
 
 use super::{ANY, Case, Subject};
 use crate::contract::{Probe, ShapeKind};
-use crate::testing::access::{Declared, is_interactive, violations};
+use crate::testing::access::{is_interactive, violations};
 use crate::testing::story::Required;
 use crate::testing::story_run::StoryHarness;
+use accesskit::Action;
 use craft_behavior::Input;
 use craft_host::target::Os;
 

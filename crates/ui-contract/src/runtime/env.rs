@@ -13,7 +13,7 @@ pub use units::{ColumnSize, LengthUnits, PointSize, UnitKind, UnitWords, Units, 
 
 use crate::contract::Context;
 use crate::contract::Ui;
-use crate::contract::rt::{EnvCells, ThemeBase};
+pub use crate::contract::rt::env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
 use crate::primitives::Id;
 use crate::runtime::commands::CommandChain;
 use crate::style::{EnvKey, GlyphRole, Ink, SurfaceKind, UiTokens};

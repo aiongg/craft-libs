@@ -1480,15 +1480,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
-name = "cgl"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ced0551234e87afee12411d535648dd89d2e7f34c78b753395567aff3d447ff"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "chacha20"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4676,6 +4667,7 @@ dependencies = [
  "craft-ui-contract",
  "craft-ui-panels",
  "craft-ui-patterns",
+ "craft-ui-rt",
  "craft-ui-shell",
  "craft-ui-widgets",
  "egui",
@@ -4738,12 +4730,12 @@ dependencies = [
  "craft-ui-contract",
  "craft-ui-macros",
  "craft-ui-platform-headless",
+ "craft-ui-render-epaint",
  "craft-ui-rt",
  "craft-ui-test-kit",
  "craft-window",
  "ecolor",
  "egui",
- "egui_kittest",
  "epaint",
  "epaint_default_fonts",
  "flate2",
@@ -4794,7 +4786,6 @@ dependencies = [
  "craft-ui",
  "craft-update",
  "craft-window",
- "eframe",
  "egui",
  "proc-macro2",
  "quote",
@@ -4802,7 +4793,9 @@ dependencies = [
  "serde_json",
  "syn 2.0.119",
  "toml",
+ "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
  "web-time",
 ]
 
@@ -4962,17 +4955,21 @@ dependencies = [
  "craft-behavior",
  "craft-host",
  "craft-i18n",
+ "craft-keymap",
  "craft-platform",
  "craft-svg",
  "craft-theme",
  "craft-ui-macros",
  "craft-ui-panels",
+ "craft-ui-platform-headless",
+ "craft-ui-platform-winit",
+ "craft-ui-render-epaint",
+ "craft-ui-render-skia",
+ "craft-ui-rt",
  "craft-ui-shell",
  "craft-ui-test-kit",
  "craft-window",
- "eframe",
  "egui",
- "raw-window-handle",
  "serde",
  "serde_json",
  "web-time",
@@ -4989,7 +4986,6 @@ dependencies = [
  "craft-ui-contract",
  "craft-ui-platform-headless",
  "craft-ui-rt",
- "egui",
  "web-time",
 ]
 
@@ -6078,9 +6074,6 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
- "egui_glow",
- "glutin",
- "glutin-winit",
  "image",
  "js-sys",
  "log",
@@ -6146,7 +6139,6 @@ version = "0.37.0"
 source = "git+https://github.com/storytold/egui.git?rev=9952df2fb315a5c07d200ce09e19cf176c417206#9952df2fb315a5c07d200ce09e19cf176c417206"
 dependencies = [
  "block2 0.6.2",
- "bytemuck",
  "egui",
  "log",
  "objc2 0.6.5",
@@ -6157,19 +6149,6 @@ dependencies = [
  "raw-window-handle",
  "web-time",
  "windows-sys 0.61.2",
- "winit",
-]
-
-[[package]]
-name = "egui_glow"
-version = "0.37.0"
-source = "git+https://github.com/storytold/egui.git?rev=9952df2fb315a5c07d200ce09e19cf176c417206#9952df2fb315a5c07d200ce09e19cf176c417206"
-dependencies = [
- "bytemuck",
- "egui",
- "glow",
- "log",
- "profiling",
  "winit",
 ]
 
@@ -7224,62 +7203,6 @@ dependencies = [
  "slotmap",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "glutin"
-version = "0.32.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12124de845cacfebedff80e877bb37b5b75c34c5a4c89e47e1cdd67fb6041325"
-dependencies = [
- "bitflags 2.13.2",
- "cfg_aliases",
- "cgl",
- "dispatch2",
- "glutin_egl_sys",
- "glutin_glx_sys",
- "glutin_wgl_sys",
- "libloading",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-core-foundation",
- "objc2-foundation 0.3.2",
- "once_cell",
- "raw-window-handle",
- "windows-sys 0.52.0",
- "x11-dl",
-]
-
-[[package]]
-name = "glutin-winit"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85edca7075f8fc728f28cb8fbb111a96c3b89e930574369e3e9c27eb75d3788f"
-dependencies = [
- "cfg_aliases",
- "glutin",
- "raw-window-handle",
- "winit",
-]
-
-[[package]]
-name = "glutin_egl_sys"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c4680ba6195f424febdc3ba46e7a42a0e58743f2edb115297b86d7f8ecc02d2"
-dependencies = [
- "gl_generator",
- "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "glutin_glx_sys"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a7bb2938045a88b612499fbcba375a77198e01306f52272e692f8c1f3751185"
-dependencies = [
- "gl_generator",
- "x11-dl",
 ]
 
 [[package]]
@@ -12796,9 +12719,11 @@ name = "story-render"
 version = "0.1.0"
 dependencies = [
  "craft-behavior",
+ "craft-theme",
  "craft-ui",
  "craft-ui-gallery",
- "egui",
+ "craft-ui-render-epaint",
+ "craft-ui-rt",
  "image",
 ]
 
@@ -15948,6 +15873,11 @@ source = "git+https://github.com/storytold/egui.git?rev=9952df2fb315a5c07d200ce0
 
 [[patch.unused]]
 name = "egui_extras"
+version = "0.37.0"
+source = "git+https://github.com/storytold/egui.git?rev=9952df2fb315a5c07d200ce09e19cf176c417206#9952df2fb315a5c07d200ce09e19cf176c417206"
+
+[[patch.unused]]
+name = "egui_glow"
 version = "0.37.0"
 source = "git+https://github.com/storytold/egui.git?rev=9952df2fb315a5c07d200ce09e19cf176c417206#9952df2fb315a5c07d200ce09e19cf176c417206"
 
