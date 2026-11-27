@@ -1,10 +1,10 @@
 //! `FooterSlot`: the cell where a container's body places the container's footer (`FooterPlace::Body`).
 
-use crate::contract::{Common, Component, Cx, MeasureCx, Role};
-use crate::runtime::pass_state;
+use crate::contract::{Common, Component, Context, Cx, Id, MeasureCx, Response, Role};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Axis, Metrics, Sense};
-use egui::{Context, Id, IdMap, Rect, Response, Vec2};
+use craft_ui_rt::{Rect, Vec2};
+use std::collections::HashMap;
 
 /// The style of a footer slot: no look of its own.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -67,24 +67,25 @@ impl Component for FooterSlot {
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         if let Some(slot) = cx.core.env.footer_slot()
-            && !crate::runtime::measure::active(&cx.core.ctx)
+            && !cx.core.is_measuring()
         {
-            pass_state::with::<Slots, _>(&cx.core.ctx, |slots| slots.0.insert(slot.owner, cx.core.rect));
+            cx.core.context().service::<Slots, _>(|slots| slots.0.insert(slot.owner, cx.core.rect));
         }
         cx.core.response.clone()
     }
 }
 
-/// The rect the footer slot of each container whose footer its body places took in this run, by container.
+/// The rect the footer slot of each container whose footer its body places took in its body's real run, by
+/// container. `finish` runs on every show, kept slots included, so a body's run always places its slot.
 #[derive(Default)]
-pub(crate) struct Slots(IdMap<Rect>);
+pub(crate) struct Slots(HashMap<Id, Rect>);
 
-/// Forgets the slot of `owner` before its body runs, so the footer step reads only a slot this run placed.
+/// Forgets the slot of `owner` before its body runs, so the container reads only a slot this run placed.
 pub(crate) fn clear(ctx: &Context, owner: Id) {
-    pass_state::with::<Slots, _>(ctx, |slots| slots.0.remove(&owner));
+    ctx.service::<Slots, _>(|slots| slots.0.remove(&owner));
 }
 
 /// The rect the body of `owner` placed its footer slot at in this run.
 pub(crate) fn take(ctx: &Context, owner: Id) -> Option<Rect> {
-    pass_state::with::<Slots, _>(ctx, |slots| slots.0.remove(&owner))
+    ctx.service::<Slots, _>(|slots| slots.0.remove(&owner))
 }

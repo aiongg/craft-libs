@@ -256,6 +256,11 @@ impl Flow {
         self.ordinals.child(self.id, type_key, source)
     }
 
+    /// The id and child key the next `child` call with these arguments gives, without counting it.
+    pub(crate) fn peek_child(&self, type_key: u64, source: IdSource) -> (Id, u64) {
+        self.ordinals.clone().child(self.id, type_key, source)
+    }
+
     fn grid_cell(&self) -> (usize, usize) {
         let Dir::Grid { widths, .. } = &self.dir else { return (0, 0) };
         let columns = widths.len().max(1);

@@ -8,17 +8,16 @@ use std::sync::{Arc, Mutex};
 use crate::skeleton::IconButton;
 use craft_behavior::placement::Defaults;
 use craft_behavior::{IconId, PartKey};
-use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::windows::{WindowRegistry, caption_regions};
-use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Cx, EnvCells, JobBoard, MeasureCx, MemoView, Outcome, Pending, Response, Ui, WindowEnv, show_dialog, show_leaf,
-    window_root, window_root_with,
-};
-use craft_ui_contract::contract::{MemoKey, NoValue};
-use craft_ui_contract::runtime::windows::{CaptionRegions, HitSink, WindowHit};
+use craft_ui::contract::overlay::{Overlay, show_dialog};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, MemoView, NoValue, Outbox, Outcome, PartsCx, Pending, Response, Role, Show as _, Ui};
+use craft_ui::runtime::env::EnvCells;
+use craft_ui::runtime::pending::JobBoard;
+use craft_ui::runtime::windows::{CaptionRegions, HitSink, WindowEnv, WindowHit, WindowRegistry, caption_regions, rt_spec, window_root_with};
+use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{CloseReason, MonitorInfo, Platform, Pos2, Rect, Sense, StepReport, Vec2, WindowCommand, WindowId, WindowSpec};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::Rig;
 use craft_window::Button;
 use craft_window::restore::Store;
@@ -26,7 +25,12 @@ use craft_window::restore::Store;
 const FADE_END: f64 = 0.25;
 
 /// A zero-input leaf that answers its window's close requests.
-struct CloseGuard;
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct CloseGuard {
+    #[common]
+    common: Common,
+}
 
 struct GuardOut {
     response: Response,
@@ -42,10 +46,16 @@ impl Outcome for GuardOut {
 }
 
 impl Component for CloseGuard {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
+    const ROLE: Role = Role::Node(accesskit::Role::GenericContainer);
+    const STOPS: bool = false;
+    type Style = PlainStyle;
     type Output = GuardOut;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+    fn style(_: &StyleCx<'_>, _: CloseGuardStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::new(4.0, 4.0)
     }
 
@@ -53,27 +63,34 @@ impl Component for CloseGuard {
         true
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> GuardOut {
+    fn finish(self, cx: Cx<'_, Self>) -> GuardOut {
         GuardOut { response: cx.response.clone(), ask: cx.close_request() }
     }
 }
 
-impl ComponentKey for CloseGuard {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
 /// A title bar: a drag area for the window with a button over it.
-struct TitleBar;
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct TitleBar {
+    #[common]
+    common: Common,
+}
 
 impl TitleBar {
     const DRAG: PartKey = PartKey::new("drag");
 }
 
 impl Component for TitleBar {
-    const ROLE: accesskit::Role = accesskit::Role::TitleBar;
+    const ROLE: Role = Role::Node(accesskit::Role::TitleBar);
+    const STOPS: bool = false;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
+    fn style(_: &StyleCx<'_>, _: TitleBarStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::new(300.0, 30.0)
     }
 
@@ -81,17 +98,13 @@ impl Component for TitleBar {
         Sense::HOVER
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut craft_ui_contract::contract::rt::PartsCx<'_, Self>) {
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         cx.part(Self::DRAG, rect).exclusive(WindowHit::Move);
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
-}
-
-impl ComponentKey for TitleBar {
-    fn key(&self, _: &mut MemoKey) {}
 }
 
 struct App {
@@ -126,8 +139,8 @@ impl Default for App {
     }
 }
 
-fn guard(ui: &mut Ui<'_, '_>, app: &mut App, name: &'static str) {
-    if let Some(reason) = show_leaf(CloseGuard, ui).ask {
+fn guard(ui: &mut Ui, app: &mut App, name: &'static str) {
+    if let Some(reason) = (CloseGuard { common: Common::new() }).show(ui).ask {
         if app.allow_close {
             ui.close_window();
         } else {
@@ -136,10 +149,10 @@ fn guard(ui: &mut Ui<'_, '_>, app: &mut App, name: &'static str) {
     }
 }
 
-fn main_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
+fn main_ui(ui: &mut Ui, app: &mut App) {
     app.main_runs += 1;
     if app.title_bar {
-        show_leaf(TitleBar, ui);
+        let _ = TitleBar { common: Common::new() }.show(ui);
     }
     let open = IconButton::new(IconId::new("plus"), "Open").show(ui);
     app.open = open.rect;
@@ -154,7 +167,7 @@ fn main_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     }
 }
 
-fn second_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
+fn second_ui(ui: &mut Ui, app: &mut App) {
     app.second_runs += 1;
     let button = IconButton::new(IconId::new("plus"), "Second").show(ui);
     app.second_button = button.rect;
@@ -168,9 +181,9 @@ fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
     let main = rig.main;
     rig.step_with(&mut |window, cx| {
         if window == main {
-            window_root(cx, |ui| main_ui(ui, app));
+            window_root_with(cx, WindowEnv::default(), |ui| main_ui(ui, app));
         } else {
-            window_root(cx, |ui| second_ui(ui, app));
+            window_root_with(cx, WindowEnv::default(), |ui| second_ui(ui, app));
         }
     })
 }
@@ -336,6 +349,25 @@ struct Jobbed {
     other_runs: u32,
 }
 
+/// What the two views of the job trial report.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum JobEvent {
+    Ran(Option<u32>),
+    OtherRan,
+}
+
+fn job_view(out: &mut Outbox<'_, JobEvent>, ui: &mut Ui) {
+    let result = match ui.job("answer", || Ok::<u32, ()>(7)) {
+        Pending::Ready(v) => Some(v),
+        _ => None,
+    };
+    out.send(JobEvent::Ran(result));
+}
+
+fn other_view(out: &mut Outbox<'_, JobEvent>, _: &mut Ui) {
+    out.send(JobEvent::OtherRan);
+}
+
 #[derive(Clone, Default)]
 struct Manual(Arc<Mutex<Vec<Box<dyn FnOnce() + Send>>>>);
 
@@ -359,14 +391,15 @@ fn a_job_wake_delivers_through_the_driver_and_runs_only_the_view_that_started_it
     let frame = |rig: &mut Rig<RecordingRenderer>, app: &mut Jobbed| {
         rig.frame_with(0.0, &mut |_, cx| {
             window_root_with(cx, host.clone(), |ui| {
-                MemoView::new(1u32).show(ui, |ui, _| {
-                    app.view_runs += 1;
-                    app.result = match ui.job("answer", || Ok::<u32, ()>(7)) {
-                        Pending::Ready(v) => Some(v),
-                        _ => None,
-                    };
-                });
-                MemoView::new(2u32).show(ui, |_, _| app.other_runs += 1);
+                let mut sent = Vec::new();
+                let _ = MemoView::new(1u32, Outbox::new(&mut sent), job_view).show(ui);
+                let _ = MemoView::new(2u32, Outbox::new(&mut sent), other_view).show(ui);
+                for event in sent {
+                    match event {
+                        JobEvent::Ran(result) => (app.view_runs, app.result) = (app.view_runs + 1, result),
+                        JobEvent::OtherRan => app.other_runs += 1,
+                    }
+                }
             })
         })
     };
@@ -404,7 +437,7 @@ fn exclusive_parts_become_caption_regions_and_reach_the_hit_sink() {
     let sink = HitSink::default();
     registry.attach_hit_sink(main, sink.clone());
     let ran = rig.step_with(&mut |_, cx| {
-        window_root(cx, |ui| main_ui(ui, &mut app));
+        window_root_with(cx, WindowEnv::default(), |ui| main_ui(ui, &mut app));
     });
     registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), true, 0.0);
     let _ = ran;
@@ -505,11 +538,11 @@ fn a_decorated_window_reopens_at_its_outer_position_without_drift() {
 
 #[test]
 fn a_spec_carries_level_and_taskbar_to_the_platform() {
-    use craft_ui_contract::runtime::windows::{WindowLevel as Level, WindowSpec as Spec};
+    use craft_ui::runtime::windows::{WindowLevel as Level, WindowSpec as Spec};
     let frame = |_| None;
-    let tool = craft_ui_contract::contract::rt::windows::rt_spec(&Spec::tool(), "Tools", None, &frame);
+    let tool = rt_spec(&Spec::tool(), "Tools", None, &frame);
     assert_eq!((tool.level, tool.taskbar), (craft_ui_rt::WindowLevel::AboveOthers, false));
-    let dialog = craft_ui_contract::contract::rt::windows::rt_spec(&Spec::dialog().level(Level::Normal), "Dlg", None, &frame);
+    let dialog = rt_spec(&Spec::dialog().level(Level::Normal), "Dlg", None, &frame);
     assert_eq!((dialog.level, dialog.taskbar), (craft_ui_rt::WindowLevel::Normal, true));
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
     let window = rig.driver.open_inline_window(&tool);

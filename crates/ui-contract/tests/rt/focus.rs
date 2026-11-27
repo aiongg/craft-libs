@@ -3,16 +3,17 @@
 
 use crate::skeleton::{IconButton, Stack};
 use craft_behavior::{IconId, NavShape};
-use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Cx, MeasureCx, MemoView, OverlayUi, PopupHandle, Response, Ui, show_dialog, show_leaf, window_root,
+use craft_ui::contract::overlay::{Overlay, show_dialog};
+use craft_ui::contract::{
+    BodyCx, Common, Component, Cx, MeasureCx, MemoView, NoValue, Outbox, Outcome, OverlayUi, PopupHandle, Response, Role, Show as _, Ui,
 };
-use craft_ui_contract::contract::{Input as InputKind, MemoKey};
-use craft_ui_contract::runtime::focus::{KeyUse, Roving};
-use craft_ui_contract::runtime::overlay::CloseReason;
+use craft_ui::runtime::focus::Roving;
+use craft_ui::runtime::windows::{WindowEnv, window_root_with};
+use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Key, Mods, Rect, Sense, StepReport, Vec2};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::Rig;
 
 /// Past the theme's hover fade, which paint reads from the clock.
@@ -23,9 +24,14 @@ fn menu() -> PopupHandle {
 }
 
 /// A button, a Tab stop, that toggles a popover of two rows when activated.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
 struct MenuButton {
-    toggle: bool,
+    #[common]
+    common: Common,
+    #[key(skip)]
     rows: Option<Vec<Rect>>,
+    #[key(skip)]
     open: Option<bool>,
 }
 
@@ -35,23 +41,24 @@ struct MenuOut {
     open: Option<bool>,
 }
 
-impl craft_ui_contract::contract::rt::Outcome for MenuOut {
-    type Value = craft_ui_contract::contract::NoValue;
+impl Outcome for MenuOut {
+    type Value = NoValue;
 
     fn response(&self) -> &Response {
         &self.response
     }
 }
 
-impl ComponentKey for MenuButton {
-    fn key(&self, _: &mut MemoKey) {}
-}
-
 impl Component for MenuButton {
-    const ROLE: accesskit::Role = accesskit::Role::Button;
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
     type Output = MenuOut;
 
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
+    fn style(_: &StyleCx<'_>, _: MenuButtonStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::splat(cx.tokens.size.button)
     }
 
@@ -59,19 +66,18 @@ impl Component for MenuButton {
         Sense::HOVER | Sense::CLICK
     }
 
-    fn keys(&self) -> Option<KeyUse> {
-        Some(KeyUse::of(InputKind::Pointer))
-    }
-
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.toggle = cx.clicked();
+        if cx.response.clicked() {
+            if menu().is_open(cx) {
+                menu().close(cx);
+            } else {
+                menu().open(cx);
+            }
+        }
     }
 
-    fn overlay(&mut self, ui: &mut OverlayUi<'_, '_>) {
-        if self.toggle {
-            ui.toggle(menu());
-        }
-        let shown = ui.show(menu(), &Overlay::popover(), |ui| {
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let shown = ui.show(menu(), Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
             let cut = IconButton::new(IconId::new("cut"), "Cut").show(ui);
             let copy = IconButton::new(IconId::new("copy"), "Copy").show(ui);
             (vec![cut.rect, copy.rect], cut.clicked() || copy.clicked())
@@ -79,15 +85,33 @@ impl Component for MenuButton {
         if let Some((rows, picked)) = shown {
             self.rows = Some(rows);
             if picked {
-                ui.close(menu(), CloseReason::Activated);
+                menu().close(cx);
             }
         }
-        self.open = Some(ui.is_open(menu()));
+        self.open = Some(menu().is_open(cx));
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> MenuOut {
+    fn finish(self, cx: Cx<'_, Self>) -> MenuOut {
         MenuOut { response: cx.response.clone(), rows: self.rows, open: self.open }
     }
+}
+
+/// What the view holding C and D reports to the app.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ViewEvent {
+    Ran,
+    CClicked,
+}
+
+fn view(out: &mut Outbox<'_, ViewEvent>, ui: &mut Ui) -> (Rect, Rect) {
+    out.send(ViewEvent::Ran);
+    Stack::new().show(ui, |ui| {
+        let c = button(ui, "C");
+        if c.clicked() {
+            out.send(ViewEvent::CClicked);
+        }
+        (c.rect, button(ui, "D").rect)
+    })
 }
 
 /// A window with buttons A and B, a `MemoView` holding C and D, a roving group of R1 to R3, a menu
@@ -129,26 +153,25 @@ impl Default for App {
     }
 }
 
-fn button(ui: &mut Ui<'_, '_>, label: &str) -> Response {
+fn button(ui: &mut Ui, label: &str) -> Response {
     IconButton::new(IconId::new("icon"), label).show(ui)
 }
 
-fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
+fn app_ui(ui: &mut Ui, app: &mut App) {
     app.a = button(ui, "A").rect;
     app.b = button(ui, "B").rect;
-    let (c, d) = MemoView::new(()).show(ui, |ui, _| {
-        app.view_runs += 1;
-        Stack::new().show(ui, |ui| {
-            let c = button(ui, "C");
-            if c.clicked() {
-                app.c_clicks += 1;
-            }
-            (c.rect, button(ui, "D").rect)
-        })
-    });
-    (app.c, app.d) = (c, d);
+    let mut sent = Vec::new();
+    if let Some(shown) = MemoView::new("view", Outbox::new(&mut sent), view).show(ui) {
+        (app.c, app.d) = shown.value;
+    }
+    for event in sent {
+        match event {
+            ViewEvent::Ran => app.view_runs += 1,
+            ViewEvent::CClicked => app.c_clicks += 1,
+        }
+    }
     app.r = Stack::new().roving(Roving::new(NavShape::Flat)).show(ui, |ui| ["R1", "R2", "R3"].map(|l| button(ui, l).rect).to_vec());
-    let out = show_leaf(MenuButton { toggle: false, rows: None, open: None }, ui);
+    let out = MenuButton { common: Common::new(), rows: None, open: None }.show(ui);
     app.menu = out.response.rect;
     if let Some(rows) = out.rows {
         app.rows = rows;
@@ -158,14 +181,14 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     }
     if app.modal_open {
         match show_dialog(ui, 1, &Overlay::modal(), |ui| (button(ui, "OK").rect, button(ui, "Cancel").rect)) {
-            Ok((ok, cancel)) => (app.ok, app.cancel) = (ok, cancel),
+            Ok(shown) => (app.ok, app.cancel) = shown.value,
             Err(_) => app.modal_open = false,
         }
     }
 }
 
 fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
-    rig.step_with(&mut |_, cx| window_root(cx, |ui| app_ui(ui, app)))
+    rig.step_with(&mut |_, cx| window_root_with(cx, WindowEnv::default(), |ui| app_ui(ui, app)))
 }
 
 fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {

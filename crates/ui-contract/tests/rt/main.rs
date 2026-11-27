@@ -1,6 +1,8 @@
 //! Count trials of the contract on craft-ui-rt (docs/contract-rt.md section 13): a frame runs only
 //! the hooks it must. Relations only, no times.
 
+extern crate craft_ui_contract as craft_ui;
+
 mod access;
 mod content;
 mod env;

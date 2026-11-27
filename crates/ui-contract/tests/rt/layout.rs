@@ -1,18 +1,19 @@
 //! Count trials of containers, scopes and layout on craft-ui-rt: scroll offsets move kept content,
 //! `Lazy` builds only rows entering view, a container's header change stays inside it, a measuring
 //! run asks kept children for their size, a click in a footer reuses the body's plan, a scroll body
-//! is as tall as its content until it outgrows the room, and a kept `MemoView` repeats no event.
+//! is as tall as its content until it outgrows the room, a kept `MemoView` repeats no event, and a column group
+//! settles in its first frame.
 
 use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use craft_behavior::Sense;
+use craft_behavior::{ColumnKey, Sense};
 use craft_ui::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps, MemoView,
     Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
 };
-use craft_ui::layout::BodyLayout;
+use craft_ui::layout::{BodyLayout, ColumnGroup};
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::Input;
@@ -440,4 +441,40 @@ fn a_kept_memo_view_returns_its_value_and_no_fresh_event() {
             assert_eq!(seen.last(), Some(&(true, false, None)), "a click elsewhere keeps the view: the kept value, no event");
         }
     }
+}
+
+/// Builds of the window root in the first frame of a column group whose rows report `widths` in order, the widths
+/// they read at the end of it, and the report of a second frame with nothing marked.
+fn group_frames(widths: [f32; 3]) -> (u32, Vec<f32>, StepReport) {
+    let mut rig = rig();
+    let builds = Cell::new(0u32);
+    let read = std::cell::RefCell::new(Vec::new());
+    let mut step = |rig: &mut Rig<RecordingRenderer>| {
+        rig.step_with(&mut |_, cx| {
+            root(cx, |ui| {
+                builds.set(builds.get() + 1);
+                let key = ColumnKey::new("labels");
+                let got = ColumnGroup::scope(ui, "group", |ui, group| widths.map(|w| group.width(ui, &key, w)));
+                *read.borrow_mut() = got.to_vec();
+            })
+        })
+    };
+    step(&mut rig);
+    let first = builds.get();
+    let idle = step(&mut rig);
+    (first, read.into_inner(), idle)
+}
+
+/// A column group whose widest row comes last builds its node once more in the same frame, so the rows before it
+/// read the final width; one whose widest row comes first needs no second build. A frame with nothing marked builds
+/// nothing.
+#[test]
+fn a_column_group_settles_in_its_first_frame_and_rebuilds_only_when_a_row_read_a_narrower_width() {
+    let (first, read, idle) = group_frames([50.0, 40.0, 30.0]);
+    assert_eq!(read, [50.0; 3], "every row reads the widest");
+    assert!(!idle.ran, "a settled group builds nothing: {idle:?}");
+    let (last, read, idle) = group_frames([30.0, 40.0, 50.0]);
+    assert_eq!(read, [50.0; 3], "the rows before the widest read it after the second build");
+    assert_eq!(last, first + 1, "one more build of the group's node in the same frame, none when the widest came first");
+    assert!(!idle.ran, "a settled group builds nothing: {idle:?}");
 }

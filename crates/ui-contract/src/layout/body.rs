@@ -209,6 +209,18 @@ fn shrink_in_turns(units: &[ShrinkUnit], whole: &[f32], first: &[bool], fixed: f
     shrink_widths_in_turn(&cut, first, fixed, room, order)
 }
 
+/// What the shrink step of a row gave one of its units (`shrink_or_drop`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ShrinkCap {
+    /// The width the unit shows at most.
+    pub width: f32,
+    /// The unit dropped out of the row: it shows nothing and takes no place.
+    pub dropped: bool,
+    /// The row gave the unit less than it asks for in no room, or dropped it: what the unit shows depends on the row's
+    /// room. A unit the row did not narrow shows as in no room.
+    pub narrowed: bool,
+}
+
 /// The widths of the units of a row too long for its room, as `shrink_in_turns` gives them, in a row that `drops`
 /// (one whose body does not scroll): when the units do not fit even at their least, the units whose content is made
 /// to be cut (`first`) drop out from the end, each with one `gap`, until the rest fits at their least. A unit that
@@ -282,14 +294,6 @@ fn shrink_widths_in_turn(units: &[ShrinkUnit], first: &[bool], fixed: f32, room:
     first.iter().map(|first| if *first { cut_widths.next() } else { rest_widths.next() }.unwrap_or_default()).collect()
 }
 
-/// Runs `body`, the children of the unwrapped `Row` body `id`, in `ui`, the block they are placed in, with the row's
-/// shrink step: a row fits its room by narrowing its units, first by the room they hold beyond their content (a leaf's
-/// measure past its whole width), then by their content, never past the least each reports, evenly or, in a bar, from
-/// its end, and a row that cannot fit even at its units' leasts keeps their natural widths, except that a row whose
-/// body does not scroll first drops its units made to be cut, from the end (`shrink_or_drop`). A unit is a leaf that
-/// can shrink (elidable text, fields, selects), whose least is its `Proposal::Min`, or a body that does not fill the
-/// row (a captioned field, a nested row), whose least is what its content takes unbounded with every leaf at its least.
-///
 /// The level of each unit of a row whose units show in discrete levels, for `room`. `units` holds each unit's width
 /// at each of its levels, widest (level 0) first. The units give way from the end: first each steps down to its level
 /// 1, then each to its level 2, and so on, stopping as soon as the row fits. Then, from the start, each unit takes back
@@ -330,23 +334,6 @@ pub fn plan_levels(units: &[Vec<f32>], room: f32) -> Vec<usize> {
 }
 
 /// Shows `show`, one unit of the unwrapped `Row` body around it that fits in discrete levels (a ribbon group: full,
-/// compact, collapsed), at the level the row's shrink step gave it. `levels` is how many levels the unit has; `show`
-/// shows it at a level from 0 (the widest) to `levels - 1`, and must be free of side effects in a measuring run, as
-/// every row body is: the row's counting sweep runs it once per level to measure each, in an invisible sizing pass.
-/// `key` names the unit within its row and stays the same in every pass.
-///
-/// The row gives its levelled units their levels before its continuous units narrow (`plan_levels`, in the room the
-/// continuous units leave at their least), and the continuous units narrow by their own rule in what is left. The level
-/// is kept with the row's measuring run, so a pass without one (nothing the row measures changed) shows each unit once,
-/// at its kept level. Outside a shrinking row the unit shows at level 0.
-///
-/// The unit shows on the row's line: a child of it that fills its height takes the line's height, as a direct child of
-/// the row does (`fill_size`). Its children are placed in the unit's own flow, not on slots of the line, and report no
-/// line to the row: a unit of two controls stays one line high. At its level it runs in the width the shrink step gave
-/// that level, a bounded room even in a row that scrolls, so its content lays out as in any room of that width: a
-/// centred row in it centres across its column, not in the view the row scrolls in.
-
-/// Shows `show`, one unit of the unwrapped `Row` body around it that fits in discrete levels (a ribbon group: full,
 /// compact, collapsed), at the level the row's plan gave it. `levels` is how many levels the unit has; `show` shows it
 /// at a level from 0 (the widest) to `levels - 1`, and must be free of side effects in a measuring run, as every body
 /// is: the row's measuring run runs it once per level to measure each. `key` names the unit within its row.
@@ -360,7 +347,7 @@ pub fn levelled_unit(ui: &mut Ui, key: crate::contract::Id, levels: usize, mut s
         let mut widths = Vec::with_capacity(levels);
         let mut widest = Vec2::ZERO;
         for level in 0..levels {
-            let took = ui.unit(key, false, &mut |ui| show(ui, level));
+            let took = ui.unit(key, false, Vec2::ZERO, &mut |ui| show(ui, level));
             if level == 0 {
                 widest = took;
             }
@@ -371,7 +358,7 @@ pub fn levelled_unit(ui: &mut Ui, key: crate::contract::Id, levels: usize, mut s
         return;
     }
     let level = ui.flow.body.next_level().min(levels - 1);
-    ui.unit(key, true, &mut |ui| show(ui, level));
+    ui.unit(key, true, Vec2::ZERO, &mut |ui| show(ui, level));
 }
 
 /// Places a child of `size` in the flow of `ui` and returns its rect: a cell of a `Grid`, the next place in a `Row`
@@ -379,6 +366,19 @@ pub fn levelled_unit(ui: &mut Ui, key: crate::contract::Id, levels: usize, mut s
 #[doc(hidden)]
 pub fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
     ui.flow.allocate(None, size, false)
+}
+
+/// The room a child shown in flow in `ui` gets at the next place: its cell in a `Grid`, what the line or column
+/// leaves in a `Row` or `Stack`, the room the body's plan gave it.
+pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
+    ui.flow.room()
+}
+
+/// The `Grid` body and column the next child shown in `ui` takes a cell of, for its label step's
+/// `ColumnGroup::cell`; `None` outside a grid's body.
+pub(crate) fn grid_cell(ui: &Ui) -> Option<(crate::contract::Id, usize)> {
+    let column = ui.flow.grid_column()?;
+    Some((crate::runtime::memory::sub(ui.flow.id, "grid"), column))
 }
 
 /// Leaves the next cell of a `Grid` body empty; in any other body it takes no room.

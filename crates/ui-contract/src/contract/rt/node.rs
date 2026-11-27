@@ -212,6 +212,8 @@ pub(crate) struct Kept {
     pub(crate) ime: super::ime::ImeKept,
     /// A members collection's rows: one sub-list per row and pointer look (`rt/items.rs`).
     pub(crate) members: Vec<super::items::MemberLooks>,
+    /// The column group reports the node's last build or run made, handed to the open groups again while it is kept.
+    pub(crate) column_reports: Vec<crate::layout::Report>,
 }
 
 impl Kept {
@@ -255,6 +257,7 @@ impl Kept {
             focus: FocusKept::default(),
             ime: Default::default(),
             members: Vec::new(),
+            column_reports: Vec::new(),
         }
     }
 

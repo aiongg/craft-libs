@@ -37,7 +37,7 @@ use crate::contract::{
     Container, ContainerProps, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Id, Inner, Internal, PadEdges, Scroll, SectionRhythm, Sizing,
     TipFn, steps,
 };
-use crate::layout::{BodyLayout, GridFit, RowAlign};
+use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
 use crate::runtime::env::Env;
 use crate::runtime::memory::{MemoryStage, sub};
 
@@ -154,6 +154,8 @@ struct Shape {
     rtl: bool,
     /// The body is collapsed: it shows no children and takes no room.
     closed: bool,
+    /// The labelled rows of the body share the widest label as one column (`ContainerProps::label_column`).
+    label_column: bool,
 }
 
 impl Shape {
@@ -182,6 +184,7 @@ impl Shape {
             bands: Bands::of(props, env, tokens, at_start),
             rtl: env.direction.is_rtl(),
             closed: false,
+            label_column: props.label_column,
         }
     }
 
@@ -314,6 +317,12 @@ impl Flow {
     pub(crate) fn is_grid(&self) -> bool {
         matches!(self.dir_ref(), Dir::Grid { .. })
     }
+
+    /// The column the next child takes in a `Grid` flow; `None` in any other.
+    pub(crate) fn grid_column(&self) -> Option<usize> {
+        let Dir::Grid { widths, .. } = self.dir_ref() else { return None };
+        Some(self.sizes.len() % widths.len().max(1))
+    }
 }
 
 impl Ui<'_, '_> {
@@ -330,10 +339,10 @@ impl Ui<'_, '_> {
         inner.flow.content_size()
     }
 
-    /// Runs `show` in a flow of its own at the next place, a column under the unit's id (a levelled unit's content),
-    /// and returns what it took. A measuring unit takes no room (the caller allocates); one that `places` is
-    /// allocated in this flow, and its children are placed with this flow's.
-    pub(crate) fn unit(&mut self, key: Id, places: bool, show: &mut dyn FnMut(&mut Ui<'_, '_>)) -> Vec2 {
+    /// Runs `show` in a flow of its own at the next place, a column under the unit's id (a levelled unit's content,
+    /// a page of `Pages`), and returns what it took, at least `least`. A measuring unit takes no room (the caller
+    /// allocates); one that `places` is allocated in this flow, and its children are placed with this flow's.
+    pub(crate) fn unit(&mut self, key: Id, places: bool, least: Vec2, show: &mut dyn FnMut(&mut Ui<'_, '_>)) -> Vec2 {
         let start = self.flow.next_min();
         let room = self.flow.room();
         let width = if places { room.x } else { f32::INFINITY };
@@ -346,7 +355,7 @@ impl Ui<'_, '_> {
         let mut inner = Ui::new(&mut *self.cx, flow);
         show(&mut inner);
         let inner = inner.flow;
-        let size = inner.content_size();
+        let size = inner.content_size().max(least);
         self.flow.absorb(&inner);
         if places {
             self.flow.allocate(None, size, false);
@@ -409,6 +418,8 @@ struct Host<'k> {
     kept: Option<&'k mut Kept>,
     /// The window's toggle sweep record, handed to every flow under the container.
     sweep: Option<State<Sweep>>,
+    /// The window's context.
+    ctx: crate::contract::Context,
 }
 
 /// Where a body's children live and what decides whether its plan holds.
@@ -425,7 +436,10 @@ struct BodyAt {
 /// `BodyCx` over it at the region's rect.
 struct Frame<'f> {
     body_id: Id,
+    /// The env the regions are built under (`regions_env`).
     env: &'f Env,
+    /// The env the body is built under: the regions' env with the footer slot of a footer the body places.
+    body_env: Option<Env>,
     resolved: &'f crate::contract::Resolved<'f>,
     stage: MemoryStage,
     open: bool,
@@ -437,14 +451,54 @@ struct Frame<'f> {
 }
 
 impl Frame<'_> {
-    fn with<T>(&mut self, rect: Rect, f: impl FnOnce(&mut BodyCx<'_>) -> T) -> T {
+    /// Runs a region hook at `rect` under the regions' env.
+    fn with<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
+        let env = self.env.clone();
+        self.run(ui, env, rect, f)
+    }
+
+    /// Runs the body at `rect` under the body's env.
+    fn with_body<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
+        let env = self.body_env.clone().unwrap_or_else(|| self.env.clone());
+        self.run(ui, env, rect, f)
+    }
+
+    fn run<T>(&mut self, ui: &mut Ui<'_, '_>, env: Env, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
         let mut bcx = BodyCx::new(self.body_id, self.env.view(), self.resolved, rect, &mut self.stage, &mut self.open, None, None);
-        let out = f(&mut bcx);
+        let out = Env::run_in(ui, env, |ui| f(ui, &mut bcx));
         if self.close.is_none() {
             self.close = bcx.close_requested();
         }
         out
     }
+}
+
+/// The env a container's regions and body are built under: the place env with what the props give the container's
+/// content (its enabled state, label scheme, control size and glyph role, fallback collection, paragraph width), and
+/// the room, inside label and cell fill of the container's own place cleared.
+fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: bool) -> Env {
+    place.derive(|scoped| {
+        scoped.enabled &= enabled;
+        if let Some(collection) = props.fallback_collection {
+            scoped.fallback_collection = Some(collection);
+        }
+        if let Some(scheme) = props.labels {
+            scoped.inherited_mut().values.set(scheme);
+        }
+        if let Some(size) = props.child_size {
+            scoped.size = size;
+        }
+        if let Some(glyphs) = props.child_glyphs {
+            scoped.glyphs = glyphs;
+        }
+        scoped.start_room();
+        scoped.inside_label = None;
+        scoped.cell_fills = false;
+        // A container given its width (a resized dialog) leaves its paragraphs the room it has.
+        if let Some(wrap) = props.wrap_width.filter(|_| !takes_width) {
+            scoped.measure = Some(wrap.points(scoped.tokens.tokens()));
+        }
+    })
 }
 
 /// Shows a container: its body always runs; its own hooks run when its key, size or a region's
@@ -481,7 +535,9 @@ pub(crate) fn show_container<C: Container, R>(
     let resolved = begun.resolved(id);
     let measuring = ui.flow.measuring;
     let stage = if measuring.is_some() { MemoryStage::open_peek(&ctx, body_id) } else { MemoryStage::open(&ctx, body_id) };
-    let mut frame = Frame { body_id, env: &place, resolved: &resolved, stage, open: true, open_at_read: true, close: None, ran: false };
+    let regions = regions_env(&props, &place, resolved.enabled, shape.takes_room().0);
+    let mut frame =
+        Frame { body_id, env: &regions, body_env: None, resolved: &resolved, stage, open: true, open_at_read: true, close: None, ran: false };
     let mut inner_value = None;
     let mut call = |ui: &mut Ui<'_, '_>, bcx: &mut BodyCx<'_>| {
         inner_value = Some(body(ui, bcx));
@@ -489,11 +545,11 @@ pub(crate) fn show_container<C: Container, R>(
     if let Some(under) = measuring {
         let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).map(|p| (p.node, p.local.body.open));
         let (node, kept_open) = (peeked.map(|p| p.0), peeked.and_then(|p| p.1));
-        let open = read_open(&mut component, &props, kept_open);
+        let open = read_open(&mut component, &props, kept_open, &ctx);
         (frame.open, frame.open_at_read) = (open, open);
         shape.closed = !open;
         let tokens = ui.flow.tokens.clone();
-        let into = Host { node, own_kept: false, marked: true, kept: None, sweep };
+        let into = Host { node, own_kept: false, marked: true, kept: None, sweep, ctx: ctx.clone() };
         let (size, flow) = lay_out(&mut component, ui.cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
         ui.flow.absorb(&flow);
         let rect = match at {
@@ -508,16 +564,18 @@ pub(crate) fn show_container<C: Container, R>(
     let output = cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS, text: component.text_input() }, |kept, state, cx| {
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
-            let open = read_open(&mut component, &props, kept.body.open);
+            let open = read_open(&mut component, &props, kept.body.open, &ctx);
             (frame.open, frame.open_at_read) = (open, open);
             shape.closed = !open;
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
-            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };
+            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
+            crate::layout::begin_capture(&ctx);
             let (size, inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
+            kept.column_reports = crate::layout::end_capture(&ctx);
             flow.absorb(&inner);
             if frame.open != frame.open_at_read {
-                write_open(&mut component, kept, frame.open, &resolved);
+                write_open(&mut component, kept, frame.open, &resolved, &props, &ctx);
             }
             let rect = match at {
                 ShowAt::Flow => flow.allocate(Some(cx.node()), size, fills),
@@ -581,14 +639,14 @@ pub(crate) fn show_container_taking<C: Container, R>(
     shown
 }
 
-/// A container's size for `proposal` without showing it, from what `ui` lets a measure read: the
-/// kept size of the node the next `show` reaches answers from its size cache in a build that
-/// already showed it; otherwise the size its props alone give (padding and least width).
+/// A container's size for `proposal` without showing it: a measuring run of its regions and body under the id the
+/// next `show` takes, in which kept children answer from their size cache. A kept container node with an unchanged
+/// key and no mark answers from its own size cache without running anything.
 pub(crate) fn measure_container<C: Container, R>(
-    comp: &mut C,
+    component: &mut C,
     ui: &mut Ui<'_, '_>,
     proposal: craft_behavior::Proposal,
-    _body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
 ) -> Vec2 {
     let room = match proposal {
         craft_behavior::Proposal::Size(size) => size,
@@ -596,29 +654,78 @@ pub(crate) fn measure_container<C: Container, R>(
         craft_behavior::Proposal::Min => Vec2::ZERO,
         _ => ui.flow.room(),
     };
-    let place = Env::of(ui);
-    let shape = Shape::of(comp.props(Internal::new()), &place, &ui.flow.tokens, ui.flow.sizes.is_empty());
-    shape.outer(Vec2::ZERO, room)
+    let begun = super::run::begin(component, ui);
+    let (id, child) = ui.flow.peek_child(type_key::<C>(), begun.common.id.clone());
+    let key = component_key(component);
+    let under = ui.flow.measuring.unwrap_or_else(|| Some(ui.cx.node()));
+    let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).map(|p| {
+        let cached = holds(p.local, key, p.state).then(|| p.local.cached(room)).flatten();
+        (p.node, p.local.body.open, cached, p.local.column_reports.clone())
+    });
+    let ctx = ui.ctx().clone();
+    if let Some((_, _, Some(size), reports)) = &peeked {
+        crate::layout::replay(&ctx, reports);
+        *component.common_mut(Internal::new()) = begun.common;
+        return *size;
+    }
+    let props = component.props(Internal::new()).clone();
+    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, ui.flow.sizes.is_empty());
+    let open = read_open(component, &props, peeked.as_ref().and_then(|p| p.1), &ctx);
+    shape.closed = !open;
+    let size = {
+        let resolved = begun.resolved(id);
+        let body_id = sub(id, "body");
+        let regions = regions_env(&props, &begun.env, resolved.enabled, shape.takes_room().0);
+        let stage = MemoryStage::open_peek(&ctx, body_id);
+        let mut frame =
+            Frame { body_id, env: &regions, body_env: None, resolved: &resolved, stage, open, open_at_read: open, close: None, ran: false };
+        let into = Host { node: peeked.map(|p| p.0), own_kept: false, marked: true, kept: None, sweep: ui.flow.sweep, ctx: ctx.clone() };
+        let tokens = ui.flow.tokens.clone();
+        let origin = ui.flow.next_min();
+        let mut call = |ui: &mut Ui<'_, '_>, bcx: &mut BodyCx<'_>| {
+            body(ui, bcx);
+        };
+        lay_out(component, ui.cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call).0
+    };
+    *component.common_mut(Internal::new()) = begun.common;
+    size
 }
 
-/// The open state: the caller's binding, else the node's kept state, else the collapse's initial
-/// state. A container with no `Collapse` is always open.
-fn read_open<C: Container>(component: &mut C, props: &ContainerProps, kept: Option<bool>) -> bool {
+/// The open state a container saves under `ContainerProps::save`.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+struct OpenState(Option<bool>);
+
+/// The open state: the caller's binding, else the node's kept state, else the state saved under
+/// `save`, else the collapse's initial state. A container with no `Collapse` is always open.
+fn read_open<C: Container>(component: &mut C, props: &ContainerProps, kept: Option<bool>, ctx: &crate::contract::Context) -> bool {
     let Some(collapse) = props.collapse else { return true };
     if let Some(bound) = component.open().and_then(|b| b.get()).and_then(|m| Mixed::same(&m).copied()) {
         return bound;
     }
-    kept.unwrap_or(collapse.initially_open)
+    let saved = || props.save.as_ref().and_then(|key| MemoryStage::peek_saved::<OpenState>(ctx, key).0);
+    kept.or_else(saved).unwrap_or(collapse.initially_open)
 }
 
-/// Writes a changed open state to the caller's binding, else to the node.
-fn write_open<C: Container>(component: &mut C, kept: &mut Kept, open: bool, resolved: &crate::contract::Resolved<'_>) {
+/// Writes a changed open state to the caller's binding, else to the node and to the save key.
+fn write_open<C: Container>(
+    component: &mut C,
+    kept: &mut Kept,
+    open: bool,
+    resolved: &crate::contract::Resolved<'_>,
+    props: &ContainerProps,
+    ctx: &crate::contract::Context,
+) {
     match component.open() {
         Some(mut bind) if !bind.is_kept() => {
             let before = bind.get().unwrap_or(Mixed::Same(!open));
             let _ = bind.apply(&craft_behavior::EditEvent::set(before, open, Arc::from(resolved.label), None));
         }
-        _ => kept.body.open = Some(open),
+        _ => {
+            kept.body.open = Some(open);
+            if let Some(key) = &props.save {
+                crate::runtime::memory::set_saved_value(ctx, key, OpenState(Some(open)));
+            }
+        }
     }
 }
 
@@ -663,7 +770,7 @@ fn lay_out<C: Container>(
     let line = || Dir::Row { wrap: false, start: 0.0, spread: 0.0 };
     // The end column lies at the end edge: the right in a left-to-right env, the left in a right-to-left one.
     let end_w = match shape.end {
-        Some(_) => region_size(cx, &into, Region::End, id, inner, tokens, &mut |ui| frame.with(inner, |bcx| component.end(ui, bcx))).x,
+        Some(_) => region_size(cx, &into, Region::End, id, inner, tokens, &mut |ui| frame.with(ui, inner, |ui, bcx| component.end(ui, bcx))).x,
         None => 0.0,
     };
     let end_band = if shape.end.is_some() { end_w + shape.end_gap + shape.bands.end } else { 0.0 };
@@ -680,8 +787,10 @@ fn lay_out<C: Container>(
     let mut header_w = 0.0;
     if shape.header.is_some() {
         let line_rect = Rect::from_min_max(Pos2::new(main_min, top), Pos2::new(main_max, inner.max.y));
-        let controls_w =
-            region_size(cx, &into, Region::Controls, id, line_rect, tokens, &mut |ui| frame.with(line_rect, |bcx| component.controls(ui, bcx))).x;
+        let controls_w = region_size(cx, &into, Region::Controls, id, line_rect, tokens, &mut |ui| {
+            frame.with(ui, line_rect, |ui, bcx| component.controls(ui, bcx))
+        })
+        .x;
         let (header_rect, controls_rect) = if shape.rtl {
             (
                 Rect::from_min_max(Pos2::new(main_min + controls_w, top), line_rect.max),
@@ -693,10 +802,11 @@ fn lay_out<C: Container>(
                 Rect::from_min_max(Pos2::new(main_max - controls_w, top), line_rect.max),
             )
         };
-        let (hn, header) =
-            region(cx, &into, Region::Header, id, header_rect, line(), tokens, &mut |ui| frame.with(header_rect, |bcx| component.header(ui, bcx)));
+        let (hn, header) = region(cx, &into, Region::Header, id, header_rect, line(), tokens, &mut |ui| {
+            frame.with(ui, header_rect, |ui, bcx| component.header(ui, bcx))
+        });
         let (cn, controls) = region(cx, &into, Region::Controls, id, controls_rect, line(), tokens, &mut |ui| {
-            frame.with(controls_rect, |bcx| component.controls(ui, bcx))
+            frame.with(ui, controls_rect, |ui, bcx| component.controls(ui, bcx))
         });
         place(hn, Rect::from_min_size(header_rect.min, header));
         place(cn, Rect::from_min_size(controls_rect.min, controls));
@@ -712,16 +822,32 @@ fn lay_out<C: Container>(
         }
     }
     // The footer's height and the region under the body, known before the body that lies above them.
+    // A footer at the foot or the top of the end region (`FooterPlace::EndBottom`, `EndTop`) is as wide as that region.
+    let in_end = shape.end.is_some() && shape.footer.is_some_and(|f| matches!(f.place, FooterPlace::EndBottom | FooterPlace::EndTop));
+    let footer_room = if in_end { Rect::from_min_size(inner.min, Vec2::new(end_w, inner.height())) } else { inner };
     let footer_h = match shape.footer {
-        Some(_) => region_size(cx, &into, Region::Footer, id, inner, tokens, &mut |ui| frame.with(inner, |bcx| component.footer(ui, bcx))).y,
+        Some(_) => {
+            region_size(cx, &into, Region::Footer, id, footer_room, tokens, &mut |ui| {
+                frame.with(ui, footer_room, |ui, bcx| component.footer(ui, bcx))
+            })
+            .y
+        }
         None => 0.0,
     };
-    let footer_band = if shape.footer.is_some() { footer_h + shape.footer_gap + shape.bands.footer } else { 0.0 };
+    // A footer the body places (`FooterPlace::Body`) takes no band: the body's `FooterSlot` is as large as it measured.
+    let in_body = shape.footer.is_some_and(|f| f.place == FooterPlace::Body);
+    let footer_band = if shape.footer.is_some() && !in_body && !in_end { footer_h + shape.footer_gap + shape.bands.footer } else { 0.0 };
+    let ctx = into.ctx.clone();
+    if in_body {
+        let size = Vec2::new(inner.width(), footer_h);
+        frame.body_env = Some(frame.env.derive(|scoped| scoped.footer_slot = Some(crate::runtime::env::FooterSlotOf { owner: id, size })));
+        crate::contract::footer_slot::clear(&ctx, id);
+    }
     let main = Rect::from_min_max(Pos2::new(main_min, top), Pos2::new(main_max, inner.max.y));
     let body_end_h = if shape.closed {
         0.0
     } else {
-        region_size(cx, &into, Region::BodyEnd, id, main, tokens, &mut |ui| frame.with(main, |bcx| component.body_end(ui, bcx))).y
+        region_size(cx, &into, Region::BodyEnd, id, main, tokens, &mut |ui| frame.with(ui, main, |ui, bcx| component.body_end(ui, bcx))).y
     };
     let body_end_band = if body_end_h > 0.0 { body_end_h + shape.gap } else { 0.0 };
     let body_rect = Rect::from_min_max(main.min, Pos2::new(main.max.x, (inner.max.y - footer_band - body_end_band).max(top)));
@@ -738,27 +864,52 @@ fn lay_out<C: Container>(
     if body_end_h > 0.0 {
         let rect = Rect::from_min_max(Pos2::new(main.min.x, below + shape.gap), Pos2::new(main.max.x, below + shape.gap + body_end_h));
         let (bn, size) =
-            region(cx, &into, Region::BodyEnd, id, rect, Dir::Stack, tokens, &mut |ui| frame.with(rect, |bcx| component.body_end(ui, bcx)));
+            region(cx, &into, Region::BodyEnd, id, rect, Dir::Stack, tokens, &mut |ui| frame.with(ui, rect, |ui, bcx| component.body_end(ui, bcx)));
         place(bn, Rect::from_min_size(rect.min, size));
         below = rect.max.y;
     }
+    let fills_height = shape.sizing.fills_height() || shape.scroll.is_some_and(|_| shape.takes_room().1);
+    // How far down the end column reaches, its footer included.
+    let mut end_bottom = below;
     if shape.end.is_some() {
         let end_top = if shape.end.is_some_and(|e| e.full_height) || shape.header.is_none() { inner.min.y } else { main.min.y };
         let (end_min, end_max) = if shape.rtl { (inner.min.x, inner.min.x + end_w) } else { (inner.max.x - end_w, inner.max.x) };
-        let end_rect = Rect::from_min_max(Pos2::new(end_min, end_top), Pos2::new(end_max, inner.max.y));
+        let top_footer = in_end && shape.footer.is_some_and(|f| f.place == FooterPlace::EndTop);
+        let content_top = if top_footer { end_top + footer_h + shape.footer_gap } else { end_top };
+        let end_rect = Rect::from_min_max(Pos2::new(end_min, content_top), Pos2::new(end_max, inner.max.y));
         let (en, end) =
-            region(cx, &into, Region::End, id, end_rect, Dir::Stack, tokens, &mut |ui| frame.with(end_rect, |bcx| component.end(ui, bcx)));
+            region(cx, &into, Region::End, id, end_rect, Dir::Stack, tokens, &mut |ui| frame.with(ui, end_rect, |ui, bcx| component.end(ui, bcx)));
         place(en, Rect::from_min_size(end_rect.min, end));
+        end_bottom = end_bottom.max(content_top + end.y);
+        if in_end {
+            let footer_top = match top_footer {
+                true => end_top,
+                false if fills_height => inner.max.y - footer_h,
+                // At the foot of the column: level with the body's end, or under the end region's content.
+                false => (content_top + end.y + shape.footer_gap).max(below - footer_h),
+            };
+            let footer_rect = Rect::from_min_size(Pos2::new(end_min, footer_top), Vec2::new(end_w, footer_h));
+            let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, Dir::Stack, tokens, &mut |ui| {
+                frame.with(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
+            });
+            place(fnode, Rect::from_min_size(footer_rect.min, footer));
+            end_bottom = end_bottom.max(footer_top + footer.y);
+        }
         if shape.bands.end > 0.0 {
             let x = if shape.rtl { end_max + shape.end_gap / 2.0 } else { end_min - shape.end_gap / 2.0 - shape.bands.end };
-            let rule = Rect::from_min_size(Pos2::new(x, end_top), Vec2::new(shape.bands.end, (below - end_top).max(end.y)));
+            let rule = Rect::from_min_size(Pos2::new(x, end_top), Vec2::new(shape.bands.end, end_bottom - end_top));
             place(rule_node(cx, real, Region::RuleEnd, divider), rule);
         }
     }
-    let fills_height = shape.sizing.fills_height() || shape.scroll.is_some_and(|_| shape.takes_room().1);
-    let footer_top = if fills_height { inner.max.y - footer_h } else { below + shape.footer_gap + shape.bands.footer };
+    let footer_top = if fills_height { inner.max.y - footer_h } else { end_bottom + shape.footer_gap + shape.bands.footer };
     let mut footer_w = 0.0;
-    if shape.footer.is_some() {
+    // The body's real run placed its slot; a measuring run places none, and the footer takes no room of its own.
+    let slot = if in_body && real { crate::contract::footer_slot::take(&ctx, id) } else { None };
+    if let Some(slot) = slot {
+        let (fnode, footer) =
+            region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| frame.with(ui, slot, |ui, bcx| component.footer(ui, bcx)));
+        place(fnode, Rect::from_min_size(slot.min, footer));
+    } else if shape.footer.is_some() && !in_body && !in_end {
         if shape.bands.footer > 0.0 {
             let rule = Rect::from_min_size(Pos2::new(inner.min.x, footer_top - shape.bands.footer), Vec2::new(inner.width(), shape.bands.footer));
             place(rule_node(cx, real, Region::RuleFooter, divider), rule);
@@ -766,13 +917,13 @@ fn lay_out<C: Container>(
         let footer_rect = Rect::from_min_max(Pos2::new(inner.min.x, footer_top), Pos2::new(inner.max.x, footer_top + footer_h));
         let footer_dir = if shape.footer.is_some_and(|f| f.place == FooterPlace::Body) { Dir::Stack } else { line() };
         let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, footer_dir, tokens, &mut |ui| {
-            frame.with(footer_rect, |bcx| component.footer(ui, bcx))
+            frame.with(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
         });
         place(fnode, Rect::from_min_size(footer_rect.min, footer));
         footer_w = footer.x;
     }
     let width = (body_size.x + end_band).max(header_w + end_band).max(footer_w);
-    let height = (below - inner.min.y) + footer_band;
+    let height = (end_bottom - inner.min.y) + footer_band;
     if let Some(kept) = into.kept
         && kept.placed != placed
     {
@@ -855,12 +1006,16 @@ fn region(
     cx.keyed(region, |cx| {
         cx.inline(ScopeNode { key: 0 }, |rk, state, cx| {
             let room = rect.size();
+            let ctx = &into.ctx;
             if !state.new && region_keeps(into, rk, state, room) {
                 cx.keep_children();
+                crate::layout::replay(ctx, &rk.column_reports);
                 return (Some(cx.node()), rk.size);
             }
             let mut ui = Ui::new(cx, flow());
+            crate::layout::begin_capture(ctx);
             hook(&mut ui);
+            rk.column_reports = crate::layout::end_capture(ctx);
             let Ui { cx, flow, .. } = ui;
             let size = flow.content_size();
             if rk.placed != flow.placed || rk.size != size {
@@ -935,7 +1090,17 @@ fn run_body(
         flow.body = shape.body_flow(given);
         flow
     };
-    let mut call = |ui: &mut Ui<'_, '_>| frame.with(region, |bcx| body(ui, bcx));
+    // A grid's cells share a label column per grid column; the rows of a `label_column` body share one.
+    let mut call = |ui: &mut Ui<'_, '_>| {
+        let mut run = |ui: &mut Ui<'_, '_>| frame.with_body(ui, region, |ui, bcx| body(ui, bcx));
+        if columns > 0 {
+            ColumnGroup::grid(ui, sub(id, "grid"), columns, run);
+        } else if shape.label_column {
+            ColumnGroup::scope(ui, "labels", |ui, _| run(ui));
+        } else {
+            run(ui);
+        }
+    };
     let Some(kept) = kept else {
         let mut ui = Ui::new(cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
         call(&mut ui);

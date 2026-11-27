@@ -28,7 +28,7 @@ pub(crate) fn fold(key: u128) -> u64 {
 }
 
 /// Counts the siblings of each component type in one build, for [`IdSource::Auto`].
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Ordinals(smallvec::SmallVec<[(u64, u32); 8]>);
 
 impl Ordinals {
