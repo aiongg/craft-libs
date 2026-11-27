@@ -79,6 +79,28 @@ pub(crate) enum Target {
     Code { code: String },
 }
 
+/// By the command's canonical key: `CommandRef`'s params are JSON, which has no `Hash`.
+impl std::hash::Hash for Target {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Target::Cell { command, old } | Target::HoldCell { command, old } => {
+                command.key().hash(state);
+                old.hash(state);
+            }
+            Target::Field { command } => command.key().hash(state),
+            Target::Search => {}
+            Target::Code { code } => code.hash(state),
+        }
+    }
+}
+
+impl craft_ui::contract::MemoProps for Target {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        key.feed_hash(self);
+    }
+}
+
 impl Target {
     /// A single press waits for a second one ([`Options::double_press`]) only where a double press means something:
     /// a hold or a code takes the chord alone.

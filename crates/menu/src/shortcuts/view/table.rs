@@ -318,7 +318,7 @@ pub(crate) struct CommandRow<'r> {
     #[common]
     common: Common,
     line: &'r Line,
-    #[key(by = (self.env.editable, self.env.holds, self.env.start, self.env.recording.as_ref().map(|(_, text)| text)))]
+    #[key(by = (self.env.editable, self.env.holds, self.env.start, self.env.recording.as_ref().map(|(target, text)| (*target, text))))]
     // the dialog state the row shows
     env: &'r RowEnv<'r>,
     cells: Vec<(ColumnKey, Rect)>,
