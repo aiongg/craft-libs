@@ -325,6 +325,8 @@ pub(crate) struct MemberRun {
     pub(crate) id: Id,
     /// The collection node's part the row is: `(ROW, key hash)`; its input and hover arrive on it.
     pub(crate) part: craft_behavior::PartRef,
+    /// The part its access sub-node takes in the collection's node: `(ITEM_NODE, key hash)`.
+    pub(crate) node: craft_behavior::PartRef,
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) position: crate::runtime::access::SetPosition,
@@ -337,6 +339,8 @@ pub(crate) struct MemberRan<O> {
     pub(crate) output: O,
     pub(crate) looks: MemberLooks,
     pub(crate) tips: Vec<super::tip::PartTip>,
+    /// The member's access sub-node, while the access tree is on.
+    pub(crate) access: Option<crate::runtime::access::SubNode>,
 }
 
 /// One member row's recorded paint: its sub-list per pointer look its paint read (`Rest` always,

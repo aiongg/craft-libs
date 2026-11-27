@@ -1293,6 +1293,14 @@ impl Runtime {
         let Some((target, sub)) = target else {
             return;
         };
+        // An owner that stands for a folded control sends the request to the control first.
+        let control = sub.is_none().then(|| self.windows.get(&window).and_then(|w| w.access.stands.get(&target).copied())).flatten();
+        if let Some(control) = control {
+            let ev = Event::Access(AccessInput { action: req.action, data: req.data.clone(), target: control, sub: None });
+            if self.dispatch(control, &ev, false).is_some() {
+                return;
+            }
+        }
         let ev = Event::Access(AccessInput { action: req.action, data: req.data.clone(), target, sub });
         let handled = self.dispatch(target, &ev, true);
         if handled.is_none()

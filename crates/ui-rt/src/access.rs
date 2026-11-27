@@ -47,6 +47,8 @@ pub(crate) struct AccessState {
     pub(crate) subs: HashMap<u64, (NodeId, u64)>,
     /// Focus stop -> the item it reports as focused while it has focus.
     active: IdMap<NodeId>,
+    /// Owner -> the control folded into its node ([`AccessCx::stand_for`]).
+    pub(crate) stands: IdMap<NodeId>,
     last_focus: Option<accesskit::NodeId>,
     pub(crate) announcer: Announcer,
 }
@@ -126,6 +128,7 @@ impl Default for AccessState {
             dirty: IdSet::default(),
             subs: HashMap::new(),
             active: IdMap::default(),
+            stands: IdMap::default(),
             last_focus: None,
             announcer: Announcer::default(),
         }
@@ -147,6 +150,7 @@ pub struct AccessCx<'a> {
     size: Vec2,
     subs: Vec<SubNode>,
     active: bool,
+    stands_for: Option<NodeId>,
 }
 
 impl Reads for AccessCx<'_> {
@@ -180,6 +184,14 @@ impl AccessCx<'_> {
     /// while that ancestor has focus, the accessibility focus is here.
     pub fn set_active(&mut self) {
         self.active = true;
+    }
+
+    /// This node's access node stands for `control`, a node folded into it that reports no node
+    /// of its own (an owner's inner picker): while `control` has focus the accessibility focus is
+    /// here, and a request aimed at this node goes to `control` first, then to this node when
+    /// `control` does not handle it.
+    pub fn stand_for(&mut self, control: NodeId) {
+        self.stands_for = Some(control);
     }
 }
 
@@ -243,7 +255,8 @@ impl Runtime {
     }
 
     /// The node assistive technologies see as focused in `window`: the focused node's active item
-    /// when it is in the tree, else the focused node when it is, else the window.
+    /// when it is in the tree, else the owner that stands for it ([`AccessCx::stand_for`]), else
+    /// the focused node when it is in the tree, else the window.
     pub fn access_focus(&self, window: WindowId) -> accesskit::NodeId {
         let root = window.root().access_id();
         let included = |id: &NodeId| self.tree.nodes.get(id).is_some_and(|n| n.access.included);
@@ -253,6 +266,9 @@ impl Runtime {
         };
         if let Some(item) = w.access.active.get(&focused).filter(|i| included(i)) {
             return item.access_id();
+        }
+        if let Some((owner, _)) = w.access.stands.iter().find(|(owner, control)| **control == focused && included(owner)) {
+            return owner.access_id();
         }
         if included(&focused) { focused.access_id() } else { root }
     }
@@ -385,9 +401,17 @@ impl Runtime {
         let Some(n) = tree.nodes.get(&id) else {
             return false;
         };
-        let mut cx = AccessCx { store, node: id, size: n.frame.size, subs: Vec::new(), active: false };
+        let mut cx = AccessCx { store, node: id, size: n.frame.size, subs: Vec::new(), active: false, stands_for: None };
         let own = n.element.as_ref().and_then(|e| e.access(&mut cx));
-        let (subs, active) = (cx.subs, cx.active);
+        let (subs, active, stands_for) = (cx.subs, cx.active, cx.stands_for);
+        match stands_for {
+            Some(control) => {
+                access.stands.insert(id, control);
+            }
+            None => {
+                access.stands.remove(&id);
+            }
+        }
         let role = if n.role == NodeRole::WindowRoot { Role::Window } else { Role::GenericContainer };
         let mut node = own.unwrap_or_else(|| Node::new(role));
         node.set_bounds(to_ak(Rect::from_min_size(Pos2::ZERO, n.frame.size)));

@@ -689,6 +689,8 @@ pub(crate) fn run_shaped<C: Component>(
     let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
     kept.access = access;
     kept.access_subs = subs;
+    // The node stands for the control folded into it: the control's focus and the requests aimed at the node.
+    kept.access_stands = kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(cx, folded.inner));
     for (text, politeness) in std::mem::take(&mut cxx.core.run.announcements) {
         let politeness = match politeness {
             crate::runtime::access::Politeness::Polite => craft_ui_rt::AnnouncePoliteness::Polite,
@@ -938,9 +940,39 @@ pub(crate) fn run_member<I: Component>(
             .collect(),
         parts: member_parts,
     };
+    // 16 the member's access node, only while the window's access tree is on: a sub-node of the collection's node
+    // that the collection's access hook adds (`ShapeHooks::access`).
+    let access = ui.cx.access_enabled().then(|| member_access(&item, &cxx, run)).flatten();
     let output = item.finish(cxx);
     memory.flush();
-    super::items::MemberRan { output, looks, tips }
+    super::items::MemberRan { output, looks, tips, access }
+}
+
+/// A member's own sub-node of the collection's node: the facts its `access` declared, named by its label (the full
+/// text when elided) unless it names itself, with its row's place, flags and bounds.
+fn member_access<I: Component>(item: &I, cx: &Cx<'_, I>, run: &super::items::MemberRun) -> Option<crate::runtime::access::SubNode> {
+    use crate::runtime::access::{Name, SubNode};
+    if matches!(I::ROLE, Role::None) {
+        return None;
+    }
+    let mut access = Access::default();
+    item.access(&mut access, cx);
+    let name = match std::mem::replace(&mut access.name, Name::FromLabel) {
+        Name::FromLabel => Name::Text(cx.core.paint.borrow().elided.clone().unwrap_or_else(|| cx.core.resolved.label.to_owned())),
+        name => name,
+    };
+    let mut sub = SubNode::new(run.node, access.role.unwrap_or(I::ROLE));
+    sub.name = name;
+    sub.description = access.description;
+    sub.value = access.value;
+    sub.numeric = access.numeric;
+    sub.expanded = access.expanded;
+    sub.position = Some(run.position);
+    sub.flags = run.flags;
+    sub.custom_actions = access.custom_actions.into_iter().map(|(id, label)| (id, cx.core.env.resolve(&label))).collect();
+    sub.disabled = !run.enabled;
+    sub.bounds(run.rect);
+    Some(sub)
 }
 
 /// The ui-rt part id of a member's part `part` in the collection's node, for the member whose row part id is
@@ -1106,6 +1138,11 @@ fn report<C: Component>(
     }
     component.access(&mut access, cx);
     shape.access(component, &mut access);
+    // Custom action labels name words: the node carries their text in the scope's language.
+    let env = &cx.core.env;
+    for (_, label) in access.custom_actions.iter_mut().chain(access.nodes.iter_mut().flat_map(|sub| sub.custom_actions.iter_mut())) {
+        *label = env.resolve(label);
+    }
     crate::contract::cx::apply_field_label(cx.core, &mut access);
     // A control shown with `PaintUi::inner` folds into its owner's node: it hands the owner its value
     // text and keeps no node of its own. An owner whose `access` set no value carries its control's.

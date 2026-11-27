@@ -495,6 +495,8 @@ pub(crate) struct Kept {
     pub(crate) access: Option<accesskit::Node>,
     /// The sub-nodes of the access node; empty with it.
     pub(crate) access_subs: Vec<super::access::BuiltSub>,
+    /// The control folded into the node's access node (`PaintUi::inner`), which the node stands for.
+    pub(crate) access_stands: Option<NodeId>,
     pub(crate) queue: Vec<NodeInput>,
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
@@ -617,6 +619,7 @@ impl Kept {
             parts: Vec::new(),
             access: None,
             access_subs: Vec::new(),
+            access_stands: None,
             type_name: "",
             command: None,
             queue: Vec::new(),
@@ -964,6 +967,9 @@ impl Element for ComponentNode {
     }
 
     fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
+        if let Some(control) = kept.access_stands {
+            cx.stand_for(control);
+        }
         for s in &kept.access_subs {
             let mut sub = s.node.clone();
             kept.resolve_relations(&mut sub);
