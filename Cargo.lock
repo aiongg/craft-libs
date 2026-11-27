@@ -1938,6 +1938,7 @@ dependencies = [
  "craft-timeline",
  "craft-tracked",
  "craft-ui",
+ "craft-ui-platform-headless",
  "craft-ui-rt",
  "craft-update",
  "craft-usd",
@@ -4619,6 +4620,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-ui-platform-headless"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "craft-ui-rt",
+]
+
+[[package]]
 name = "craft-ui-rt"
 version = "0.1.0"
 dependencies = [
@@ -4659,10 +4668,15 @@ dependencies = [
 name = "craft-ui-test-kit"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
  "craft-behavior",
  "craft-host",
+ "craft-theme",
  "craft-ui-contract",
+ "craft-ui-platform-headless",
+ "craft-ui-rt",
  "egui",
+ "web-time",
 ]
 
 [[package]]

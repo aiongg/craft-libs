@@ -8,8 +8,14 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
-[lints]
-workspace = true
+# Not `workspace = true`: the counting allocator in `rt::alloc` needs `unsafe`, which the workspace forbids.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
 
 [lib]
 test = false
@@ -23,3 +29,8 @@ craft-ui-contract = { workspace = true, features = ["testing"] }
 egui = { workspace = true }
 craft-behavior = { workspace = true }
 craft-host = { workspace = true }
+craft-ui-rt = { workspace = true }
+craft-ui-platform-headless = { workspace = true }
+craft-theme = { workspace = true }
+accesskit = "0.25"
+web-time = "1.1"

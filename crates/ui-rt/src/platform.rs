@@ -6,6 +6,7 @@
 
 use std::any::Any;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -143,6 +144,12 @@ pub enum WindowEvent {
     ImeCommit(String),
     Paste(String),
     Access(accesskit::ActionRequest),
+    /// Files from the OS are dragged over the window.
+    FilesHovered(Vec<PathBuf>),
+    /// The dragged files were dropped on the window.
+    FilesDropped(Vec<PathBuf>),
+    /// The dragged files left the window without a drop.
+    FilesHoverCancelled,
     /// An assistive technology asked for the window's tree (accesskit's initial tree request).
     /// The next frame sends the whole tree; updates before it are not sent. Sent again on a later
     /// activation.

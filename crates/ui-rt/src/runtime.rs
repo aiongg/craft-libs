@@ -313,7 +313,10 @@ impl Runtime {
             | WindowEvent::ImePreedit { .. }
             | WindowEvent::ImeCommit(_)
             | WindowEvent::Paste(_)
-            | WindowEvent::Access(_) => self.route_input(window, ev),
+            | WindowEvent::Access(_)
+            | WindowEvent::FilesHovered(_)
+            | WindowEvent::FilesDropped(_)
+            | WindowEvent::FilesHoverCancelled => self.route_input(window, ev),
         }
     }
 

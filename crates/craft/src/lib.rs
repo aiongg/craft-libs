@@ -398,6 +398,8 @@ pub use craft_tracked as tracked;
 pub use craft_ui as ui;
 #[cfg(feature = "ui-rt")]
 pub use craft_ui_rt as ui_rt;
+#[cfg(feature = "ui-platform-headless")]
+pub use craft_ui_platform_headless as ui_platform_headless;
 #[cfg(feature = "update")]
 pub use craft_update as update;
 #[cfg(feature = "usd")]
