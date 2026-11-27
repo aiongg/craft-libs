@@ -19,12 +19,12 @@
 
 use std::collections::BTreeMap;
 
-use craft_behavior::Monitor;
 use craft_behavior::placement::{Defaults, Placement, monitor_of, place};
+use craft_behavior::{Monitor, MonitorKey};
 use craft_host::target::{WindowChrome, WindowKind};
 use craft_ui_rt::{
-    NativeWindow, PlatformEvent, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, Rect, Runtime, Vec2, Waker, WindowCommand,
-    WindowEvent, WindowId, WindowZone,
+    MonitorInfo, NativeWindow, PlatformEvent, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, Rect, Runtime, SurfaceHost, Vec2, Waker,
+    WindowCommand, WindowEvent, WindowId, WindowLevel, WindowZone,
 };
 use craft_window::Button;
 use craft_window::native::CaptionEvent;
@@ -114,6 +114,13 @@ pub fn rt_spec(spec: &WindowSpec, title: &str, key: Option<&str>, frame_of: &dyn
         decorations: chrome == WindowChrome::Native,
         visible: !spec.shown_after_first_paint,
         key: key.map(str::to_owned),
+        // A palette starts above the others; lowering it while the app is away or modal is the
+        // host's policy and goes through `WindowCommand::Level`.
+        level: match spec.level {
+            crate::runtime::windows::WindowLevel::Normal => WindowLevel::Normal,
+            _ => WindowLevel::AboveOthers,
+        },
+        taskbar: spec.taskbar,
         ..craft_ui_rt::WindowSpec::new(title)
     }
 }
@@ -126,6 +133,8 @@ struct Seen {
     position_px: Option<Pos2>,
     maximized: bool,
     fullscreen: bool,
+    /// Surface top left to outer top left, physical pixels.
+    inset: Vec2,
 }
 
 /// The app host's window state: saved placements, the Windows hit-test sinks and the captions the
@@ -133,12 +142,7 @@ struct Seen {
 /// [`WindowRegistry::after_step`] around each `Driver::step`.
 pub struct WindowRegistry {
     store: Store,
-    monitors: Vec<Monitor>,
     seen: BTreeMap<WindowId, Seen>,
-    states: BTreeMap<WindowId, (bool, bool)>,
-    /// The offset from a window's surface to its outer corner, in physical pixels (title bar and
-    /// borders), which the platform does not report.
-    insets: BTreeMap<WindowId, Vec2>,
     sinks: BTreeMap<WindowId, HitSink>,
     last_save: f64,
 }
@@ -149,31 +153,7 @@ const SAVE_EVERY: f64 = 0.5;
 impl WindowRegistry {
     /// A registry that saves placements in `store`.
     pub fn new(store: Store) -> WindowRegistry {
-        WindowRegistry {
-            store,
-            monitors: Vec::new(),
-            seen: BTreeMap::new(),
-            states: BTreeMap::new(),
-            insets: BTreeMap::new(),
-            sinks: BTreeMap::new(),
-            last_save: f64::NEG_INFINITY,
-        }
-    }
-
-    /// The connected monitors, as the platform last reported them.
-    pub fn set_monitors(&mut self, monitors: Vec<Monitor>) {
-        self.monitors = monitors;
-    }
-
-    /// Whether `window` is maximized or full screen, as the platform reports it (ui-rt has no event
-    /// for it): placements save these and keep the last normal size and position.
-    pub fn set_state(&mut self, window: WindowId, maximized: bool, fullscreen: bool) {
-        self.states.insert(window, (maximized, fullscreen));
-    }
-
-    /// The offset from `window`'s surface to its outer top left, in physical pixels.
-    pub fn set_frame_inset(&mut self, window: WindowId, inset: Vec2) {
-        self.insets.insert(window, inset);
+        WindowRegistry { store, seen: BTreeMap::new(), sinks: BTreeMap::new(), last_save: f64::NEG_INFINITY }
     }
 
     /// The placement saved under `key`.
@@ -183,9 +163,9 @@ impl WindowRegistry {
 
     /// `spec` placed for opening: the saved placement under its key, repaired and fitted to the
     /// monitors, decides the inner size and the outer position; otherwise `defaults` do.
-    pub fn place(&self, spec: craft_ui_rt::WindowSpec, defaults: &Defaults) -> craft_ui_rt::WindowSpec {
+    pub fn place(&self, spec: craft_ui_rt::WindowSpec, defaults: &Defaults, surfaces: &dyn SurfaceHost) -> craft_ui_rt::WindowSpec {
         let saved = spec.key.as_deref().and_then(|key| self.store.get(key)).and_then(|p| p.repaired());
-        let placed = place(saved.as_ref(), &self.monitors, None, defaults);
+        let placed = place(saved.as_ref(), &monitors_of(surfaces), None, defaults);
         craft_ui_rt::WindowSpec {
             size: Some(Vec2::new(placed.normal.size[0], placed.normal.size[1])),
             position: placed.position().filter(|_| !defaults.no_position).map(|p| Pos2::new(p[0], p[1])),
@@ -257,17 +237,22 @@ impl WindowRegistry {
     /// the saved maximized or full-screen state of a window seen for the first time, publishes the
     /// zones to the hit sinks when a frame ran, forgets closed windows and writes the store when
     /// it changed (at most every [`SAVE_EVERY`] seconds; [`WindowRegistry::flush`] writes at once).
-    pub fn after_step(&mut self, rt: &mut Runtime, ran: bool, now: f64) {
+    pub fn after_step(&mut self, rt: &mut Runtime, surfaces: &dyn SurfaceHost, ran: bool, now: f64) {
+        let monitors = monitors_of(surfaces);
         let open: Vec<WindowId> = rt.windows().collect();
         self.seen.retain(|w, _| open.contains(w));
-        self.states.retain(|w, _| open.contains(w));
-        self.insets.retain(|w, _| open.contains(w));
         self.sinks.retain(|w, _| open.contains(w));
         for window in open {
             let Some(key) = rt.window_key(window).map(str::to_owned) else { continue };
             let Some(geometry) = rt.window_geometry(window) else { continue };
-            let (maximized, fullscreen) = self.states.get(&window).copied().unwrap_or_default();
-            let seen = Seen { size: geometry.size, scale: geometry.scale, position_px: geometry.position_px, maximized, fullscreen };
+            let seen = Seen {
+                size: geometry.size,
+                scale: geometry.scale,
+                position_px: geometry.position_px,
+                maximized: geometry.maximized,
+                fullscreen: geometry.fullscreen,
+                inset: geometry.frame_inset,
+            };
             let first = !self.seen.contains_key(&window);
             if first && let Some(saved) = self.store.get(&key) {
                 if saved.maximized {
@@ -280,8 +265,7 @@ impl WindowRegistry {
             if self.seen.insert(window, seen) == Some(seen) {
                 continue;
             }
-            let inset = self.insets.get(&window).copied().unwrap_or(Vec2::ZERO);
-            if let Some(next) = self.placement_of(seen, inset, self.store.get(&key)) {
+            if let Some(next) = placement_of(&monitors, seen, self.store.get(&key)) {
                 self.store.set(&key, &next);
             }
         }
@@ -301,32 +285,6 @@ impl WindowRegistry {
         self.last_save = now;
         // A store that cannot be written keeps its changes and tries again at the next flush.
         let _ = self.store.save();
-    }
-
-    /// `previous` (or a new record) updated to where the window is: its scale, its state, its size
-    /// and outer position unless it is maximized or full screen (which keep the last normal ones),
-    /// and the monitor showing most of it. `None` before the window has a size.
-    fn placement_of(&self, seen: Seen, inset: Vec2, previous: Option<Placement>) -> Option<Placement> {
-        if seen.size.x <= 0.0 || seen.size.y <= 0.0 {
-            return None;
-        }
-        let mut next = previous.unwrap_or_else(|| Placement::new([seen.size.x, seen.size.y], seen.scale));
-        next.scale = seen.scale;
-        next.maximized = seen.maximized;
-        next.fullscreen = seen.fullscreen;
-        if !seen.maximized && !seen.fullscreen {
-            next.normal.size = [seen.size.x, seen.size.y];
-            if let Some(surface) = seen.position_px {
-                let outer = surface - inset;
-                next.position_px = Some([outer.x.round() as i32, outer.y.round() as i32]);
-                next.normal.pos = [outer.x / seen.scale, outer.y / seen.scale];
-                let window_px = Rect::from_min_size(outer, seen.size * seen.scale);
-                if let Some(monitor) = monitor_of(&self.monitors, window_px) {
-                    next.monitor = Some(monitor.key.clone());
-                }
-            }
-        }
-        Some(next)
     }
 
     /// Routes the Windows hit test of `window` to a sink the registry keeps, when the OS window
@@ -363,6 +321,45 @@ impl WindowRegistry {
     pub fn hit_sink(&self, window: WindowId) -> Option<&HitSink> {
         self.sinks.get(&window)
     }
+}
+
+/// The platform's monitors as the placement code sees them: physical pixels of the desktop.
+fn monitors_of(surfaces: &dyn SurfaceHost) -> Vec<Monitor> {
+    surfaces
+        .monitors()
+        .iter()
+        .map(|m: &MonitorInfo| {
+            let size = [(m.size.x * m.scale).round() as u32, (m.size.y * m.scale).round() as u32];
+            let key = MonitorKey::new(m.name.clone().unwrap_or_default(), size);
+            Monitor::new(key, [(m.position.x * m.scale).round() as i32, (m.position.y * m.scale).round() as i32], size, m.scale)
+        })
+        .collect()
+}
+
+/// `previous` (or a new record) updated to where the window is: its scale, its state, its size
+/// and outer position unless it is maximized or full screen (which keep the last normal ones),
+/// and the monitor showing most of it. `None` before the window has a size.
+fn placement_of(monitors: &[Monitor], seen: Seen, previous: Option<Placement>) -> Option<Placement> {
+    if seen.size.x <= 0.0 || seen.size.y <= 0.0 {
+        return None;
+    }
+    let mut next = previous.unwrap_or_else(|| Placement::new([seen.size.x, seen.size.y], seen.scale));
+    next.scale = seen.scale;
+    next.maximized = seen.maximized;
+    next.fullscreen = seen.fullscreen;
+    if !seen.maximized && !seen.fullscreen {
+        next.normal.size = [seen.size.x, seen.size.y];
+        if let Some(surface) = seen.position_px {
+            let outer = surface - seen.inset;
+            next.position_px = Some([outer.x.round() as i32, outer.y.round() as i32]);
+            next.normal.pos = [outer.x / seen.scale, outer.y / seen.scale];
+            let window_px = Rect::from_min_size(outer, seen.size * seen.scale);
+            if let Some(monitor) = monitor_of(monitors, window_px) {
+                next.monitor = Some(monitor.key.clone());
+            }
+        }
+    }
+    Some(next)
 }
 
 /// A position outside every window: a release there ends a press without a click.

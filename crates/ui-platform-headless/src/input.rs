@@ -72,6 +72,8 @@ pub enum Input {
     Files(FileDrag),
     /// The surface's top left on the virtual desktop, in physical pixels.
     Moved(Pos2),
+    /// The surface's offset from the window's outer top left, in physical pixels.
+    FrameInset(Vec2),
     /// An assistive technology's action on an access node.
     Access {
         action: accesskit::Action,
@@ -138,6 +140,7 @@ impl Input {
             Input::Paste(t) => WindowEvent::Paste(t.clone()),
             Input::Files(drag) => WindowEvent::Files(drag.clone()),
             Input::Moved(p) => WindowEvent::Moved(*p),
+            Input::FrameInset(v) => WindowEvent::FrameInset(*v),
             Input::Access { action, target, data } => WindowEvent::Access(accesskit::ActionRequest {
                 action: *action,
                 target_tree: accesskit::TreeId::ROOT,

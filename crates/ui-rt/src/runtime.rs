@@ -467,6 +467,8 @@ impl Runtime {
                 }
             }
             WindowEvent::Moved(pos) => w.position = Some(*pos),
+            WindowEvent::State { maximized, fullscreen } => (w.maximized, w.fullscreen) = (*maximized, *fullscreen),
+            WindowEvent::FrameInset(inset) => w.frame_inset = *inset,
             WindowEvent::AccessActivated => self.set_access_enabled(window, true),
             WindowEvent::SurfaceCreated => w.changes.full = true,
             WindowEvent::SurfaceLost => {}
@@ -538,7 +540,14 @@ impl Runtime {
     /// Where `window` is and how big, as the platform last reported.
     pub fn window_geometry(&self, window: WindowId) -> Option<WindowGeometry> {
         let w = self.windows.get(&window)?;
-        Some(WindowGeometry { size: w.viewport, scale: *self.store.peek(w.env.scale), position_px: w.position })
+        Some(WindowGeometry {
+            size: w.viewport,
+            scale: *self.store.peek(w.env.scale),
+            position_px: w.position,
+            maximized: w.maximized,
+            fullscreen: w.fullscreen,
+            frame_inset: w.frame_inset,
+        })
     }
 
     /// Asks the platform to change a window ([`crate::Driver::step`] passes it on).

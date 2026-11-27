@@ -48,6 +48,11 @@ pub struct WindowGeometry {
     pub scale: f32,
     /// The surface's top left on the virtual desktop in physical pixels, once the platform told.
     pub position_px: Option<Pos2>,
+    /// As the platform last reported ([`crate::WindowEvent::State`]).
+    pub maximized: bool,
+    pub fullscreen: bool,
+    /// Surface top left to outer top left, physical pixels ([`crate::WindowEvent::FrameInset`]).
+    pub frame_inset: Vec2,
 }
 
 pub(crate) struct Window {
@@ -74,6 +79,9 @@ pub(crate) struct Window {
     pub(crate) relayout: bool,
     /// The surface's top left on the virtual desktop in physical pixels, once the platform told.
     pub(crate) position: Option<Pos2>,
+    pub(crate) maximized: bool,
+    pub(crate) fullscreen: bool,
+    pub(crate) frame_inset: Vec2,
     /// The window it stacks above and moves with.
     pub(crate) owner: Option<WindowId>,
     /// Nodes that take drops anywhere in the window ([`crate::PaintCx::window_drop_target`]), in
@@ -113,6 +121,9 @@ impl Window {
             layered: IdMap::default(),
             relayout: true,
             position: None,
+            maximized: false,
+            fullscreen: false,
+            frame_inset: Vec2::ZERO,
             owner: None,
             window_drops: Vec::new(),
             focus_returns: IdMap::default(),

@@ -18,7 +18,7 @@ use craft_ui_contract::contract::{MemoKey, NoValue};
 use craft_ui_contract::runtime::windows::{CaptionRegions, HitSink, WindowHit};
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
-use craft_ui_rt::{CloseReason, Pos2, Rect, Sense, StepReport, Vec2, WindowId, WindowSpec};
+use craft_ui_rt::{CloseReason, MonitorInfo, Platform, Pos2, Rect, Sense, StepReport, Vec2, WindowCommand, WindowId, WindowSpec};
 use craft_ui_test_kit::rt::Rig;
 use craft_window::Button;
 use craft_window::restore::Store;
@@ -406,31 +406,113 @@ fn exclusive_parts_become_caption_regions_and_reach_the_hit_sink() {
     let ran = rig.step_with(&mut |_, cx| {
         window_root(cx, |ui| main_ui(ui, &mut app));
     });
-    registry.after_step(&mut rig.driver.runtime, true, 0.0);
+    registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), true, 0.0);
     let _ = ran;
     assert_eq!(sink.answer(band.center()), Some(WindowHit::Move), "the window procedure moves the window from the bar");
     assert_eq!(sink.answer(Pos2::new(5000.0, 5000.0)), None);
     let _ = Button::Close;
 }
 
+fn desktop() -> Vec<MonitorInfo> {
+    vec![MonitorInfo {
+        name: Some("DP-1".into()),
+        position: Pos2::ZERO,
+        size: Vec2::new(1920.0, 1080.0),
+        scale: 1.0,
+        refresh_hz: None,
+        primary: true,
+    }]
+}
+
+fn keyed(title: &str) -> WindowSpec {
+    WindowSpec { key: Some("doc".into()), ..WindowSpec::new(title) }
+}
+
 #[test]
 fn a_keyed_window_keeps_its_placement_and_reopens_there() {
     let mut registry = WindowRegistry::new(Store::in_memory());
     let defaults = Defaults::new([300.0, 200.0], [100.0, 100.0]);
-    let spec = registry.place(WindowSpec { key: Some("doc".into()), ..WindowSpec::new("Doc") }, &defaults);
-    assert_eq!(spec.size, Some(Vec2::new(300.0, 200.0)), "nothing saved: the defaults");
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    rig.driver.platform.set_monitors(desktop());
+    let spec = registry.place(keyed("Doc"), &defaults, rig.driver.platform.surfaces());
+    assert_eq!(spec.size, Some(Vec2::new(300.0, 200.0)), "nothing saved: the defaults");
     let window = rig.driver.open_inline_window(&spec);
     for input in [Input::Resize(Vec2::new(640.0, 480.0)), Input::Moved(Pos2::new(120.0, 80.0))] {
         rig.inject(window, input);
     }
     let mut app = App::default();
     step(&mut rig, &mut app);
-    registry.after_step(&mut rig.driver.runtime, false, 0.0);
+    registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), false, 0.0);
     let saved = registry.saved("doc").expect("the window's placement was recorded");
     assert_eq!(saved.normal.size, [640.0, 480.0]);
     assert_eq!(saved.position_px, Some([120, 80]));
-    let again = registry.place(WindowSpec { key: Some("doc".into()), ..WindowSpec::new("Doc") }, &defaults);
+    assert_eq!(saved.monitor.as_ref().map(|m| m.name.as_str()), Some("DP-1"), "the registry read the monitors from the platform");
+    let again = registry.place(keyed("Doc"), &defaults, rig.driver.platform.surfaces());
     assert_eq!(again.size, Some(Vec2::new(640.0, 480.0)), "the next window with the key opens at the saved size");
     assert_eq!(again.position, Some(Pos2::new(120.0, 80.0)));
+}
+
+#[test]
+fn a_state_event_is_what_the_registry_saves() {
+    let mut registry = WindowRegistry::new(Store::in_memory());
+    let defaults = Defaults::new([300.0, 200.0], [100.0, 100.0]);
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    rig.driver.platform.set_monitors(desktop());
+    let spec = registry.place(keyed("Doc"), &defaults, rig.driver.platform.surfaces());
+    let window = rig.driver.open_inline_window(&spec);
+    rig.inject(window, Input::Resize(Vec2::new(640.0, 480.0)));
+    let mut app = App::default();
+    step(&mut rig, &mut app);
+    registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), false, 0.0);
+    assert!(!registry.saved("doc").unwrap().maximized);
+
+    // The platform maximizes the window: it sends the state and the larger size.
+    rig.driver.platform.window(window, WindowCommand::Maximized(true));
+    rig.inject(window, Input::Resize(Vec2::new(1900.0, 1000.0)));
+    step(&mut rig, &mut app);
+    registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), false, 1.0);
+    let saved = registry.saved("doc").unwrap();
+    assert!(saved.maximized, "the State event reached the saved placement");
+    assert_eq!(saved.normal.size, [640.0, 480.0], "the last normal size is kept");
+}
+
+#[test]
+fn a_decorated_window_reopens_at_its_outer_position_without_drift() {
+    let mut registry = WindowRegistry::new(Store::in_memory());
+    let defaults = Defaults::new([300.0, 200.0], [100.0, 100.0]);
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    rig.driver.platform.set_monitors(desktop());
+    let mut app = App::default();
+    let inset = Vec2::new(0.0, 30.0);
+    let mut spec = registry.place(keyed("Doc"), &defaults, rig.driver.platform.surfaces());
+    spec.position = Some(Pos2::new(120.0, 80.0));
+    for round in 0..3 {
+        let window = rig.driver.open_inline_window(&spec);
+        // The system puts the surface below the title bar of the outer position it was given.
+        let outer = spec.position.unwrap();
+        for input in [Input::Resize(Vec2::new(640.0, 480.0)), Input::FrameInset(inset), Input::Moved(outer + inset)] {
+            rig.inject(window, input);
+        }
+        step(&mut rig, &mut app);
+        registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), false, round as f64);
+        spec = registry.place(keyed("Doc"), &defaults, rig.driver.platform.surfaces());
+        assert_eq!(spec.position, Some(Pos2::new(120.0, 80.0)), "round {round}: no drift by the title bar height");
+        rig.driver.platform.window(window, WindowCommand::Close);
+        step(&mut rig, &mut app);
+        registry.after_step(&mut rig.driver.runtime, rig.driver.platform.surfaces(), false, round as f64 + 0.5);
+    }
+}
+
+#[test]
+fn a_spec_carries_level_and_taskbar_to_the_platform() {
+    use craft_ui_contract::runtime::windows::{WindowLevel as Level, WindowSpec as Spec};
+    let frame = |_| None;
+    let tool = craft_ui_contract::contract::rt::windows::rt_spec(&Spec::tool(), "Tools", None, &frame);
+    assert_eq!((tool.level, tool.taskbar), (craft_ui_rt::WindowLevel::AboveOthers, false));
+    let dialog = craft_ui_contract::contract::rt::windows::rt_spec(&Spec::dialog().level(Level::Normal), "Dlg", None, &frame);
+    assert_eq!((dialog.level, dialog.taskbar), (craft_ui_rt::WindowLevel::Normal, true));
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let window = rig.driver.open_inline_window(&tool);
+    let state = rig.driver.platform.window_state(window).unwrap();
+    assert_eq!((state.level, state.taskbar), (craft_ui_rt::WindowLevel::AboveOthers, false), "the platform got both");
 }

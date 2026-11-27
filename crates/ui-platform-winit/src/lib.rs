@@ -23,8 +23,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use craft_ui_rt::{
-    Clipboard, Cursor, ImageKey, ImePurpose, ImeRequest, NativeWindow, Platform, PlatformEvent, Pos2, RgbaImage, SizeU, SurfaceHandle, SurfaceHost,
-    Vec2, Waker, WindowCommand, WindowEvent, WindowId, WindowSpec,
+    Clipboard, Cursor, ImageKey, ImePurpose, ImeRequest, MonitorInfo, NativeWindow, Platform, PlatformEvent, Pos2, RgbaImage, SizeU, SurfaceHandle,
+    SurfaceHost, Vec2, Waker, WindowCommand, WindowEvent, WindowId, WindowLevel, WindowSpec,
 };
 use winit::dpi::{LogicalPosition, LogicalSize};
 use winit::event_loop::EventLoopProxy;
@@ -32,7 +32,6 @@ use winit::window::{Fullscreen, Window};
 
 pub use app::run;
 pub use clipboard::WinitClipboard;
-pub use shared::MonitorInfo;
 pub use winit;
 
 use shared::{Cell, Entry};
@@ -68,6 +67,10 @@ impl SurfaceHost for Host {
 
     fn scale(&self, window: WindowId) -> f32 {
         self.0.borrow().entry(window).map_or(1.0, |e| e.scale)
+    }
+
+    fn monitors(&self) -> Vec<MonitorInfo> {
+        self.0.borrow().monitors.clone()
     }
 }
 
@@ -140,6 +143,25 @@ impl WinitPlatform {
     }
 }
 
+fn level_of(level: WindowLevel) -> winit::window::WindowLevel {
+    match level {
+        WindowLevel::Normal => winit::window::WindowLevel::Normal,
+        WindowLevel::AboveOthers => winit::window::WindowLevel::AlwaysOnTop,
+    }
+}
+
+/// Windows only: the taskbar entry of an open window. X11 fixes it at creation (window type), the
+/// other platforms leave it to the system.
+fn set_taskbar(window: &Window, shown: bool) {
+    #[cfg(windows)]
+    {
+        use winit::platform::windows::WindowExtWindows;
+        window.set_skip_taskbar(!shown);
+    }
+    #[cfg(not(windows))]
+    let _ = (window, shown);
+}
+
 fn apply(window: &Window, cmd: &WindowCommand) {
     let logical = |v: &Vec2| LogicalSize::new(f64::from(v.x), f64::from(v.y));
     match cmd {
@@ -151,6 +173,8 @@ fn apply(window: &Window, cmd: &WindowCommand) {
         WindowCommand::Position(p) => window.set_outer_position(LogicalPosition::new(f64::from(p.x), f64::from(p.y))),
         WindowCommand::Visible(v) => window.set_visible(*v),
         WindowCommand::Decorations(d) => window.set_decorations(*d),
+        WindowCommand::Level(l) => window.set_window_level(level_of(*l)),
+        WindowCommand::Taskbar(t) => set_taskbar(window, *t),
         WindowCommand::Minimized(m) => window.set_minimized(*m),
         WindowCommand::Maximized(m) => window.set_maximized(*m),
         WindowCommand::Fullscreen(f) => window.set_fullscreen(f.then_some(Fullscreen::Borderless(None))),
@@ -196,6 +220,8 @@ impl Platform for WinitPlatform {
             surface_live: false,
             mods: Default::default(),
             cursor: Pos2::ZERO,
+            reported_state: None,
+            reported_inset: None,
         });
         s.frame_wanted = true;
         id

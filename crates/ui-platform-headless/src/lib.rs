@@ -14,8 +14,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use craft_ui_rt::{
-    Clipboard, Cursor, ImeRequest, Platform, PlatformEvent, Pos2, SizeU, SurfaceHandle, SurfaceHost, Vec2, Waker, WindowCommand, WindowEvent,
-    WindowId, WindowSpec,
+    Clipboard, Cursor, ImeRequest, MonitorInfo, Platform, PlatformEvent, Pos2, SizeU, SurfaceHandle, SurfaceHost, Vec2, Waker, WindowCommand,
+    WindowEvent, WindowId, WindowLevel, WindowSpec,
 };
 
 pub use input::{Contact, Input};
@@ -31,6 +31,8 @@ pub struct WindowState {
     pub scale: f32,
     pub visible: bool,
     pub decorations: bool,
+    pub level: WindowLevel,
+    pub taskbar: bool,
     pub minimized: bool,
     pub maximized: bool,
     pub fullscreen: bool,
@@ -46,6 +48,7 @@ pub struct WindowState {
 pub struct HeadlessSurfaces {
     windows: BTreeMap<WindowId, WindowState>,
     suspended: bool,
+    monitors: Vec<MonitorInfo>,
 }
 
 impl SurfaceHost for HeadlessSurfaces {
@@ -63,6 +66,10 @@ impl SurfaceHost for HeadlessSurfaces {
 
     fn scale(&self, window: WindowId) -> f32 {
         self.windows.get(&window).map_or(1.0, |w| w.scale)
+    }
+
+    fn monitors(&self) -> Vec<MonitorInfo> {
+        self.monitors.clone()
     }
 }
 
@@ -193,6 +200,17 @@ impl HeadlessPlatform {
     /// The window with key focus.
     pub fn focused(&self) -> Option<WindowId> {
         self.surfaces.windows.iter().find(|(_, w)| w.focused).map(|(id, _)| *id)
+    }
+
+    /// Sets the monitors [`SurfaceHost::monitors`] reports.
+    pub fn set_monitors(&mut self, monitors: Vec<MonitorInfo>) {
+        self.surfaces.monitors = monitors;
+    }
+
+    fn push_state(&mut self, window: WindowId) {
+        let s = self.state_mut(window);
+        let ev = WindowEvent::State { maximized: s.maximized, fullscreen: s.fullscreen };
+        self.push(window, ev);
     }
 
     fn state_mut(&mut self, window: WindowId) -> &mut WindowState {
@@ -369,6 +387,8 @@ impl Platform for HeadlessPlatform {
                 scale: 1.0,
                 visible: spec.visible,
                 decorations: spec.decorations,
+                level: spec.level,
+                taskbar: spec.taskbar,
                 minimized: false,
                 maximized: false,
                 fullscreen: false,
@@ -400,9 +420,17 @@ impl Platform for HeadlessPlatform {
             WindowCommand::Position(p) => self.state_mut(window).position = Some(p),
             WindowCommand::Visible(v) => self.state_mut(window).visible = v,
             WindowCommand::Decorations(d) => self.state_mut(window).decorations = d,
+            WindowCommand::Level(l) => self.state_mut(window).level = l,
+            WindowCommand::Taskbar(t) => self.state_mut(window).taskbar = t,
             WindowCommand::Minimized(m) => self.state_mut(window).minimized = m,
-            WindowCommand::Maximized(m) => self.state_mut(window).maximized = m,
-            WindowCommand::Fullscreen(f) => self.state_mut(window).fullscreen = f,
+            WindowCommand::Maximized(m) => {
+                self.state_mut(window).maximized = m;
+                self.push_state(window);
+            }
+            WindowCommand::Fullscreen(f) => {
+                self.state_mut(window).fullscreen = f;
+                self.push_state(window);
+            }
             WindowCommand::Focus => {
                 self.raise(window);
                 self.focus(window);

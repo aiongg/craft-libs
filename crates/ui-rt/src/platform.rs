@@ -89,6 +89,24 @@ pub trait SurfaceHost {
     fn surface(&self, window: WindowId) -> Option<SurfaceHandle>;
     fn size_px(&self, window: WindowId) -> SizeU;
     fn scale(&self, window: WindowId) -> f32;
+    /// The connected monitors, primary first where the platform knows which it is. Empty where the
+    /// platform has none to report (the browser, a headless run that set none).
+    fn monitors(&self) -> Vec<MonitorInfo> {
+        Vec::new()
+    }
+}
+
+/// A monitor as the platform last saw it. Positions and sizes are logical points of that monitor's
+/// own scale.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MonitorInfo {
+    pub name: Option<String>,
+    /// Top left on the virtual desktop.
+    pub position: Pos2,
+    pub size: Vec2,
+    pub scale: f32,
+    pub refresh_hz: Option<f32>,
+    pub primary: bool,
 }
 
 /// The system clipboard. Reads are asynchronous (the web's `navigator.clipboard`), so content
@@ -299,6 +317,16 @@ pub enum WindowEvent {
     /// single scale when monitors differ). Platforms that cannot tell (Wayland) never send it, and
     /// drags then find other windows only by the pointer events they deliver.
     Moved(Pos2),
+    /// The window was maximized or full screen, or stopped being. Sent when either changes, and
+    /// once when the window opens.
+    State {
+        maximized: bool,
+        fullscreen: bool,
+    },
+    /// The distance from the surface's top left to the window's outer top left (title bar and
+    /// borders) in physical pixels, sent when it changes and once when the window opens. Zero for
+    /// a window without a frame; platforms that cannot tell (Wayland) never send it.
+    FrameInset(Vec2),
     SafeArea(Margin),
     SurfaceCreated,
     SurfaceLost,
@@ -338,12 +366,25 @@ pub struct WindowSpec {
     /// The app's name for the window (the key its placement is saved under); the runtime keeps it
     /// for the host ([`crate::Runtime::window_key`]).
     pub key: Option<String>,
+    pub level: WindowLevel,
+    /// Whether the window has a taskbar entry. Honoured on Windows and X11; elsewhere the system
+    /// decides.
+    pub taskbar: bool,
+}
+
+/// Where a window stands in the stack of windows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WindowLevel {
+    #[default]
+    Normal,
+    /// Above the other windows, also those of other apps where the system allows it.
+    AboveOthers,
 }
 
 impl WindowSpec {
     /// A visible, resizable, decorated window with this title.
     pub fn new(title: impl Into<String>) -> WindowSpec {
-        WindowSpec { title: title.into(), visible: true, resizable: true, decorations: true, ..WindowSpec::default() }
+        WindowSpec { title: title.into(), visible: true, resizable: true, decorations: true, taskbar: true, ..WindowSpec::default() }
     }
 }
 
@@ -358,6 +399,10 @@ pub enum WindowCommand {
     Position(Pos2),
     Visible(bool),
     Decorations(bool),
+    Level(WindowLevel),
+    /// Honoured on Windows; elsewhere the taskbar entry is fixed when the window opens (X11) or
+    /// the system's (macOS, Wayland, browser, Android).
+    Taskbar(bool),
     Minimized(bool),
     Maximized(bool),
     Fullscreen(bool),

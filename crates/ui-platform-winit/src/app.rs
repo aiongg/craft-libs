@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use craft_ui_rt::{Driver, PlatformEvent, Pos2, Renderer, SizeU, StepReport, Vec2, WindowEvent};
+use craft_ui_rt::{Driver, PlatformEvent, Pos2, Renderer, SizeU, StepReport, Vec2, WindowEvent, WindowLevel};
 use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalPosition, LogicalSize};
@@ -16,7 +16,7 @@ use winit::event::WindowEvent as W;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Window, WindowAttributes};
 
-use crate::shared::{Cell, MonitorInfo, Shared, push};
+use crate::shared::{Cell, Shared, monitor_info, push};
 use crate::{UserEvent, WinitPlatform, apply, cursor, input};
 
 type Setup<R> = Box<dyn FnOnce(WinitPlatform) -> Pin<Box<dyn Future<Output = Driver<WinitPlatform, R>>>>>;
@@ -47,6 +47,22 @@ fn attributes(spec: &craft_ui_rt::WindowSpec, canvas: Option<&str>) -> WindowAtt
     if let Some(p) = spec.position {
         attrs = attrs.with_position(LogicalPosition::new(f64::from(p.x), f64::from(p.y)));
     }
+    if spec.level == WindowLevel::AboveOthers {
+        attrs = attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
+    }
+    if !spec.taskbar {
+        #[cfg(windows)]
+        {
+            use winit::platform::windows::WindowAttributesExtWindows;
+            attrs = attrs.with_skip_taskbar(true);
+        }
+        // A utility window is kept off the taskbar by the window managers that honour the type.
+        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android"), not(target_arch = "wasm32")))]
+        {
+            use winit::platform::x11::{WindowAttributesExtX11, WindowType};
+            attrs = attrs.with_x11_window_type(vec![WindowType::Utility]);
+        }
+    }
     #[cfg(target_arch = "wasm32")]
     {
         use winit::platform::web::WindowAttributesExtWebSys;
@@ -55,6 +71,35 @@ fn attributes(spec: &craft_ui_rt::WindowSpec, canvas: Option<&str>) -> WindowAtt
     #[cfg(not(target_arch = "wasm32"))]
     let _ = canvas;
     attrs
+}
+
+/// Sends `State` and `FrameInset` when the window's maximized or full-screen state or its frame
+/// changed since the last report (the first call always reports the state).
+fn report_frame(shared: &Cell, id: craft_ui_rt::WindowId, window: &Window) {
+    let state = (window.is_maximized(), window.fullscreen().is_some());
+    // Physical pixels from the surface's corner back to the outer corner; errors where the
+    // platform cannot tell (Wayland, the browser).
+    let inset = match (window.inner_position(), window.outer_position()) {
+        (Ok(inner), Ok(outer)) => Some(Vec2::new((inner.x - outer.x) as f32, (inner.y - outer.y) as f32)),
+        _ => None,
+    };
+    let (send_state, send_inset) = {
+        let mut s = shared.borrow_mut();
+        let Some(e) = s.entry_mut(id) else { return };
+        let send_state = e.reported_state != Some(state);
+        e.reported_state = Some(state);
+        let send_inset = inset.is_some() && e.reported_inset != inset;
+        if inset.is_some() {
+            e.reported_inset = inset;
+        }
+        (send_state, send_inset)
+    };
+    if send_state {
+        push(shared, id, WindowEvent::State { maximized: state.0, fullscreen: state.1 });
+    }
+    if let (true, Some(inset)) = (send_inset, inset) {
+        push(shared, id, WindowEvent::FrameInset(inset));
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -109,6 +154,7 @@ impl<R: Renderer + 'static> App<R> {
             if let Ok(p) = window.inner_position() {
                 push(&self.shared, id, WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
             }
+            report_frame(&self.shared, id, &window);
             push(&self.shared, id, WindowEvent::SurfaceCreated);
         }
     }
@@ -129,7 +175,7 @@ impl<R: Renderer + 'static> App<R> {
 
     fn refresh_monitors(&mut self, event_loop: &ActiveEventLoop) {
         let primary = event_loop.primary_monitor();
-        let list = event_loop.available_monitors().map(|m| MonitorInfo::of(&m, primary.as_ref())).collect();
+        let list = event_loop.available_monitors().map(|m| monitor_info(&m, primary.as_ref())).collect();
         let mut s = self.shared.borrow_mut();
         s.monitors = list;
         s.monitors_stale = false;
@@ -258,10 +304,13 @@ impl<R: Renderer + 'static> ApplicationHandler<UserEvent> for App<R> {
                 e.adapter = Some(adapter);
             }
         }
-        if matches!(event, W::Moved(_) | W::Resized(_))
-            && let Some(p) = window.as_ref().and_then(|w| w.inner_position().ok())
+        if matches!(event, W::Moved(_) | W::Resized(_) | W::Occluded(_))
+            && let Some(window) = window.as_ref()
         {
-            push(&self.shared, id, WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
+            if let Ok(p) = window.inner_position() {
+                push(&self.shared, id, WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
+            }
+            report_frame(&self.shared, id, window);
         }
         match event {
             W::CloseRequested => push(&self.shared, id, WindowEvent::CloseRequested),

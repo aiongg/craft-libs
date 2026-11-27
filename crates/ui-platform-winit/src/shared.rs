@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use craft_ui_rt::{ImageKey, Mods, PlatformEvent, Pos2, RgbaImage, SizeU, Vec2, WindowCommand, WindowEvent, WindowId, WindowSpec};
+use craft_ui_rt::{ImageKey, Mods, MonitorInfo, PlatformEvent, Pos2, RgbaImage, SizeU, Vec2, WindowCommand, WindowEvent, WindowId, WindowSpec};
 use winit::monitor::MonitorHandle;
 use winit::window::{CustomCursor, Window};
 
@@ -27,33 +27,21 @@ pub(crate) struct Entry {
     pub surface_live: bool,
     pub mods: Mods,
     pub cursor: Pos2,
+    /// What the last `State` and `FrameInset` events said, so only changes are sent.
+    pub reported_state: Option<(bool, bool)>,
+    pub reported_inset: Option<Vec2>,
 }
 
-/// A monitor as the platform last saw it. Positions and sizes are logical points of that monitor's
-/// own scale.
-#[derive(Clone, Debug, PartialEq)]
-pub struct MonitorInfo {
-    pub name: Option<String>,
-    /// Top left on the virtual desktop.
-    pub position: Pos2,
-    pub size: Vec2,
-    pub scale: f32,
-    pub refresh_hz: Option<f32>,
-    pub primary: bool,
-}
-
-impl MonitorInfo {
-    pub(crate) fn of(handle: &MonitorHandle, primary: Option<&MonitorHandle>) -> MonitorInfo {
-        let scale = handle.scale_factor();
-        let (pos, size) = (handle.position(), handle.size());
-        MonitorInfo {
-            name: handle.name(),
-            position: Pos2::new((f64::from(pos.x) / scale) as f32, (f64::from(pos.y) / scale) as f32),
-            size: Vec2::new((f64::from(size.width) / scale) as f32, (f64::from(size.height) / scale) as f32),
-            scale: scale as f32,
-            refresh_hz: handle.refresh_rate_millihertz().map(|m| m as f32 / 1000.0),
-            primary: primary == Some(handle),
-        }
+pub(crate) fn monitor_info(handle: &MonitorHandle, primary: Option<&MonitorHandle>) -> MonitorInfo {
+    let scale = handle.scale_factor();
+    let (pos, size) = (handle.position(), handle.size());
+    MonitorInfo {
+        name: handle.name(),
+        position: Pos2::new((f64::from(pos.x) / scale) as f32, (f64::from(pos.y) / scale) as f32),
+        size: Vec2::new((f64::from(size.width) / scale) as f32, (f64::from(size.height) / scale) as f32),
+        scale: scale as f32,
+        refresh_hz: handle.refresh_rate_millihertz().map(|m| m as f32 / 1000.0),
+        primary: primary == Some(handle),
     }
 }
 
