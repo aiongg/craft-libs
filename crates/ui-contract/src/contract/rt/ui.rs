@@ -616,6 +616,11 @@ impl<'u, 'c> Ui<'u, 'c> {
         &self.flow.tokens
     }
 
+    /// The window's toast queue ([`Context::toasts`]): a change made through it builds the node that shows the stack.
+    pub fn toasts(&self) -> crate::contract::context::Toasts<'_> {
+        self.ctx.toasts()
+    }
+
     /// The content-paint API over this build: what it records joins the node's paint at the call position's
     /// coordinates (window coordinates), cut to this cursor's clip and at its fade, under the node's children (over
     /// them through `Canvas::over`). The node keeps it until its next build. A measuring run records nothing that
@@ -754,6 +759,34 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// The part of the node `owner` names that a press runs on, if any.
     pub fn pressed_part(&self, owner: Id) -> Option<craft_behavior::PartRef> {
         super::ids::pressed_part(self.cx, owner)
+    }
+
+    /// The window's pointer as a tool reads it: its position, the buttons held, the modifiers and the frame time.
+    /// Tracked through the window's pointer cell, so a reader runs again at every pointer move; code that only needs
+    /// hover or press on its own node reads its response instead. Presses, releases, wheel and gestures reach the
+    /// node they target as its input, so the frame's event fields are empty.
+    pub fn pointer(&mut self) -> crate::runtime::pointer::PointerFrame {
+        use craft_behavior::{Buttons, PointerButton};
+        let facts = self.cx.env().pointer.get(self.cx);
+        let buttons = [PointerButton::Primary, PointerButton::Secondary, PointerButton::Middle, PointerButton::Extra1, PointerButton::Extra2]
+            .into_iter()
+            .filter(|button| facts.held(*button))
+            .fold(Buttons::empty(), |held, button| held | Buttons::of(button));
+        let mods = self.ctx.modifiers();
+        let hit = self.flow.tokens.size.hit;
+        crate::runtime::pointer::PointerFrame::held(facts.pos, buttons, mods, self.cx.now(), hit.slop, hit.target)
+    }
+
+    /// The focused stop of this window, from the focused node's kept facts. Untracked: code asks it when it acts.
+    pub fn focused_stop(&self) -> Option<crate::runtime::focus::StopRec> {
+        let rt = self.cx.runtime();
+        let node = rt.focused(self.cx.window())?;
+        let kept = rt
+            .local::<super::node::ComponentNode>(node)
+            .or_else(|| rt.local::<super::node::ScopeNode>(node))
+            .or_else(|| rt.local::<super::overlay::LayerScope>(node).map(|lk| &lk.kept))?;
+        let keys = kept.focus.stop?;
+        Some(crate::runtime::focus::StopRec::of_kept(kept.id, keys, kept.focus.press_only))
     }
 
     /// The pointer position when it is inside `rect`. Tracked: a reader runs again at every pointer

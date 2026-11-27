@@ -34,6 +34,7 @@ pub mod style;
 pub mod suite;
 pub mod windows;
 
+pub use crate::contract::rt::commands::modal_checks;
 pub use crate::contract::rt::harness::{FRAME, Harness, HarnessBuilder, LayerInfo, Look, ScrollRegion, Target};
 pub use crate::contract::{Exemption, PatternKind, PatternProbe, Probe, Registration};
 #[cfg(feature = "testing")]

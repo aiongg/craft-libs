@@ -44,6 +44,16 @@ pub struct StopRec {
     pub(crate) group_position: bool,
 }
 
+impl StopRec {
+    /// The record of the focused stop of component `id` with `keys`, from its node's kept facts.
+    pub(crate) fn of_kept(id: Id, keys: KeyUse, press_only: bool) -> StopRec {
+        let mut stop = Stop::new(id, keys);
+        stop.text = keys.owner == craft_behavior::OwnerClass::Text;
+        stop.press_only = press_only;
+        StopRec { stop, scope: None, group_position: false }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ScopeRec {
     pub(crate) policy: FocusPolicy,
