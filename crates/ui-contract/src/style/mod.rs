@@ -36,6 +36,7 @@ pub(crate) use paint::{auto_scroll_mark_look, min_thumb, scroll_bar_look};
 pub use replacements::{DuplicateStyle, StyleReplacements};
 pub use span::Span;
 pub use state::StateSet;
+pub(crate) use state::{PointerReads, note_pointer_read, pointer_reads};
 pub use surface::{BandFill, SurfaceEdge, SurfaceStyle};
 pub use surround::SurroundLook;
 pub use tokens::UiTokens;

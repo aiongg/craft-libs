@@ -1,33 +1,31 @@
-//! Step 9, update: activation, gestures and edit intents around `C::update`, and what it leaves untaken.
+//! Step 9, update: the library's part around `Component::update`.
 
 use super::label::scrub_press;
-use super::scroll_owner::route_to_scroll_owner;
 use crate::contract::cx::CxCore;
 use crate::contract::cx::gesture_key;
 use crate::contract::{Component, Cx, Resolved, ValueOf};
-use crate::runtime::focus::{self};
-use crate::runtime::keys;
 use craft_behavior::{CancelReason, Gesture, GesturePhase, Input, Intent, PartRef, PressCancel};
+use craft_ui_rt::Rect;
 
 /// Whether the component takes activations (a click, a key, AccessKit `Click`): a disabled or read-only one drops them.
 pub(crate) fn takes_activation(resolved: &Resolved<'_>) -> bool {
     resolved.enabled && !resolved.read_only
 }
 
-/// A key or AccessKit activation in this pass, with the modifiers held in it: the press that routed
-/// `Intent::Activate` carries them, and the pass's pointer frame reads them from the same input a pointer activation's
-/// modifiers come from (Alt+Enter adds the way Alt+click does).
-pub(crate) fn key_activation(ctx: &egui::Context) -> crate::contract::Activation {
-    crate::contract::Activation { by_key: true, mods: crate::runtime::pointer::frame_raw(ctx).mods }
+/// Whether the component takes focus: enabled, or disabled with a reason it shows on focus (its
+/// tooltip's `disabled_text`, or its bound command's hint).
+pub(crate) fn takes_focus(resolved: &Resolved<'_>) -> bool {
+    resolved.enabled
+        || resolved.tooltip.is_some_and(|tooltip| tooltip.spec().disabled_text.is_some())
+        || resolved.command.and_then(|command| command.hint.as_deref()).is_some_and(|hint| !hint.is_empty())
 }
 
-/// Step 9, update, the part the library writes: the keyboard activation.
+/// Step 9, update, the part the library writes: the activation intent is the driver's (taken here so
+/// it is not left for the scopes), and an AccessKit click on a part is a click on the component.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
-    if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
-        core.activation = Some(key_activation(&core.ctx));
+    if core.intents.take(Intent::Activate) && takes_activation(core.resolved) {
+        core.activation.get_or_insert(crate::contract::Activation { by_key: true, mods: craft_keymap::Mods::NONE });
     }
-    // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
-    // reports it, and a toggling part or a part reader takes it as it takes the pointer's.
     if core.intents.any_access_click() && takes_activation(core.resolved) {
         core.activation.get_or_insert(crate::contract::Activation { by_key: false, mods: craft_keymap::Mods::NONE });
         core.part_clicked = true;
@@ -51,22 +49,9 @@ pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
 pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     use crate::contract::cx::Edit as _;
     if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) {
-        // Typing in a dialog whose Escape closes it ends with the dialog: the typing is cancelled and the Escape is
-        // left for the dialog, so one Escape cancels both (`focus::escape_closes_dialog`).
-        let dialog_escape = !cx.core.escape_to_list
-            && matches!(C::INPUT, Input::Text)
-            && cx.core.intents.untaken(&Intent::Cancel)
-            && focus::escape_closes_dialog(&cx.core.ctx);
-        let escapes = !cx.core.escape_to_list && !crate::runtime::keys::focus_in_modal_dialog(&cx.core.ctx);
-        let reason = if dialog_escape {
-            // A dialog that keeps typing on Escape (`FocusPolicy::escape_keeps_typing`) commits it instead.
-            if focus::escape_keeps_typing(&cx.core.ctx) {
-                cx.commit();
-            } else {
-                cx.cancel(CancelReason::Escape);
-            }
-            None
-        } else if escapes && cx.core.intents.take(Intent::Cancel) {
+        // An Escape the field does not hold goes up its path to the scopes around it (a dialog's
+        // Cancel); one it holds (`Cx::hold_escape`) ends the gesture here.
+        let reason = if !cx.core.escape_to_list && cx.core.intents.take(Intent::Cancel) {
             Some(CancelReason::Escape)
         } else {
             cx.core.press_cancelled().map(|reason| match reason {
@@ -111,38 +96,28 @@ fn double_click(core: &CxCore<'_>) -> Option<Option<PartRef>> {
         .map(|&(key, index)| Some(PartRef { key, index }))
 }
 
-/// Whether this pass releases the secondary button over the component, its text part included (a widget of its own
-/// over it): a right click on it.
-pub(crate) fn secondary_click(core: &CxCore<'_>) -> bool {
-    crate::runtime::pointer::frame_raw(&core.ctx).release == Some(craft_behavior::PointerButton::Secondary)
-        && (core.response.hovered()
-            || core.texts.as_ref().is_some_and(|(key, _)| {
-                core.ctx.read_response(crate::primitives::text_adapter::text_id(core.id, *key)).is_some_and(|text| text.hovered())
-            }))
+/// A context request a run recorded: where the context menu opens, and the part it is for.
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub(crate) struct ContextRequest(pub Option<(Rect, Option<PartRef>)>);
+
+/// The memory slot of a node's context request.
+pub(crate) fn context_slot(id: crate::contract::Id) -> crate::contract::Id {
+    crate::runtime::memory::sub(id, "context")
 }
 
-/// Step 9, after `update`: a secondary release on the component (its text part included, which is a widget of its
-/// own over it), or a `ContextMenu` intent it did not take, records a context request that the overlay step and the
-/// popups shown after it read in this pass (9.2 rule 3). The request is at the part under the pointer for a release,
-/// at the active part for the intent, else at the component.
-pub(crate) fn record_context(core: &CxCore<'_>) {
+/// Step 9, after `update`: a secondary click on the component or a `ContextMenu` intent it did not
+/// take records a context request that the overlay step and the popups read in this run (9.2 rule
+/// 3): at the part under the pointer for a click, at the active part for the intent, else at the
+/// component.
+pub(crate) fn record_context(core: &mut CxCore<'_>) {
     let part = if core.intents.untaken(&Intent::ContextMenu) {
-        focus::active_part(&core.ctx, core.id)
-    } else if secondary_click(core) {
+        core.active
+    } else if core.response.secondary_clicked() {
         core.results.iter().find(|(_, result)| result.hovered).map(|(&(key, index), _)| PartRef { key, index })
     } else {
+        *core.memory.shown::<ContextRequest>(context_slot(core.id)) = ContextRequest(None);
         return;
     };
-    let part = part.and_then(|part| core.results.get(&(part.key, part.index)).map(|result| (part, result.rect)));
-    keys::request_context(&core.ctx, core.id, part.map_or(core.rect, |(_, rect)| rect), part.map(|(part, _)| part));
-}
-
-/// Writes back what the component left untaken, and its state-dependent claims for the next frames.
-pub(crate) fn after_update(core: &mut CxCore<'_>) {
-    route_to_scroll_owner(core);
-    keys::settle(&core.ctx, Some(core.id), &core.intents);
-    keys::give_back(&core.ctx, core.id, std::mem::take(&mut core.lent));
-    for chord in std::mem::take(&mut core.claims) {
-        keys::claim(&core.ctx, core.id, chord);
-    }
+    let at = part.and_then(|part| core.results.get(&(part.key, part.index)).map(|result| result.rect)).unwrap_or(core.rect);
+    *core.memory.shown::<ContextRequest>(context_slot(core.id)) = ContextRequest(Some((at, part)));
 }

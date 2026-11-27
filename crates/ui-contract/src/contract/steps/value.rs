@@ -1,5 +1,6 @@
 //! Step 4, value: the shown value and its copies.
 
+use crate::contract::Id;
 use crate::contract::cx::gesture_key;
 use crate::contract::values::reuse_arc;
 use crate::contract::{BindMut, Component, ValueOf};
@@ -7,7 +8,6 @@ use crate::runtime::commands::{CommandKind, ResolvedCommand};
 use crate::runtime::memory::MemoryStage;
 use crate::runtime::motion::StateTweens;
 use craft_behavior::{CancelReason, EditEvent, Gesture, Mixed, Value};
-use egui::{Context, Id};
 use std::sync::Arc;
 
 /// What a component showed last pass, in one shown slot under its id: the shown copy of its value, the
@@ -96,11 +96,11 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id,
 fn resolve_value<V: Value>(comp: &mut dyn ValueSource<V>, stage: &mut MemoryStage, id: Id, command: Option<&ResolvedCommand>) -> ValueStep<V> {
     let held = stage.shown::<Shown<V>>(id).copy.clone();
     let slot = gesture_key(id);
-    let (serial, all_reason) = crate::runtime::edit::latest(stage.ctx());
+    // A cancel of every running edit (`Ui::cancel_edits`) reaches the node as its serial and reason.
+    let (serial, all_reason) = stage.cancel_all();
     let mut cancelled = None;
-    // A component not shown for a pass, by a run or a replay of one, loses its press at the end hook; its running gesture
-    // ends here, the first pass it is shown again.
-    let removed = !crate::runtime::memory::shown_last_pass(stage.ctx(), id);
+    // A node that left the tree dropped its memory with its gesture: one shown again starts with none.
+    let removed = false;
     if stage.shown::<Gesture<V>>(slot).is_running() {
         // A typing run cut short by the removal is forgotten: its text reached the binding as it was typed, and the value
         // from before it may be long stale by the time the component is shown again.
@@ -169,23 +169,4 @@ fn resolve_value<V: Value>(comp: &mut dyn ValueSource<V>, stage: &mut MemoryStag
         *shown = out.value.clone();
     }
     out
-}
-
-/// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage. A kept binding reads
-/// shown memory.
-/// Returns the value and whether the binding is mixed.
-pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id, command: Option<&ResolvedCommand>) -> (Option<Arc<ValueOf<C>>>, bool) {
-    let held = MemoryStage::peek::<Shown<ValueOf<C>>>(ctx, id).copy;
-    let Some(bind) = comp.bind() else {
-        let given = command_given::<ValueOf<C>>(command).map(|value| reuse_arc(&held, &value));
-        return (given.or(held), false);
-    };
-    if held.as_deref().is_some_and(|held| bind.shown_matches(held)) {
-        return (held, false);
-    }
-    match bind.get() {
-        Some(Mixed::Same(value)) => (Some(Arc::new(value)), false),
-        Some(Mixed::Mixed) => (None, true),
-        None => (held, false),
-    }
 }

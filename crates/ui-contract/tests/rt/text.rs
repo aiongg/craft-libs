@@ -6,7 +6,7 @@ use craft_behavior::{CancelRule, IconId};
 use craft_keymap::{Binding, Chord, CommandDef, Keymap, Scope, Scopes};
 use craft_ui_contract::contract::Bind;
 use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::skeleton::IconButton;
+use crate::skeleton::IconButton;
 use craft_ui_contract::contract::rt::text::TextField;
 use craft_ui_contract::contract::rt::{CommandBoard, MemoView, Ui, WindowEnv, show_dialog, window_root_with};
 use craft_ui_contract::runtime::commands::CommandState;

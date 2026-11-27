@@ -1,6 +1,10 @@
 //! The command board: the registry and typed sets, per-frame state, the queue, firing and the gate (spec 11).
 
 pub(crate) mod board;
+pub(crate) mod inbox;
+pub use crate::contract::rt::CommandBoard;
+pub use inbox::InboxIn;
+pub(crate) use inbox::{InboxCells, register as register_inboxes};
 mod clipboard;
 mod library;
 mod registry;
@@ -649,6 +653,11 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
     fn command_chain(&self) -> &CommandChain;
     /// The component this context belongs to, when it has an id of its own.
     fn command_owner(&self) -> Option<Id>;
+    /// The run's command inboxes and the node memory the takes record in; `None` for a context
+    /// without a node of its own (a settled or measuring `Cx`), which takes nothing.
+    fn command_inbox(&mut self) -> Option<(&mut InboxIn, &mut crate::runtime::memory::MemoryStage, Id)> {
+        None
+    }
 }
 
 /// The chapter-11 context trait that `Cx`, `BodyCx` and `ItemCx` implement. "This instance" is the innermost
@@ -665,26 +674,17 @@ pub trait Commands: CommandAccess {
         board::publish(self.command_ctx(), self.command_chain(), &command.into(), state);
     }
 
-    /// The next command of set `S` routed to this instance this pass; each is taken once, so a discard pass does
-    /// not repeat it.
+    /// The next command of set `S` fired at this instance that it has not taken. A fire writes the
+    /// instance's inbox cell at event time, so only this node reruns; the take records what it
+    /// consumed in the node's memory and writes no cell.
     fn take_command<S: CommandSet>(&mut self) -> Option<(S, Fired)> {
-        let chain = self.command_chain();
-        let ctx = self.command_ctx();
-        if S::SCOPE != CommandScope::APP {
-            return board::take(ctx, board::innermost(ctx, chain, S::SCOPE.name()), false, S::from_ref);
-        }
-        // An app-scope command an instance declares (`ModalRule::Declared`) is delivered to that instance, the
-        // innermost one around the context that published it. The rest go to the app instance.
-        chain
-            .innermost_any()
-            .and_then(|declaring| board::take(ctx, Some(declaring), false, S::from_ref))
-            .or_else(|| board::take(ctx, board::innermost(ctx, chain, S::SCOPE.name()), true, S::from_ref))
+        let (inbox, memory, id) = self.command_inbox()?;
+        inbox.take::<S, S>(memory, id, S::from_ref)
     }
 
-    /// Declares Undo and Redo on the innermost instance around this context, enabled as `can_undo` and `can_redo`
-    /// say, and takes the next of them fired at it this pass. A body with its own history calls it in a `while let`
-    /// loop and steps that history: inside a modal layer Undo and Redo reach the instance that declares them, after a
-    /// focused text field that has a step of its own to take (11.3).
+    /// Declares Undo and Redo on this instance, enabled as `can_undo` and `can_redo` say, and takes the
+    /// next of them fired at it. A body with its own history calls it in a `while let` loop and steps
+    /// that history.
     fn take_step(&mut self, can_undo: bool, can_redo: bool) -> Option<Step> {
         fn step(command: &CommandRef) -> Option<Step> {
             match EditCommands::from_ref(command)? {
@@ -695,12 +695,8 @@ pub trait Commands: CommandAccess {
         }
         self.publish(EditCommands::Undo, CommandState::new().enabled(can_undo));
         self.publish(EditCommands::Redo, CommandState::new().enabled(can_redo));
-        let (ctx, chain) = (self.command_ctx(), self.command_chain());
-        chain
-            .innermost_any()
-            .and_then(|declaring| board::take(ctx, Some(declaring), false, step))
-            .or_else(|| board::take(ctx, board::innermost(ctx, chain, CommandScope::APP.name()), true, step))
-            .map(|(step, _)| step)
+        let (inbox, memory, id) = self.command_inbox()?;
+        inbox.take::<EditCommands, Step>(memory, id, step).map(|(step, _)| step)
     }
 
     /// `command` as this context shows it: the label, icon and chord with the scoped bindings of the scopes above

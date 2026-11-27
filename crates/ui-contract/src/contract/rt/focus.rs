@@ -57,6 +57,13 @@ impl FocusKept {
     }
 }
 
+/// What a run's `Cx` reads of focus: `focused` is the node's tracked `Focused` fact (only a stop
+/// reads it), `visible` its untracked `FocusVisible` (ui-rt's paint phase draws the ring from the
+/// fact itself), `at` when it took focus.
+pub(crate) fn facts(kept: &FocusKept, focused: bool, visible: bool) -> crate::runtime::focus::Facts {
+    crate::runtime::focus::Facts { focused, visible: focused && visible, at: kept.seq, ..Default::default() }
+}
+
 /// A stop found by a walk.
 #[derive(Clone, Copy, Debug)]
 struct StopAt {

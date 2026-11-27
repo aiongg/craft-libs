@@ -1,11 +1,15 @@
-//! Step 7, parts: what the step gathers and its checks.
+//! Step 7, parts: the parts a run declares, kept with the node as hit shapes, and the facts later
+//! steps read of them.
 
-use crate::contract::cx::Decls;
-use crate::runtime::inspect;
-use craft_behavior::{PartKey, PartRef, Roving, Sense};
-use egui::Context;
+use super::measure::{MeasureIn, measure_cx};
+use crate::contract::cx::{Decls, PartExtras, PartKeys, PartsCx, Toggle, gesture_key};
+use crate::contract::rt::{KeptPart, kept_part_id};
+use crate::contract::{Component, Cx, ValueOf};
+use craft_behavior::{Gesture, PartRef, Roving};
+use craft_ui_rt::{HitShape, Pos2, Rect};
 
 /// What step 7 gathers.
+#[derive(Default)]
 pub(crate) struct PartsStep {
     pub decls: Decls,
     pub rovings: Vec<Roving>,
@@ -13,32 +17,70 @@ pub(crate) struct PartsStep {
     pub text: crate::contract::text::TextStep,
 }
 
-/// Whether step 7 declared no parts, no roving group, no scroll part and no text, editor or selection part.
-#[cfg(feature = "testing")]
-pub(crate) fn declares_none(parts: &PartsStep) -> bool {
-    parts.decls.parts().is_empty()
-        && parts.rovings.is_empty()
-        && parts.scrolls.is_empty()
-        && parts.text.decl.is_none()
-        && parts.text.editor.is_none()
-        && parts.text.selections.is_empty()
+/// Runs `Component::parts` over the run's rect and content rect.
+pub(crate) fn declare_parts<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>, rect: Rect, parts: &mut PartsStep, input: &MeasureIn<'_>) {
+    let id = cx.core.id;
+    let last_state = cx.core.memory.shown::<super::Shown<ValueOf<C>>>(id).state.last_state;
+    let gesture_running = cx.core.memory.recall::<Gesture<ValueOf<C>>>(gesture_key(id)).is_running();
+    let measure = measure_cx::<C>(input, cx.style, cx.core.resolved, cx.shown.as_deref());
+    let mut pcx = PartsCx {
+        content_rect: cx.core.content_rect,
+        flow: cx.core.flow,
+        decls: &mut parts.decls,
+        rovings: &mut parts.rovings,
+        scrolls: &mut parts.scrolls,
+        text: &mut parts.text,
+        last_state,
+        gesture_running,
+        measure,
+        items: None,
+        stage: Some((&*cx.core.memory, id)),
+    };
+    comp.parts(rect, &mut pcx);
 }
 
-/// Step 7's finding (22.4): a part that senses `CLICK` or `DRAG` is focusable, declares its keyboard path, or names
-/// the focusable part of the component that carries it.
-pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsStep) {
-    let focusable = |key: PartKey| parts.decls.iter().any(|(decl, extras)| decl.key == key && extras.focusable);
-    for (decl, extras) in &parts.decls {
-        let has_path = extras.focusable || extras.pointer_only.is_some() || extras.keyboard_via.is_some_and(focusable);
-        if decl.sense.intersects(Sense::CLICK | Sense::DRAG) && !has_path {
-            inspect::finding(
-                ctx,
-                inspect::Finding {
-                    rule: "pointer-part-without-keyboard-path",
-                    component,
-                    subject: format!("{:?}", PartRef { key: decl.key, index: decl.index }),
-                },
-            );
-        }
-    }
+/// The declared parts as the node keeps them: hit shapes in the node's coordinates (`origin` is the
+/// node's top left), with the ui-rt part id paint records them under.
+pub(crate) fn kept_parts(parts: &PartsStep, origin: Pos2) -> Vec<KeptPart> {
+    parts
+        .decls
+        .iter()
+        .map(|(decl, extras)| {
+            let part = PartRef { key: decl.key, index: decl.index };
+            KeptPart {
+                part,
+                id: kept_part_id(part),
+                shape: HitShape::Rect(decl.shape.bounds().translate(Pos2::ZERO - origin)),
+                sense: decl.sense,
+                cursor: decl.cursor.map(Into::into),
+                exclusive: extras.exclusive,
+            }
+        })
+        .collect()
+}
+
+/// The key and index of every declared part whose extras `has` accepts.
+pub(crate) fn declared_with(parts: &PartsStep, has: impl Fn(&PartExtras) -> bool) -> PartKeys {
+    parts.decls.iter().filter(|(_, extras)| has(extras)).map(|(decl, _)| (decl.key, decl.index)).collect()
+}
+
+/// The focus shapes the parts declared, by key and index.
+pub(crate) fn focus_shapes(parts: &PartsStep) -> Vec<((craft_behavior::PartKey, Option<u64>), crate::primitives::FocusShape)> {
+    parts.decls.iter().filter_map(|(decl, extras)| extras.focus_shape.clone().map(|shape| ((decl.key, decl.index), shape))).collect()
+}
+
+/// The popup toggles the parts declared.
+pub(crate) fn toggles(parts: &PartsStep) -> Vec<Toggle> {
+    parts
+        .decls
+        .iter()
+        .filter_map(|(decl, extras)| {
+            extras.toggles.map(|toggle| Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false })
+        })
+        .collect()
+}
+
+/// Whether `part` was declared inactive (it paints its data dimmed and senses nothing).
+pub(crate) fn inactive(parts: &PartsStep, part: PartRef) -> bool {
+    parts.decls.iter().any(|(decl, _)| decl.key == part.key && decl.index == part.index && decl.inactive)
 }

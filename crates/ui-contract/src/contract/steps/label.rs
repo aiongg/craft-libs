@@ -2,12 +2,10 @@
 
 use crate::contract::cx::CxCore;
 use crate::contract::{Component, Cx};
-use crate::runtime::access::scope;
 use crate::runtime::env::ScrubDrags;
 use crate::runtime::memory::sub;
-use crate::runtime::windows::WindowHost;
 use craft_behavior::{CancelReason, Cursor, CursorPriority, DragWarp, GesturePhase, PaintedCursor, ValueDrag};
-use egui::{Pos2, Vec2};
+use craft_ui_rt::{Pos2, Vec2};
 
 /// Which of a scrub's label and body sources the root's `ScrubDrags` leaves on, as `(label, field)`. A part's source
 /// is the component's own and is never gated.
@@ -39,7 +37,7 @@ pub(super) fn scrub_press<C: Component>(comp: &C, cx: &Cx<'_, C>) -> Option<(cra
 fn side_label(core: &CxCore<'_>) -> Option<(craft_behavior::PressState, bool)> {
     match core.results.get(&(crate::contract::InsideLabel::PART, None)) {
         Some(part) => Some((part.press, part.hovered)),
-        None => scope::field_label(&core.ctx).map(|label| (label.press, label.hovered)),
+        None => None,
     }
 }
 
@@ -51,28 +49,13 @@ struct ScrubStart(f64);
 #[derive(Clone, Default)]
 struct ScrubWarp(DragWarp);
 
-/// The total warp of the running scrub. A scrub that warps moves the pointer to the other side of the window when
-/// it reaches an edge, once the pointer from the last warp has shown up at its new place; a platform that cannot
-/// warp leaves the drag as it is.
+/// The total warp of the running scrub, as the warps the platform made so far moved the pointer.
 fn scrub_warp(core: &mut CxCore<'_>, drag: &ValueDrag, pos: Pos2) -> Vec2 {
     if !drag.warps() {
         return Vec2::ZERO;
     }
-    let id = sub(core.id, "scrub_warp");
-    let ctx = core.ctx.clone();
-    let warp = &mut core.memory.shown::<ScrubWarp>(id).0;
-    let shift = warp.shift(pos);
-    if warp.pending() {
-        return shift;
-    }
-    let Some(screen) = crate::runtime::pointer::frame_raw(&ctx).pos else { return shift };
-    let hosts = WindowHost::of(&ctx);
-    if let (Some(by), Some(desktop)) = (drag.warp_by(screen, ctx.content_rect()), hosts.desktop_pointer())
-        && hosts.warp_pointer(desktop + by)
-    {
-        warp.sent(pos, by);
-    }
-    shift
+    let warp = &mut core.memory.shown::<ScrubWarp>(sub(core.id, "scrub_warp")).0;
+    warp.shift(pos)
 }
 
 /// Step 9, before the component: a drag on a source of the component's `Component::scrub` (its side label, its body,
@@ -91,15 +74,12 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     }
     let (label_on, field_on) = scrub_sources(cx);
     let by_label = scrub.by_label && label_on;
-    if by_label && scope::field_label(&cx.core.ctx).is_some() {
-        scope::register_scrub(&cx.core.ctx);
-    }
     let label = by_label.then(|| side_label(cx.core)).flatten();
     // A scrub's source shows the horizontal resize cursor under the pointer.
     let part_hovered = scrub.parts.iter().any(|(part, _)| cx.core.results.get(&(part.key, part.index)).is_some_and(|result| result.hovered));
     let field_hovered = scrub.on_field && field_on && !cx.core.text_takes_pointer && cx.core.response.hovered();
     if part_hovered || field_hovered || label.is_some_and(|(_, hovered)| hovered) {
-        crate::runtime::cursor::request(&cx.core.ctx, Cursor::System(craft_behavior::CursorIcon::ResizeHorizontal), CursorPriority::Part);
+        cx.core.cursor = Some((Cursor::System(craft_behavior::CursorIcon::ResizeHorizontal), CursorPriority::Part));
     }
     let Some((press, drag)) = scrub_press(comp, cx) else { return };
     let start_id = sub(cx.core.id, "scrub_start");
@@ -130,8 +110,8 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
 }
 
 /// A scrub that hides the pointer asks for no cursor while it runs.
-fn hide_scrub_cursor(core: &CxCore<'_>, drag: &ValueDrag) {
+fn hide_scrub_cursor(core: &mut CxCore<'_>, drag: &ValueDrag) {
     if drag.hides_cursor() {
-        crate::runtime::cursor::request(&core.ctx, Cursor::Painted(PaintedCursor::Hidden), CursorPriority::Drag);
+        core.cursor = Some((Cursor::Painted(PaintedCursor::Hidden), CursorPriority::Drag));
     }
 }
