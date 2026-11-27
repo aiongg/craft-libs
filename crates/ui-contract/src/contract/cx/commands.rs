@@ -4,9 +4,9 @@ use super::body::BodyCx;
 use super::context::Cx;
 use super::item::ItemCx;
 use crate::contract::Component;
-use crate::runtime::commands::{CommandAccess, CommandChain, Commands};
 use crate::contract::Context;
 use crate::primitives::Id;
+use crate::runtime::commands::{CommandAccess, CommandChain, Commands};
 
 impl<C: Component> CommandAccess for Cx<'_, C> {
     fn command_ctx(&self) -> &Context {

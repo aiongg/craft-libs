@@ -3,21 +3,21 @@
 use super::parts::{PartKeys, Toggle};
 use super::pointer::Pointer;
 use super::scroll::ScrollMove;
+use crate::contract::rt::motion::MotionSpec;
+use crate::contract::rt::node::NodeInput;
 use crate::contract::{Component, Resolved, Validity, ValueOf};
+use crate::contract::{Context, Response};
+use crate::primitives::Id;
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{PaintRecord, TextLayout};
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{Env, EnvView};
 use crate::runtime::focus::{self};
+use crate::runtime::focus::{FocusTarget, KeepKeys};
 use crate::runtime::keys::Intents;
+use crate::runtime::memory::Slot;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::style::{Ink, StateSet};
-use crate::contract::rt::motion::MotionSpec;
-use crate::contract::rt::node::NodeInput;
-use crate::contract::{Context, Response};
-use crate::primitives::Id;
-use crate::runtime::focus::{FocusTarget, KeepKeys};
-use crate::runtime::memory::Slot;
 use craft_behavior::{Cursor, CursorPriority, EditEvent, EditorInput, Flow, GestureId, PartKey, PartRef, PressCancel, PressState};
 use craft_keymap::Chord;
 use craft_ui_rt::{CloseReason, Rect};
@@ -256,6 +256,8 @@ pub(crate) struct RunIo<'a> {
     /// Commands the run fired (`Cx::fire`), with their source and modifiers; the driver runs their handlers on the
     /// window's `CommandBoard` after the run, in order.
     pub(crate) fires: Vec<(CommandRef, FireSource, craft_keymap::Mods)>,
+    /// The value a toggle sweep sets on this toggle in this run (`Cx::swept_toggle`), from the sweep cell.
+    pub(crate) swept: Option<bool>,
     /// Live announcements the run made (`Accessible::announce`); the driver gives them to the node's access entry.
     pub(crate) announcements: Vec<(String, crate::runtime::access::Politeness)>,
 }
@@ -274,6 +276,7 @@ impl<'a> RunIo<'a> {
             focus_requests: RefCell::new(Vec::new()),
             fires: Vec::new(),
             announcements: Vec::new(),
+            swept: None,
         }
     }
 

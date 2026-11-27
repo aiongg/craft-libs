@@ -6,6 +6,7 @@ mod container;
 mod cx;
 pub(crate) mod editor;
 pub use editor::{EditorHandle, EditorStep};
+mod context;
 mod entry;
 mod faces;
 pub(crate) mod footer_slot;
@@ -31,8 +32,7 @@ mod props;
 mod registry;
 #[doc(hidden)]
 pub mod reorder;
-mod context;
-mod rt;
+pub(crate) mod rt;
 mod run;
 mod sampler;
 mod settle;
@@ -117,8 +117,7 @@ pub use sampler::{CanvasGesture, Sampler};
 pub use settle::SettleCx;
 pub use text::EDIT_MENU;
 pub use values::{
-    Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Response, Shown, Validity, ValueOf, clicked, pressed,
-    response_of,
+    Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Response, Shown, Validity, ValueOf, clicked, pressed, response_of,
 };
 
 pub use crate::primitives::{Id, IdSalt};

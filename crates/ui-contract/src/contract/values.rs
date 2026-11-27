@@ -1,12 +1,12 @@
 //! Values and edits (chapter 10): the binding, the output of a value component and the types that carry a value
 //! between the app and the pipeline.
 
-use crate::contract::{MemoKey, MemoProps};
-use crate::runtime::env::Message;
-use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
 use crate::contract::Ui;
 use crate::contract::rt::response::{InputFacts, log_read};
+use crate::contract::{MemoKey, MemoProps};
 use crate::primitives::Id;
+use crate::runtime::env::Message;
+use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
 use craft_behavior::{Applied, CanvasView, EditEvent, EditEvents, EditPolicy, Mixed, Value};
 use craft_ui_rt::{Interact, InteractFact, NodeId, Pos2, Rect, Vec2};
 use std::cell::Cell;

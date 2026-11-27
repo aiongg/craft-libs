@@ -1,12 +1,12 @@
 //! `BodyCx`: what a container's body closure and region hooks read.
 
+use crate::contract::Ui;
 use crate::contract::label;
 use crate::contract::{Container, Resolved, Show, SideLabel};
+use crate::primitives::Id;
 use crate::runtime::env::{Env, EnvView, Label, Message};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::overlay::CloseReason;
-use crate::contract::Ui;
-use crate::primitives::Id;
 use craft_ui_rt::Rect;
 use std::any::Any;
 use std::fmt::Debug;

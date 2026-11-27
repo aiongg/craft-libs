@@ -53,7 +53,7 @@ impl<'a, C: Component> MeasureCx<'a, C> {
 
 impl<C: Component> MeasureCx<'_, C> {
     /// Runs `f` on the run's `Ui`.
-    fn with_ui<R>(&self, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+    pub(crate) fn with_ui<R>(&self, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
         host_ui(&mut **self.host.borrow_mut(), f)
     }
 

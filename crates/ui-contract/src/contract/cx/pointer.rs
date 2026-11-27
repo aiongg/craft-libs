@@ -2,12 +2,12 @@
 
 use super::context::{Activation, Cx, CxCore};
 use crate::contract::{Component, Hover};
+use crate::primitives::Id;
 use crate::primitives::PartResult;
 use crate::runtime::drag::{self, DragPreview, DropTarget, DropZone, Typed, WindowDropTarget};
-use crate::runtime::egui::areas;
-use crate::runtime::{cursor, frame, pointer, wheel};
+use crate::runtime::{pointer, wheel};
 use craft_behavior::{Cursor, CursorPriority, DropOperation, MultiTap, PartKey, PartRef, PressCancel, PressState, Wheel};
-use egui::{Id, Pos2, Vec2};
+use craft_ui_rt::{Pos2, Vec2};
 use std::any::{Any, TypeId};
 use std::ops::Range;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub trait Pointer {
     /// The result of `part` this pass, `None` when `parts` did not declare it: for parts that exist only under a
     /// condition.
     fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult>;
-    /// Where the pointer is over `part` this pass, in the component's layer space; `None` when `part` is not hovered.
+    /// Where the pointer is over `part` this pass, in window coordinates; `None` when `part` is not hovered.
     /// The read marks the part as following the pointer (`pointer::follows_pointer`): a memoized view around the
     /// component runs on each move over the part, and the pointer-move gate runs a pass for it. A component that only
     /// asks whether the part is hovered reads `PartResult::hovered`.
@@ -36,7 +36,7 @@ pub trait Pointer {
     fn activation(&self) -> Option<Activation>;
     /// For an arena root, the member activated this pass.
     fn activated_member(&self) -> Option<Id>;
-    /// This pass's wheel share, once, with the pointer it came at (`Wheel::at`) in this component's egui layer space (8.3).
+    /// This pass's wheel share, once, with the pointer it came at (`Wheel::at`) in window coordinates (8.3).
     fn take_wheel(&mut self) -> Option<Wheel>;
     /// This pass's tap, once, when it lies in this component's rect and this component (an arena root with its members)
     /// wins a press there.
@@ -63,7 +63,7 @@ pub trait Pointer {
         also: Vec<Arc<dyn std::any::Any + Send + Sync>>,
         preview: DragPreview,
     );
-    /// The active drag payload of type `P` and the pointer position in this component's egui layer space (8.3), from any
+    /// The active drag payload of type `P` and the pointer position in window coordinates (8.3), from any
     /// viewport.
     fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)>;
     /// Registers `target` over this component's rect for this pass, in `update`. Returns the drop released over it this
@@ -98,7 +98,7 @@ impl Pointer for CxCore<'_> {
             None => {
                 // A run that stopped before step 7 has no parts: its core is blank, so every part reads idle.
                 debug_assert!(
-                    self.face_mode || !self.parted || crate::runtime::measure::active(&self.ctx) || self.results.is_empty() && self.stated,
+                    self.face_mode || !self.parted || self.is_measuring() || self.results.is_empty() && self.stated,
                     "`parts` did not declare the part {part:?}"
                 );
                 &PartResult::IDLE
@@ -113,9 +113,7 @@ impl Pointer for CxCore<'_> {
 
     fn hover_pos(&self, part: impl Into<PartRef>) -> Option<Pos2> {
         let result = self.part_if_declared(part)?;
-        let at = result.hover_pos?;
-        pointer::follows_part(&self.ctx, self.response.layer_id, result.rect);
-        Some(at)
+        result.hover_pos
     }
 
     fn press(&self) -> &PressState {
@@ -135,31 +133,25 @@ impl Pointer for CxCore<'_> {
     }
 
     fn take_wheel(&mut self) -> Option<Wheel> {
-        let mut wheel = wheel::take(&self.ctx, self.id)?;
-        if let (Some(at), Some(map)) = (wheel.at, areas::layer_map(&self.ctx, self.response.layer_id)) {
-            wheel.at = Some(map.to_layer(at));
-        }
-        Some(wheel)
+        wheel::take(self.context(), self.id)
     }
 
     fn take_multi_tap(&mut self) -> Option<MultiTap> {
-        let map = areas::layer_map(&self.ctx, self.response.layer_id);
-        let to_layer = |at: Pos2| map.as_ref().map_or(at, |map| map.to_layer(at));
         let rect = self.response.rect;
-        let tap = pointer::take_multi_tap(&self.ctx, self.id, |at| rect.contains(to_layer(at)))?;
-        Some(MultiTap::new(tap.fingers, to_layer(tap.at)))
+        let tap = pointer::take_multi_tap(self.context(), self.id, |at| rect.contains(at))?;
+        Some(MultiTap::new(tap.fingers, tap.at))
     }
 
     fn mark_wheel_moved(&mut self) {
-        wheel::mark_moved(&self.ctx, self.id);
+        wheel::mark_moved(self.context(), self.id);
     }
 
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2 {
-        wheel::ease(&self.ctx, self.id, pan)
+        wheel::ease(self.context(), self.id, pan)
     }
 
     fn stop_wheel_ease(&mut self) {
-        wheel::stop_ease(&self.ctx, self.id);
+        wheel::stop_ease(self.context(), self.id);
     }
 
     fn cursor(&mut self, cursor: impl Into<Cursor>, priority: CursorPriority) {
@@ -169,13 +161,12 @@ impl Pointer for CxCore<'_> {
     }
 
     fn cancel_press(&mut self, reason: PressCancel) {
-        pointer::cancel_press(&self.ctx, reason);
-        frame::note_cancelled_press(&self.ctx);
+        pointer::cancel_press(self.context(), reason);
         self.press_cancel = Some(reason);
     }
 
     fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview) {
-        drag::start(&self.ctx, self.id, &self.env, Arc::new(payload), Vec::new(), preview);
+        drag::start(self.context(), self.id, &self.env, Arc::new(payload), Vec::new(), preview);
     }
 
     fn start_drag_also<P: Clone + Send + Sync + 'static>(
@@ -184,7 +175,7 @@ impl Pointer for CxCore<'_> {
         also: Vec<Arc<dyn std::any::Any + Send + Sync>>,
         preview: DragPreview,
     ) {
-        drag::start(&self.ctx, self.id, &self.env, Arc::new(payload), also, preview);
+        drag::start(self.context(), self.id, &self.env, Arc::new(payload), also, preview);
     }
 
     fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
@@ -201,17 +192,18 @@ impl Pointer for CxCore<'_> {
             return None;
         }
         // A target under the pointer in another window takes the drop of a drag that left this one.
-        let payload = drag::active::<P>(&self.ctx).filter(|_| !drag::moves_viewport(&self.ctx) && !drag::held_elsewhere(&self.ctx))?;
-        let op = drag::current_operation(&self.ctx, craft_behavior::CopyKeys::Alt);
+        let ctx = self.context().clone();
+        let payload = drag::active::<P>(&ctx).filter(|_| !drag::moves_viewport(&ctx) && !drag::held_elsewhere(&ctx))?;
+        let op = drag::current_operation(&ctx, craft_behavior::CopyKeys::Alt);
         let drop = target.accept(&payload, op)?;
-        let ordinal = drag::next_ordinal(&self.ctx, self.id);
+        let ordinal = drag::next_ordinal(&ctx, self.id);
         let reach = drag::TargetReach { window: true, under_modal: target.under_modal() };
-        drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop), op, self.env.shared_tokens(), reach);
-        drag::take_drop(&self.ctx, self.id, ordinal, op, TypeId::of::<P>()).then_some(drop)
+        drag::register(&ctx, self.id, self.response.node(), target.mark(&drop), op, self.env.shared_tokens(), reach);
+        drag::take_drop(&ctx, self.id, ordinal, op, TypeId::of::<P>()).then_some(drop)
     }
 
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {
-        drag::ended::<P>(&self.ctx, self.id)
+        drag::ended::<P>(self.context(), self.id)
     }
 
     fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>> {
@@ -221,16 +213,15 @@ impl Pointer for CxCore<'_> {
 }
 
 impl CxCore<'_> {
-    /// The active drag payload whose type is `payload` and the pointer in this component's egui layer space.
+    /// The active drag payload whose type is `payload` and the pointer in window coordinates.
     pub(crate) fn dragging_of(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
-        let (payload, at) = drag::dragging_of(&self.ctx, payload)?;
-        Some((payload, areas::layer_map(&self.ctx, self.response.layer_id).map_or(at, |map| map.to_layer(at))))
+        drag::dragging_of(self.context(), payload)
     }
 
     /// `Pointer::drop_target` for the payload whose type is `payload_type`, chosen at run time: a collection takes the
     /// payload types its drop kinds name. The target lies over this component's visible shapes on its own layer.
     pub(crate) fn drop_target_of<T: DropTarget<dyn Any + Send + Sync>>(&mut self, payload_type: TypeId, target: &T) -> Option<T::Drop> {
-        drag::target_of(&self.ctx, self.id, DropZone::new(self.response.layer_id, self.visible), self.env.shared_tokens(), payload_type, target)
+        drag::target_of(self.context(), self.id, DropZone::new(self.response.node(), self.visible), self.env.shared_tokens(), payload_type, target)
     }
 }
 
@@ -330,18 +321,12 @@ impl<C: Component> Pointer for Cx<'_, C> {
 }
 
 impl<C: Component> Cx<'_, C> {
-    /// The value a primary-button sweep sets on this toggle. Only siblings in the same layout
-    /// participate. A control that uses this must sense both clicks and drags.
+    /// The value a primary-button sweep sets on this toggle in this run, `None` when no sweep reached it. `on` is the
+    /// value the toggle shows. Only toggles that return their value from `Component::sweep_value` and share a layout
+    /// take part; the press owner's run gets the value first, each toggle the sweep crosses gets it once. A control
+    /// that uses this senses both clicks and drags.
     pub fn swept_toggle(&self, on: Option<bool>) -> Option<bool> {
-        let group = self.pointer_group?;
-        let target = crate::runtime::toggle_sweep::ToggleTarget {
-            id: self.id,
-            layer: self.response.layer_id,
-            visible: self.visible,
-            enabled: self.resolved.enabled && !self.resolved.read_only,
-            press: self.press().phase,
-        };
-        crate::runtime::toggle_sweep::value(&self.ctx, target, group, on)
+        self.core.run.swept.filter(|&swept| on != Some(swept))
     }
 }
 
@@ -350,11 +335,8 @@ pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<Cursor> {
     core.part_cursors.first().cloned()
 }
 
-/// Writes the cursor a component asked for into the cursor service.
-pub(crate) fn write_cursor(core: &CxCore<'_>) {
-    if let Some((cursor, priority)) = core.cursor.clone() {
-        cursor::request(&core.ctx, cursor, priority);
-    } else if let Some(cursor) = declared_cursor(core) {
-        cursor::request(&core.ctx, cursor, CursorPriority::Part);
-    }
+/// The cursor the run asked for (`Pointer::cursor`), else the first hovered part's declared one: the node keeps it
+/// (`Kept.cursor`), so the pointer shows it without a run.
+pub(crate) fn run_cursor(core: &CxCore<'_>) -> Option<Cursor> {
+    core.cursor.clone().map(|(cursor, _)| cursor).or_else(|| declared_cursor(core))
 }

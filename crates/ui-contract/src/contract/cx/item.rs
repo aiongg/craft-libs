@@ -1,9 +1,9 @@
 //! `ItemCx`: what the item closure reads for one item, and the parts it opens menus from.
 
-use crate::runtime::env::EnvView;
-use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::contract::Ui;
 use crate::primitives::Id;
+use crate::runtime::env::EnvView;
+use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use craft_ui_rt::Rect;
 use std::fmt::Debug;
 
