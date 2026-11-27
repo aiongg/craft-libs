@@ -50,10 +50,6 @@ pub(crate) fn facts_of(engine: &mut dyn TextEngine) -> StackFacts {
 /// last measured them. The generation is a tracked read, so a stack change runs the window root again; the cell is
 /// written only when the facts differ.
 pub(crate) fn refresh_facts(cx: &mut BuildCx<'_>, cells: EnvCells) {
-    // The session's font host on the window's context, where document faces are found from a component's hooks.
-    if let (Some(host), Some(ctx)) = (cx.provided::<crate::fonts::FontHost>(), cx.provided::<crate::contract::Context>()) {
-        ctx.service(|slot: &mut crate::fonts::document::HostSlot| slot.0 = Some(host));
-    }
     let generation = cx.env().text_stack.get(cx);
     let seen = cx.slot("craft-font-facts", || None::<u64>);
     if *cx.peek_state(seen) == Some(generation) {

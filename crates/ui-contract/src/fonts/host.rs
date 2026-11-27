@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use craft_ui_rt::{FontStack, TextEngine, Waker};
+use craft_ui_rt::{FontStack, Store, TextEngine, Waker};
 
 use super::document::DocumentFaces;
 use super::served::loader::Loader;
@@ -35,6 +35,7 @@ impl FontHost {
     /// A hand-over that wakes the loop through `waker` when a stack is offered; `None` where the caller steps the loop
     /// itself (a test harness).
     pub fn new(waker: Option<Waker>) -> FontHost {
+        let documents = DocumentFaces::new(waker.clone());
         FontHost {
             shared: Arc::new(Shared {
                 pending: Mutex::default(),
@@ -43,7 +44,7 @@ impl FontHost {
                 waiting: Mutex::default(),
                 loader: Mutex::default(),
                 on_demand: Mutex::default(),
-                documents: DocumentFaces::default(),
+                documents,
             }),
         }
     }
@@ -68,8 +69,9 @@ impl FontHost {
 
     /// Gives `engine` the stack offered last, if one is waiting, and the document faces that landed since the last
     /// frame; returns whether a stack was given. With a stack the engine's stack generation moves, and the frame that
-    /// follows lays out again what laid text out. Call it before each frame runs.
-    pub fn give(&self, engine: &mut dyn TextEngine) -> bool {
+    /// follows lays out again what laid text out. Each face given writes its cell in `store`, so the nodes that asked
+    /// for it run in that frame and find it ready. Call it before each frame runs.
+    pub fn give(&self, engine: &mut dyn TextEngine, store: &mut Store) -> bool {
         let pending = lock(&self.shared.pending).take();
         let given = match pending {
             Some(stack) => {
@@ -78,7 +80,7 @@ impl FontHost {
             }
             None => false,
         };
-        self.shared.documents.install_landed(engine);
+        self.shared.documents.install_landed(engine, store);
         given
     }
 

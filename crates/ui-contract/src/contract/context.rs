@@ -209,6 +209,10 @@ impl Context {
         };
         ctx.shared.root_cells.set(cells);
         *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
+        // The session's font host, where document faces are found from a component's hooks.
+        if let Some(host) = cx.provided::<crate::fonts::FontHost>() {
+            ctx.service(|slot: &mut crate::fonts::document::HostSlot| slot.0 = Some(host));
+        }
         cx.provide(ctx.clone());
         cx.provide(ctx.styles().clone());
         let scale = cx.env().scale;

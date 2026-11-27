@@ -216,6 +216,7 @@ impl HarnessBuilder {
         };
         let mut driver = Driver::new(runtime, platform, renderer);
         driver.runtime.set_access_enabled(window, true);
+        let fonts = crate::fonts::FontHost::new(Some(driver.waker()));
         Harness {
             driver,
             window,
@@ -230,6 +231,7 @@ impl HarnessBuilder {
             ctx: ctx_seen,
             commands: self.commands,
             host: None,
+            fonts,
         }
     }
 }
@@ -252,6 +254,9 @@ pub struct Harness<S = (), R: Renderer = RecordingRenderer> {
     commands: Option<CommandBoard>,
     /// The app host provided above the window root, as an app's host provides it (language, formats, jobs).
     host: Option<std::sync::Arc<craft_host::Host>>,
+    /// The session's font host, provided above the window root and given to the engine before each step, as an app's
+    /// host does.
+    fonts: crate::fonts::FontHost,
 }
 
 impl Harness<(), RecordingRenderer> {
@@ -338,6 +343,11 @@ impl<S, R: Renderer> Harness<S, R> {
         self
     }
 
+    /// The session's font host: where a trial offers stacks or sets the document-face budget.
+    pub fn fonts(&self) -> &crate::fonts::FontHost {
+        &self.fonts
+    }
+
     /// Steps taken so far.
     pub fn steps_taken(&self) -> usize {
         self.steps
@@ -349,13 +359,16 @@ impl<S, R: Renderer> Harness<S, R> {
             self.driver.runtime.mark_root(self.window);
         }
         let now = self.driver.platform.now();
+        self.fonts.give(self.driver.renderer.text(), self.driver.runtime.store_mut());
         let (state, view) = (&mut self.state, &mut self.view);
         let host = WindowEnv { cells: Some(self.cells), jobs: None, commands: self.commands.clone() };
         let app_host = self.host.clone();
+        let fonts = self.fonts.clone();
         let report = self.driver.step_with(now, &mut |_, cx| {
             if let Some(app_host) = &app_host {
                 cx.provide(app_host.clone());
             }
+            cx.provide(fonts.clone());
             window_root_with(cx, host.clone(), |ui| view(ui, state))
         });
         self.last = report;
