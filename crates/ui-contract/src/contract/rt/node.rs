@@ -360,7 +360,11 @@ impl Element for ComponentNode {
 
     /// The caret rect the last run reported (`Cx::ime_cursor`), in the node's coordinates.
     fn ime_cursor(&self, kept: &Kept) -> Option<Rect> {
-        kept.ime.caret
+        kept.ime.caret()
+    }
+
+    fn ime_surrounding(&self, kept: &Kept, since: Option<u64>) -> Option<craft_ui_rt::ImeSurrounding> {
+        kept.ime.surrounding_since(since)
     }
 
     /// Shows the kept looks for the node's pointer state (reading it only when the variants differ),
@@ -476,7 +480,9 @@ impl Element for ComponentNode {
                 if a.action == accesskit::Action::Click && !kept.takes_press() && a.sub.is_none() {
                     return Handled::No;
                 }
-                kept.queue.push(NodeInput::Access(super::access::AccessAction { action: a.action, data: a.data.clone(), sub: a.sub }));
+                let action = super::access::AccessAction { action: a.action, data: a.data.clone(), sub: a.sub };
+                let input = crate::runtime::access::text::selection_input(&kept.ime.text_runs, &action);
+                kept.queue.push(input.unwrap_or(NodeInput::Access(action)));
                 cx.request_build();
                 Handled::Yes
             }
@@ -538,6 +544,7 @@ impl ComponentNode {
         };
         match p.gesture {
             Gesture::Down { .. } => {
+                super::ime::pressed(kept, cx);
                 if let Some(tip) = kept.tip.as_mut() {
                     tip.pressed(cx);
                 }

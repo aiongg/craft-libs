@@ -316,7 +316,7 @@ impl<'a> EditorLine<'a> {
     }
 }
 
-/// What an own-caret editor reports once per frame for the IME and AccessKit.
+/// What an own-caret editor reports once per run for the input method and AccessKit.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct EditorState<'a> {
@@ -329,32 +329,30 @@ pub struct EditorState<'a> {
     /// The selection.
     pub selection: Option<(TextPos, TextPos)>,
     /// The editor shows marked text of an input method. An editor that ends the composition itself (a press in its
-    /// text, a selection, an app edit over the marked text) reports `false` and the OS composition is interrupted;
+    /// text, a selection, an app edit over the marked text) reports `false` and the platform's composition ends;
     /// an editor that shows no marked text reports `false` throughout.
     pub composing: bool,
     /// The editor draws the marked text of the pre-edits it is given ([`EditorState::marked`]). Such an editor that
     /// reports `composing: false` while the input method still composes ended the composition itself, even in the pass
-    /// the pre-edit arrived in (a pre-edit and a refused deletion in one frame), and the OS composition is interrupted.
-    /// An editor that shows no marked text leaves it `false`, so the OS composes for it until the commit.
+    /// the pre-edit arrived in (a pre-edit and a refused deletion in one run), and the platform's composition ends.
+    /// An editor that shows no marked text leaves it `false`, so the platform composes for it until the commit.
     pub shows_marked: bool,
     /// Whether undo and redo have something to do; false sends them to the app command (11.3).
     pub can_undo: bool,
     /// Whether redo has something to do.
     pub can_redo: bool,
-    /// The committed text around the caret, or why there is none, with the input-method target's epoch.
-    pub surrounding: Option<(u64, EditorSurrounding<'a>)>,
+    /// The committed text around the caret, or why there is none. The platform gets it when its session starts and
+    /// after a run that changed the text for a reason other than the input method (`Cx::ime_application_change`).
+    pub surrounding: Option<EditorSurrounding<'a>>,
 }
 
 pub use crate::runtime::ime::EditorSurrounding;
 
-/// The input method's mutation stamp, which an editor compares to tell its own edits from the input method's.
-pub use egui::ime_context::ImeMutationStamp as ImeStamp;
-
 impl<'a> EditorState<'a> {
-    /// Reports `s` as the committed text around the caret, for the input-method target at `epoch`.
+    /// Reports `s` as the committed text around the caret.
     #[must_use]
-    pub fn surrounding(mut self, epoch: u64, s: EditorSurrounding<'a>) -> Self {
-        self.surrounding = Some((epoch, s));
+    pub fn surrounding(mut self, s: EditorSurrounding<'a>) -> Self {
+        self.surrounding = Some(s);
         self
     }
 

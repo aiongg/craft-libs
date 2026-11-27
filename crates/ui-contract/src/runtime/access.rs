@@ -17,6 +17,7 @@ use std::ops::RangeInclusive;
 mod emit;
 
 pub(crate) mod scope;
+pub(crate) mod text;
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

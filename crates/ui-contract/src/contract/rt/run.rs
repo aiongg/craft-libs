@@ -464,7 +464,14 @@ pub(crate) fn run_shaped<C: Component>(
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
     };
-    let mut core = core_for(&begun.env, &resolved, &mut kept.memory, response, begun.step1.command.clone(), RunIo::new(&input, context.clone()));
+    let mut core = core_for(
+        &begun.env,
+        &resolved,
+        &mut kept.memory,
+        response,
+        begun.step1.command.clone(),
+        RunIo { ime_history: kept.ime.history(), ime_body: kept.ime.body.clone().into(), ..RunIo::new(&input, context.clone()) },
+    );
     place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
     // The popups live on the node; `PopupHandle` reads and changes them through the run's core.
     core.popups = std::mem::take(&mut kept.popups);
@@ -519,6 +526,8 @@ pub(crate) fn run_shaped<C: Component>(
     cxx.core.active = cxx.core.focus.part.filter(|part| cxx.core.results.contains_key(&(part.key, part.index)));
     cxx.core.activation = activation_of(&resolved, cxx.core.run.input, own);
     hooks.sensed(&mut component, &mut cxx);
+    // 8b the editor part takes the run's input in queue order.
+    crate::contract::editor::run(&mut cxx, &mut parts.text, component.keys());
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
     steps::gesture_gate(&component, &mut cxx);
@@ -533,13 +542,12 @@ pub(crate) fn run_shaped<C: Component>(
         kept.cursor = Some(super::cursor::platform(&cursor));
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
-    kept.focus.stop = stop.then(|| component.keys());
+    kept.focus.stop = stop.then(|| cxx.core.editor.as_ref().map_or_else(|| component.keys(), |editor| editor.keys));
     kept.focus.press_only = facts.text() && resolved.read_only;
     kept.focus.role = hooks.key_role(&component);
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
-    kept.ime.caret = cxx.core.run.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - rect.min));
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
@@ -577,7 +585,11 @@ pub(crate) fn run_shaped<C: Component>(
     kept.close_guard = component.close_guard();
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, row.as_deref(), cx)).flatten();
+    let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, row.as_deref(), cx)).flatten();
+    kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
+        (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
+        _ => Vec::new(),
+    };
     let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
     kept.access = access;
     kept.access_subs = subs;
@@ -600,6 +612,7 @@ pub(crate) fn run_shaped<C: Component>(
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
     kept.notch = component.wheel_notch();
+    super::ime::after_run(kept, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
     if let Some(at) = [wake, cxx.core.run.build_at.get()].into_iter().flatten().reduce(f64::min) {
         cx.request_build_at(Some(at));

@@ -283,6 +283,17 @@ pub(crate) struct RunIo<'a> {
     /// The earliest frame time the run asked to build again at (`CxCore::wake_at`); the driver asks the node's build
     /// for it after the run.
     pub(crate) build_at: Cell<Option<f64>>,
+    /// The editor's report of this run (`Cx::editor_state`); kept on `ImeKept` after the run.
+    pub(crate) editor_facts: RefCell<Option<crate::contract::rt::ime::EditorFacts>>,
+    /// The editor refused an input method edit (`Cx::ime_interrupt`): the composition ends.
+    pub(crate) ime_refused: Cell<bool>,
+    /// The editor changed its text for a reason other than the input method (`Cx::ime_application_change`).
+    pub(crate) ime_app_change: Cell<bool>,
+    /// Whether the editor had something to undo and to redo at its last report (`ImeKept::history`).
+    pub(crate) ime_history: (bool, bool),
+    /// The node's shared slot for a body's editor reports (`EditorHandle`), made when a run first hands out a handle;
+    /// kept as `ImeKept::body`.
+    pub(crate) ime_body: RefCell<Option<std::sync::Arc<std::sync::Mutex<crate::contract::rt::ime::BodyReport>>>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -306,6 +317,11 @@ impl<'a> RunIo<'a> {
             wheel_taken: Cell::new(false),
             drag_start: RefCell::new(None),
             build_at: Cell::new(None),
+            editor_facts: RefCell::new(None),
+            ime_refused: Cell::new(false),
+            ime_app_change: Cell::new(false),
+            ime_history: (false, false),
+            ime_body: RefCell::new(None),
         }
     }
 

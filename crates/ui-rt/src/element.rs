@@ -101,6 +101,14 @@ pub trait Element: 'static {
         let _ = local;
         None
     }
+
+    /// The committed text around the caret when its revision is not `since` (the revision the
+    /// session last sent; `None` at a session's start), read with the cursor while the node has an
+    /// IME session. `None` when there is nothing new to send, so an unchanged text is never copied.
+    fn ime_surrounding(&self, local: &Self::Local, since: Option<u64>) -> Option<crate::platform::ImeSurrounding> {
+        let _ = (local, since);
+        None
+    }
 }
 
 /// `component.show(cx)`: craft's call shape.
@@ -125,6 +133,7 @@ pub(crate) trait AnyElement {
     fn tag(&self) -> u64;
     fn text_input(&self) -> Option<ImePurpose>;
     fn ime_cursor(&self) -> Option<Rect>;
+    fn ime_surrounding(&self, since: Option<u64>) -> Option<crate::platform::ImeSurrounding>;
 }
 
 pub(crate) struct ElementBox<E: Element> {
@@ -197,6 +206,10 @@ impl<E: Element> AnyElement for ElementBox<E> {
 
     fn ime_cursor(&self) -> Option<Rect> {
         self.local.as_ref().and_then(|local| self.el.ime_cursor(local))
+    }
+
+    fn ime_surrounding(&self, since: Option<u64>) -> Option<crate::platform::ImeSurrounding> {
+        self.local.as_ref().and_then(|local| self.el.ime_surrounding(local, since))
     }
 }
 

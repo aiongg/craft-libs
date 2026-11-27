@@ -187,6 +187,12 @@ fn sub_id(node: NodeId, key: u64) -> accesskit::NodeId {
     accesskit::NodeId(hash_key(&(node.0, key, "sub")))
 }
 
+/// The AccessKit id of `node`'s sub-node `key` ([`AccessCx::sub`]), for a node that names its
+/// sub-nodes outside its access hook (a text selection over its run nodes, a request mapped back).
+pub fn access_sub_id(node: NodeId, key: u64) -> accesskit::NodeId {
+    sub_id(node, key)
+}
+
 fn to_ak(r: Rect) -> accesskit::Rect {
     accesskit::Rect::new(f64::from(r.min.x), f64::from(r.min.y), f64::from(r.max.x), f64::from(r.max.y))
 }
