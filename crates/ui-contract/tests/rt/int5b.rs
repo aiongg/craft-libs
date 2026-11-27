@@ -6,45 +6,42 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use craft_i18n::Direction;
-use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::access::Access;
-use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Cx, EnvScope, LayerFrame, MeasureCx, Paint, PopupHandle, Response, Ui, show_leaf, window_root,
+use craft_ui::contract::{
+    Access, Common, Component, Cx, Id, Name, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Response, Role, Show as _, Ui,
 };
-use craft_ui_contract::contract::{Id, IdSource, MemoKey};
+use craft_ui::runtime::env::{EnvScope, LayerFrame};
+use craft_ui::runtime::windows::{WindowEnv, window_root_with};
+use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::HeadlessPlatform;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Platform, Rect, Runtime, StepReport, Vec2, WindowSpec};
+use craft_ui_test_kit::contract::PlainStyle;
 use craft_ui_test_kit::rt::{Rig, test_tokens};
 
 fn name_id() -> Id {
     Id::NULL.with("int5b-name")
 }
 
-/// A leaf named `label`, keyed by `id` when it has one, and labelled by `labelled_by`.
+/// A leaf named `label`, keyed by its `id` when it has one, and labelled by `labelled_by`.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
 struct Node {
+    #[common]
+    common: Common,
     label: &'static str,
-    id: Option<Id>,
+    #[key(skip)]
     labelled_by: Option<Id>,
+    #[key(skip)]
     runs: Rc<Cell<u32>>,
 }
 
-impl ComponentKey for Node {
-    fn key(&self, key: &mut MemoKey) {
-        key.feed_hash(&(self.label, self.id.map(|i| i.value()), self.labelled_by.map(|i| i.value())));
-    }
-}
-
 impl Component for Node {
-    const ROLE: accesskit::Role = accesskit::Role::TextInput;
+    const ROLE: Role = Role::TEXT_INPUT;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn id_source(&self) -> IdSource {
-        self.id.map_or(IdSource::Auto, IdSource::Id)
-    }
-
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(60.0, 20.0)
+    fn style(_: &StyleCx<'_>, _: NodeStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::new(60.0, 20.0))
     }
 
     fn update(&mut self, _: &mut Cx<'_, Self>) {
@@ -52,13 +49,13 @@ impl Component for Node {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.label(self.label);
+        access.name(Name::Text(self.label.to_owned()));
         if let Some(id) = self.labelled_by {
             access.labelled_by(id);
         }
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
@@ -68,15 +65,15 @@ struct Labels {
     field_runs: Rc<Cell<u32>>,
 }
 
-fn labels_ui(ui: &mut Ui<'_, '_>, app: &mut Labels) {
-    show_leaf(Node { label: "Field", id: None, labelled_by: Some(name_id()), runs: app.field_runs.clone() }, ui);
+fn labels_ui(ui: &mut Ui, app: &mut Labels) {
+    Node { common: Common::new(), label: "Field", labelled_by: Some(name_id()), runs: app.field_runs.clone() }.show(ui);
     if app.show_name {
-        show_leaf(Node { label: "Name", id: Some(name_id()), labelled_by: None, runs: Rc::default() }, ui);
+        Node { common: Common::new(), label: "Name", labelled_by: None, runs: Rc::default() }.id(name_id()).show(ui);
     }
 }
 
 fn labels_step(rig: &mut Rig<RecordingRenderer>, app: &mut Labels) -> StepReport {
-    rig.step_with(&mut |_, cx| window_root(cx, |ui| labels_ui(ui, app)))
+    rig.step_with(&mut |_, cx| window_root_with(cx, WindowEnv::default(), |ui| labels_ui(ui, app)))
 }
 
 fn labels_rig(app: &mut Labels) -> Rig<RecordingRenderer> {
@@ -125,55 +122,62 @@ thread_local! {
     static SEEN: RefCell<Option<(Option<LayerFrame>, Direction, Rect)>> = const { RefCell::new(None) };
 }
 
-/// Records what the popup's content reads in paint.
-struct Probe;
-
-impl ComponentKey for Probe {
-    fn key(&self, _: &mut MemoKey) {}
+/// Records what the popup's content reads when it paints.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Probe {
+    #[common]
+    common: Common,
 }
 
 impl Component for Probe {
-    const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
-        Vec2::new(80.0, 24.0)
+    fn style(_: &StyleCx<'_>, _: ProbeStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::new(80.0, 24.0))
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, cx: &Cx<'_, Self>) {
-        let _ = cx;
-        SEEN.with(|s| *s.borrow_mut() = Some((paint.frame(), paint.direction(), paint.bounds())));
+    fn paint(&mut self, _: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        SEEN.with(|s| *s.borrow_mut() = Some((cx.env.frame(), cx.env.direction(), cx.rect)));
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
 
 /// Opens a popup with a [`Probe`] on its first run.
-struct Opener;
-
-impl ComponentKey for Opener {
-    fn key(&self, _: &mut MemoKey) {}
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Opener {
+    #[common]
+    common: Common,
 }
 
 impl Component for Opener {
-    const ROLE: accesskit::Role = accesskit::Role::Button;
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
     type Output = Response;
 
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
-        Vec2::splat(cx.tokens.size.button)
+    fn style(_: &StyleCx<'_>, _: OpenerStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(24.0))
     }
 
-    fn overlay(&mut self, ui: &mut craft_ui_contract::contract::rt::OverlayUi<'_, '_>) {
-        let popup = PopupHandle::new("probe");
-        ui.set_open(popup, true);
-        ui.show(popup, &Overlay::popover(), |ui| {
-            show_leaf(Probe, ui);
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("probe");
+        popup.open(cx);
+    }
+
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("probe");
+        ui.show(popup, Overlay::popover(), |ui, _| {
+            Probe { common: Common::new() }.show(ui);
         });
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }
@@ -183,9 +187,9 @@ fn a_popup_gives_its_content_its_own_frame_and_the_owners_direction() {
     let mut rig = Rig::inline(Vec2::new(400.0, 400.0), 1.0, RecordingRenderer::default());
     for _ in 0..6 {
         let step = rig.step_with(&mut |_, cx| {
-            window_root(cx, |ui| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
                 EnvScope::new().direction(Direction::Rtl).show(ui, |ui| {
-                    show_leaf(Opener, ui);
+                    Opener { common: Common::new() }.show(ui);
                 });
             })
         });

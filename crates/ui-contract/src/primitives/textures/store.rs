@@ -2,7 +2,7 @@
 //! [`TextureCache`]. Uploads, atlases and the per-frame upload budget belong to the image store and the renderers.
 
 use super::loader::LoadFailure;
-use crate::contract::rt::{JobBoard, TextureCache, TextureLook};
+use crate::contract::rt::{JobBoard, TextureCache, TextureLook, TextureReads};
 use craft_behavior::PixelSize;
 use craft_ui_rt::{BuildCx, ImageKey, ImageOptions, RgbaImage};
 use std::any::TypeId;
@@ -266,7 +266,7 @@ impl<K: TextureKey> TextureStore<K> {
     /// - The entry has `revision`: `Ready`, `Empty`, `Failed` or `Loading`.
     /// - The entry has a picture of another revision: `Loading { stand_in: Some(..) }`.
     /// - No entry, or an empty or failed one of another revision: `Missing`.
-    pub fn state(&self, cx: &mut BuildCx<'_>, key: &K, revision: Revision) -> TextureState {
+    pub fn state(&self, cx: &mut impl TextureReads, key: &K, revision: Revision) -> TextureState {
         let look = self.cache.read(cx, key, revision);
         TextureState::of(look, self.cache.waited(key, cx.now()))
     }

@@ -26,6 +26,9 @@ pub(crate) struct Entry {
     pub scale: f32,
     pub surface_live: bool,
     pub mods: Mods,
+    /// The lock keys, followed from the lock key presses (winit reports no lock state).
+    pub caps_lock: bool,
+    pub num_lock: bool,
     pub cursor: Pos2,
     /// What the last `State` and `FrameInset` events said, so only changes are sent.
     pub reported_state: Option<(bool, bool)>,

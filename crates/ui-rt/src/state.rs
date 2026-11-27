@@ -94,6 +94,17 @@ pub struct Store {
     free: Vec<u32>,
     clock: u64,
     pub(crate) pending: Vec<(NodeId, Phase)>,
+    /// Cells watched for their last reader leaving ([`Store::on_unread`]).
+    unread: Vec<Unread>,
+    /// A node left the tree since the watches were last checked.
+    gone: bool,
+}
+
+/// One watch of [`Store::on_unread`].
+struct Unread {
+    index: u32,
+    generation: u32,
+    run: Box<dyn FnOnce()>,
 }
 
 /// A handle to one cell. Copy; the value stays in the [`Store`].
@@ -205,6 +216,51 @@ impl Store {
     /// frames that something animates from need a time.
     pub fn has_readers<T>(&self, state: State<T>) -> bool {
         self.slot(state.index, state.generation).is_some_and(|s| !s.readers.is_empty())
+    }
+
+    /// Runs `run` once, in the frame after the last node that read `state` has left the tree. The
+    /// watch ends with the cell (freed or written: a write marks its readers, which read again), and
+    /// a second watch of a cell replaces the first. Call it after the reading node read the cell:
+    /// a cell nothing reads fires at the next node removal.
+    pub fn on_unread<T>(&mut self, state: State<T>, run: impl FnOnce() + 'static) {
+        self.forget_unread(state);
+        self.unread.push(Unread { index: state.index, generation: state.generation, run: Box::new(run) });
+    }
+
+    /// Ends the watch of `state` without running it.
+    pub fn forget_unread<T>(&mut self, state: State<T>) {
+        self.unread.retain(|w| !(w.index == state.index && w.generation == state.generation));
+    }
+
+    /// Notes that a node left the tree, so the next [`Store::take_unread`] checks the watches.
+    pub(crate) fn note_gone(&mut self) {
+        self.gone |= !self.unread.is_empty();
+    }
+
+    /// The watches whose cell has no reader in the tree (`live`) now, removed from the store. Empty
+    /// unless a node left since the last call.
+    pub(crate) fn take_unread(&mut self, live: impl Fn(NodeId) -> bool) -> Vec<Box<dyn FnOnce()>> {
+        if !std::mem::take(&mut self.gone) {
+            return Vec::new();
+        }
+        let mut ready = Vec::new();
+        let mut kept = Vec::new();
+        for watch in std::mem::take(&mut self.unread) {
+            let Some(slot) = self.slots.get(watch.index as usize).filter(|s| s.generation == watch.generation) else {
+                continue;
+            };
+            let read = slot.readers.list.iter().any(|r| match r {
+                Reader::Node(node, _) => live(*node),
+                Reader::Derived(..) => true,
+            });
+            if read {
+                kept.push(watch);
+            } else {
+                ready.push(watch.run);
+            }
+        }
+        self.unread = kept;
+        ready
     }
 
     pub(crate) fn has_pending(&self) -> bool {
@@ -431,5 +487,28 @@ mod tests {
         assert_eq!(readers.take().len(), 100);
         readers.insert(reader(7));
         assert_eq!(readers.list.len(), 1);
+    }
+
+    #[test]
+    fn a_watch_fires_once_when_the_last_reading_node_is_gone() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        let mut store = Store::default();
+        let cell = store.create(0u32);
+        for n in [1, 2] {
+            store.read(cell.index, cell.generation, Some(Reader::Node(NodeId(n), Phase::Build)));
+        }
+        let fired = Rc::new(Cell::new(0));
+        let count = fired.clone();
+        store.on_unread(cell, move || count.set(count.get() + 1));
+        store.note_gone();
+        assert!(store.take_unread(|n| n == NodeId(2)).is_empty(), "one reader is still in the tree");
+        store.note_gone();
+        for run in store.take_unread(|_| false) {
+            run();
+        }
+        assert_eq!(fired.get(), 1);
+        store.note_gone();
+        assert!(store.take_unread(|_| false).is_empty(), "a watch runs once");
     }
 }

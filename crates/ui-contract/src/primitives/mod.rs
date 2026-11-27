@@ -81,9 +81,9 @@ pub use tool::ToolIcon;
 pub use textures::FakeThumbSource;
 pub use textures::{
     CachedTexture, LoadFailure, LoadResult, LoadedPicture, LoaderOptions, MAX_TEXTURE, Priority, Revision, Serials, StateLook, TextureBudget,
-    TextureCache, TextureKey, TextureLoader, TextureLook, TextureState, TextureStatistics, TextureStore, TextureStoreOptions, TextureWords, ThumbFit,
-    ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_image, fit_rect, reduce_image, texture_factor,
-    thumb_image,
+    TextureCache, TextureKey, TextureLoader, TextureLook, TextureReads, TextureState, TextureStatistics, TextureStore, TextureStoreOptions,
+    TextureWords, ThumbFit, ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_image, fit_rect,
+    reduce_image, texture_factor, thumb_image,
 };
 
 pub(crate) use draw::DataMode;

@@ -37,6 +37,9 @@ pub struct WindowState {
     pub maximized: bool,
     pub fullscreen: bool,
     pub focused: bool,
+    /// The lock keys as the window last reported them ([`WindowEvent::LockKeys`]); off when it opens.
+    pub caps_lock: bool,
+    pub num_lock: bool,
     pub owner: Option<WindowId>,
     pub cursor: Cursor,
     /// Whether the window's surface exists (not lost).
@@ -205,6 +208,16 @@ impl HeadlessPlatform {
     /// Sets the monitors [`SurfaceHost::monitors`] reports.
     pub fn set_monitors(&mut self, monitors: Vec<MonitorInfo>) {
         self.surfaces.monitors = monitors;
+    }
+
+    /// The lock keys of `window` are now `caps_lock` and `num_lock`: reports `LockKeys` when either changed.
+    pub fn set_lock_keys(&mut self, window: WindowId, caps_lock: bool, num_lock: bool) {
+        let s = self.state_mut(window);
+        if (s.caps_lock, s.num_lock) == (caps_lock, num_lock) {
+            return;
+        }
+        (s.caps_lock, s.num_lock) = (caps_lock, num_lock);
+        self.push(window, WindowEvent::LockKeys { caps_lock, num_lock });
     }
 
     fn push_state(&mut self, window: WindowId) {
@@ -393,6 +406,8 @@ impl Platform for HeadlessPlatform {
                 maximized: false,
                 fullscreen: false,
                 focused: false,
+                caps_lock: false,
+                num_lock: false,
                 owner: spec.owner,
                 cursor: Cursor::Default,
                 surface: true,

@@ -53,6 +53,18 @@ pub struct JobBoard {
     inner: Arc<Inner>,
 }
 
+/// A board that does not keep the board alive: what a service the board holds (a texture cache in
+/// [`JobBoard::shared`]) keeps, so the board and the service do not hold each other.
+#[derive(Clone)]
+pub struct WeakBoard(Weak<Inner>);
+
+impl WeakBoard {
+    /// The board, unless the runtime that owned it is gone.
+    pub fn upgrade(&self) -> Option<JobBoard> {
+        self.0.upgrade().map(|inner| JobBoard { inner })
+    }
+}
+
 /// A queued or running job: lower its priority as it scrolls away, or cancel it. A cancelled
 /// job's result is never delivered.
 #[derive(Clone)]
@@ -84,6 +96,11 @@ impl JobBoard {
     /// root ([`super::WindowEnv::jobs`]).
     pub fn inline() -> JobBoard {
         JobBoard::with(Arc::new(InlineJobs), Wake::none(), None)
+    }
+
+    /// A handle that does not keep the board alive.
+    pub fn downgrade(&self) -> WeakBoard {
+        WeakBoard(Arc::downgrade(&self.inner))
     }
 
     /// The waker the board calls when a job finishes, if it has one.

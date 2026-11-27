@@ -63,6 +63,14 @@ fn attributes(spec: &craft_ui_rt::WindowSpec, canvas: Option<&str>) -> WindowAtt
             attrs = attrs.with_x11_window_type(vec![WindowType::Utility]);
         }
     }
+    // The desktop groups windows and finds the launcher entry by it: the Wayland app id and the X11 class.
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android"), not(target_arch = "wasm32")))]
+    if let Some(app_id) = &spec.app_id {
+        use winit::platform::wayland::WindowAttributesExtWayland;
+        use winit::platform::x11::WindowAttributesExtX11;
+        attrs = WindowAttributesExtWayland::with_name(attrs, app_id.clone(), app_id.clone());
+        attrs = WindowAttributesExtX11::with_name(attrs, app_id.clone(), app_id.clone());
+    }
     #[cfg(target_arch = "wasm32")]
     {
         use winit::platform::web::WindowAttributesExtWebSys;

@@ -136,6 +136,11 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
         }
         W::KeyboardInput { event, .. } => {
             let down = event.state == ElementState::Pressed;
+            if let WKey::Named(lock @ (NamedKey::CapsLock | NamedKey::NumLock)) = &event.logical_key
+                && !event.repeat
+            {
+                lock_key(shared, id, *lock, down);
+            }
             if let Some(key) = key_of(&event.logical_key) {
                 put(WindowEvent::Key { key, mods, down, repeat: event.repeat });
             }
@@ -157,6 +162,23 @@ pub(crate) fn translate(shared: &Cell, id: WindowId, event: W) {
         W::DroppedFile(path) => push_file(shared, id, path, true),
         _ => {}
     }
+}
+
+/// winit reports no lock state, so it follows the lock keys, from off when the window opens. macOS reports the caps
+/// lock key down while the lock is on; the other systems report a press for each toggle.
+fn lock_key(shared: &Cell, id: WindowId, key: NamedKey, down: bool) {
+    let (caps_lock, num_lock) = {
+        let mut s = shared.borrow_mut();
+        let Some(e) = s.entry_mut(id) else { return };
+        match key {
+            NamedKey::CapsLock if cfg!(target_os = "macos") => e.caps_lock = down,
+            NamedKey::CapsLock if down => e.caps_lock = !e.caps_lock,
+            NamedKey::NumLock if down => e.num_lock = !e.num_lock,
+            _ => return,
+        }
+        (e.caps_lock, e.num_lock)
+    };
+    push(shared, id, WindowEvent::LockKeys { caps_lock, num_lock });
 }
 
 /// winit reports one event per file: the files of one OS drag that arrive before the runtime

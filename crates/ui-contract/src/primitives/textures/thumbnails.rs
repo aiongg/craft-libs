@@ -266,7 +266,7 @@ impl<K: TextureKey> Thumbnails<K> {
         let request = ThumbRequest { side, ..*request };
         let revision = Revision::of(&(source.revision(key, &request), side, region_bits(request.region)));
         if let Some(state) = self.loader.ask(cx, key, revision, priority) {
-            return state;
+            return caption_wake(cx, state);
         }
         if self.hold.load(Ordering::Relaxed) {
             return self.cache().state(cx, key, revision);
@@ -282,7 +282,10 @@ impl<K: TextureKey> Thumbnails<K> {
                 self.cache().put_empty(cx, key.clone(), revision);
                 TextureState::Empty
             }
-            ThumbRender::Later(job) => self.loader.submit(cx, key.clone(), revision, priority, job),
+            ThumbRender::Later(job) => {
+                let state = self.loader.submit(cx, key.clone(), revision, priority, job);
+                caption_wake(cx, state)
+            }
         }
     }
 
@@ -401,6 +404,18 @@ fn paint_placeholder(cx: &ContentPainterCx<'_>, rect: Rect, paper: Option<DataCo
         style.fill = paper.0;
     }
     cx.painter.extend(Surface::items(&style, None, rect, Corners::None, cx.direction, cx.pixels_per_point()));
+}
+
+/// A picture with no stand-in that is still loading captions "Still rendering…" once it has waited [`STILL_RENDERING`]
+/// seconds: its node builds again then, so no frame runs just to find out.
+fn caption_wake(cx: &mut BuildCx<'_>, state: TextureState) -> TextureState {
+    if let TextureState::Loading { stand_in: None, waited: Some(waited), .. } = &state
+        && *waited < STILL_RENDERING
+    {
+        let at = cx.now() + (STILL_RENDERING - waited);
+        cx.request_build_at(Some(at));
+    }
+    state
 }
 
 /// The caption of a picture that has not arrived: "Rendering…", then "Still rendering…" once it has waited
