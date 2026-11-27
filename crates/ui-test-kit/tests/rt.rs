@@ -59,7 +59,7 @@ impl Element for Boxed {
         Handled::Yes
     }
 
-    fn focusable(&self) -> bool {
+    fn focusable(&self, _: &Self::Local) -> bool {
         true
     }
 }

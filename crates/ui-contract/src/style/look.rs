@@ -215,7 +215,7 @@ impl SurfaceLook {
     /// The surface kind in `state`: `kind_down` while pressed, `kind_on` while on, else `kind`.
     pub fn kind_in(&self, state: &super::StateSet) -> Option<SurfaceKind> {
         use craft_theme::Flags;
-        let on = state.flags.intersects(Flags::SELECTED | Flags::CHECKED) && !state.flags.contains(Flags::MIXED);
+        let on = (state.has(Flags::SELECTED) || state.has(Flags::CHECKED)) && !state.has(Flags::MIXED);
         let kind = if on { self.kind_on.or(self.kind) } else { self.kind };
         if state.state == craft_theme::State::Pressed { self.kind_down.or(kind) } else { kind }
     }

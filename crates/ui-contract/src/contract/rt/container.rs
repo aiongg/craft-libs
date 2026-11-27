@@ -1128,123 +1128,114 @@ fn show_plain<C: Container, R>(
     let mut frame = Frame::new(body_id, &regions, &resolved, stage, true, owner, (None, false), cancel);
     let Ui { cx, flow, .. } = ui;
     let output = cx.keyed(child, |cx| {
-        cx.inline(
-            ComponentNode {
-                key: key.map_or(0, fold),
-                tag,
-                stop: super::run::own_stop(&component, &begun.resolved(id)),
-                text: component.text_input(),
-            },
-            |kept, state, cx| {
-                // The kept stage runs in this window for this node; its session and saved slots go back to the runtime's
-                // store when the run ends.
-                kept.memory = std::mem::take(&mut kept.memory).within(&ctx, id).appearing(state.new);
-                super::node::DescendantWatch::provide(kept, cx, false);
-                let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
-                (frame.gate, frame.gate_mixed) = gate_of(props.gates, &value);
-                frame.gate_at_read = frame.gate;
-                let open = read_open(&mut component, &props, kept.body.open, &ctx);
-                (frame.open, frame.open_at_read) = (open, open);
-                // The collapse moves the body's height toward its new state; the node builds again each frame while it
-                // moves (`Driver::anim` owes the next frame) and not after.
-                if props.collapse.is_some_and(|c| c.animated) {
-                    let driver = Driver { stage: &kept.memory, base: id, policy: place.motion };
-                    shape.share = driver.anim_bool("collapse", open, spec::OPEN_RISE);
+        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, text: component.text_input() }, |kept, state, cx| {
+            // The kept stage runs in this window for this node; its session and saved slots go back to the runtime's
+            // store when the run ends.
+            kept.memory = std::mem::take(&mut kept.memory).within(&ctx, id).appearing(state.new);
+            super::node::DescendantWatch::provide(kept, cx, false);
+            let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
+            (frame.gate, frame.gate_mixed) = gate_of(props.gates, &value);
+            frame.gate_at_read = frame.gate;
+            let open = read_open(&mut component, &props, kept.body.open, &ctx);
+            (frame.open, frame.open_at_read) = (open, open);
+            // The collapse moves the body's height toward its new state; the node builds again each frame while it
+            // moves (`Driver::anim` owes the next frame) and not after.
+            if props.collapse.is_some_and(|c| c.animated) {
+                let driver = Driver { stage: &kept.memory, base: id, policy: place.motion };
+                shape.share = driver.anim_bool("collapse", open, spec::OPEN_RISE);
+            }
+            shape.closed = !open && shape.share <= 0.0;
+            if matches!(props.mount, Mount::Layer(_)) {
+                frame.moving = kept.memory.recall::<WindowMode>(window_mode_id(id)).moving();
+            }
+            let own_kept = holds(kept, key, state);
+            let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
+            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
+            crate::layout::begin_capture(&ctx);
+            let (size, mut inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
+            kept.column_reports = crate::layout::end_capture(&ctx);
+            // A container that owns its body's scroll without a scroll region (a canvas with a view of its own) takes
+            // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`). Its least move
+            // brings the point to the edge of its view, and the scroll bodies around it bring that place into theirs.
+            if props.scroll_owner
+                && shape.scroll.is_none()
+                && let Some(at) = inner.reveal.take()
+            {
+                kept.queue.push(NodeInput::Reveal(Rect::from_min_size(at, Vec2::ZERO)));
+                let view = Rect::from_min_size(origin, size);
+                inner.reveal = Some(at.clamp(view.min, view.max));
+            }
+            flow.absorb(&inner);
+            // The header changed the open state or the gate after the body was laid out by the old one: the body read
+            // it, so the container builds again in this frame (the same-frame rerun rule).
+            if frame.open != frame.open_at_read {
+                write_open(&mut component, kept, frame.open, &resolved, &props, &ctx);
+                cx.rebuild();
+            }
+            if let Some(on) = frame.gate.filter(|on| Some(*on) != frame.gate_at_read) {
+                write_gate(&mut component, on, &resolved);
+                cx.rebuild();
+            }
+            let rect = match at {
+                ShowAt::Flow => flow.allocate(Some(cx.node()), size, fills),
+                ShowAt::Rect(rect) => {
+                    let rect = Rect::from_min_size(rect.min, size);
+                    flow.placed.push(Placed { node: cx.node(), offset: rect.min - flow.origin, size });
+                    rect
                 }
-                shape.closed = !open && shape.share <= 0.0;
-                if matches!(props.mount, Mount::Layer(_)) {
-                    frame.moving = kept.memory.recall::<WindowMode>(window_mode_id(id)).moving();
+            };
+            if let Some(why) = frame.close {
+                component.closed(why);
+                if let Some(host) = &hosted {
+                    host.close(why);
                 }
-                let own_kept = holds(kept, key, state);
-                let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
-                let into =
-                    Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
-                crate::layout::begin_capture(&ctx);
-                let (size, mut inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
-                kept.column_reports = crate::layout::end_capture(&ctx);
-                // A container that owns its body's scroll without a scroll region (a canvas with a view of its own) takes
-                // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`). Its least move
-                // brings the point to the edge of its view, and the scroll bodies around it bring that place into theirs.
-                if props.scroll_owner
-                    && shape.scroll.is_none()
-                    && let Some(at) = inner.reveal.take()
-                {
-                    kept.queue.push(NodeInput::Reveal(Rect::from_min_size(at, Vec2::ZERO)));
-                    let view = Rect::from_min_size(origin, size);
-                    inner.reveal = Some(at.clamp(view.min, view.max));
-                }
-                flow.absorb(&inner);
-                // The header changed the open state or the gate after the body was laid out by the old one: the body read
-                // it, so the container builds again in this frame (the same-frame rerun rule).
-                if frame.open != frame.open_at_read {
-                    write_open(&mut component, kept, frame.open, &resolved, &props, &ctx);
-                    cx.rebuild();
-                }
-                if let Some(on) = frame.gate.filter(|on| Some(*on) != frame.gate_at_read) {
-                    write_gate(&mut component, on, &resolved);
-                    cx.rebuild();
-                }
-                let rect = match at {
-                    ShowAt::Flow => flow.allocate(Some(cx.node()), size, fills),
-                    ShowAt::Rect(rect) => {
-                        let rect = Rect::from_min_size(rect.min, size);
-                        flow.placed.push(Placed { node: cx.node(), offset: rect.min - flow.origin, size });
-                        rect
-                    }
-                };
-                if let Some(why) = frame.close {
-                    component.closed(why);
-                    if let Some(host) = &hosted {
-                        host.close(why);
-                    }
-                }
-                if own_kept && size == kept.size {
-                    kept.cache(room, size);
-                    // The body reconciled the children; the layer children are reached the same way.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
-                    let output = settle(component, kept, cx, rect, &begun, value, ctx.clone());
-                    kept.memory.flush();
-                    return output;
-                }
-                let ran = Ran {
-                    id,
-                    key,
-                    place: Place { room },
-                    size,
-                    rect,
-                    tokens: &tokens,
-                    sweep,
-                    begun: &begun,
-                    value,
-                    tip,
-                    context: ctx.clone(),
-                    flow_reveal: &mut flow.reveal,
-                };
-                // The band, grip and pane drags run on the node's own run; a run that moved the layer or the pane asks for
-                // another build round, so it stands where the step put it in this frame. The run's flow holds no region of
-                // the container: the regions `lay_out` placed stay, with whatever the run's paint showed after them.
-                let mut hooks = ContainerShape::new(&props, frame.geometry, &tokens);
-                let placed = std::mem::take(&mut kept.placed);
-                let output = run_shaped(component, kept, cx, ran, &mut hooks);
-                let shown = std::mem::replace(&mut kept.placed, placed);
-                kept.placed.extend(shown);
-                if hooks.moved {
-                    cx.rebuild();
-                }
-                // The props' scope and roving group, where the component's hooks name none.
-                if scope != crate::runtime::focus::FocusPolicy::NONE {
-                    kept.focus.scope = scope;
-                    cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
-                    cx.take_released_focus(kept.focus.takes_released_focus());
-                }
-                if roving.is_some() {
-                    kept.focus.roving = roving;
-                }
-                note_access(kept, &props, open);
+            }
+            if own_kept && size == kept.size {
+                kept.cache(room, size);
+                // The body reconciled the children; the layer children are reached the same way.
+                reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
+                let output = settle(component, kept, cx, rect, &begun, value, ctx.clone());
                 kept.memory.flush();
-                output
-            },
-        )
+                return output;
+            }
+            let ran = Ran {
+                id,
+                key,
+                place: Place { room },
+                size,
+                rect,
+                tokens: &tokens,
+                sweep,
+                begun: &begun,
+                value,
+                tip,
+                context: ctx.clone(),
+                flow_reveal: &mut flow.reveal,
+            };
+            // The band, grip and pane drags run on the node's own run; a run that moved the layer or the pane asks for
+            // another build round, so it stands where the step put it in this frame. The run's flow holds no region of
+            // the container: the regions `lay_out` placed stay, with whatever the run's paint showed after them.
+            let mut hooks = ContainerShape::new(&props, frame.geometry, &tokens);
+            let placed = std::mem::take(&mut kept.placed);
+            let output = run_shaped(component, kept, cx, ran, &mut hooks);
+            let shown = std::mem::replace(&mut kept.placed, placed);
+            kept.placed.extend(shown);
+            if hooks.moved {
+                cx.rebuild();
+            }
+            // The props' scope and roving group, where the component's hooks name none.
+            if scope != crate::runtime::focus::FocusPolicy::NONE {
+                kept.focus.scope = scope;
+                cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
+                cx.take_released_focus(kept.focus.takes_released_focus());
+            }
+            if roving.is_some() {
+                kept.focus.roving = roving;
+            }
+            note_access(kept, &props, open);
+            kept.memory.flush();
+            output
+        })
     });
     let ran = frame.ran;
     let settle = if ran {

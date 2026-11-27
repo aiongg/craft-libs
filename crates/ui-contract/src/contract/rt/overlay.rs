@@ -864,7 +864,7 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     if modal {
         crate::runtime::sampler::begin_modal(&context);
     }
-    cx.provide(super::layers::LayerChildOf(run.id));
+    cx.provide(super::layers::LayerChildOf(run.id, run.entry.as_ref().map(|entry| entry.keys)));
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
     ui.flow.scope = lk.scope.take_for_body();
     let out = body.show(&mut ui, &lk.closed);

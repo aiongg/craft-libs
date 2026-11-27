@@ -79,8 +79,10 @@ pub trait Element: 'static {
         None
     }
 
-    /// A Tab stop. Focus order is tree order.
-    fn focusable(&self) -> bool {
+    /// The node takes key focus, read from its last outputs: a press focuses it, and focus inside it
+    /// falls back to it. Tab order is tree order, over the stops its owner keeps in it.
+    fn focusable(&self, local: &Self::Local) -> bool {
+        let _ = local;
         false
     }
 
@@ -211,7 +213,7 @@ impl<E: Element> AnyElement for ElementBox<E> {
     }
 
     fn focusable(&self) -> bool {
-        self.el.focusable()
+        self.local.as_ref().is_some_and(|local| self.el.focusable(local))
     }
 
     fn holds_drafts(&self) -> bool {

@@ -606,7 +606,7 @@ impl Component for Tab<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let (style, rect) = (cx.style, cx.rect);
         let sizes = style.sizes;
-        let selected = cx.resolved.selected == Some(true) || cx.state().flags.contains(Flags::SELECTED);
+        let selected = cx.resolved.selected == Some(true) || cx.state().has(Flags::SELECTED);
         let draw = ui.draw();
         let shown = self.shown_label(style, cx.resolved.label);
         let placed = self.place(style, cx.content_rect, cx.flow.is_rtl(), &shown, |run| draw.layout(run, f32::INFINITY).size().x);

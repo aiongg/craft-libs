@@ -117,7 +117,7 @@ impl Component for Scrub<'_> {
 
     fn paint(&mut self, _: &mut craft_ui::contract::PaintUi<'_>, cx: &Cx<'_, Self>) {
         if let Some(seen) = self.seen {
-            seen.flags.set(cx.state().flags);
+            seen.flags.set(cx.state().flags());
             seen.shown.set(cx.value().copied());
             seen.phase.set(cx.gesture());
         }

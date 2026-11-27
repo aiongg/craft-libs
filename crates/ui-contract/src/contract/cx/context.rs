@@ -314,9 +314,11 @@ pub(crate) struct RunIo<'a> {
     /// The payload types the run asked for (`Pointer::drop_target`; `true` for `window_drop_target`); the driver
     /// keeps them, and the node takes their drags in ui-rt's routing.
     pub(crate) drop_types: RefCell<smallvec::SmallVec<[(std::any::TypeId, bool); 1]>>,
-    /// The run read the context requests of the nodes under it (`Cx::context_requests`); kept as
-    /// `Kept::context_watch`, so its watch takes them from its next build on.
-    pub(crate) context_watch: Cell<bool>,
+    /// Set when the run reads the context requests of the nodes under it (`Cx::context_requests`); kept as
+    /// `Kept::context_watch`, so its watch takes them from its next build on. The driver lends the cell, so a read in
+    /// `finish`, which consumes the core's borrow, still reaches it; settled and measuring runs keep no watch and lend
+    /// none.
+    pub(crate) context_watch: Option<&'a Cell<bool>>,
     /// Context requests the run made at a rect of its own (`CxCore::request_context`), in order, that its context
     /// step has not taken yet: the driver passes those made after it (by item content) on.
     pub(crate) context_asks: RefCell<Vec<Rect>>,
@@ -429,7 +431,7 @@ impl<'a> RunIo<'a> {
             hover_point: None,
             drag_over: None,
             drop_types: RefCell::new(smallvec::SmallVec::new()),
-            context_watch: Cell::new(false),
+            context_watch: None,
             context_asks: RefCell::new(Vec::new()),
             context_made: Cell::new(None),
             drop_mark: Cell::new(None),
@@ -661,7 +663,9 @@ impl<C: Component> Cx<'_, C> {
     /// makes the component watch the nodes under it: a request one of them makes runs it in the same frame, and a
     /// frame without requests runs nothing more.
     pub fn context_requests(&self) -> Vec<(Id, Rect)> {
-        self.core.run.context_watch.set(true);
+        if let Some(watch) = self.core.run.context_watch {
+            watch.set(true);
+        }
         let own = self.core.id;
         let mut requests: Vec<(Id, Rect)> = self
             .core

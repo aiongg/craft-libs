@@ -159,7 +159,7 @@ impl Element for Probe {
         Handled::Yes
     }
 
-    fn focusable(&self) -> bool {
+    fn focusable(&self, _: &Self::Local) -> bool {
         self.text
     }
 
