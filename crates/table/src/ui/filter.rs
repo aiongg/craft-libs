@@ -86,6 +86,7 @@ pub struct FilterButton {
     /// The column's sort, if any: the button then shows the sort arrow.
     #[prop]
     sort: Option<ColumnSort>,
+    #[key(skip)] // the run's output
     event: Option<FilterButtonEvent>,
 }
 

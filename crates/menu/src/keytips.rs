@@ -144,6 +144,7 @@ pub struct Keytips<'a> {
     /// The controls of the shown tab that get a badge, in the order they are shown: their badges come from their
     /// labels and fixed letters ([`assign_keytips`]).
     #[prop]
+    #[key(by = format!("{:?}", self.controls))]
     controls: &'a [KeytipControl<'a>],
     /// Fixed letter sequences typed after Alt, each with the command it fires. They show no badge, start only on a
     /// letter they lead with, and wait for their next letter until they are complete or Escape ends them.
@@ -159,11 +160,14 @@ pub struct Keytips<'a> {
     /// The inspected-region records whose elements the badges are placed at: the ribbon's, and any other region the
     /// app records (a quick access toolbar in the title bar).
     #[prop]
+    #[key(by = self.places.iter().map(|r| Arc::as_ptr(r) as usize as u64).collect::<Vec<_>>())] // records by identity
     places: &'a [Arc<inspect::Recorded>],
     /// The state this pass ends with.
+    #[key(skip)] // the run's output
     state: State,
     /// Each badge of this pass with the rect of the control it sits on, in this component's layer.
     badges: Vec<(Rect, String)>,
+    #[key(skip)] // the run's output
     reported: Reported,
 }
 

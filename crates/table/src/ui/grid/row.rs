@@ -57,6 +57,7 @@ impl CellPaint<'_> {
 pub struct GridRow<'r> {
     #[common]
     common: craft_ui::contract::Common,
+    #[key(skip)] // the model is read through its queries; the grid keys the selection and zoom
     model: &'r dyn GridModel,
     row: u32,
     zoom: f32,

@@ -117,7 +117,7 @@ impl<'a> Sample<'a> {
 /// `sample` for a band `band` high, laid out by `layout` (a measure's or a painter's) and cut to `room` as
 /// [`sample_text`] cuts it. Every face sits on one baseline: that of the interface face's line at `points` centred in
 /// the band, as a control's line sets its texts. The sample is laid out at `points`, or, where its ink (what the
-/// layout draws, as `Galley::mesh_bounds` holds it) would cross the band's top or bottom from that baseline, at the
+/// layout draws, as `TextLayout::ink` holds it) would cross the band's top or bottom from that baseline, at the
 /// largest size whose ink stays inside the band.
 pub(crate) fn sample_line(layout: impl Fn(&DocText<'_>) -> TextLayout, sample: Sample<'_>, band: f32, room: Option<f32>) -> SampleLine {
     let Sample { text, font, coords, points, color } = sample;
@@ -131,7 +131,7 @@ pub(crate) fn sample_line(layout: impl Fn(&DocText<'_>) -> TextLayout, sample: S
     let mut size = points;
     let mut laid = at(size);
     for _ in 0..FIT_STEPS {
-        let ink = laid.galley.mesh_bounds;
+        let ink = laid.ink();
         if !ink.is_positive() {
             break;
         }
@@ -172,5 +172,5 @@ pub(crate) fn paint_sample(painter: &ContentPainterCx<'_>, rect: Rect, sample: S
     };
     let at = Pos2::new(x, rect.top() + line.baseline - line.layout.first_baseline);
     let clip = rect.intersect(painter.painter.clip_rect());
-    painter.painter.with_clip_rect(clip).galley(at, line.layout.galley, Color32::PLACEHOLDER);
+    painter.painter.clipped(clip, || painter.painter.text(line.layout.rt(), at));
 }

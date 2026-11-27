@@ -47,6 +47,7 @@ pub(crate) struct FontPreviewBanner<'a> {
     common: Common,
     name: &'a str,
     text: &'a str,
+    #[key(by = format!("{:?}", self.face))]
     face: SampleFace<'a>,
     /// The sample in black on a white paper over its band, in every theme (`FontPickerSettings::samples_on_white`).
     #[prop]

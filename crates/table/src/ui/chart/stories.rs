@@ -33,6 +33,7 @@ type Chart = fn(&ChartSheetStyle, Vec2) -> Vec<ChartPrimitive>;
 pub struct ChartSheet<'a> {
     #[common]
     common: Common,
+    #[key(skip)] // story charts hold painter fns; the story sheet is rebuilt by the gallery
     charts: &'a [Chart],
     size: Vec2,
 }

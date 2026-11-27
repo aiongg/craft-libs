@@ -217,7 +217,9 @@ pub struct OutlineBand<'a> {
     rows: &'a OutlineAxis,
     columns: &'a OutlineAxis,
     geometry: &'a SheetGeometry,
+    #[key(skip)] // the run's output
     laid: Layout,
+    #[key(skip)] // the run's output
     actions: Vec<OutlineAction>,
 }
 

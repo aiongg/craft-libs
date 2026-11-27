@@ -199,6 +199,7 @@ impl FontScript {
 
 /// A family set the host gives (VectorCraft: Document, Recently Added), one filter toggle each. An `ordered` set that
 /// is on lists in its own order. A disabled set's toggle is off and dimmed, with its hint as the reason.
+#[derive(Debug)]
 pub struct FamilySet<'a> {
     key: &'a str,
     label: Label,
@@ -686,6 +687,7 @@ pub struct FontPicker<'a> {
     #[common]
     common: Common,
     family: Bind<'a, String>,
+    #[key(by = (self.catalog.id(), self.catalog.generation()))] // the catalogue by id and scan generation
     catalog: &'a Arc<Catalog>,
     /// Stars, recents, the preview size and the names language; the picker records a pick as recent through it.
     #[prop]
@@ -696,6 +698,7 @@ pub struct FontPicker<'a> {
     picked: Option<String>,
     picked_style: Option<String>,
     rested: Option<String>,
+    #[key(skip)] // the hover preview state, written by the run
     preview: Preview<String>,
     /// The preview banner's text and every row's sample (the sample word when not given).
     #[prop]

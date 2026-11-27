@@ -241,8 +241,12 @@ impl ItemOutput<CardEvent> for CardOut {
 pub struct FamilyCard {
     #[common]
     common: Common,
+    #[key(by = (&self.data.name, &self.data.meta, &self.data.sample, self.data.points, self.data.curated, format!("{:?}", self.data.state), self.data.face.is_some()))]
+    // what the card shows
     data: CardData,
+    #[key(skip)] // the run's output
     placed: Option<Placed>,
+    #[key(skip)] // the run's output
     event: Option<CardEvent>,
 }
 

@@ -44,6 +44,18 @@ pub(crate) enum SampleFace<'a> {
     Missing,
 }
 
+impl std::fmt::Debug for SampleFace<'_> {
+    /// The face's identity, for the component key.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SampleFace::Face { catalog, owner, face } => write!(f, "Face({}, {:?}, {:?})", catalog.id(), owner, face),
+            SampleFace::Subset(subset) => write!(f, "Subset({subset:?})"),
+            SampleFace::Font(font) => write!(f, "Font({font:?})"),
+            SampleFace::Missing => f.write_str("Missing"),
+        }
+    }
+}
+
 impl SampleFace<'_> {
     /// The font that draws the sample once its face is ready; none while it loads, when it is not available, or for
     /// [`SampleFace::Missing`]. A sample is laid out and drawn only in this font, never in the interface face, which
@@ -110,6 +122,7 @@ pub(crate) struct FontSample<'a> {
     #[common]
     common: Common,
     text: Cow<'a, str>,
+    #[key(by = format!("{:?}", self.face))]
     face: SampleFace<'a>,
     points: f32,
     /// Black type on a white paper over the whole rect, in every theme (`FontPickerSettings::samples_on_white`).

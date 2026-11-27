@@ -186,6 +186,8 @@ impl ItemOutput<Pressed> for RowOut {
 pub(super) struct StyleRow<'r> {
     #[common]
     common: Common,
+    #[key(by = (&self.line.label, format!("{:?}", self.line.coords), self.line.sliders, self.line.face.is_some(), format!("{:?}", self.line.action)))]
+    // what the style shows
     line: &'r StyleLine,
     family: &'r str,
     sample: &'r str,
@@ -193,6 +195,7 @@ pub(super) struct StyleRow<'r> {
     words: &'r DetailsWords,
     pressed: bool,
     /// The width of the action, measured in the pass's measure step and read by its paint.
+    #[key(skip)] // the run's output
     action: Cell<f32>,
 }
 

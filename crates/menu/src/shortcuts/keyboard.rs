@@ -339,8 +339,11 @@ pub(crate) struct PaneStyle {
 struct KeyCaps {
     #[common]
     common: craft_ui::contract::Common,
+    #[key(by = self.caps.iter().map(|c| (c.at, c.width, c.marked, &c.legend, &c.title, &c.name, &c.description)).collect::<Vec<_>>())]
+    // what each cap shows
     caps: Vec<CapView>,
     key: Option<Key>,
+    #[key(by = format!("{:?}", self.toggled))]
     toggled: Option<Mod>,
 }
 

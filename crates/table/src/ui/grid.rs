@@ -185,9 +185,12 @@ pub struct CellGrid<'a> {
     percent: u16,
     #[style_key]
     levels: (u8, u8),
+    #[key(skip)] // the model is read through its queries (no revision on GridModel yet)
     model: &'a dyn GridModel,
+    #[key(skip)] // the bound selection; `snapshot` keys its value
     selection: Bind<'a, CellSelection<u32>>,
     /// The selection as the app held it when the pass began, for the parts that declare before the item step runs.
+    #[key(by = format!("{:?}", self.snapshot))]
     snapshot: CellSelection<u32>,
     /// The zoom this pass shows, clamped from the state's.
     zoom: f32,
@@ -198,6 +201,7 @@ pub struct CellGrid<'a> {
     scroll_at: ScrollPos,
     /// The ranges the copy marks surround.
     #[prop]
+    #[key(by = format!("{:?}", self.copy_mark))]
     copy_mark: &'a [CellRange<u32>],
     /// The header cells that show a filter button, with its state.
     #[prop]
@@ -209,10 +213,13 @@ pub struct CellGrid<'a> {
     #[prop]
     column_edges: ColumnEdges,
     outline: Option<(&'a OutlineAxis, &'a OutlineAxis)>,
+    #[key(skip)] // a callback; the run only calls it
     selectable: Box<dyn Fn(CellAt<u32>) -> bool + 'a>,
+    #[key(skip)] // the run's output
     frame: Option<paint::Frame>,
     /// The row the keys of this pass moved the active cell to.
     reveal: Option<u32>,
+    #[key(skip)] // the run's output
     pass: PassOutput,
 }
 
