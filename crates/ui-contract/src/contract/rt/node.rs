@@ -118,6 +118,10 @@ pub enum NodeInput {
     /// A primary press outside this focused node left it the focus and held its draft: the press went down on a part
     /// declared `holds_drafts` or in a popup above the node (ui-rt `Event::PressKept` with `holds`).
     HeldPress,
+    /// A primary press outside this focused text stop would have taken its focus, but a node above that keeps the
+    /// focus on such presses kept it (a trapping scope): the draft commits and the focus stays (ui-rt
+    /// `Event::PressKept` with `commits`).
+    KeptPress,
     /// A reveal a child of a container that owns its body's scroll asked for, in window coordinates (`Focus::take_reveal`).
     Reveal(craft_ui_rt::Rect),
     /// A press phase a node under a collection took (a band row's node, or a part one of its children declares),
@@ -874,7 +878,13 @@ impl Element for ComponentNode {
             Event::Text(_) | Event::ImePreedit { .. } | Event::ImeCommit(_) | Event::Paste(_) => super::ime::event(self.text.is_some(), kept, cx, ev),
             Event::Key(k) => self.key(kept, cx, k),
             // Only a node that holds drafts acts on a held press: the run shows the draft as its value would.
-            Event::PressKept { holds: true } if kept.holds_drafts() => {
+            // A press a keep-focus node kept: a text stop ends its draft as a focus loss would.
+            Event::PressKept { commits: true, .. } if kept.focus.text => {
+                kept.queue.push(NodeInput::KeptPress);
+                cx.request_build();
+                Handled::Yes
+            }
+            Event::PressKept { holds: true, .. } if kept.holds_drafts() => {
                 kept.queue.push(NodeInput::HeldPress);
                 cx.request_build();
                 Handled::Yes

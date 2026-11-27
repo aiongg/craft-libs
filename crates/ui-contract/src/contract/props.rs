@@ -13,6 +13,7 @@ use craft_theme::{ControlSize, Variant};
 #[derive(Clone, Debug, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Common {
+    #[memo_props(skip = "the node's identity: another id is another node, never a changed one")]
     pub(crate) id: IdSource,
     #[doc(hidden)]
     pub label: Label,

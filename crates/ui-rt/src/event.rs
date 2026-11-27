@@ -187,9 +187,13 @@ pub enum Event {
     /// draft. `holds` is true when the press is on a shape recorded with
     /// [`crate::PaintCx::holds_drafts`] or in a layer child above the focused node's; a node that
     /// holds drafts ([`crate::Element::holds_drafts`]) keeps the focus on such a press whatever
-    /// shape takes it. Goes to the focused node only, before the press's own events.
+    /// shape takes it. `commits` is true when the press would have taken the focus but a node above
+    /// that keeps it on such presses kept it (a trapping scope): the focused node ends its draft as
+    /// a focus loss would, and keeps the focus. Goes to the focused node only, before the press's
+    /// own events.
     PressKept {
         holds: bool,
+        commits: bool,
     },
     /// Alt went down and up with no other key, pointer press or modifier between. Goes to the
     /// focused node (or the key root) and bubbles, then reaches the window root's key stage as a

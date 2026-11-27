@@ -525,6 +525,15 @@ impl BuildCx<'_> {
         }
     }
 
+    /// A node under this one that gives its focus up on a press (a text field committing) hands it
+    /// to this node, the nearest such above it, instead of to none: a pane, whose keys keep working
+    /// after the click.
+    pub fn take_released_focus(&mut self, on: bool) {
+        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
+            n.takes_released_focus = on;
+        }
+    }
+
     /// `node` builds in a later build round of this frame: a request addressed to it by id (a
     /// collection asked to start a rename) or a runtime-wide edit (a cancel of every running gesture)
     /// reached this build.

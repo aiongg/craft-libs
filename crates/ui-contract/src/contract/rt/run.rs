@@ -628,6 +628,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
     cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
+    cx.take_released_focus(kept.focus.takes_released_focus());
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {

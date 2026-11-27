@@ -139,9 +139,9 @@ pub(crate) fn drop_hit(tree: &Tree, window: &Window, pos: Pos2, files: bool) -> 
     None
 }
 
-/// Whether `window`'s modal layer holds a child: input below it is blocked.
+/// Whether `window`'s modal layer holds a child that is not leaving: input below it is blocked.
 pub(crate) fn modal_shown(tree: &Tree, window: &Window) -> bool {
-    tree.nodes.get(&window.layer(Layer::Modal)).is_some_and(|n| !n.children.is_empty())
+    tree.nodes.get(&window.layer(Layer::Modal)).is_some_and(|n| n.children.iter().any(|&child| !window.inert(tree, child)))
 }
 
 fn hit_records_through(

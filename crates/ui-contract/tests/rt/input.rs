@@ -284,3 +284,172 @@ fn a_hover_read_reruns_its_scope_only_when_the_hover_flips() {
     let away = run.input(Input::mouse_move(outside + Vec2::new(1.0, 1.0)));
     assert_eq!(Run::<Reading>::counts(&away), (0, 0), "a move over a button outside the view runs nothing");
 }
+
+/// Where a text field's focus goes on a press that would take it: a keeper above commits the draft and keeps the
+/// focus, a pane takes it, and a canvas above keeps only its own focus.
+mod press_release {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use craft_ui_contract::contract::overlay::{Overlay, show_dialog};
+    use craft_ui_contract::contract::{
+        Bind, Common, Component, Container, ContainerProps, Cx, MeasureCx, Props as _, Response, Role, Show as _, ShowContainer, Ui,
+    };
+    use craft_ui_contract::runtime::focus::{FocusPolicy, KeyUse};
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_rt::{Rect, Sense, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+
+    use crate::text_field::TextField;
+
+    /// A container that is a pane (`pane`) or the window's document canvas: a stop that keeps the focus on presses
+    /// no shape takes.
+    #[derive(Component)]
+    #[component(container, unregistered)]
+    struct Area {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        pane: bool,
+    }
+
+    impl Component for Area {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: AreaStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn sense(&self) -> Sense {
+            if self.pane { Sense::empty() } else { Sense::HOVER | Sense::CLICK | Sense::FOCUS }
+        }
+
+        fn keys(&self) -> KeyUse {
+            let mut keys = KeyUse::of(craft_ui_contract::contract::Input::Display);
+            keys.chrome_key = !self.pane;
+            keys
+        }
+
+        fn focus_scope(&self) -> FocusPolicy {
+            if self.pane { FocusPolicy::PANE } else { FocusPolicy::NONE }
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    impl Container for Area {}
+
+    /// A shape a press acts on that takes no focus (a swatch).
+    #[derive(Component)]
+    struct Tile {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Tile {
+        const ROLE: Role = Role::GROUP;
+        const STOPS: bool = false;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: TileStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(4.0 * cx.tokens.size.button, cx.tokens.size.button)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER | Sense::CLICK
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    /// A field inside an [`Area`] and a tile that takes no focus beside it; the area's, the field's and the tile's
+    /// rects.
+    fn in_area(pane: bool) -> (Harness, Rc<Cell<bool>>, Rc<Cell<[Rect; 3]>>) {
+        let committed = Rc::new(Cell::new(false));
+        let rects = Rc::new(Cell::new([Rect::NOTHING; 3]));
+        let (c, r) = (Rc::clone(&committed), Rc::clone(&rects));
+        let mut text = String::new();
+        let mut h = Harness::builder().with_size(Vec2::new(400.0, 600.0)).build_ui(move |ui: &mut Ui<'_, '_>| {
+            let text = &mut text;
+            let area = Area { common: Common::new(), props: ContainerProps::new(), pane };
+            let shown = ShowContainer::show(area.label("Area".to_owned()), ui, |ui, _| {
+                let field = TextField::new(Bind::bound(&mut *text)).show(ui);
+                c.set(c.get() || field.events.committed().is_some());
+                field.response.rect
+            });
+            let tile = Tile { common: Common::new() }.show(ui).rect;
+            if let Some(field) = shown.inner {
+                r.set([shown.output.rect, field, tile]);
+            }
+        });
+        h.run();
+        (h, committed, rects)
+    }
+
+    #[test]
+    fn a_press_a_trapping_scope_keeps_commits_the_field_s_draft_and_keeps_its_focus() {
+        let committed = Rc::new(Cell::new(false));
+        let rects = Rc::new(Cell::new([Rect::NOTHING; 2]));
+        let (c, r) = (Rc::clone(&committed), Rc::clone(&rects));
+        let mut text = String::new();
+        let mut h = Harness::builder().with_size(Vec2::new(400.0, 600.0)).build_ui(move |ui: &mut Ui<'_, '_>| {
+            let text = &mut text;
+            let _ = show_dialog(ui, 1, &Overlay::modal(), |ui| {
+                let field = TextField::new(Bind::bound(&mut *text)).show(ui);
+                c.set(c.get() || field.events.committed().is_some());
+                r.set([field.response.rect, Tile { common: Common::new() }.show(ui).rect]);
+            });
+        });
+        h.run();
+        let [field, tile] = rects.get();
+        h.click_at(field.center());
+        h.type_text("x");
+        h.run();
+        let focus = h.focused().map(|target| target.id);
+        assert!(focus.is_some() && !committed.get(), "the dialog's field types a draft");
+        h.click_at(tile.center());
+        h.run();
+        assert!(committed.get(), "the press the dialog kept commits the draft");
+        assert_eq!(h.focused().map(|target| target.id), focus, "and the field keeps the focus");
+    }
+
+    #[test]
+    fn a_field_gives_its_focus_to_its_pane_on_a_press_that_takes_it() {
+        let (mut h, committed, rects) = in_area(true);
+        let [pane, field, tile] = rects.get();
+        h.click_at(field.center());
+        h.type_text("x");
+        h.run();
+        h.click_at(tile.center());
+        h.run();
+        assert!(committed.get(), "the field commits through its focus loss");
+        assert_eq!(h.focused().map(|target| target.bounds), Some(pane), "the pane holds the focus");
+    }
+
+    #[test]
+    fn a_field_on_a_canvas_gives_its_focus_up_on_a_press_outside_it() {
+        let (mut h, committed, rects) = in_area(false);
+        let [_, field, tile] = rects.get();
+        h.click_at(field.center());
+        h.type_text("x");
+        h.run();
+        assert!(h.focused().is_some_and(|target| target.bounds == field), "the field holds the focus");
+        h.click_at(tile.center());
+        h.run();
+        assert!(committed.get(), "the field commits through its focus loss");
+        assert!(h.focused().is_none(), "the canvas above keeps only its own focus");
+    }
+}

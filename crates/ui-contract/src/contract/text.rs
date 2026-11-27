@@ -777,10 +777,11 @@ fn run_part<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in: Text
 }
 
 /// The direction of the Tab that moved focus off the node this run, from the last focus loss its queue holds.
-/// A pointer press elsewhere took the focus in this run: the draft commits now, before the page that press switches can
-/// remove the field.
+/// A pointer press elsewhere took the focus in this run, or would have but a node that keeps the focus kept it: the draft
+/// commits now, before the page that press switches can remove the field.
 pub(crate) fn press_left(input: &[crate::contract::rt::node::NodeInput]) -> bool {
-    input.iter().any(|item| matches!(item, crate::contract::rt::node::NodeInput::Focus { gained: false, cause: craft_ui_rt::FocusCause::Pointer }))
+    use crate::contract::rt::node::NodeInput;
+    input.iter().any(|item| matches!(item, NodeInput::Focus { gained: false, cause: craft_ui_rt::FocusCause::Pointer } | NodeInput::KeptPress))
 }
 
 fn tabbed_off(input: &[crate::contract::rt::node::NodeInput]) -> Option<bool> {
