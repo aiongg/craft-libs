@@ -47,7 +47,7 @@ mod tree;
 mod window;
 
 pub use access::{AccessCx, AccessEntry};
-pub use build::BuildCx;
+pub use build::{BuildCx, InlineState};
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,
     StrokeAlign, SurfaceKey, TextHighlight, Vertex,

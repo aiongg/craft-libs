@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 use web_time::Instant;
 
+use crate::build::BuildCx;
 use crate::element::Element;
 use crate::id::WindowId;
 use crate::input::ClipboardRequest;
@@ -77,6 +78,24 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
     /// One turn: platform events, dispatch, then build, layout, paint and render over dirty nodes
     /// only. `time` is the platform's frame time in seconds.
     pub fn step(&mut self, time: f64) -> StepReport {
+        self.run_step(time, None)
+    }
+
+    /// [`Driver::step`] for windows with inline roots ([`Runtime::set_inline_root`]): `roots` is
+    /// their content, passed to [`Runtime::frame_with`].
+    pub fn step_with(&mut self, time: f64, roots: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) -> StepReport {
+        self.run_step(time, Some(roots))
+    }
+
+    /// Opens a window with an inline root ([`Runtime::set_inline_root`]).
+    pub fn open_inline_window(&mut self, spec: &WindowSpec) -> WindowId {
+        let window = self.platform.create_window(spec);
+        self.runtime.set_inline_root(window);
+        self.sync_window(window);
+        window
+    }
+
+    fn run_step(&mut self, time: f64, roots: Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>) -> StepReport {
         let mut report = StepReport::default();
         self.runtime.begin_input(time);
         let mut events = std::mem::take(&mut self.events);
@@ -115,7 +134,10 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
                 self.runtime.set_time(time);
             }
             if self.runtime.needs_frame() {
-                report.frame = self.runtime.frame(self.renderer.text());
+                report.frame = match roots {
+                    Some(roots) => self.runtime.frame_with(self.renderer.text(), roots),
+                    None => self.runtime.frame(self.renderer.text()),
+                };
                 let t = Instant::now();
                 report.render.images_uploaded = self.renderer.sync_images(self.runtime.images());
                 for &window in &self.attached {

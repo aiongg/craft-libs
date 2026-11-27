@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use craft_theme::{Appearance, Contrast, Mode, TextSize, Tokens, builtins, resolve};
 use craft_ui_platform_headless::{HeadlessPlatform, Input};
-use craft_ui_rt::{Driver, Element, Renderer, Runtime, StepReport, Vec2, WindowId, WindowSpec};
+use craft_ui_rt::{BuildCx, Driver, Element, Renderer, Runtime, StepReport, Vec2, WindowId, WindowSpec};
 
 use super::observe::Snapshot;
 
@@ -45,6 +45,27 @@ impl<R: Renderer> Rig<R> {
         let mut runtime = Runtime::new(tokens);
         runtime.set_root(HeadlessPlatform::MAIN, root);
         Rig { driver: Driver::new(runtime, platform, renderer), main: HeadlessPlatform::MAIN, state: None }
+    }
+
+    /// A window with an inline root ([`Runtime::set_inline_root`]): the check passes its content
+    /// to [`Rig::step_with`] and [`Rig::frame_with`].
+    pub fn inline(size: Vec2, scale: f32, renderer: R) -> Rig<R> {
+        let platform = HeadlessPlatform::with_window(size, scale);
+        let mut runtime = Runtime::new(test_tokens());
+        runtime.set_inline_root(HeadlessPlatform::MAIN);
+        Rig { driver: Driver::new(runtime, platform, renderer), main: HeadlessPlatform::MAIN, state: None }
+    }
+
+    /// One turn at the platform's current time, with the inline roots' content.
+    pub fn step_with(&mut self, roots: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) -> StepReport {
+        let now = self.driver.platform.now();
+        self.driver.step_with(now, roots)
+    }
+
+    /// Advances the clock by `dt` seconds, then [`Rig::step_with`].
+    pub fn frame_with(&mut self, dt: f64, roots: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) -> StepReport {
+        self.driver.platform.advance(dt);
+        self.step_with(roots)
     }
 
     /// The app state a snapshot carries: whatever string the app's model reads back from the
