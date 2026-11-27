@@ -769,7 +769,7 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
             return value;
         }
         // The text fields in its body follow its Escape rules: whether an Escape closes it, keeps their typing, or is
-        // its Cancel (a modal).
+        // its Cancel (a modal). The one provide for every layer mount: popups, palettes, dialogs, containers.
         if focus != FocusPolicy::NONE || spec.escape {
             let closes = spec.escape || matches!(focus.cancel, craft_behavior::CancelRule::Close);
             cx.provide(ScopeEscape { closes, keeps_typing: focus.escape_keeps_typing, modal: layer == Layer::Modal });
