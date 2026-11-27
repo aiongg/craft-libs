@@ -33,7 +33,7 @@ pub struct Response {
     pub rect: Rect,
     /// The node behind the response; `None` in a measuring run, which reaches no node.
     node: Option<NodeId>,
-    interact: Interact,
+    pub(crate) interact: Interact,
     /// A drag of the node's press runs (kept across frames until the press ends).
     dragging: bool,
     facts: InputFacts,
@@ -176,7 +176,12 @@ impl Response {
     }
 
     fn read(&self, fact: InteractFact) -> bool {
-        if let Some(node) = self.node {
+        // While a paint look is recorded, the run's response holds that look's pointer state: a read of it is a
+        // paint read that picks the look, not a build read.
+        let look = matches!(fact, InteractFact::Hovered | InteractFact::Pressed) && crate::style::recording_look();
+        if look {
+            crate::style::note_pointer_read(fact == InteractFact::Hovered, fact == InteractFact::Pressed);
+        } else if let Some(node) = self.node {
             log_read(node, fact);
         }
         let mut on = fact.of(self.interact);

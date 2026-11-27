@@ -92,6 +92,11 @@ pub(crate) fn pointer_reads<R>(f: impl FnOnce() -> R) -> (R, PointerReads) {
     (out, read)
 }
 
+/// Whether a paint look is being recorded on this thread (`pointer_reads`).
+pub(crate) fn recording_look() -> bool {
+    POINTER_READS.with(|reads| reads.get().is_some())
+}
+
 /// Notes a read of the hover and press facts by the look being recorded (`Styled::state`, a face's
 /// part state). Outside a recording it does nothing.
 pub(crate) fn note_pointer_read(hover: bool, press: bool) {

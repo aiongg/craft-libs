@@ -564,7 +564,11 @@ pub(crate) fn run_shaped<C: Component>(
     // 7 parts: declared in node coordinates and kept as hit shapes until the next run.
     let own = hooks.sense(&component, own_sense(&component, &resolved));
     // A band row's own shape senses hover only: its presses reach the collection's press step.
-    let sense = if row.is_some() { own.intersection(Sense::HOVER) } else { own };
+    let sense = match row {
+        Some(_) if own.intersects(Sense::HOVER | Sense::CLICK | Sense::DRAG) => Sense::HOVER,
+        Some(_) => Sense::empty(),
+        None => own,
+    };
     let mut parts = steps::PartsStep::default();
     let shaped = hooks.shaped();
     if facts.parts || shaped {
@@ -1284,6 +1288,9 @@ fn record_variants<C: Component>(
             Pointer::Hover => (true, false),
             Pointer::Press => (true, true),
         };
+        // The run's response answers the look's pointer state while the look records (`Response::read`).
+        let interact = cxx.core.response.interact;
+        (cxx.core.response.interact.hovered, cxx.core.response.interact.pressed) = (hovered, pressed);
         let ((variant, children), read) = crate::style::pointer_reads(|| {
             steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
             // Each look reserves its paint slots from key 0, so a slot names the same place in every look.
@@ -1318,6 +1325,7 @@ fn record_variants<C: Component>(
             let (content, overlay) = canvas.finish();
             (Variant { look, content, overlay }, children)
         });
+        cxx.core.response.interact = interact;
         // A look with a focus entry: the node reruns when focus or its visibility flips.
         if read.focus {
             cxx.core.read_focus_visible();

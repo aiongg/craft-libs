@@ -232,9 +232,11 @@ fn six_hundred_rows_build_only_the_band() {
 fn hover_over_a_row_paints_one_row_and_runs_nothing() {
     let mut app = app(600);
     let mut rig = rig(&mut app);
-    let at = row_center(&app, 3);
+    // The pointer enters the list first: its overlay scroll bar shows while the list is hovered.
+    let (into, at) = (row_center(&app, 2), row_center(&app, 3));
+    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(into));
     let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
-    assert_eq!(entered.frame.painted, 1, "only the hovered row repaints: {entered:?}");
+    assert_eq!(entered.frame.painted, 2, "only the row the pointer left and the hovered row repaint: {entered:?}");
     assert_eq!((entered.frame.runs, entered.frame.scopes, entered.frame.built), (0, 0, 0), "a hover is a kept variant: {entered:?}");
 }
 
@@ -275,7 +277,8 @@ fn a_select_keeps_the_largest_row_measure() {
     let mut rig = rig(&mut app);
     let built = craft_ui::contract::take_widest_runs();
     assert!(!built.is_empty(), "a content-sized list measures its largest row once: {built:?}");
-    let at = row_center(&app, 3);
+    // Clear of the scroll bar, which covers most of the narrow list's width.
+    let at = Pos2::new(app.rect.min.x + 1.0, row_center(&app, 3).y);
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_down(at));
     let _ = craft_ui::contract::take_row_builds();
@@ -380,6 +383,13 @@ mod glide {
             .collect();
         // Only a glide that leaves the band the last build covered builds the list (new rows come into the band).
         assert!(quiet.iter().filter(|&&(_, list_ran)| list_ran).count() <= 1, "a glide frame runs no list: {quiet:?}");
+        // The list builds again once the glide carries the view out of the band it built: the rows it shows move on.
+        for _ in 0..30 {
+            if app.visible.start > 0 {
+                break;
+            }
+            frame(&mut rig, &mut app);
+        }
         input(&mut rig, &mut app, Input::mouse_move(anchor + Vec2::new(1.0, 80.0)));
         assert!(app.visible.start > 0, "the latch scrolled the rows: {:?}", app.visible);
         rig.driver.platform.key_press(main, craft_ui_rt::Key::Escape, craft_ui_rt::Mods::NONE);

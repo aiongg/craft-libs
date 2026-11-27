@@ -1073,7 +1073,8 @@ impl ComponentNode {
             return;
         }
         let marks = match p.gesture {
-            Gesture::Down { .. } => kept.sense_of(part).contains(Sense::SETS_ON_PRESS),
+            // A collection steps its lead and pick on the press itself, as it does for its rows' presses.
+            Gesture::Down { .. } => kept.sense_of(part).contains(Sense::SETS_ON_PRESS) || kept.watch.as_ref().is_some_and(|w| w.shared.presses.get()),
             Gesture::Up { .. } | Gesture::Cancel(_) => {
                 kept.press = None;
                 true

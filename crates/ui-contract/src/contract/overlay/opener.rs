@@ -102,7 +102,7 @@ impl Opener {
     }
 
     /// This opener and the others, first first.
-    pub(super) fn all(&self) -> impl Iterator<Item = &Opener> {
+    pub(crate) fn all(&self) -> impl Iterator<Item = &Opener> {
         std::iter::once(self).chain(&self.others)
     }
 

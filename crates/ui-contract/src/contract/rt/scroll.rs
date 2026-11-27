@@ -309,7 +309,9 @@ impl Element for ScrollNode {
     }
 
     fn init(&self, cx: &mut BuildCx<'_>) -> ScrollKept {
-        ScrollKept::new(cx.state(Vec2::ZERO))
+        let owner = cx.runtime().parent(cx.node());
+        let rate = owner.and_then(|owner| glide_rate(cx, owner));
+        ScrollKept::new(rate.unwrap_or_else(|| cx.state(Vec2::ZERO)))
     }
 
     /// Pays out an eased step and a glide, then places the children moved by the offset. Leaving
@@ -342,8 +344,9 @@ impl Element for ScrollNode {
         } else {
             let now = cx.time_until(|_| None);
             let step = sk.rate_at.map_or(Vec2::ZERO, |last| rate * (now - last) as f32);
-            // At the end the rate points to, the glide rests: no frames until the extent or the rate changes.
-            let rests = sk.rate_at.is_some() && !sk.move_to(sk.offset + step);
+            // At the end the rate points to, the glide rests: no frames until the extent or the rate changes. A second
+            // layout in the same frame pays nothing and is no rest.
+            let rests = step != Vec2::ZERO && !sk.move_to(sk.offset + step);
             sk.rate_at = (!rests).then_some(now);
             if !rests {
                 cx.time_until(|now| Some(now + FRAME));
@@ -523,9 +526,16 @@ impl Element for ScrollNode {
 /// drag or `jump_to` leaves it running. Asked before the owner's scroll body exists (its first build), it does nothing.
 pub(crate) fn glide(cx: &mut BuildCx<'_>, owner: Id, velocity: Vec2) {
     let Some(node) = node_of(cx, owner) else { return };
-    let rt = cx.runtime();
-    let Some(rate) = rt.children(node).iter().find_map(|child| rt.local::<ScrollNode>(*child)).map(|sk| sk.rate) else { return };
-    rate.set_if_changed(cx, velocity);
+    // The cell is on the owner's node: its run asks for the glide while its build has not reached the scroll node yet.
+    if let Some(rate) = glide_rate(cx, node) {
+        rate.set_if_changed(cx, velocity);
+    }
+}
+
+/// The glide rate cell of the scroll body directly under `owner`, on `owner`'s node; `None` when `owner` is not in
+/// the tree.
+fn glide_rate(cx: &mut BuildCx<'_>, owner: NodeId) -> Option<State<Vec2>> {
+    cx.slot_of(owner, "craft-glide-rate", || Vec2::ZERO)
 }
 
 impl Ui<'_, '_> {

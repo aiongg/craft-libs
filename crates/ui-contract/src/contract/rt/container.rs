@@ -920,10 +920,41 @@ fn show_on_layer<C: Container, R>(
     overlay: &Overlay,
     body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
 ) -> Inner<C::Output, R> {
-    if let Some(output) = unshown(slot, ui) {
+    let component = slot.as_mut().expect("a container is shown once");
+    let props = component.props(Internal::new()).clone();
+    let driving = driving_opener(component, &props);
+    let ctx = ui.ctx().clone();
+    // A layer its openers drive: while it is closed, the container is a zero-size node in this flow that runs the
+    // openers' triggers and hold timer (`show_plain`); the layer child appears in the build round after it opens.
+    if let Some(first) = &driving
+        && !crate::contract::overlay::slot_open(&ctx, first.id)
+    {
+        let at = Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO);
+        let shown = show_plain(slot, ui, (ShowAt::Rect(at), Env::of(ui)), body, None, None);
+        if crate::contract::overlay::slot_open(&ctx, first.id) {
+            ui.cx.rebuild();
+        }
+        return shown;
+    }
+    if driving.is_none()
+        && let Some(output) = unshown(slot, ui)
+    {
         return Inner { output, inner: None, settle: None };
     }
     let source = slot.as_mut().expect("a container is shown once").common_mut(Internal::new()).id.clone();
+    let (id, _) = ui.flow.peek_child(type_key::<C>(), source.clone());
+    // A dismissal ui-rt or the layer's rules decided since the owner's last build closes a driven layer before it
+    // shows: the openers' slot takes it, and the container's node in this flow holds the closed state.
+    if let Some(first) = &driving
+        && let Some(why) = crate::contract::overlay::closes_before_show(ui.cx, overlay, super::overlay::layer_of(overlay), id.value(), true)
+    {
+        crate::contract::overlay::set_opener_open(ui.cx, &ctx, first, false);
+        if let Some(component) = slot.as_mut() {
+            component.closed(why);
+        }
+        let at = Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO);
+        return show_plain(slot, ui, (ShowAt::Rect(at), Env::of(ui)), body, None, None);
+    }
     let (id, _) = ui.flow.child(type_key::<C>(), source);
     // The content shows under the layer's id, which the container takes as its own (`show_plain`, hosted).
     let (tokens, sweep, rtl) = (ui.flow.tokens.clone(), ui.flow.sweep, Env::of(ui).direction.is_rtl());
@@ -933,8 +964,21 @@ fn show_on_layer<C: Container, R>(
     let save = slot.as_ref().and_then(|c| c.props(Internal::new()).save.clone());
     let placement = super::container_shape::placement_of(ui.ctx(), id, save.as_ref());
     let cx = &mut *ui.cx;
+    // A driven layer hangs from the opener that opened it: its anchor, and a press on it is not outside the layer.
+    let hung = driving.as_ref().map(|first| crate::contract::overlay::hung_from(&ctx, first, &overlay.place));
+    let anchored;
+    let overlay = match &hung {
+        Some((_, anchor)) => {
+            anchored = overlay.clone().anchor(anchor.clone());
+            &anchored
+        }
+        None => overlay,
+    };
     let base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
     let mut show = LayerShow { sweep, surface: Surface::Plain, pad: 0.0, host: Some(id), ..base };
+    if let Some((opener, _)) = hung {
+        show.spec = show.spec.hung_from(super::ids::node_of(cx, opener).or(Some(cx.node())));
+    }
     if overlay.placed.is_none()
         && overlay.placed_at.is_none()
         && let Some(pos) = placement.pos
@@ -942,8 +986,19 @@ fn show_on_layer<C: Container, R>(
         show.spec.placement = craft_ui_rt::Placement::At(Pos2::from(pos));
     }
     let size = placement.size.map(Vec2::from);
+    let layer = show.layer;
     let mut content = LayerContent { slot, body, size, shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
+    // The layer's content closed it (a row ran, an untaken Enter), or a trigger toggled it in the content's run: the
+    // openers' slot takes the close, and the owner builds again in this frame without the layer.
+    if let Some(first) = &driving {
+        if crate::contract::overlay::closed_after_show(cx, layer, id.value()).is_some() {
+            crate::contract::overlay::set_opener_open(cx, &ctx, first, false);
+        }
+        if !crate::contract::overlay::slot_open(&ctx, first.id) {
+            cx.rebuild();
+        }
+    }
     content.shown.expect("a layer mount runs its content in every build that shows it")
 }
 
@@ -1073,6 +1128,10 @@ fn show_plain<C: Container, R>(
     let (id, child) = ui.flow.child(type_key::<C>(), source);
     let key = component_key(&component, &common);
     let props = component.props(Internal::new()).clone();
+    // A layer mount its openers open and close: shown outside its layer, it is the zero-size node in the owner's flow
+    // that holds the open decision while the layer is closed (`show_on_layer`).
+    let driving = driving_opener(&mut component, &props);
+    let gate = driving.is_some() && hosted.is_none();
     let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place).in_popup(&props, hosted.is_some()).in_pane(&props);
     // A window mount is the whole content of its window.
     let at = match (&props.mount, at) {
@@ -1136,7 +1195,16 @@ fn show_plain<C: Container, R>(
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             (frame.gate, frame.gate_mixed) = gate_of(props.gates, &value);
             frame.gate_at_read = frame.gate;
-            let open = read_open(&mut component, &props, kept.body.open, &ctx);
+            let open = match &driving {
+                Some(first) => {
+                    let open = crate::contract::overlay::opener_open(cx, &mut kept.memory, first);
+                    if first.all().any(crate::contract::overlay::Opener::claims_activation) {
+                        crate::contract::overlay::claim_activation(cx);
+                    }
+                    open && !gate
+                }
+                None => read_open(&mut component, &props, kept.body.open, &ctx),
+            };
             (frame.open, frame.open_at_read) = (open, open);
             // The collapse moves the body's height toward its new state; the node builds again each frame while it
             // moves (`Driver::anim` owes the next frame) and not after.
@@ -1144,7 +1212,7 @@ fn show_plain<C: Container, R>(
                 let driver = Driver { stage: &kept.memory, base: id, policy: place.motion };
                 shape.share = driver.anim_bool("collapse", open, spec::OPEN_RISE);
             }
-            shape.closed = !open && shape.share <= 0.0;
+            shape.closed = gate || (!open && shape.share <= 0.0);
             if matches!(props.mount, Mount::Layer(_)) {
                 frame.moving = kept.memory.recall::<WindowMode>(window_mode_id(id)).moving();
             }
@@ -1153,6 +1221,7 @@ fn show_plain<C: Container, R>(
             let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
             crate::layout::begin_capture(&ctx);
             let (size, mut inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
+            let size = if gate { Vec2::ZERO } else { size };
             kept.column_reports = crate::layout::end_capture(&ctx);
             // A container that owns its body's scroll without a scroll region (a canvas with a view of its own) takes
             // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`). Its least move
@@ -1357,15 +1426,28 @@ fn measure_in<C: Container, R>(
 struct OpenState(Option<bool>);
 
 /// The open state: the caller's binding (a collapsing body's, or a layer-like container's shown
-/// state), else the node's kept state, else the state saved under `save`, else the collapse's
-/// initial state. A container with neither a binding nor a `Collapse` is always open.
+/// state), else its openers' slot for a layer mount with openers, else the node's kept state, else
+/// the state saved under `save`, else the collapse's initial state. A container with neither a
+/// binding, openers nor a `Collapse` is always open.
 fn read_open<C: Container>(component: &mut C, props: &ContainerProps, kept: Option<bool>, ctx: &crate::contract::Context) -> bool {
     if let Some(bound) = component.open().filter(|b| !b.is_kept()).and_then(|b| b.get()) {
         return matches!(bound, Mixed::Same(true));
     }
+    if let Mount::Layer(overlay) = &props.mount
+        && let Some(first) = &overlay.opener
+    {
+        return crate::contract::overlay::slot_open(ctx, first.id);
+    }
     let Some(collapse) = props.collapse else { return true };
     let saved = || props.save.as_ref().and_then(|key| MemoryStage::peek_saved::<OpenState>(ctx, key).0);
     kept.or_else(saved).unwrap_or(collapse.initially_open)
+}
+
+/// The first opener of a layer mount whose openers open and close it: no caller binding holds its open state.
+fn driving_opener<C: Container>(component: &mut C, props: &ContainerProps) -> Option<crate::contract::overlay::Opener> {
+    let Mount::Layer(overlay) = &props.mount else { return None };
+    let first = overlay.opener.as_ref()?;
+    component.open().filter(|b| !b.is_kept()).is_none().then(|| first.clone())
 }
 
 /// Writes a changed open state to the caller's binding, else to the node and to the save key.
