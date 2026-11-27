@@ -84,6 +84,10 @@ pub enum NodeInput {
     /// The node gained (`true`) or lost key focus: the next run's `Response::gained_focus` and
     /// `lost_focus`. Queued without marking the node.
     Focus(bool),
+    /// A wheel step the node's wheel shape took, in points by its `wheel_notch`.
+    Wheel(craft_behavior::Wheel),
+    /// A menu key the window root routed to its menu bar node (F10, a lone Alt, an Alt mnemonic).
+    Menu(crate::runtime::keys::MenuKey),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.

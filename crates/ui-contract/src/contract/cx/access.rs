@@ -2,7 +2,8 @@
 
 use super::context::{Cx, CxCore};
 use crate::contract::Component;
-use crate::runtime::access::{self, FieldLabel, Politeness};
+use crate::runtime::access::scope::FieldLabelRole;
+use crate::runtime::access::{FieldLabel, Politeness};
 
 /// Live announcements and the enclosing field label (chapter 12).
 pub trait Accessible {
@@ -19,7 +20,31 @@ impl Accessible for CxCore<'_> {
     }
 
     fn field_label(&self) -> Option<FieldLabel> {
-        access::scope::field_label(self.context())
+        self.env.field_label().cloned()
+    }
+}
+
+/// Names or describes the control `core` runs by the side label of its label scope: the label's node when it shows
+/// one, else its text. The driver applies it to the access node of each run, after the component's `access` hook, so
+/// a control with a name of its own keeps it where the label only describes.
+pub(crate) fn apply_field_label(core: &CxCore<'_>, node: &mut crate::contract::rt::access::Access) {
+    let Some(label) = core.env.field_label() else { return };
+    match label.role {
+        FieldLabelRole::Names if label.shown => {
+            node.labelled_by(label.id);
+        }
+        FieldLabelRole::Names => {
+            node.label(label.text.clone());
+        }
+        FieldLabelRole::Describes if label.shown => {
+            node.described_by(label.id);
+        }
+        FieldLabelRole::Describes => {
+            node.description(label.text.clone());
+        }
+    }
+    if let Some(detail) = &label.detail {
+        node.description(detail.clone());
     }
 }
 

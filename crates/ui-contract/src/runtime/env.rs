@@ -235,6 +235,9 @@ pub struct Scoped {
     /// The inside label of the side label whose control the scope shows (`FieldLayout::Inside`). Only that control
     /// sees it: a component's children and a container's regions start without one.
     pub(crate) inside_label: Option<Held>,
+    /// The side label whose control the scope shows (the label scope): the control reads it (`Accessible::field_label`)
+    /// and names or describes itself by it. Only that control sees it, as with `inside_label`.
+    pub(crate) field_label: Option<Arc<crate::runtime::access::FieldLabel>>,
     /// The scope is the body of a beside label in an inspector (`LabelScheme::Inspector`): the control shown there
     /// fills the width the label leaves. Only that control sees it, as with `inside_label`.
     pub(crate) cell_fills: bool,
@@ -452,6 +455,7 @@ impl Scoped {
         self.direction = self.layer_direction();
         self.start_room();
         self.inside_label = None;
+        self.field_label = None;
         self.cell_fills = false;
         self.least = false;
         self.bracket = None;
@@ -580,6 +584,12 @@ impl Scoped {
             self.transform.map(|transform| (transform.scale, transform.offset)).key(&mut key);
             self.footer_slot.map(|slot| (slot.owner, slot.size)).key(&mut key);
             self.measure.key(&mut key);
+            if let Some(label) = &self.field_label {
+                let rect = [label.rect.min.x, label.rect.min.y, label.rect.max.x, label.rect.max.y].map(f32::to_bits);
+                key.feed_hash(&(label.id, &label.text, &label.detail, rect));
+                key.feed_hash(&(label.activated, label.link, label.status, label.shown, label.hovered, label.pressed()));
+                label.role.key(&mut key);
+            }
             // State a key cannot follow, rebuilt each pass: a view under it runs in every pass.
             if self.item_facts.is_some() || self.inside_label.is_some() {
                 key.changes_every_pass();
@@ -775,6 +785,7 @@ impl Env {
                 row: None,
                 item_facts: None,
                 inside_label: None,
+                field_label: None,
                 cell_fills: false,
                 egui_cell: false,
             }),

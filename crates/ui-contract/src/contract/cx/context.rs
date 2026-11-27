@@ -263,6 +263,17 @@ pub(crate) struct RunIo<'a> {
     /// The node's command inboxes as of the run, and the sets a take asked a cell for (`take_command`); the
     /// driver registers the asked cells after the run.
     pub(crate) inbox: crate::runtime::commands::InboxIn,
+    /// The run registered the node as its window's menu bar (`Focus::register_menu_bar`), `Some(true)` when it
+    /// claims Alt alone; the driver keeps it, and the window root routes F10, a lone Alt and Alt mnemonics to the
+    /// node as `NodeInput::Menu`.
+    pub(crate) menu_bar: Cell<Option<bool>>,
+    /// The run asks to run again in the next frame (a wheel ease paying out); the driver asks the node's build.
+    pub(crate) wake: Cell<bool>,
+    /// `Pointer::take_wheel` took the run's wheel steps.
+    pub(crate) wheel_taken: Cell<bool>,
+    /// The drag the run started (`Pointer::start_drag`); the driver starts ui-rt's payload session from the node's
+    /// press with it.
+    pub(crate) drag_start: RefCell<Option<crate::contract::rt::drag::DragSource>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -281,6 +292,10 @@ impl<'a> RunIo<'a> {
             announcements: Vec::new(),
             swept: None,
             inbox: Default::default(),
+            menu_bar: Cell::new(None),
+            wake: Cell::new(false),
+            wheel_taken: Cell::new(false),
+            drag_start: RefCell::new(None),
         }
     }
 
@@ -374,6 +389,29 @@ impl CxCore<'_> {
     pub fn next_gesture_id(&self) -> GestureId {
         GestureId::new(NEXT_GESTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
     }
+    /// The context request of this run, from its input: `Some(part)` for a secondary click (at the part the press
+    /// went down on, `None` for the component's own shape) or an untaken Menu key or Shift+F10 (at the active part);
+    /// `None` without one. A settled `Cx` has no input and makes none.
+    pub(crate) fn context_request(&self) -> Option<Option<PartRef>> {
+        let clicked = self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::Pointer {
+                gesture: craft_ui_rt::Gesture::Up { click: true, .. },
+                button: craft_behavior::PointerButton::Secondary,
+                part,
+                ..
+            } => Some(*part),
+            _ => None,
+        });
+        if let Some(part) = clicked {
+            let declared = self
+                .results
+                .keys()
+                .map(|&(key, index)| PartRef { key, index })
+                .find(|declared| crate::contract::rt::node::part_id(*declared) == part);
+            return Some(declared);
+        }
+        self.intents.untaken(&craft_behavior::Intent::ContextMenu).then_some(self.active)
+    }
 }
 
 impl<C: Component> Cx<'_, C> {
@@ -392,7 +430,7 @@ impl<C: Component> Cx<'_, C> {
 
     /// Whether the control's link label was clicked in this pass.
     pub fn link_activated(&self) -> bool {
-        crate::runtime::access::scope::field_label(self.core.context()).is_some_and(|label| label.link)
+        self.core.env.field_label().is_some_and(|label| label.link)
     }
 
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
@@ -444,18 +482,17 @@ impl<C: Component> Cx<'_, C> {
         }
     }
 
-    /// The part this pass's context request was made at: the part under the pointer for a secondary click, the
+    /// The part this run's context request was made at: the part under the pointer for a secondary click, the
     /// active part for the Menu key or Shift+F10; `None` without a request or when it was made at the component
-    /// itself. The request is recorded after `update`, so `finish` reads it.
+    /// itself.
     pub fn context_part(&self) -> Option<PartRef> {
-        crate::runtime::keys::context_part(self.core.context(), self.core.id)
+        self.core.context_request().flatten()
     }
 
-    /// Whether the component was asked for its context menu in this pass: a secondary click on it, the Menu key or
-    /// Shift+F10 it did not take, or AccessKit's `ShowContextMenu`. Recorded after `update`, so `overlay` and
-    /// `finish` read it.
+    /// Whether the component was asked for its context menu in this run: a secondary click on it, or the Menu key
+    /// or Shift+F10 it did not take. Read from the run's own input, so `update`, `overlay` and `finish` agree.
     pub fn context_requested(&self) -> bool {
-        crate::runtime::keys::context_request(self.core.context(), self.core.id).is_some()
+        self.core.context_request().is_some()
     }
 
     /// The context requests made in this pass so far, in order: each component asked and the rect its menu opens at
@@ -463,7 +500,7 @@ impl<C: Component> Cx<'_, C> {
     /// ran before it finished: a secondary click or the Menu key on a child reaches the region around it this way,
     /// whatever the child does with its own request.
     pub fn context_requests(&self) -> Vec<(Id, Rect)> {
-        crate::runtime::keys::context_requests(self.core.context())
+        todo!("context requests bubbled to the region around the requester (a NodeInput the child's request queues on its container), INT-1c")
     }
 
     /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the

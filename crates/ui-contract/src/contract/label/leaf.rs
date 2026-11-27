@@ -3,6 +3,7 @@
 use super::props::{CaptionInk, FieldLayout, Glyph, GlyphColon, LabelKind, LabelScheme, LinkLabelInk, LinkLabelUnderline};
 use super::step::LabelIn;
 use crate::contract::InBar;
+use crate::contract::Response;
 use crate::contract::{Component, Props};
 use crate::contract::{Cx, MeasureCx, PaintUi, PartsCx, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, Span, StrokeWidth, TextRun, Wrap};
@@ -12,7 +13,7 @@ use crate::runtime::words::CommonWords;
 use crate::style::{ComponentStyle, ResetMarkLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Flow, Metrics, PartKey, PressState, Sense};
 use craft_theme::States;
-use egui::{Rect, Response, Vec2};
+use egui::{Rect, Vec2};
 use std::cell::Cell;
 
 /// The part key of the reset dot.

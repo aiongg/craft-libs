@@ -17,7 +17,8 @@ use crate::runtime::motion::{self};
 use crate::runtime::overlay::{self, CloseReason, LayerRole};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, PartRef, Sense};
-use egui::{Context, Id, IdMap, Rect, Response, Ui};
+use crate::contract::Response;
+use egui::{Context, Id, IdMap, Rect, Ui};
 
 /// What the `overlay` hook gets: one call per anchored popup of this component, built at step 10 with the open state
 /// of every popup `cx.popup` registered this pass.

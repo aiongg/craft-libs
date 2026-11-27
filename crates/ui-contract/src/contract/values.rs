@@ -580,15 +580,9 @@ impl<T: Value + MemoProps> MemoProps for Bind<'_, T> {
                 at.offset.key(key);
                 count.get().key(key);
             }
-            Source::Kept => {
-                key.write_u32(4);
-                let writes = key.context().map(|ctx| crate::runtime::memory::writes(ctx, save.as_ref().map(|save| &save.key)));
-                match (writes, save) {
-                    (Some((saved, _)), Some(_)) => saved.key(key),
-                    (Some((_, session)), None) => session.key(key),
-                    (None, _) => {}
-                }
-            }
+            // A kept value is a tracked read of the node's memory, so a view that reads it reruns when it moves: the
+            // key names only the source.
+            Source::Kept => key.write_u32(4),
         }
         key.feed_hash(policy);
         reset.key(key);

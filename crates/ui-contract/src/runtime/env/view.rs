@@ -70,6 +70,11 @@ impl<'a> EnvView<'a> {
         }
     }
 
+    /// The side label whose control the scope shows; `None` outside a label scope.
+    pub(crate) fn field_label(&self) -> Option<&'a crate::runtime::access::FieldLabel> {
+        self.scoped.field_label.as_deref()
+    }
+
     /// The inside label the scope carries ([`inside_label`](EnvView::inside_label) reads it back).
     pub(crate) fn inside_held(&self) -> Option<&'a Held> {
         self.scoped.inside_label.as_ref()
