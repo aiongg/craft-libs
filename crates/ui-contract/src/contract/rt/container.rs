@@ -939,6 +939,7 @@ fn show_plain<C: Container, R>(
             // The props' scope and roving group, where the component's hooks name none.
             if scope != crate::runtime::focus::FocusPolicy::NONE {
                 kept.focus.scope = scope;
+                cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
             }
             if roving.is_some() {
                 kept.focus.roving = roving;

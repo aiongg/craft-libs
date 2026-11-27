@@ -8,13 +8,15 @@ use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn, Ui};
 use super::{InsideLabel, SideLabel};
 use crate::primitives::sensing::PartResults;
-use crate::primitives::{Canvas, ContentPainterCx, DataMode, Draw, DrawEnv, Id, PaintRecord, PaintSlot, TextRun};
+use crate::primitives::text_adapter::Placed;
+use crate::primitives::{Canvas, ContentPainterCx, DataMode, Draw, DrawEnv, Id, PaintRecord, PaintShape, PaintSlot, TextRun, Wrap};
 use crate::runtime::access;
 use crate::runtime::env::{Env, Label};
 use crate::style::{Flags, Ink, Stateful, StyleColor, StyleCx};
 use craft_behavior::PartRef;
 use craft_theme::{ControlSize, Variant};
 use craft_ui_rt::Rect;
+use craft_ui_rt::text_edit::{EditConfig, EditLayout, TextEdit};
 use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -70,8 +72,8 @@ pub struct PaintUi<'a> {
     /// The composite's resolved enabled state and size, which the children it builds inherit.
     pub(crate) enabled: bool,
     pub(crate) size: ControlSize,
-    /// The selection parts step 7 declared.
-    pub(crate) selections: &'a [PartRef],
+    /// The selection parts step 8b ran, with their selections.
+    pub(crate) selections: &'a [crate::contract::text::SelectionShown],
     /// The fade `steps::fade` began (`DisabledLook::Faded`): the faces paint their enabled look, and the children
     /// shown from here lie under the component's veil.
     pub(crate) fade: Option<super::steps::Fade>,
@@ -123,19 +125,34 @@ impl PaintUi<'_> {
     }
 
     /// Shows the selection part `part` (`PartsCx::selectable_text`): `run` in `rect`, painted as `Draw::text`
-    /// paints it, with the selection behind its characters; a line wider than `rect` is cut at its edge. A part step 7 did not declare (a face, an inert
-    /// component) paints as plain text.
+    /// paints it, with the selection behind its characters while the part holds focus; a line wider than `rect` is
+    /// cut at its edge. The text's place becomes the part's shape, which the pointer selects in. A part step 7 did
+    /// not declare (a face, an inert component) paints as plain text.
     pub fn selectable_text(&mut self, part: impl Into<PartRef>, rect: Rect, run: &TextRun<'_>) {
         let part = part.into();
-        if !self.selections.contains(&part) {
+        let Some(selection) = self.selections.iter().find(|shown| shown.part == part).cloned() else {
             self.draw().text(rect, run);
             return;
-        }
+        };
         let (layout, at) = self.draw().place_text(rect, run);
         self.record.borrow_mut().baseline.get_or_insert(at.y + layout.first_baseline);
-        // The selection behind the characters and the pointer's selecting come from the part's engine state
-        // (`text::run_selections`), which this paint does not read yet (INT-1g Left).
-        self.draw().text(rect, run);
+        let config = EditConfig { multiline: run.wrap == Wrap::Wrap, mask: false, limit: None, read_only: true, os: self.env.os };
+        let shown = TextEdit::default().shown(layout.full(), &config);
+        let placed = Arc::new(EditLayout::new(layout.rt().clone(), layout.metrics(), &shown));
+        let draw = self.draw();
+        draw.clipped(rect, |draw| {
+            if selection.focused && !selection.range.is_empty() {
+                let fill = crate::style::StyleColor(crate::style::rgba_color(self.env.tokens.color.accent.soft));
+                for row in placed.range_rects(selection.range.clone()) {
+                    draw.fill(&PaintShape::Rect(row.translate(at.to_vec2()), Default::default()), fill);
+                }
+            }
+            draw.galley(at, &layout);
+        });
+        if self.enabled {
+            let hit = Rect::from_min_size(at, layout.size()).intersect(rect);
+            self.record.borrow_mut().selections.push((part, Placed { layout: placed, origin: at, view: rect }, hit));
+        }
     }
 
     /// The content-paint API for painting `part`: as [`draw`](Self::draw), and when the part was declared

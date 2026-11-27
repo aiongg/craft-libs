@@ -2,24 +2,27 @@
 //! text adapter, then the typing run over what the adapter recorded, and applies the run's events through `Cx`.
 //!
 //! Selection parts are read-only text with no typing run, any number per component: `PartsCx::selectable_text`
-//! declares one and its press-only stop, step 8b gives the focused one Select All and Copy, and
-//! `PaintUi::selectable_text` shows it, so it paints in the state's colours.
+//! declares one, `PaintUi::selectable_text` shows it in the state's colours with its selection and records its shape,
+//! and step 8b selects in it by the pointer and gives the focused one Select All and Copy.
 
 use super::cx::{Cx, CxCore, PartsCx, RecordedText, gesture_key};
 use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
+use crate::contract::rt::node::{KeptPart, NodeInput};
 use crate::primitives::Id;
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome, TextRun, Wrap};
 use crate::runtime::access::text as text_access;
+use crate::runtime::focus::FocusTarget;
 use crate::runtime::focus::{EditSet, KeepKeys, KeyUse};
 use crate::runtime::memory::{MemoryStage, sub};
+use craft_behavior::PointerButton;
 use craft_behavior::Sense;
 use craft_behavior::{
     CancelReason, Caret, Codec, EditCommand, EditRun, Ended, EscapeRule, Escaped, Gesture, NotAValue, PartKey, PartRef, Typed, TypingRun,
 };
 use craft_keymap::Mods;
-use craft_ui_rt::Rect;
-use craft_ui_rt::text_edit::TextEdit;
+use craft_ui_rt::text_edit::{EditConfig, TextEdit};
+use craft_ui_rt::{Gesture, Pos2, Rect};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -79,16 +82,108 @@ fn selection_id(id: Id, part: PartRef) -> Id {
     sub(id, ("selection", part.key, part.index))
 }
 
-/// Step 8b for selection parts: the focused one takes this run's Select All, Copy and Cut on its engine state.
-pub(crate) fn run_selections(core: &mut super::cx::CxCore<'_>, selections: &[SelectDecl]) {
-    let Some(active) = core.active_part() else { return };
-    let Some(focused) = selections.iter().find(|decl| decl.part == active) else { return };
-    let key = selection_id(core.id, focused.part);
-    let mut edit = std::mem::take(core.memory.shown::<TextEdit>(key));
-    while let Some(command) = core.intents.take_edit() {
-        adapter::select_or_copy(core, &mut edit, &focused.text, command);
+/// A selection part as its run left it, for `PaintUi::selectable_text`: the selected bytes, which show while the part
+/// holds focus.
+#[derive(Clone, Debug)]
+pub(crate) struct SelectionShown {
+    pub part: PartRef,
+    pub range: std::ops::Range<usize>,
+    pub focused: bool,
+}
+
+/// What a selection part keeps between runs: the engine (caret, anchor, the selecting press) over the text it
+/// selects in, and where the last paint placed that text, which the pointer is read against.
+#[derive(Clone, Default)]
+struct Selection {
+    edit: TextEdit,
+    text: String,
+    placed: Option<adapter::Placed>,
+}
+
+/// Step 8b for selection parts: a press on one focuses it and places its caret by the click count (a character, a
+/// word, a line), a drag extends the selection, and the focused one takes this run's Select All, Copy and Cut. Leaves
+/// each part's selection for the paint, and returns the focused part's keys. The pointer is read against the layout
+/// the last paint placed, so a run lays no selection text out.
+fn run_selections(core: &mut CxCore<'_>, selections: &[SelectDecl]) -> Option<KeyUse> {
+    core.selections.clear();
+    if selections.is_empty() {
+        return None;
     }
-    *core.memory.shown::<TextEdit>(key) = edit;
+    let origin = core.rect.min.to_vec2();
+    let os = core.context().os();
+    let queue: Vec<NodeInput> = core.input().to_vec();
+    let mut focused = core.focus.part.filter(|_| core.focus.focused).filter(|part| selections.iter().any(|decl| decl.part == *part));
+    let mut shown = Vec::with_capacity(selections.len());
+    for decl in selections {
+        let key = selection_id(core.id, decl.part);
+        let mut state = std::mem::take(core.memory.shown::<Selection>(key));
+        if state.text != decl.text {
+            // Other text: the bytes the engine held name other characters.
+            state.edit = TextEdit::default();
+            state.text = decl.text.clone();
+        }
+        let config = EditConfig { multiline: decl.multiline, mask: false, limit: None, read_only: true, os };
+        let id = crate::contract::rt::node::part_id(decl.part);
+        for input in &queue {
+            let NodeInput::Pointer { gesture, pos, button, mods, part, .. } = input else { continue };
+            let (Some(placed), true) = (state.placed.as_ref(), *part == id) else { continue };
+            let at = *pos + origin;
+            let geometry = placed.geometry(&state.edit);
+            match gesture {
+                Gesture::Down { clicks } => {
+                    let selection = state.edit.selection();
+                    let hit = placed.layout.to_text(geometry.hit(at));
+                    // A secondary press inside the selection keeps it for the menu it opens.
+                    let inside = !selection.is_empty() && (selection.start..=selection.end).contains(&hit);
+                    if *button == PointerButton::Primary || !inside {
+                        state.edit.press(&decl.text, &geometry, at, *clicks, mods.shift && *button == PointerButton::Primary);
+                    }
+                    if *button == PointerButton::Primary && focused != Some(decl.part) {
+                        core.request_focus(FocusTarget::Part(core.id, decl.part));
+                        focused = Some(decl.part);
+                    }
+                }
+                Gesture::DragStart { .. } | Gesture::Drag { .. } => {
+                    state.edit.drag(&decl.text, &geometry, at, &config);
+                }
+                Gesture::Up { .. } | Gesture::Cancel(_) => state.edit.release(),
+                Gesture::LongPress => {}
+            }
+        }
+        if focused == Some(decl.part) {
+            while let Some(command) = core.intents.take_edit() {
+                adapter::select_or_copy(core, &mut state.edit, &decl.text, command);
+            }
+        }
+        shown.push(SelectionShown { part: decl.part, range: state.edit.selection(), focused: focused == Some(decl.part) });
+        *core.memory.shown::<Selection>(key) = state;
+    }
+    core.selections = shown;
+    selections.iter().find(|decl| Some(decl.part) == focused).map(SelectDecl::keys)
+}
+
+/// After the paint: the selection parts it showed become the run's part shapes (node coordinates, `origin` the
+/// node's), with the text cursor, and each part keeps where its text lies for the next run's pointer reads. A part
+/// paints once per recorded look; the first record stands.
+pub(crate) fn selection_parts(core: &mut CxCore<'_>, origin: Pos2) -> Vec<KeptPart> {
+    let placed = std::mem::take(&mut core.paint.borrow_mut().selections);
+    let mut parts: Vec<KeptPart> = Vec::with_capacity(placed.len());
+    for (part, placed, hit) in placed {
+        if parts.iter().any(|kept| kept.part == part) {
+            continue;
+        }
+        core.memory.shown::<Selection>(selection_id(core.id, part)).placed = Some(placed);
+        parts.push(KeptPart {
+            part,
+            id: crate::contract::rt::node::part_id(part),
+            shape: craft_ui_rt::HitShape::Rect(hit.translate(Pos2::ZERO - origin)),
+            sense: Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS,
+            cursor: Some(crate::contract::rt::cursor::platform(&craft_behavior::Cursor::System(craft_behavior::CursorIcon::Text))),
+            exclusive: None,
+            holds: false,
+        });
+    }
+    parts
 }
 
 pub(crate) struct TextDecl {
@@ -572,6 +667,12 @@ fn arrive(core: &CxCore<'_>, decl: &TextPart, state: &mut TextState, by_pointer:
 /// Step 8b: runs the text adapter at the part's rect, then the typing run over what it recorded, and applies the
 /// run's events: a typed value reaches the binding in the run it is typed. Returns the keys the part's stop registers.
 pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in: TextIn<'_>) -> Option<KeyUse> {
+    let keys = run_part(cx, step, text_in);
+    run_selections(cx.core, &step.selections).or(keys)
+}
+
+/// Step 8b for the text part: the adapter, then the typing run over what it recorded, applied through `Cx`.
+fn run_part<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in: TextIn<'_>) -> Option<KeyUse> {
     let decl = step.decl.as_mut()?;
     let resolve = decl.resolve.take()?;
     let Ok(resolve) = resolve.downcast::<Resolve<ValueOf<C>>>() else {

@@ -655,6 +655,7 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
         lk.kept.focus.scope = focus;
+        cx.keep_focus_on_empty_presses(focus.trap);
         let kept_value = lk.kept.value.as_ref().and_then(|v| v.downcast_ref::<R>()).cloned();
         if let Some(value) = kept_value.filter(|_| !rerun && !state.must_run() && !state.path) {
             cx.keep_children();

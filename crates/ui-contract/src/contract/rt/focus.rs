@@ -119,6 +119,14 @@ impl FocusKept {
     fn traps(&self) -> bool {
         self.scope.trap
     }
+
+    /// A primary press no shape takes leaves the focus where it is while it lies here or under here:
+    /// in a trapping scope (a dialog, a modal: a press on its scrim keeps focus inside), or on the
+    /// window's document canvas (`KeyUse::chrome_key`). ui-rt reads it as the node's
+    /// `BuildCx::keep_focus_on_empty_presses`.
+    pub(crate) fn keeps_focus_on_empty_presses(&self) -> bool {
+        self.traps() || self.stop.is_some_and(|keys| keys.chrome_key)
+    }
 }
 
 /// What a run's `Cx` reads of focus: `focused` is the node's tracked `Focused` fact (only a stop

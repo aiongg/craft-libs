@@ -110,7 +110,7 @@ pub(crate) struct TextState {
 }
 
 /// A laid-out text part: the engine's layout, the unscrolled text origin and the view, in window coordinates.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Placed {
     pub layout: Arc<EditLayout>,
     pub origin: Pos2,
@@ -118,7 +118,7 @@ pub(crate) struct Placed {
 }
 
 impl Placed {
-    fn geometry(&self, edit: &TextEdit) -> Geometry<'_> {
+    pub(crate) fn geometry(&self, edit: &TextEdit) -> Geometry<'_> {
         Geometry { layout: &self.layout, view: self.view, origin: self.origin, scroll: edit.scroll() }
     }
 }

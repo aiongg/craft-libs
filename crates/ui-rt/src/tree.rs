@@ -68,6 +68,9 @@ pub(crate) struct Node {
     /// It gets [`crate::Event::Hover`] when the pointer enters or leaves it
     /// ([`crate::BuildCx::hover_events`]).
     pub(crate) hover_events: bool,
+    /// While it or a node under it holds the focus, a primary press no shape takes leaves the focus
+    /// where it is ([`crate::BuildCx::keep_focus_on_empty_presses`]).
+    pub(crate) keeps_focus: bool,
     /// Taken out while the node's own build, layout or paint runs.
     pub(crate) element: Option<Box<dyn AnyElement>>,
     pub(crate) props_key: u64,
@@ -121,6 +124,7 @@ impl Node {
             layered: Vec::new(),
             inline: false,
             hover_events: false,
+            keeps_focus: false,
             element,
             props_key,
             dirty: Dirty::default(),

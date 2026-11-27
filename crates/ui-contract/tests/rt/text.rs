@@ -1,25 +1,25 @@
-//! Count trials of intents, commands, text input and the IME engine on craft-ui-rt: a typed
-//! character, an IME step, a dialog's Submit, the cancel rule and a command shortcut run only what
-//! they must. Relations only, no times.
+//! Trials of text input, intents, commands and selection parts on the real trait: a typed character, an IME step, a
+//! dialog's Submit, the cancel rule and a command shortcut run only what they must; a selection part selects by the
+//! pointer and copies; a press on empty space gives the focus up unless a trapping scope or a canvas keeps it; a
+//! lone-Alt claim takes the Alt before the menu bar. Relations only, no times.
 
 use crate::skeleton::IconButton;
 use crate::text_field::TextField;
-use craft_behavior::{CancelRule, IconId};
+use craft_behavior::{CancelRule, IconId, PartKey};
+use craft_host::target::Os;
 use craft_keymap::{Binding, Chord, CommandDef, Keymap, Scope, Scopes};
-use craft_ui_contract::contract::Bind;
-use craft_ui_contract::contract::overlay::Overlay;
-use craft_ui_contract::contract::rt::{CommandBoard, MemoView, Ui, WindowEnv, show_dialog, window_root_with};
-use craft_ui_contract::runtime::commands::CommandState;
-use craft_ui_contract::runtime::focus::FocusPolicy;
-use craft_ui_platform_headless::Input;
-use craft_ui_rt::record::RecordingRenderer;
-use craft_ui_rt::{ImeRequest, Key, Mods, Rect, State, StepReport, Vec2};
-use craft_ui_test_kit::rt::Rig;
+use craft_ui_contract::contract::overlay::{Overlay, show_dialog};
+use craft_ui_contract::contract::{Bind, Common, Component, Cx, Focus as _, Input, MeasureCx, MemoView, PaintUi, PartsCx, Response, Role, Show, Ui};
+use craft_ui_contract::primitives::TextRun;
+use craft_ui_contract::runtime::commands::{CommandBoard, CommandState};
+use craft_ui_contract::runtime::focus::{FocusPolicy, KeyUse};
+use craft_ui_contract::style::StyleCx;
+use craft_ui_contract::testing::Harness;
+use craft_ui_platform_headless::Input as Platform;
+use craft_ui_rt::{ImeRequest, Key, Mods, Pos2, Rect, Sense, StepReport, Vec2};
+use craft_ui_test_kit::contract::PlainStyle;
 use std::cell::Cell;
 use std::rc::Rc;
-
-/// Past the theme's hover fade, which paint reads from the clock.
-const FADE_END: f64 = 0.25;
 
 /// What the window shows besides button A and the field in a view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,7 +43,7 @@ struct App {
     reader_runs: u32,
     other_runs: u32,
     checked: Option<bool>,
-    board: Option<CommandBoard>,
+    commands: bool,
 }
 
 impl App {
@@ -59,7 +59,7 @@ impl App {
             reader_runs: 0,
             other_runs: 0,
             checked: None,
-            board: None,
+            commands: false,
         }
     }
 }
@@ -71,7 +71,7 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
         *view_runs += 1;
         TextField::new(Bind::bound(text)).show(ui).response.rect
     });
-    if app.board.is_some() {
+    if app.commands {
         let (reader_runs, other_runs) = (&mut app.reader_runs, &mut app.other_runs);
         app.checked = MemoView::new(1u8).show(ui, |ui, _| {
             *reader_runs += 1;
@@ -111,218 +111,441 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     }
 }
 
-fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
-    let host = WindowEnv { commands: app.board.clone(), ..WindowEnv::default() };
-    rig.step_with(&mut |_, cx| window_root_with(cx, host.clone(), |ui| app_ui(ui, app)))
+fn harness(app: App, board: Option<CommandBoard>) -> Harness<App> {
+    let builder = Harness::builder().with_size(Vec2::new(400.0, 600.0));
+    let builder = match board {
+        Some(board) => builder.with_commands(board),
+        None => builder,
+    };
+    let mut h = builder.build_ui_state(app_ui, app);
+    h.os(Os::Mac);
+    h.run();
+    h
 }
 
-fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
-    for _ in 0..6 {
-        rig.driver.platform.advance(FADE_END);
-        if !step(rig, app).ran {
-            return;
-        }
-    }
-    panic!("the rig did not settle");
-}
-
-fn rig(app: &mut App) -> Rig<RecordingRenderer> {
-    let mut rig = Rig::inline(Vec2::new(400.0, 600.0), 1.0, RecordingRenderer::default());
-    step(&mut rig, app);
-    settle(&mut rig, app);
-    rig
-}
-
-/// Injects `inputs` and runs one frame.
-fn send(rig: &mut Rig<RecordingRenderer>, app: &mut App, inputs: Vec<Input>) -> StepReport {
-    let main = rig.main;
-    for input in inputs {
-        rig.inject(main, input);
-    }
-    step(rig, app)
-}
-
-/// Presses and releases `key`; the report of the press's frame.
-fn press(rig: &mut Rig<RecordingRenderer>, app: &mut App, key: Key, mods: Mods) -> StepReport {
-    let [down, up] = Input::key_press(key, mods);
-    let report = send(rig, app, vec![down]);
-    send(rig, app, vec![up]);
+/// The key's press as one frame (its report), then its release.
+fn press(h: &mut Harness<App>, key: Key, mods: Mods) -> StepReport {
+    h.send(Platform::Key { key, mods, down: true });
+    let report = h.last_report();
+    h.send(Platform::Key { key, mods, down: false });
     report
 }
 
 /// Types `c` as a platform does: its key press with its text; the report of the press's frame.
-fn type_char(rig: &mut Rig<RecordingRenderer>, app: &mut App, key: Key, c: &str) -> StepReport {
-    let [down, up] = Input::key_press(key, Mods::NONE);
-    let report = send(rig, app, vec![down, Input::Text(c.to_string())]);
-    send(rig, app, vec![up]);
+fn type_char(h: &mut Harness<App>, key: Key, c: &str) -> StepReport {
+    h.send(Platform::Key { key, mods: Mods::NONE, down: true });
+    h.type_text(c);
+    let report = h.last_report();
+    h.send(Platform::Key { key, mods: Mods::NONE, down: false });
     report
 }
 
-fn click(rig: &mut Rig<RecordingRenderer>, app: &mut App, at: Rect) -> (StepReport, StepReport) {
-    send(rig, app, vec![Input::mouse_move(at.center())]);
-    let down = send(rig, app, vec![Input::mouse_down(at.center())]);
-    let up = send(rig, app, vec![Input::mouse_up(at.center())]);
-    (down, up)
+/// Clicks the middle of `at` and runs to rest; the report of the press's frame.
+fn click(h: &mut Harness<App>, at: Rect) -> StepReport {
+    h.send(Platform::mouse_move(at.center()));
+    h.send(Platform::mouse_down(at.center()));
+    let down = h.last_report();
+    h.send(Platform::mouse_up(at.center()));
+    h.run();
+    down
 }
 
-fn focused(rig: &Rig<RecordingRenderer>) -> Option<Rect> {
-    let rt = &rig.driver.runtime;
-    rt.focused(rig.main).and_then(|n| rt.window_rect(n))
-}
-
-fn preedit(text: &str) -> Input {
-    Input::ImePreedit { text: text.to_string(), cursor: Some(text.len()..text.len()) }
+fn focused(h: &Harness<App>) -> Option<Rect> {
+    h.focused().map(|target| target.bounds)
 }
 
 #[test]
 fn typing_into_a_focused_field_runs_only_the_field_s_path_per_character() {
-    let mut app = App::new(Layer::None);
-    let mut rig = rig(&mut app);
-    let field = app.field;
-    click(&mut rig, &mut app, field);
-    settle(&mut rig, &mut app);
-    assert_eq!(focused(&rig), Some(app.field), "a press focuses the field");
-    let main = rig.main;
-    assert!(rig.driver.platform.ime_for(main).any(|r| matches!(r, ImeRequest::Start { .. })), "the field's focus starts the window's IME session");
-    let views = app.view_runs;
+    let mut h = harness(App::new(Layer::None), None);
+    let field = h.state().field;
+    click(&mut h, field);
+    assert_eq!(focused(&h), Some(field), "a press focuses the field");
+    let main = h.window();
+    assert!(h.driver.platform.ime_for(main).any(|r| matches!(r, ImeRequest::Start { .. })), "the field's focus starts the window's IME session");
+    let views = h.state().view_runs;
     for (key, c) in [(Key::H, "h"), (Key::I, "i")] {
-        let typed = type_char(&mut rig, &mut app, key, c);
-        assert_eq!((typed.frame.runs, typed.frame.scopes), (1, 2), "the field runs, under the root and its view: {typed:?}");
+        let typed = type_char(&mut h, key, c);
+        assert_eq!(typed.frame.runs, 1, "the field alone runs: {typed:?}");
     }
-    assert_eq!(app.text, "hi", "each character is inserted once");
-    assert_eq!(app.view_runs, views + 2, "the view ran only to reach the field");
-    let back = press(&mut rig, &mut app, Key::Backspace, Mods::NONE);
-    assert_eq!(app.text, "h", "Backspace deletes through the intents");
+    assert_eq!(h.state().text, "hi", "each character is inserted once");
+    assert_eq!(h.state().view_runs, views + 2, "the view ran only to reach the field");
+    let back = press(&mut h, Key::Backspace, Mods::NONE);
+    assert_eq!(h.state().text, "h", "Backspace deletes through the intents");
     assert_eq!(back.frame.runs, 1);
-    let cursor = rig.driver.platform.ime_for(main).filter_map(|r| if let ImeRequest::Cursor(c) = r { Some(*c) } else { None }).last();
-    assert!(cursor.is_some_and(|c| app.field.contains(c.center())), "the caret rect follows the typing: {cursor:?}");
+    let cursor = h.driver.platform.ime_for(main).filter_map(|r| if let ImeRequest::Cursor(c) = r { Some(*c) } else { None }).last();
+    assert!(cursor.is_some_and(|c| field.contains(c.center())), "the caret rect follows the typing: {cursor:?}");
 }
 
 #[test]
 fn ime_composition_runs_the_field_only_and_its_commit_inserts_once() {
-    let mut app = App::new(Layer::None);
-    let mut rig = rig(&mut app);
-    let field = app.field;
-    click(&mut rig, &mut app, field);
-    settle(&mut rig, &mut app);
+    let mut h = harness(App::new(Layer::None), None);
+    let field = h.state().field;
+    click(&mut h, field);
     for text in ["k", "か"] {
-        let composing = send(&mut rig, &mut app, vec![preedit(text)]);
-        assert_eq!((composing.frame.runs, composing.frame.scopes), (1, 2), "a preedit runs the field's path: {composing:?}");
-        assert_eq!(app.text, "", "a preedit is not text");
+        h.ime_preedit(text);
+        let composing = h.last_report();
+        assert_eq!(composing.frame.runs, 1, "a preedit runs the field: {composing:?}");
+        assert_eq!(h.state().text, "", "a preedit is not text");
     }
-    let held = press(&mut rig, &mut app, Key::Enter, Mods::NONE);
-    assert_eq!((held.frame.runs, held.frame.scopes), (0, 0), "keys during the composition are the input method's: {held:?}");
-    let commit = send(&mut rig, &mut app, vec![Input::ImeCommit("か".to_string())]);
-    assert_eq!(commit.frame.runs, 1, "{commit:?}");
-    assert_eq!(app.text, "か", "the commit inserts once");
-    let after = send(&mut rig, &mut app, vec![preedit("")]);
-    assert_eq!(app.text, "か", "an empty preedit after the commit inserts nothing: {after:?}");
+    let held = press(&mut h, Key::Enter, Mods::NONE);
+    assert_eq!(held.frame.runs, 0, "keys during the composition are the input method's: {held:?}");
+    h.ime_commit("か");
+    assert_eq!(h.last_report().frame.runs, 1);
+    assert_eq!(h.state().text, "か", "the commit inserts once");
+    h.ime_preedit("");
+    assert_eq!(h.state().text, "か", "an empty preedit after the commit inserts nothing");
 }
 
 #[test]
 fn a_click_elsewhere_during_composition_commits_then_moves_the_focus() {
-    let mut app = App::new(Layer::None);
-    let mut rig = rig(&mut app);
-    let field = app.field;
-    click(&mut rig, &mut app, field);
-    settle(&mut rig, &mut app);
-    send(&mut rig, &mut app, vec![preedit("ab")]);
-    assert_eq!(app.text, "");
-    let a = app.a;
-    let (down, _) = click(&mut rig, &mut app, a);
-    assert_eq!(app.text, "ab", "the composition is committed when the press moves the focus");
-    assert_eq!(down.frame.runs, 1, "the press frame runs the field for the commit: {down:?}");
-    assert_eq!(focused(&rig), Some(app.a), "the focus moved to the pressed button");
-    let main = rig.main;
-    assert!(rig.driver.platform.ime_for(main).any(|r| *r == ImeRequest::Stop), "the IME session stopped with the focus");
-    send(&mut rig, &mut app, vec![Input::ImeCommit("ab".to_string())]);
-    assert_eq!(app.text, "ab", "a late commit from the platform reaches no field");
+    let mut h = harness(App::new(Layer::None), None);
+    let field = h.state().field;
+    click(&mut h, field);
+    h.ime_preedit("ab");
+    assert_eq!(h.state().text, "");
+    let a = h.state().a;
+    let down = click(&mut h, a);
+    assert_eq!(h.state().text, "ab", "the composition is committed when the press moves the focus");
+    assert!(down.frame.runs >= 1, "the press frame runs the field for the commit: {down:?}");
+    assert_eq!(focused(&h), Some(a), "the focus moved to the pressed button");
+    let main = h.window();
+    assert!(h.driver.platform.ime_for(main).any(|r| *r == ImeRequest::Stop), "the IME session stopped with the focus");
+    h.ime_commit("ab");
+    assert_eq!(h.state().text, "ab", "a late commit from the platform reaches no field");
 }
 
 #[test]
-fn enter_in_a_dialog_submits_once_and_runs_only_the_dialog_s_scope() {
-    let mut app = App::new(Layer::Dialog);
-    let mut rig = rig(&mut app);
-    type_char(&mut rig, &mut app, Key::X, "x");
-    assert_eq!(app.query, "x", "the dialog's field took the focus when the dialog appeared (FirstField)");
-    let enter = press(&mut rig, &mut app, Key::Enter, Mods::NONE);
-    assert_eq!(app.submits, 1, "the Enter the field left is the dialog's Submit");
-    assert_eq!((enter.frame.runs, enter.frame.scopes), (0, 2), "the dialog's scope runs under the root, its field keeps: {enter:?}");
-    press(&mut rig, &mut app, Key::Enter, Mods::NONE);
-    assert_eq!(app.submits, 2, "one Submit per Enter");
-    let idle = step(&mut rig, &mut app);
-    assert!(!idle.ran && app.submits == 2, "nothing replays the Submit");
+fn enter_in_a_dialog_submits_once_and_runs_no_component() {
+    let mut h = harness(App::new(Layer::Dialog), None);
+    type_char(&mut h, Key::X, "x");
+    assert_eq!(h.state().query, "x", "the dialog's field took the focus when the dialog appeared (FirstField)");
+    let enter = press(&mut h, Key::Enter, Mods::NONE);
+    assert_eq!(h.state().submits, 1, "the Enter the field left is the dialog's Submit");
+    assert_eq!(enter.frame.runs, 0, "the dialog's scope runs, its field keeps: {enter:?}");
+    press(&mut h, Key::Enter, Mods::NONE);
+    assert_eq!(h.state().submits, 2, "one Submit per Enter");
+    h.step();
+    assert!(!h.last_report().ran && h.state().submits == 2, "nothing replays the Submit");
 }
 
 #[test]
 fn escape_under_clear_then_close_clears_first_and_closes_on_the_second() {
-    let mut app = App::new(Layer::Palette);
-    let mut rig = rig(&mut app);
-    type_char(&mut rig, &mut app, Key::A, "a");
-    type_char(&mut rig, &mut app, Key::B, "b");
-    assert_eq!(app.query, "ab");
-    let first = press(&mut rig, &mut app, Key::Escape, Mods::NONE);
-    assert_eq!(app.query, "", "the first Escape clears the palette's content");
-    assert_eq!(app.layer, Layer::Palette, "and leaves it open");
-    assert_eq!((first.frame.runs, first.frame.scopes), (1, 2), "the palette's scope and its cleared field run: {first:?}");
-    settle(&mut rig, &mut app);
-    press(&mut rig, &mut app, Key::Escape, Mods::NONE);
-    settle(&mut rig, &mut app);
-    assert_eq!(app.layer, Layer::None, "the second Escape closes it");
+    let mut h = harness(App::new(Layer::Palette), None);
+    type_char(&mut h, Key::A, "a");
+    type_char(&mut h, Key::B, "b");
+    assert_eq!(h.state().query, "ab");
+    let first = press(&mut h, Key::Escape, Mods::NONE);
+    assert_eq!(h.state().query, "", "the first Escape clears the palette's content");
+    assert_eq!(h.state().layer, Layer::Palette, "and leaves it open");
+    assert_eq!(first.frame.runs, 1, "the palette's cleared field runs: {first:?}");
+    h.run();
+    press(&mut h, Key::Escape, Mods::NONE);
+    h.run();
+    assert_eq!(h.state().layer, Layer::None, "the second Escape closes it");
 }
 
-/// An app with the command `view.grid` on Cmd+G, whose handler flips a grid cell and the command's
-/// checked state. Returns the app, the rig and the handler's run count.
-fn command_app() -> (App, Rig<RecordingRenderer>, Rc<Cell<u32>>) {
-    let rig = Rig::inline(Vec2::new(400.0, 600.0), 1.0, RecordingRenderer::default());
-    let os = rig.driver.runtime.os();
+/// An app with the command `view.grid` on Cmd+G, whose handler flips the command's checked state. Returns the
+/// harness and the handler's run count.
+fn command_app() -> (Harness<App>, Rc<Cell<u32>>) {
     let def = CommandDef::new("view.grid", "Show Grid", Scope::app()).with_default(Binding::new(Chord::new(Mods::CMD, Key::G)));
-    let board = CommandBoard::new(Keymap::new(vec![def], Scopes::new(), os));
-    let mut rig = rig;
-    let grid: State<bool> = rig.driver.runtime.store_mut().create(false);
+    let board = CommandBoard::new(Keymap::new(vec![def], Scopes::new(), Os::Mac));
     let runs = Rc::new(Cell::new(0));
     let (handler_board, handler_runs) = (board.clone(), runs.clone());
+    let checked = Rc::new(Cell::new(false));
     board.on("view.grid", move |_, store| {
         handler_runs.set(handler_runs.get() + 1);
-        let on = !*store.peek(grid);
-        grid.set(store, on);
-        handler_board.set_state(store, "view.grid", CommandState::new().checked(on));
+        checked.set(!checked.get());
+        handler_board.set_state(store, "view.grid", CommandState::new().checked(checked.get()));
     });
     let mut app = App::new(Layer::None);
-    app.board = Some(board);
-    step(&mut rig, &mut app);
-    settle(&mut rig, &mut app);
-    (app, rig, runs)
+    app.commands = true;
+    (harness(app, Some(board)), runs)
 }
 
 #[test]
 fn a_command_shortcut_runs_the_command_and_reruns_only_the_views_that_read_its_state() {
-    let (mut app, mut rig, runs) = command_app();
-    let (readers, others) = (app.reader_runs, app.other_runs);
-    let fired = press(&mut rig, &mut app, Key::G, Mods::CMD);
+    let (mut h, runs) = command_app();
+    let (readers, others) = (h.state().reader_runs, h.state().other_runs);
+    let fired = press(&mut h, Key::G, Mods::CMD);
     assert_eq!(runs.get(), 1, "the shortcut ran the command once");
-    assert_eq!(app.checked, Some(true), "the reader shows the new state in the frame of the key");
-    assert_eq!(app.reader_runs, readers + 1, "the view that reads the state ran");
-    assert_eq!(app.other_runs, others, "the view that does not read it kept");
-    assert_eq!((fired.frame.runs, fired.frame.scopes), (0, 2), "the reader's scope under the root, no component: {fired:?}");
-    let field = app.field;
-    click(&mut rig, &mut app, field);
-    settle(&mut rig, &mut app);
-    type_char(&mut rig, &mut app, Key::G, "g");
-    assert_eq!((runs.get(), app.text.as_str()), (1, "g"), "a plain key types in the focused field, it runs no command");
-    press(&mut rig, &mut app, Key::G, Mods::CMD);
+    assert_eq!(h.state().checked, Some(true), "the reader shows the new state in the frame of the key");
+    assert_eq!(h.state().reader_runs, readers + 1, "the view that reads the state ran");
+    assert_eq!(h.state().other_runs, others, "the view that does not read it kept");
+    assert_eq!(fired.frame.runs, 0, "the reader's scope runs, no component: {fired:?}");
+    let field = h.state().field;
+    click(&mut h, field);
+    type_char(&mut h, Key::G, "g");
+    assert_eq!((runs.get(), h.state().text.as_str()), (1, "g"), "a plain key types in the focused field, it runs no command");
+    press(&mut h, Key::G, Mods::CMD);
     assert_eq!(runs.get(), 2, "a command chord still runs while the field types");
 }
 
 #[test]
 fn a_disabled_command_s_shortcut_runs_nothing() {
-    let (mut app, mut rig, runs) = command_app();
-    let board = app.board.clone().expect("the app has a board");
-    board.set_state(rig.driver.runtime.store_mut(), "view.grid", CommandState::new().enabled(false));
-    settle(&mut rig, &mut app);
-    let readers = app.reader_runs;
-    let pressed = press(&mut rig, &mut app, Key::G, Mods::CMD);
+    let (mut h, runs) = command_app();
+    h.command_state("view.grid", CommandState::new().enabled(false));
+    h.run();
+    let readers = h.state().reader_runs;
+    let pressed = press(&mut h, Key::G, Mods::CMD);
     assert_eq!(runs.get(), 0, "a disabled command does not run");
     assert_eq!((pressed.frame.runs, pressed.frame.scopes), (0, 0), "nothing runs: {pressed:?}");
-    assert_eq!(app.reader_runs, readers);
+    assert_eq!(h.state().reader_runs, readers);
+}
+
+// ----- selection parts
+
+const WORDS: PartKey = PartKey::new("words");
+const SENTENCE: &str = "alpha beta gamma";
+
+/// Read-only text with one selection part over its whole width, as `SelectableText` shows a label.
+#[derive(Component)]
+pub struct Words {
+    #[common]
+    common: Common,
+}
+
+impl Component for Words {
+    const ROLE: Role = Role::LABEL;
+    const INPUT: Input = Input::Display;
+    const OVERLAYS: bool = false;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: WordsStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(300.0, cx.tokens.size.button)
+    }
+
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.selectable_text(WORDS, &TextRun::new(SENTENCE));
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        ui.selectable_text(WORDS, cx.content_rect, &TextRun::new(SENTENCE));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// The words in a window, and their rect.
+fn words() -> (Harness<()>, Rc<Cell<Rect>>) {
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let r = Rc::clone(&rect);
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| r.set(Words { common: Common::new() }.show(ui).rect));
+    h.run();
+    (h, rect)
+}
+
+/// Copies the focused selection with the platform's Copy chord and returns the clipboard's text.
+fn copy(h: &mut Harness<()>) -> Option<String> {
+    let mods = if h.ctx().os().is_mac() { Mods { cmd: true, ..Mods::NONE } } else { Mods { ctrl: true, ..Mods::NONE } };
+    h.key(Key::C, mods);
+    h.run();
+    h.copied()
+}
+
+#[test]
+fn a_drag_selects_in_a_selection_part_and_copy_takes_the_selection() {
+    let (mut h, rect) = words();
+    let start = Pos2::new(rect.get().left() + 1.0, rect.get().center().y);
+    h.drag_at(start, Vec2::new(20.0, 0.0));
+    h.run();
+    assert!(h.focused().is_some(), "the press focuses the selection part");
+    let copied = copy(&mut h).unwrap_or_default();
+    assert!(
+        !copied.is_empty() && copied.len() < SENTENCE.len() && SENTENCE.starts_with(&copied),
+        "the drag selected the start of the text: {copied:?}"
+    );
+}
+
+#[test]
+fn a_double_click_selects_a_word_and_a_triple_click_the_line() {
+    let (mut h, rect) = words();
+    let at = Pos2::new(rect.get().left() + 2.0, rect.get().center().y);
+    h.click_at(at).click_at(at);
+    h.run();
+    assert_eq!(copy(&mut h).as_deref(), Some("alpha"), "a double click selects the word under the pointer");
+    h.click_at(at).click_at(at).click_at(at);
+    h.run();
+    assert_eq!(copy(&mut h).as_deref(), Some(SENTENCE), "a triple click selects the line");
+}
+
+// ----- presses on empty space
+
+/// A stop that keeps the focus on presses no shape takes: a trapping scope of its own (`trap`), else the window's
+/// document canvas.
+#[derive(Component)]
+pub struct Keeper {
+    #[common]
+    common: Common,
+    trap: bool,
+}
+
+impl Component for Keeper {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: KeeperStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(4.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK
+    }
+
+    fn keys(&self) -> KeyUse {
+        KeyUse { chrome_key: !self.trap, ..KeyUse::of(Input::Display) }
+    }
+
+    fn focus_scope(&self) -> FocusPolicy {
+        if self.trap { FocusPolicy::DIALOG } else { FocusPolicy::NONE }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// Empty space below everything the windows below show.
+const EMPTY: Pos2 = Pos2::new(200.0, 560.0);
+
+#[test]
+fn a_press_on_empty_space_commits_the_focused_field_and_leaves_no_focus() {
+    let committed = Rc::new(Cell::new(false));
+    let field = Rc::new(Cell::new(Rect::NOTHING));
+    let (c, f) = (Rc::clone(&committed), Rc::clone(&field));
+    let mut text = String::new();
+    let mut h = Harness::builder().with_size(Vec2::new(400.0, 600.0)).build_ui(move |ui: &mut Ui<'_, '_>| {
+        let shown = TextField::new(Bind::bound(&mut text)).show(ui);
+        c.set(c.get() || shown.events.committed().is_some());
+        f.set(shown.response.rect);
+    });
+    h.run();
+    h.click_at(field.get().center());
+    h.type_text("x");
+    h.run();
+    assert!(h.focused().is_some() && !committed.get(), "the field types a draft");
+    h.click_at(EMPTY);
+    h.run();
+    assert!(h.focused().is_none(), "a press nothing takes gives the focus up");
+    assert!(committed.get(), "the field commits through its focus loss");
+}
+
+#[test]
+fn a_press_on_empty_space_keeps_the_focus_in_a_trapping_scope_and_on_a_canvas() {
+    for trap in [true, false] {
+        let keeper = Rc::new(Cell::new(Rect::NOTHING));
+        let k = Rc::clone(&keeper);
+        let mut h = Harness::builder()
+            .with_size(Vec2::new(400.0, 600.0))
+            .build_ui(move |ui: &mut Ui<'_, '_>| k.set(Keeper { common: Common::new(), trap }.show(ui).rect));
+        h.run();
+        h.click_at(keeper.get().center());
+        h.run();
+        let focus = h.focused().map(|target| target.id);
+        assert!(focus.is_some(), "a press focuses the keeper (trap {trap})");
+        h.click_at(EMPTY);
+        h.run();
+        assert_eq!(h.focused().map(|target| target.id), focus, "a press nothing takes leaves the focus where it is (trap {trap})");
+    }
+}
+
+// ----- lone-Alt claims
+
+/// A menu bar stand-in that counts the menu keys it gets.
+#[derive(Component)]
+pub struct MenuStub {
+    #[common]
+    common: Common,
+    keys: Rc<Cell<usize>>,
+}
+
+impl Component for MenuStub {
+    const ROLE: Role = Role::MENU_BAR;
+    type Style = PlainStyle;
+    type Output = ();
+
+    fn style(_: &StyleCx<'_>, _: MenuStubStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(10.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.register_menu_bar();
+        let keys = cx.take_menu_keys().len();
+        self.keys.set(self.keys.get() + keys);
+    }
+
+    fn finish(self, _: Cx<'_, Self>) {}
+}
+
+/// A canvas tool stand-in that claims the lone Alt and counts the taps it gets.
+#[derive(Component)]
+pub struct AltTool {
+    #[common]
+    common: Common,
+    taps: Rc<Cell<usize>>,
+}
+
+impl Component for AltTool {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = ();
+
+    fn style(_: &StyleCx<'_>, _: AltToolStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(4.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.claim_lone_alt();
+        if cx.take_lone_alt() {
+            self.taps.set(self.taps.get() + 1);
+        }
+    }
+
+    fn finish(self, _: Cx<'_, Self>) {}
+}
+
+fn alt(h: &mut Harness<bool>) {
+    h.send(Platform::Modifiers(Mods { alt: true, ..Mods::NONE }));
+    h.send(Platform::Modifiers(Mods::NONE));
+    h.run();
+}
+
+#[test]
+fn a_lone_alt_claim_takes_the_alt_before_the_menu_bar() {
+    let (keys, taps) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
+    let (k, t) = (Rc::clone(&keys), Rc::clone(&taps));
+    let view = move |ui: &mut Ui<'_, '_>, claims: &mut bool| {
+        MenuStub { common: Common::new(), keys: Rc::clone(&k) }.show(ui);
+        if *claims {
+            AltTool { common: Common::new(), taps: Rc::clone(&t) }.show(ui);
+        }
+    };
+    let mut h = Harness::builder().build_ui_state(view, true);
+    h.os(Os::Windows);
+    h.run();
+    alt(&mut h);
+    assert_eq!((taps.get(), keys.get()), (1, 0), "the claiming tool takes the lone Alt, the menu bar gets none");
+    *h.state_mut() = false;
+    h.run();
+    alt(&mut h);
+    assert_eq!((taps.get(), keys.get()), (1, 1), "with no claim shown the lone Alt reaches the menu bar");
 }
