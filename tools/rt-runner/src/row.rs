@@ -8,8 +8,8 @@ use crate::fixture::{Blend, Kind, Layer, LayerId, Op, SelectMode};
 use accesskit::{Action, Node, Role, Toggled};
 use craft_theme::FontSlot;
 use craft_ui_rt::{
-    AccessCx, BezPath, BuildCx, Constraints, Element, Event, EventCx, FontSpec, Handled, ImageKey, ImageStore, LayoutCx, NodeId, Overflow, PaintCx,
-    Pos2, Rect, Rgba, RgbaImage, Sense, SizeU, Stroke, StrokeAlign, TextLayout, TextSpec, Vec2, hash_key,
+    AccessCx, BezPath, BuildCx, Constraints, Element, Event, EventCx, FontSpec, Handled, ImageKey, ImageStore, InteractFact, LayoutCx, NodeId,
+    Overflow, PaintCx, Pos2, Rect, Rgba, RgbaImage, Sense, SizeU, Stroke, StrokeAlign, TextLayout, TextSpec, Vec2, hash_key,
 };
 
 use crate::controls::{ButtonKind, IconButton, ToggleCell, ToggleFace};
@@ -256,10 +256,12 @@ impl Element for ListRow {
         let scale = cx.scale();
         let bounds = cx.bounds();
         let (w, h) = (bounds.width(), bounds.height());
-        let state = cx.interaction();
-        let list = cx.interaction_of(self.p.list);
-        let list_focused = self.p.lead && list.focused;
-        let ring = self.p.lead && list.focus_visible;
+        // Each fact is read only where it decides the look, so a row repaints only when a fact
+        // it shows flips (a selected row ignores its own press and hover; only the lead row reads
+        // the list's focus).
+        let me = cx.node();
+        let list_focused = self.p.lead && cx.read_interaction(self.p.list, InteractFact::Focused);
+        let ring = self.p.lead && cx.read_interaction(self.p.list, InteractFact::FocusVisible);
 
         cx.hit(bounds, Sense::HOVER | Sense::CLICK | Sense::DRAG, PART_ROW);
         let slot = Rect::from_min_size(Pos2::new(look.thumb_x(), (h - look.thumb) / 2.0), Vec2::new(look.thumb, look.thumb));
@@ -269,9 +271,9 @@ impl Element for ListRow {
 
         let fill = if self.p.selected {
             Some(look.selected)
-        } else if state.pressed {
+        } else if cx.read_interaction(me, InteractFact::Pressed) {
             Some(look.pressed)
-        } else if state.hovered || list_focused {
+        } else if cx.read_interaction(me, InteractFact::Hovered) || list_focused {
             Some(look.hover)
         } else {
             None
