@@ -89,7 +89,7 @@ pub use selection::{
     AppChoice, AppDefaults, ComponentSet, ContrastChoice, Fallback, ModeChoice, MotionChoice, Selection, Shown, SuiteChoice, SystemAppearance,
     ThemePair, resolve_selection,
 };
-pub use stateful::{FlagMask, Flags, Mix, Resolve, StateMix, Stateful};
+pub use stateful::{FlagMask, Flags, Mix, PointerDependence, Resolve, StateMix, Stateful};
 pub use theme::{
     AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, GripSeed, InterfaceFont, LocatorSeed, ModePins, ModeSeeds, PinLayer, Pins,
     RadiusOffset, SeedOverrides, Seeds, ShapeSeed, Size, TextSize, TextSizeSteps, ThemeDef, Variants,

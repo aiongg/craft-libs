@@ -26,12 +26,15 @@ impl StateSet {
         self.state == State::Disabled
     }
 
-    /// The value of `look` in this state. While a paint look is recorded, resolving an enabled state
-    /// reads the pointer: the run then records the hover look, and the press look for a node that
-    /// takes presses (contract-rt 15.6).
+    /// The value of `look` in this state. While a paint look is recorded, resolving reads the
+    /// pointer facts the look varies by in this state (contract-rt 15.6 rule 1): hover only when its
+    /// hover look differs from its rest look, press only when its pressed look differs, none when it
+    /// is disabled or a flag look wins. The run then records the hover look, and the press look for a
+    /// node that takes presses, only for a look that changes with them.
     pub fn resolve<T: Mix>(&self, look: &Stateful<T>) -> T {
-        if self.state != State::Disabled {
-            note_pointer_read(true, true);
+        let reads = look.pointer_dependence(self.state, self.flags);
+        if reads.hover || reads.press {
+            note_pointer_read(reads.hover, reads.press);
         }
         look.resolve(self.state, self.flags, self.t)
     }
@@ -73,4 +76,28 @@ pub(crate) fn note_pointer_read(hover: bool, press: bool) {
             reads.set(Some(read));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use craft_theme::States;
+
+    /// A look with no hover or press entry records no pointer read, so its node records no hover or
+    /// press variant; a look with a hover entry records the hover read alone.
+    #[test]
+    fn resolve_reads_only_the_pointer_facts_the_look_varies_by() {
+        let set = StateSet::new(State::Rest, Flags::empty(), StateMix::REST);
+        let flat = Stateful::new(1.0_f32);
+        let (_, read) = pointer_reads(|| set.resolve(&flat));
+        assert_eq!(read, PointerReads::default());
+
+        let hover = Stateful::new(1.0_f32).off(States::new(1.0, 0.5, 0.5, 0.2));
+        let (_, read) = pointer_reads(|| set.resolve(&hover));
+        assert!(read.hover);
+
+        let disabled = StateSet::new(State::Disabled, Flags::empty(), StateMix::REST);
+        let (_, read) = pointer_reads(|| disabled.resolve(&hover));
+        assert_eq!(read, PointerReads::default());
+    }
 }
