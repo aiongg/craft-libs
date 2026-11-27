@@ -36,14 +36,13 @@ use super::ui::{Dir, Flow, Ui};
 use crate::contract::cx::{BodyCx, BodyOwner, RegionShare};
 use crate::contract::run::ShowAt;
 use crate::contract::{
-    Container, ContainerProps, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Id, IdSource, Inner, Internal, Mount, Outcome, PadEdges,
+    Container, ContainerProps, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Id, IdSource, Inner, Internal, Mount, Outcome, Overlay, PadEdges,
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
 use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
-use crate::runtime::overlay::Overlay;
 
 /// A container's last measurement of its body (module docs).
 #[derive(Clone, Debug)]

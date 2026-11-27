@@ -10,6 +10,8 @@
 //!   it drags the offset.
 //! - Fades: an edge fade over the content at each end the view does not reach.
 //! - Reveal: a `Lazy` that asks to be revealed sets a glide to its start; any wheel or drag ends it.
+//! - Glide at a rate: [`glide`] sets a velocity (a drag's edge scroll, middle-button auto-scroll); layout
+//!   pays it out frame by frame and nothing runs until the view leaves the built band or the rate changes.
 //! - Anchors: `ScrollAnchor::End` follows the end while the view is at it; otherwise the first child
 //!   in view keeps its place when content before it changes extent.
 //! - Kinetic: line steps (mouse notches) gather in a `WheelEase` that layout pays out frame by
@@ -29,9 +31,10 @@ use craft_ui_rt::{
     Sense, State, Vec2, WheelUnit,
 };
 
+use super::ids::node_of;
 use super::node::{Kept, NodeInput, Placed};
-use super::ui::Flow;
-use crate::contract::{Notch, Scroll, ScrollAnchor};
+use super::ui::{Flow, Ui};
+use crate::contract::{Id, Notch, Scroll, ScrollAnchor};
 
 /// The share of the view's extent built beyond each of its edges: a step within it moves the kept
 /// content and builds nothing.
@@ -100,6 +103,11 @@ pub(crate) struct ScrollKept {
     misses: Option<State<u64>>,
     ease: WheelEase,
     glide: Option<Vec2>,
+    /// The velocity [`glide`] sets, in points per second, positive toward the content's end. Only this node's layout
+    /// reads it, so a write lays this node out and runs nothing.
+    rate: State<Vec2>,
+    /// When layout last paid the rate out; `None` while it is zero or the offset stopped at an end.
+    rate_at: Option<f64>,
     /// A bar drag: the axis, the pointer position along it at the press and the offset then.
     grab: Option<(usize, f32, f32)>,
     /// The view is at the content's end (`ScrollAnchor::End` follows it).
@@ -144,7 +152,7 @@ impl Look {
 }
 
 impl ScrollKept {
-    fn new() -> ScrollKept {
+    fn new(rate: State<Vec2>) -> ScrollKept {
         ScrollKept {
             kept: Kept::new(),
             offset: Vec2::ZERO,
@@ -154,6 +162,8 @@ impl ScrollKept {
             misses: None,
             ease: WheelEase::default(),
             glide: None,
+            rate,
+            rate_at: None,
             jumped: false,
             grab: None,
             at_end: true,
@@ -284,8 +294,8 @@ impl Element for ScrollNode {
         0
     }
 
-    fn init(&self, _: &mut BuildCx<'_>) -> ScrollKept {
-        ScrollKept::new()
+    fn init(&self, cx: &mut BuildCx<'_>) -> ScrollKept {
+        ScrollKept::new(cx.state(Vec2::ZERO))
     }
 
     /// Pays out an eased step and a glide, then places the children moved by the offset. Leaving
@@ -311,6 +321,19 @@ impl Element for ScrollNode {
                 }
             }
             sk.move_to(to);
+        }
+        let rate = sk.rate.get(cx);
+        if rate == Vec2::ZERO {
+            sk.rate_at = None;
+        } else {
+            let now = cx.time_until(|_| None);
+            let step = sk.rate_at.map_or(Vec2::ZERO, |last| rate * (now - last) as f32);
+            // At the end the rate points to, the glide rests: no frames until the extent or the rate changes.
+            let rests = sk.rate_at.is_some() && !sk.move_to(sk.offset + step);
+            sk.rate_at = (!rests).then_some(now);
+            if !rests {
+                cx.time_until(|now| Some(now + FRAME));
+            }
         }
         if sk.leaves_band()
             && let Some(misses) = sk.misses
@@ -472,6 +495,26 @@ impl Element for ScrollNode {
             node.set_scroll_x_max(f64::from(sk.max_offset().x));
         }
         Some(node)
+    }
+}
+
+/// Sets the velocity at which the scroll body of `owner` (a container that scrolls its body, or a collection's rows
+/// view) glides, in points per second along each axis, positive toward the content's end: a drag's edge scroll or
+/// middle-button auto-scroll. The scroll node's layout pays it out every frame; nothing runs until the view leaves the
+/// band the last build covered (which builds the owner) or the rate changes. A zero velocity stops it; a wheel, a bar
+/// drag or `jump_to` leaves it running. Asked before the owner's scroll body exists (its first build), it does nothing.
+pub(crate) fn glide(cx: &mut BuildCx<'_>, owner: Id, velocity: Vec2) {
+    let Some(node) = node_of(cx, owner) else { return };
+    let rt = cx.runtime();
+    let Some(rate) = rt.children(node).iter().find_map(|child| rt.local::<ScrollNode>(*child)).map(|sk| sk.rate) else { return };
+    rate.set_if_changed(cx, velocity);
+}
+
+impl Ui<'_, '_> {
+    /// Sets the velocity at which the scroll body of `owner` glides ([`glide`]): points per second, positive toward the
+    /// content's end; zero stops it. For a drag's edge scroll or an auto-scroll outside a collection.
+    pub fn glide(&mut self, owner: Id, velocity: Vec2) {
+        glide(self.cx, owner, velocity);
     }
 }
 

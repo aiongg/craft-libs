@@ -155,6 +155,10 @@ struct List {
     built: BTreeSet<usize>,
     measures: Rc<Cell<u32>>,
     lazy: bool,
+    /// The list container's `Id`, from its last show.
+    id: Option<craft_ui::contract::Id>,
+    /// A glide velocity the next build of the list sets.
+    glide: Option<Vec2>,
 }
 
 fn list_ui(ui: &mut Ui, list: &mut List) {
@@ -163,7 +167,7 @@ fn list_ui(ui: &mut Ui, list: &mut List) {
     let measures = list.measures.clone();
     let built = &mut list.built;
     let lazy = list.lazy;
-    let _ = Boxed::new(props, &measures).show(ui, |ui, _| {
+    let shown = Boxed::new(props, &measures).show(ui, |ui, _| {
         for i in 0..ROWS {
             if lazy {
                 if Lazy::new(i, ROW).show(ui, |ui| chip(ui, &format!("row {i}"), ROW, &measures)).is_some() {
@@ -174,6 +178,10 @@ fn list_ui(ui: &mut Ui, list: &mut List) {
             }
         }
     });
+    list.id = Some(shown.output.id);
+    if let Some(velocity) = list.glide.take() {
+        ui.glide(shown.output.id, velocity);
+    }
 }
 
 fn wheel(rig: &mut Rig<RecordingRenderer>, list: &mut List, dy: f32) -> StepReport {
@@ -202,6 +210,34 @@ fn a_wheel_step_over_a_600_row_lazy_list_builds_only_rows_entering_view() {
     assert!(!entering.is_empty(), "rows came into view");
     assert_eq!(past.frame.runs as usize, entering.len(), "only rows entering view run: {past:?}");
     assert!(list.built.len() < ROWS / 10);
+}
+
+#[test]
+fn a_glide_moves_the_rows_with_no_run_per_frame() {
+    let mut list = List::default();
+    let mut rig = rig();
+    settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| list_ui(ui, &mut list))));
+    assert!(list.id.is_some());
+    let main = rig.main;
+    let frame = |rig: &mut Rig<RecordingRenderer>, list: &mut List| rig.frame_with(1.0 / 60.0, &mut |_, cx| root(cx, |ui| list_ui(ui, list)));
+
+    // The build that sets the velocity is the only one: every later frame lays out the scroll body alone.
+    list.glide = Some(Vec2::new(0.0, 600.0));
+    rig.driver.runtime.mark_root(main);
+    frame(&mut rig, &mut list);
+    for _ in 0..4 {
+        let step = frame(&mut rig, &mut list);
+        assert!(step.ran, "the glide asks for the next frame");
+        assert_eq!((step.frame.built, step.frame.runs, step.frame.scopes), (0, 0, 0), "a glide frame runs nothing: {step:?}");
+        assert_eq!(step.frame.laid_out, 1, "only the scroll body lays out");
+    }
+
+    // A zero velocity stops it: after the frame that pays out the last wake, nothing runs.
+    list.glide = Some(Vec2::ZERO);
+    rig.driver.runtime.mark_root(main);
+    frame(&mut rig, &mut list);
+    let ran = (0..3).filter(|_| frame(&mut rig, &mut list).ran).count();
+    assert!(ran <= 1, "a stopped glide asks for no frames: {ran} ran");
 }
 
 #[test]
