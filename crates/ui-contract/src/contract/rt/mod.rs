@@ -1,4 +1,5 @@
 //! The component contract on craft-ui-rt: the bridge `docs/contract-rt.md` describes (option K).
+//! Every module is crate-private: the public names live at their real paths (section 15.10).
 //! Component hooks run in the build of the scope that shows the component; ui-rt keeps their
 //! outputs per node (size, children's places, paint variants per pointer state, hit shape, access
 //! node, input queue) and replays them in its own phases. A node whose type, component key and
@@ -23,53 +24,53 @@
 //! Text: typed text and the platform's input method reach the focused text input through one IME
 //! engine (`ime`); `text` has the editor state and the stand-in `TextField`.
 
-pub mod access;
-mod commands;
-mod container;
-mod cursor;
-mod dialog;
-mod drag;
-mod env;
-mod focus;
-pub mod harness;
-mod ime;
-mod intents;
-mod key;
-mod keys;
-mod lazy;
-mod memory;
-mod motion;
-mod node;
-mod overlay;
-pub mod pending;
-mod response;
-mod run;
-mod scope;
-mod scroll;
-pub mod skeleton;
-mod sweep;
-pub mod text;
-pub mod textures;
-mod tip;
-mod toast;
-mod ui;
-pub mod windows;
+pub(crate) mod access;
+pub(crate) mod commands;
+pub(crate) mod container;
+pub(crate) mod cursor;
+pub(crate) mod dialog;
+pub(crate) mod drag;
+pub(crate) mod env;
+pub(crate) mod focus;
+#[cfg(feature = "testing")]
+pub(crate) mod harness;
+pub(crate) mod ime;
+pub(crate) mod intents;
+pub(crate) mod key;
+pub(crate) mod keys;
+pub(crate) mod lazy;
+pub(crate) mod memory;
+pub(crate) mod motion;
+pub(crate) mod node;
+pub(crate) mod overlay;
+pub(crate) mod pending;
+pub(crate) mod response;
+pub(crate) mod run;
+pub(crate) mod scope;
+pub(crate) mod scroll;
+pub(crate) mod skeleton;
+pub(crate) mod sweep;
+pub(crate) mod text;
+pub(crate) mod textures;
+pub(crate) mod tip;
+pub(crate) mod toast;
+pub(crate) mod ui;
+pub(crate) mod windows;
 
-pub use commands::CommandBoard;
-pub use container::{Container, show_container};
-pub use dialog::show_dialog;
-pub use drag::{DragSource, DropRule};
-pub use env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
-pub use key::ComponentKey;
-pub use lazy::Lazy;
-pub use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
-pub use node::{NodeInput, Pointer};
-pub use overlay::{OverlayUi, PopupHandle};
-pub use pending::{Delivery, JobBoard, Pending};
-pub use response::{EditResponse, Outcome, Response};
-pub use run::{Component, Cx, MeasureCx, Paint, PartBuilder, PartsCx, ValueOf, show_leaf};
-pub use scope::{MemoView, WindowEnv, window_root, window_root_with};
-pub use textures::{TextureCache, TextureKey, TextureLook};
-pub use tip::DELAY as TOOLTIP_DELAY;
-pub use toast::{ToastHost, ToastQueue};
-pub use ui::Ui;
+pub(crate) use commands::CommandBoard;
+pub(crate) use container::{Container, show_container};
+pub(crate) use dialog::show_dialog;
+pub(crate) use drag::{DragSource, DropRule};
+pub(crate) use env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
+pub(crate) use key::ComponentKey;
+pub(crate) use lazy::Lazy;
+pub(crate) use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
+pub(crate) use node::{NodeInput, Pointer};
+pub(crate) use overlay::{OverlayUi, PopupHandle};
+pub(crate) use pending::{Delivery, JobBoard, Pending};
+pub(crate) use run::show_leaf;
+pub(crate) use scope::{MemoView, WindowEnv, window_root, window_root_with};
+pub(crate) use textures::{TextureCache, TextureKey, TextureLook};
+pub(crate) use tip::DELAY as TOOLTIP_DELAY;
+pub(crate) use toast::{ToastHost, ToastQueue};
+pub(crate) use ui::Ui;

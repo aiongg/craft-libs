@@ -1185,7 +1185,7 @@ impl MemoProps for crate::runtime::egui::areas::LayerKey {
 }
 
 /// Derived `Hash` (an opaque hash value).
-impl MemoProps for egui::Id {
+impl MemoProps for crate::primitives::Id {
     fn key(&self, key: &mut MemoKey) {
         key.feed_hash(self);
     }

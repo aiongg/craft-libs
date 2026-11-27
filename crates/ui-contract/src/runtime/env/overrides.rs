@@ -57,7 +57,6 @@ impl ThemeScope {
     }
 
     /// What the scope sets: the definition, mode, contrast and density, each `None` when inherited.
-    #[cfg(feature = "rt")]
     pub(crate) fn settings(&self) -> (Option<&Arc<ThemeDef>>, Option<Mode>, Option<Contrast>, Option<Size>) {
         (self.theme.as_ref(), self.mode, self.contrast, self.density)
     }

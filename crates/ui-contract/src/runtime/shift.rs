@@ -97,7 +97,7 @@ macro_rules! stays {
 // A scalar is a length, a fraction, a zoom, a time or a count, which a replay at another place never changes, so the
 // audit compares it exactly; a coordinate is a `Pos2` or a `Rect`.
 stays!(craft_behavior::PartRef, craft_behavior::Sense);
-stays!((), bool, f32, f64, u8, u16, u32, u64, usize, i32, i64, String, Arc<str>, &'static str, egui::Id, egui::LayerId, egui::TextureId);
+stays!((), bool, f32, f64, u8, u16, u32, u64, usize, i32, i64, String, Arc<str>, &'static str, crate::primitives::Id, egui::LayerId, egui::TextureId);
 
 impl<T: Shift> Shift for Option<T> {
     fn shifted(&self, by: &RecordShift) -> Self {

@@ -2,7 +2,7 @@
 
 use crate::contract::{IdSource, MemoKey};
 use craft_ui_rt::hash_key;
-use egui::Id;
+use crate::primitives::Id;
 
 pub use crate::contract::ComponentKey;
 

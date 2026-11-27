@@ -50,7 +50,6 @@ use shell::{refresh, window_info};
 #[cfg(feature = "testing")]
 pub(crate) use shell::{set_chrome, set_os};
 use spec::AppState;
-#[cfg(feature = "rt")]
 pub(crate) use spec::chrome_of as chrome_of_frame;
 use spec::chrome_of;
 pub use spec::{WindowLevel, WindowSpec};
