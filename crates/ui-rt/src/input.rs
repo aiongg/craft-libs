@@ -46,6 +46,36 @@ pub struct Interact {
     pub focus_within: bool,
 }
 
+/// One fact of [`Interact`], for a build that reads only that fact: the reader reruns when the
+/// fact flips, not when another fact of the node changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum InteractFact {
+    Hovered,
+    Pressed,
+    Focused,
+    FocusVisible,
+    FocusWithin,
+}
+
+impl InteractFact {
+    pub(crate) const COUNT: usize = 5;
+
+    /// The fact's value in `state`.
+    pub fn of(self, state: Interact) -> bool {
+        match self {
+            InteractFact::Hovered => state.hovered,
+            InteractFact::Pressed => state.pressed,
+            InteractFact::Focused => state.focused,
+            InteractFact::FocusVisible => state.focus_visible,
+            InteractFact::FocusWithin => state.focus_within,
+        }
+    }
+
+    fn index(self) -> usize {
+        self as usize
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClipboardRequest {
     Set(String),
@@ -345,6 +375,20 @@ impl Runtime {
         Some(cell)
     }
 
+    /// The cell a build reads one interaction fact of `node` from, created on first use and owned
+    /// by the node.
+    pub(crate) fn interaction_fact_cell(&mut self, node: NodeId, fact: InteractFact) -> Option<State<bool>> {
+        if let Some(cell) = self.interact_facts.get(&node).and_then(|cells| cells[fact.index()]) {
+            return Some(cell);
+        }
+        let value = fact.of(self.interaction(node));
+        let n = self.tree.nodes.get_mut(&node)?;
+        let cell = self.store.create(value);
+        n.owned.push(cell.slot_ref());
+        self.interact_facts.entry(node).or_default()[fact.index()] = Some(cell);
+        Some(cell)
+    }
+
     fn show_focus(&mut self, window: WindowId, shown: bool) {
         let Some(input) = self.input_mut(window) else { return };
         if input.focus_shown != shown {
@@ -359,6 +403,16 @@ impl Runtime {
             if let Some(cell) = self.interact.get(&id).copied() {
                 let value = self.interaction(id);
                 cell.set_if_changed(&mut self.store, value);
+            }
+            if let Some(cells) = self.interact_facts.get(&id).copied() {
+                let value = self.interaction(id);
+                for fact in
+                    [InteractFact::Hovered, InteractFact::Pressed, InteractFact::Focused, InteractFact::FocusVisible, InteractFact::FocusWithin]
+                {
+                    if let Some(cell) = cells[fact.index()] {
+                        cell.set_if_changed(&mut self.store, fact.of(value));
+                    }
+                }
             }
         }
     }
@@ -708,6 +762,7 @@ impl Runtime {
     /// event; focus falls back after the build pass ([`Runtime::repair_focus`]).
     pub(crate) fn forget_node(&mut self, window: WindowId, id: NodeId) {
         self.interact.remove(&id);
+        self.interact_facts.remove(&id);
         self.forget_drag_node(id);
         self.forget_touch_node(window, id);
         if let Some(w) = self.windows.get_mut(&window) {
@@ -807,6 +862,26 @@ impl crate::paint::PaintCx<'_> {
 }
 
 impl crate::build::BuildCx<'_> {
+    /// `node`'s hover, press and focus state as of now, without recording a read.
+    pub fn interaction(&self, node: NodeId) -> Interact {
+        self.runtime().interaction(node)
+    }
+
+    /// The cell `node`'s interaction state lives in; reading it through this context records a
+    /// build read, so this node builds again when any fact of it changes.
+    pub fn interaction_cell(&mut self, node: NodeId) -> Option<State<Interact>> {
+        self.runtime_mut().interaction_cell(node)
+    }
+
+    /// One fact of `node`'s interaction state, recording a build read of that fact alone: this node
+    /// builds again when the fact flips.
+    pub fn read_interaction(&mut self, node: NodeId, fact: InteractFact) -> bool {
+        match self.runtime_mut().interaction_fact_cell(node, fact) {
+            Some(cell) => cell.get(self),
+            None => false,
+        }
+    }
+
     /// Moves key focus to this node (a field that takes focus when it opens).
     pub fn request_focus(&mut self) {
         let (node, window) = (self.node(), self.window());

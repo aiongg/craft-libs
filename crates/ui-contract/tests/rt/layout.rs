@@ -6,7 +6,9 @@ use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use craft_ui_contract::contract::rt::{Component, ComponentKey, Container, Cx, Lazy, MeasureCx, Paint, Ui, show_container, show_leaf, window_root};
+use craft_ui_contract::contract::rt::{
+    Component, ComponentKey, Container, Cx, Lazy, MeasureCx, Paint, Response, Ui, show_container, show_leaf, window_root,
+};
 use craft_ui_contract::contract::{ContainerProps, Gap, HeaderRegion, IdSource, MemoKey, RowAlign, Scroll, Sizing};
 use craft_ui_contract::layout::BodyLayout;
 use craft_ui_contract::primitives::PaintShape;
@@ -23,12 +25,6 @@ struct Chip {
     measures: Rc<Cell<u32>>,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ChipOut {
-    clicked: bool,
-    rect: Rect,
-}
-
 impl ComponentKey for Chip {
     fn key(&self, key: &mut MemoKey) {
         key.feed_hash(&(self.label.as_str(), self.h.to_bits()));
@@ -37,7 +33,7 @@ impl ComponentKey for Chip {
 
 impl Component for Chip {
     const ROLE: accesskit::Role = accesskit::Role::Button;
-    type Output = ChipOut;
+    type Output = Response;
 
     fn measure(&mut self, _: &MeasureCx<'_>) -> Vec2 {
         self.measures.set(self.measures.get() + 1);
@@ -48,18 +44,18 @@ impl Component for Chip {
         Sense::HOVER | Sense::CLICK
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_>) {
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
         let bounds = paint.bounds();
         let ink = paint.tokens.color.text.faint;
         paint.draw().fill(&PaintShape::Rect(bounds, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
     }
 
-    fn finish(self, cx: &Cx<'_>) -> ChipOut {
-        ChipOut { clicked: cx.clicked(), rect: cx.rect }
+    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
 
-fn chip(ui: &mut Ui<'_, '_>, label: &str, h: f32, measures: &Rc<Cell<u32>>) -> ChipOut {
+fn chip(ui: &mut Ui<'_, '_>, label: &str, h: f32, measures: &Rc<Cell<u32>>) -> Response {
     show_leaf(Chip { label: label.into(), h, measures: measures.clone() }, ui)
 }
 
@@ -78,13 +74,15 @@ impl ComponentKey for Boxed {
 
 impl Component for Boxed {
     const ROLE: accesskit::Role = accesskit::Role::GenericContainer;
-    type Output = ();
+    type Output = Response;
 
     fn id_source(&self) -> IdSource {
         IdSource::Auto
     }
 
-    fn finish(self, _: &Cx<'_>) {}
+    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 impl Container for Boxed {
@@ -207,7 +205,7 @@ fn page_ui(ui: &mut Ui<'_, '_>, page: &mut Page) {
     let measures = page.measures.clone();
     let edit = chip(ui, "Edit", ROW, &measures);
     page.edit = edit.rect;
-    if edit.clicked {
+    if edit.clicked() {
         page.title.push_str("\nmore");
     }
     let props = props(|p| p.header(HeaderRegion::new()));

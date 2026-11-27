@@ -18,13 +18,14 @@ use std::sync::Arc;
 
 use craft_behavior::{ColumnWidth, resolve_columns};
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, InlineState, NodeId, Pos2, Rect, Vec2};
+use craft_ui_rt::{BuildCx, InlineState, NodeId, Pos2, Rect, State, Vec2};
 use egui::Id;
 
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, Place, Placed, ScopeNode};
-use super::run::{Component, Cx, Ran, holds, run};
+use super::run::{Component, Ran, finish_measured, holds, run, settle, sweep_tag};
 use super::scroll::{ScrollKept, ScrollNode, overscan};
+use super::sweep::Sweep;
 use super::ui::{Dir, Flow, Ui};
 use crate::contract::{ContainerProps, EndRegion, FooterRegion, HeaderRegion, PadEdges, Scroll, Sizing};
 use crate::layout::{BodyLayout, RowAlign};
@@ -219,6 +220,8 @@ struct Host<'k> {
     marked: bool,
     /// The node's kept outputs; `None` in a measuring run.
     kept: Option<&'k mut Kept>,
+    /// The window's toggle sweep record, handed to every flow under the container.
+    sweep: Option<State<Sweep>>,
 }
 
 /// Where a body's children live and what decides whether its plan holds.
@@ -227,6 +230,7 @@ struct BodyAt {
     node: Option<NodeId>,
     own_kept: bool,
     marked: bool,
+    sweep: Option<State<Sweep>>,
 }
 
 /// Shows a container: its body always runs; its own hooks run when its key, size or a region's
@@ -239,30 +243,32 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
     let fills = shape.fills(&ui.flow);
     let room = if fills { ui.flow.fill_room() } else { ui.flow.room() };
     let origin = ui.flow.next_min();
+    let tag = sweep_tag(&component, &ui.flow);
+    let sweep = ui.flow.sweep;
     let mut component = component;
     if let Some(under) = ui.flow.measuring {
         let node = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).map(|p| p.node);
         let tokens = ui.flow.tokens.clone();
-        let into = Host { node, own_kept: false, marked: true, kept: None };
+        let into = Host { node, own_kept: false, marked: true, kept: None, sweep };
         let (out, size, flow) = lay_out(&mut component, ui.cx, &shape, into, (id, origin, room), &tokens, &mut body);
         ui.flow.absorb(&flow);
         let rect = ui.flow.allocate(None, size, fills);
-        return (out, component.finish(&Cx::settled(rect, &tokens)));
+        return (out, finish_measured(component, id, rect, &tokens));
     }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold) }, |kept, state, cx| {
+        cx.inline(ComponentNode { key: key.map_or(0, fold), tag }, |kept, state, cx| {
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { cx.tokens() };
-            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept) };
+            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };
             let (out, size, inner) = lay_out(&mut component, cx, &shape, into, (id, origin, room), &tokens, &mut body);
             flow.absorb(&inner);
             let rect = flow.allocate(Some(cx.node()), size, fills);
             if own_kept && size == kept.size {
                 kept.cache(room, size);
-                return (out, component.finish(&Cx::settled(rect, &tokens)));
+                return (out, settle(component, kept, cx, rect, &tokens));
             }
-            (out, run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens }))
+            (out, run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep }))
         })
     })
 }
@@ -282,7 +288,7 @@ fn lay_out<C: Container, R>(
 ) -> (R, Vec2, Flow) {
     let inner = Rect::from_min_size(origin + shape.pad, (room - 2.0 * shape.pad).max(Vec2::ZERO));
     if !shape.has_regions() {
-        let at = BodyAt { node: into.node, own_kept: into.own_kept, marked: into.marked };
+        let at = BodyAt { node: into.node, own_kept: into.own_kept, marked: into.marked, sweep: into.sweep };
         let (out, mut flow) = run_body(cx, shape, at, into.kept.as_deref_mut(), id, inner, inner.min, None, tokens, body);
         if let Some(kept) = into.kept
             && kept.placed != flow.placed
@@ -378,8 +384,9 @@ fn region_size(
         return size;
     }
     let under = peeked.map(|(node, _, _)| node);
-    let flow =
-        Flow::new(id.with(region), room.min, room, tokens.space.gap.row, tokens.clone()).with_dir(Dir::Row { wrap: false, start: 0.0, spread: 0.0 });
+    let flow = Flow::new(id.with(region), room.min, room, tokens.space.gap.row, tokens.clone())
+        .with_dir(Dir::Row { wrap: false, start: 0.0, spread: 0.0 })
+        .with_sweep(into.sweep);
     let mut ui = Ui::new(cx, flow.measuring(under));
     hook(&mut ui);
     ui.flow.content_size()
@@ -405,7 +412,7 @@ fn region(
     hook: &mut dyn FnMut(&mut Ui<'_, '_>),
 ) -> (Option<NodeId>, Vec2) {
     let gap = tokens.space.gap.row;
-    let flow = || Flow::new(id.with(region), rect.min, rect, gap, tokens.clone()).with_dir(dir.clone());
+    let flow = || Flow::new(id.with(region), rect.min, rect, gap, tokens.clone()).with_dir(dir.clone()).with_sweep(into.sweep);
     if into.kept.is_none() {
         let under = into.node.and_then(|n| peek_region(cx, n, region));
         let mut ui = Ui::new(cx, flow().measuring(under));
@@ -446,14 +453,14 @@ fn plain_body<R>(
 ) -> (R, Vec2, Option<NodeId>, Flow) {
     if into.kept.is_none() {
         let peeked = into.node.and_then(|n| cx.peek::<ScopeNode>(n, Region::Body)).map(|p| p.node);
-        let at = BodyAt { node: peeked, own_kept: false, marked: true };
+        let at = BodyAt { node: peeked, own_kept: false, marked: true, sweep: into.sweep };
         let (out, flow) = run_body(cx, shape, at, None, id, rect, rect.min, None, tokens, body);
         return (out, flow.content_size(), None, flow);
     }
     cx.keyed(Region::Body, |cx| {
         cx.inline(ScopeNode { key: 0 }, |rk, state, cx| {
             let node = cx.node();
-            let at = BodyAt { node: Some(node), own_kept: into.own_kept, marked: state.path || state.marked };
+            let at = BodyAt { node: Some(node), own_kept: into.own_kept, marked: state.path || state.marked, sweep: into.sweep };
             let (out, mut flow) = run_body(cx, shape, at, Some(&mut *rk), id, rect, rect.min, None, tokens, body);
             let content = flow.content_size();
             if rk.placed != flow.placed || rk.size != content {
@@ -485,7 +492,7 @@ fn run_body<R>(
 ) -> (R, Flow) {
     let columns = shape.columns().len();
     let room = region.size();
-    let fresh = |dir: Dir| Flow::new(id, origin, region, shape.gap, tokens.clone()).with_dir(dir).in_view(view);
+    let fresh = |dir: Dir| Flow::new(id, origin, region, shape.gap, tokens.clone()).with_dir(dir).in_view(view).with_sweep(at.sweep);
     let Some(kept) = kept else {
         let mut ui = Ui::new(cx, fresh(shape.base_dir(columns)).measuring(at.node));
         let out = body(&mut ui);
@@ -555,7 +562,7 @@ fn scroll_body<R>(
         let (scroll_node, offset) = peeked.map_or((None, Vec2::ZERO), |(n, o)| (Some(n), o));
         let node = scroll_node.and_then(|n| peek_region(cx, n, Region::Body));
         let region = content(offset);
-        let at = BodyAt { node, own_kept: false, marked: true };
+        let at = BodyAt { node, own_kept: false, marked: true, sweep: into.sweep };
         let (out, flow) = run_body(cx, shape, at, None, id, region, region.min, Some(overscan(view)), tokens, body);
         return (out, view.size(), None, flow);
     }
@@ -567,7 +574,8 @@ fn scroll_body<R>(
             let marked = state.path || state.marked;
             let (out, mut flow, inner) = cx.keyed(Region::Body, |cx| {
                 cx.inline(ScopeNode { key: 0 }, |ck, cstate, cx| {
-                    let at = BodyAt { node: Some(cx.node()), own_kept: into.own_kept, marked: marked || cstate.path || cstate.marked };
+                    let at =
+                        BodyAt { node: Some(cx.node()), own_kept: into.own_kept, marked: marked || cstate.path || cstate.marked, sweep: into.sweep };
                     let (out, flow) = run_body(cx, shape, at, Some(&mut *ck), id, region, region.min, Some(overscan(view)), tokens, body);
                     let extent = flow.content_size();
                     if ck.placed != flow.placed || ck.size != extent {

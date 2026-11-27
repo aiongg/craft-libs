@@ -2,6 +2,7 @@
 //! the hooks it must. Relations only, no times.
 
 mod access;
+mod input;
 mod layout;
 
 use craft_behavior::IconId;
@@ -49,7 +50,7 @@ impl App {
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     let other = IconButton::new(IconId::new("plus"), "Other").show(ui);
     app.other = other.rect;
-    if other.clicked {
+    if other.clicked() {
         app.other_clicks += 1;
         app.clicks_seen_in_step.push(app.step);
         if app.rename_on_other {
@@ -61,7 +62,7 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
         app.view_runs += 1;
         Stack::new().show(ui, |ui| {
             let a = IconButton::new(IconId::new("brush"), label).show(ui);
-            if a.clicked {
+            if a.clicked() {
                 app.a_clicks += 1;
                 app.clicks_seen_in_step.push(app.step);
             }
