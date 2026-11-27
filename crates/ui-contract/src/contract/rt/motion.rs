@@ -1,4 +1,6 @@
-//! Motion on paint-time reads (docs/contract-rt.md sections 8 and 10, "Motion").
+//! Motion on paint-time reads (docs/contract-rt.md sections 8 and 10, "Motion"), and the one tween
+//! type every motion runs on: the paint-time fades here and the named motions of a run
+//! (`runtime::motion::Animate`).
 //!
 //! A run decides targets; ui-rt's paint phase evaluates the animation. A node keeps what a run
 //! recorded (paint variants, a target opacity) and the paint phase shows the value at the frame's
@@ -18,17 +20,23 @@ use craft_ui_rt::{DisplayList, Item, PaintCx, Pos2, Rect, Stroke, Vec2};
 
 use super::env::EnvCells;
 use super::node::{Kept, Pointer, Variant};
-use crate::runtime::motion::{MotionSpec, spec};
+pub(crate) use crate::runtime::motion::{MotionSpec, spec};
 
 /// A value a tween can run over.
 pub trait Interpolate: Copy + PartialEq + 'static {
     /// The value `t` of the way from `a` to `b`; `t` is 0 to 1.
     fn lerp(a: Self, b: Self, t: f32) -> Self;
+    /// How far apart two values are, in the value's own unit.
+    fn distance(a: Self, b: Self) -> f32;
 }
 
 impl Interpolate for f32 {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         a + (b - a) * t
+    }
+
+    fn distance(a: Self, b: Self) -> f32 {
+        (a - b).abs()
     }
 }
 
@@ -36,11 +44,19 @@ impl Interpolate for Vec2 {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         a + (b - a) * t
     }
+
+    fn distance(a: Self, b: Self) -> f32 {
+        (a - b).length()
+    }
 }
 
 impl Interpolate for Pos2 {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         a + (b - a) * t
+    }
+
+    fn distance(a: Self, b: Self) -> f32 {
+        (a - b).length()
     }
 }
 
@@ -48,11 +64,21 @@ impl Interpolate for Rect {
     fn lerp(a: Self, b: Self, t: f32) -> Self {
         Rect::from_min_max(<Pos2 as Interpolate>::lerp(a.min, b.min, t), <Pos2 as Interpolate>::lerp(a.max, b.max, t))
     }
+
+    fn distance(a: Self, b: Self) -> f32 {
+        <Pos2 as Interpolate>::distance(a.min, b.min).max(<Pos2 as Interpolate>::distance(a.max, b.max))
+    }
 }
 
-/// A running animation of one value, evaluated at paint time. It starts at the first evaluation after
-/// it was retargeted, so a run (which has no frame time) names only the target. Evaluating at the same
-/// time twice gives the same value.
+/// A distance under this ends a follow; a thousandth of a point or of a unit fraction is below anything painted.
+const FOLLOW_EPSILON: f32 = 0.001;
+
+/// Time constants a follow's settle time spans: 95% of the way after the motion's duration.
+const FOLLOW_TIME_CONSTANTS: f32 = 3.0;
+
+/// A running animation of one value. It starts at the first evaluation after it was retargeted, so
+/// a paint-time tween's run names only the target. Evaluating at the same time twice gives the
+/// same value.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tween<T: Interpolate> {
     from: T,
@@ -91,15 +117,36 @@ impl<T: Interpolate> Tween<T> {
         }
     }
 
-    /// The value at `now`. Under a playback that snaps, or with no duration, it is the target.
+    /// The value at `now`. Under a playback that does not run, or with no duration, it is the target.
     pub fn value_at(&mut self, now: f64, motion: Motion, playback: Playback) -> T {
         if self.shown == self.to {
             return self.to;
         }
         let started = *self.started.get_or_insert(now);
         let seconds = f64::from(motion.millis) / 1000.0;
-        let progress = if playback == Playback::Snap || seconds <= 0.0 { 1.0 } else { ((now - started) / seconds) as f32 };
+        let progress = if playback != Playback::Run || seconds <= 0.0 { 1.0 } else { ((now - started) / seconds) as f32 };
         self.shown = if progress >= 1.0 { self.to } else { T::lerp(self.from, self.to, motion.easing.at(progress.max(0.0))) };
+        self.shown
+    }
+
+    /// The value at `now` of a follow toward `to`, a target that may move every frame: exponential
+    /// smoothing from the value shown, with the motion's duration as its settle time, so a moved
+    /// target is followed from where the value is and never restarts. The first evaluation after a
+    /// rest moves nothing and starts the clock. Under a playback that does not run, or with no
+    /// duration, it is the target.
+    pub fn follow(&mut self, to: T, now: f64, motion: Motion, playback: Playback) -> T {
+        self.to = to;
+        let seconds = f64::from(motion.millis) / 1000.0;
+        if self.shown == to || playback != Playback::Run || seconds <= 0.0 {
+            self.shown = to;
+            self.started = None;
+            return to;
+        }
+        let last = self.started.replace(now).unwrap_or(now);
+        let dt = (now - last).max(0.0) as f32;
+        let rate = 1.0 - (-dt * FOLLOW_TIME_CONSTANTS / seconds as f32).exp();
+        let next = T::lerp(self.shown, to, rate);
+        self.shown = if T::distance(next, to) < FOLLOW_EPSILON { to } else { next };
         self.shown
     }
 }
