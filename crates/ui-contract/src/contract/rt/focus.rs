@@ -56,6 +56,20 @@ pub(crate) struct FocusKept {
     pub(crate) seq: u64,
     /// The node took focus as its layer or scope appeared (ui-rt `FocusCause::Entered`) and holds it since.
     pub(crate) entered: bool,
+    /// The collection the node's text field drives, and whether the field was empty (`CxCore::drive_list`).
+    pub(crate) drives: Option<(crate::contract::Id, bool)>,
+    /// The node is a collection: what a text field that drives it reads ([`super::keys::take_driven`]).
+    pub(crate) list_keys: Option<ListKeys>,
+}
+
+/// What a collection's last run left for the list keys a driving text field hands it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct ListKeys {
+    /// Its rows navigate as a tree: Left and Right close and open them.
+    pub(crate) tree: bool,
+    /// It has a lead row for Enter to activate; without one, Enter stays with the field's scopes (the dialog's
+    /// default button).
+    pub(crate) lead: bool,
 }
 
 /// The shape of a node's focus ring, in the node's coordinates.

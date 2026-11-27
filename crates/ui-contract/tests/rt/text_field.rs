@@ -32,12 +32,14 @@ pub struct TextField<'a> {
     /// The field shows a dropdown with one row while this is set, and reports the row's rect there.
     #[key(skip)]
     list: Option<Rc<Cell<Rect>>>,
+    /// The collection the field drives (`CxCore::drive_list`).
+    drives: Option<craft_ui_contract::primitives::Id>,
 }
 
 impl<'a> TextField<'a> {
     /// A single-line field editing `value`.
     pub fn new(value: Bind<'a, String>) -> TextField<'a> {
-        TextField { common: Common::new(), value, multiline: false, password: false, holds: false, list: None }
+        TextField { common: Common::new(), value, multiline: false, password: false, holds: false, list: None, drives: None }
     }
 
     /// Enter makes a line break and Up and Down move between rows.
@@ -61,6 +63,12 @@ impl<'a> TextField<'a> {
     /// The field shows a dropdown with one row, as a completion list does, reporting the row's rect to `row`.
     pub fn list(mut self, row: Rc<Cell<Rect>>) -> Self {
         self.list = Some(row);
+        self
+    }
+
+    /// The field hands its list keys to the collection `list`.
+    pub fn drives(mut self, list: craft_ui_contract::primitives::Id) -> Self {
+        self.drives = Some(list);
         self
     }
 
@@ -104,6 +112,10 @@ impl Component for TextField<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if let Some(list) = self.drives {
+            let empty = cx.value().is_none_or(String::is_empty);
+            cx.core.drive_list(list, empty);
+        }
         if self.list.is_some() {
             cx.popup("list").open(cx);
         }

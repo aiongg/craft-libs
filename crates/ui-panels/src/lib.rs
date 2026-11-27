@@ -23,6 +23,9 @@ pub use craft_ui_widgets::{
     buttons, choice, controls, display, form, layout_components, list, menu, notices, pickers, popover, text, tile_grid, value_drag,
 };
 pub use craft_ui_widgets::{contract, fonts, layout, primitives, runtime, style, words};
+// Root names the derives and components use as `craft_ui::…`, as craft-ui-widgets' root has them.
+#[doc(hidden)]
+pub use craft_ui_widgets::{Color32, Context, CornerRadius, Id, IdSalt, Response, Shown, Ui, UiBuilder, WindowCommand, WindowId, geom, input};
 
 #[doc(hidden)]
 #[cfg(spike_full)]

@@ -779,14 +779,7 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// The focused stop of this window, from the focused node's kept facts. Tracked through the window's focused-node
     /// cell: a reader runs again when focus moves, and at no other input.
     pub fn focused_stop(&mut self) -> Option<crate::runtime::focus::StopRec> {
-        let node = self.cx.env().focused.get(self.cx)?;
-        let rt = self.cx.runtime();
-        let kept = rt
-            .local::<super::node::ComponentNode>(node)
-            .or_else(|| rt.local::<super::node::ScopeNode>(node))
-            .or_else(|| rt.local::<super::overlay::LayerScope>(node).map(|lk| &lk.kept))?;
-        let keys = kept.focus.stop?;
-        Some(crate::runtime::focus::StopRec::of_kept(kept.id, keys, kept.focus.press_only))
+        super::reads::focused_stop(self.cx)
     }
 
     /// The pointer position when it is inside `rect`. Tracked: a reader runs again at every pointer
@@ -827,8 +820,7 @@ impl<'u, 'c> Ui<'u, 'c> {
 
     /// The top layer that takes keys, if any.
     pub fn top_layer(&mut self) -> Option<crate::runtime::overlay::OpenEntry> {
-        let open = self.open_layers();
-        open.into_iter().rev().find(|open| super::layers::counts(&open.entry, crate::runtime::overlay::OpenFilter::Keys)).map(|open| open.entry)
+        super::reads::top_layer(self.cx)
     }
 
     /// The id of the layer this cursor builds in; `None` on the window's content.
@@ -846,14 +838,12 @@ impl<'u, 'c> Ui<'u, 'c> {
 
     /// Whether this cursor builds inside the top modal layer.
     pub fn in_top_modal(&mut self) -> bool {
-        super::layers::track(self.cx);
-        super::layers::in_top_modal(self.cx.runtime(), self.cx.node())
+        super::reads::in_top_modal(self.cx)
     }
 
     /// Whether the layer `id` is the top modal layer of the window.
     pub fn is_top_modal(&mut self, id: Id) -> bool {
-        super::layers::track(self.cx);
-        super::layers::top_modal(self.cx.runtime(), self.cx.window()).is_some_and(|top| top.entry.id == id)
+        super::reads::is_top_modal(self.cx, id)
     }
 
     /// The dialog of a dialog host this cursor builds in (`stack_place`), if it builds in one.
@@ -876,7 +866,7 @@ impl<'u, 'c> Ui<'u, 'c> {
     /// The id of the focus scope of the top layer that takes keys, if one is open: the scope a newly opened layer
     /// nests in. Tracked through the open-layer cell.
     pub fn open_focus_scope(&mut self) -> Option<Id> {
-        self.top_layer().filter(|entry| entry.scoped).map(|entry| entry.id)
+        super::reads::open_focus_scope(self.cx)
     }
 
     /// The menu layer this cursor builds in, if it builds in one.

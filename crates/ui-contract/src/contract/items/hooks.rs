@@ -68,6 +68,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(role)
     }
 
+    fn list_keys(&self) -> Option<crate::contract::rt::focus::ListKeys> {
+        let tree = self.layout.as_ref().is_some_and(|layout| matches!(layout.nav(), craft_behavior::NavShape::Tree));
+        Some(crate::contract::rt::focus::ListKeys { tree, lead: self.lead.key.is_some() })
+    }
+
     /// Step 4. `stage` is the collection node's memory: in a measuring run the driver lends the kept node's memory
     /// when the node exists, so its kept row measures serve.
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {

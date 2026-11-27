@@ -3,14 +3,14 @@
 use super::words::SectionWords;
 use crate::buttons::{Button, IconButton, PopupMark};
 use crate::contract::{
-    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, LeastWidth, NoValue, Outcome,
-    Pad, PaintUi, Pointer as _, PopupKind, Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing, TooltipSpec, WordSetCx as _,
+    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, CxCore, DropMark, DropOperation, DropTarget, Focus as _,
+    LeastWidth, NoValue, Outcome, Pad, PaintUi, Pointer as _, PopupKind, Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing,
+    TooltipSpec, WordSetCx as _,
 };
 use crate::layout_components::Row;
 use crate::primitives::{IconSpec, RectSide};
 use crate::runtime::access::Name;
 use crate::runtime::env::{Env, EnvValue, Label};
-use crate::runtime::keys;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, GlyphRole, RuleKind, StyleCx};
 use craft_behavior::{Insets, Metrics, OwnerClass, Sense};
@@ -65,6 +65,47 @@ pub struct FooterBar {
     arms: Vec<f64>,
     /// The seconds the footer has been shown, as this pass counted them.
     armed_for: f64,
+    /// The keys of the dialog buttons, in the order given: the footer captures their letters and chords itself.
+    keys: Vec<ButtonKeys>,
+    /// The button whose letter or chord this run took, as an index in the order given.
+    key_pick: Option<usize>,
+}
+
+/// What a dialog button of a footer takes from the keyboard, and when it is live.
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
+struct ButtonKeys {
+    letter: Option<char>,
+    chord: Option<Chord>,
+    enabled: bool,
+    armed_after: Option<f64>,
+}
+
+impl ButtonKeys {
+    fn of(button: &FooterButton) -> Self {
+        ButtonKeys { letter: button.letter, chord: button.chord, enabled: button.enabled, armed_after: button.armed_after }
+    }
+
+    /// Whether the button takes input once its footer has been shown for `shown` seconds, as `FooterButton::live`.
+    fn live(&self, shown: f64) -> bool {
+        self.enabled && self.armed_after.is_none_or(|seconds| shown >= seconds)
+    }
+}
+
+/// What a footer bar's own node reports: its response, and the dialog button its run took a letter or chord for.
+#[derive(Clone, Debug)]
+pub struct FooterBarOutput {
+    /// The bar's response.
+    pub response: Response,
+    /// The index, in the order given, of the button whose letter or chord the bar took in this run.
+    pub key_pick: Option<usize>,
+}
+
+impl Outcome for FooterBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 /// The payload a dropped-on action reports, type-erased so actions of different payload types share one footer.
@@ -268,6 +309,8 @@ pub struct DropAction<P: Clone + Send + Sync + 'static> {
     #[key(skip)]
     accepts: Arc<dyn Fn(&P) -> bool + Send + Sync>,
     over: bool,
+    /// Run state: the payload `update` took.
+    #[key(skip)]
     dropped: Option<P>,
     mods: craft_keymap::Mods,
 }
@@ -558,10 +601,11 @@ impl FooterButton {
 }
 
 /// Whether a bare letter reaches the footer being shown: focus is inside the focus scope the footer sits in (the
-/// dialog's, whether it is a layer or a full window), on a component that does not own text keys.
-fn letters_reach_footer(ui: &mut Ui) -> bool {
-    let Some(scope) = ui.open_focus_scope() else { return false };
-    ui.focus_in_scope(scope) == Some(true) && ui.focused_stop().is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
+/// dialog's, whether it is a layer or a full window), on a component that does not own text keys. Tracked reads of
+/// the open layers and the window's focus.
+fn letters_reach_footer(core: &CxCore<'_>) -> bool {
+    let Some(scope) = core.open_focus_scope() else { return false };
+    core.focus_in_scope(scope) == Some(true) && core.focused_stop().is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
 }
 
 /// Whether an Enter reaches the default button of the footer being shown: focus is inside the focus scope the footer
@@ -635,6 +679,8 @@ impl FooterBar {
             start: 0,
             arms: Vec::new(),
             armed_for: 0.0,
+            keys: Vec::new(),
+            key_pick: None,
         }
     }
 
@@ -672,7 +718,8 @@ impl FooterBar {
     pub fn buttons(buttons: impl IntoIterator<Item = FooterButton>) -> Self {
         let buttons: Vec<FooterButton> = buttons.into_iter().collect();
         let arms = buttons.iter().filter_map(|button| button.armed_after).collect();
-        FooterBar { content: Content::Buttons(buttons), arms, ..FooterBar::body() }
+        let keys = buttons.iter().map(ButtonKeys::of).collect();
+        FooterBar { content: Content::Buttons(buttons), arms, keys, ..FooterBar::body() }
     }
 
     /// Shows the bar with the actions or buttons it was made with and reports what happened to them.
@@ -715,11 +762,7 @@ impl FooterBar {
             Content::Buttons(buttons) => {
                 let roles: Vec<DialogRole> = buttons.iter().map(|button| button.role).collect();
                 let mut shown = Shown::default();
-                let (ctx, owner) = (ui.ctx().clone(), ui.scope_id());
-                let lettered = letters_reach_footer(ui);
-                // A text part does not own modified chords, so a focused field does not stop a button's chord.
-                let chorded = ui.in_top_modal();
-                let os = ctx.os();
+                let os = ui.ctx().os();
                 // Initial focus lands on the first enabled Accept button on every OS.
                 let armed_for = Env::of(&*ui).get::<ArmedFor>().0;
                 let default_at = buttons.iter().position(|button| button.role == DialogRole::Accept && button.live(armed_for));
@@ -758,22 +801,6 @@ impl FooterBar {
                         if live && clicked {
                             shown.picked = Some(at);
                         }
-                        // The capture, renewed each pass, holds the chord from every other component from the next input
-                        // hook on; `take_claimed` consumes the held press, so a second pass of the frame finds nothing
-                        // left and does not press the button again.
-                        // Windows and Linux dialogs also take Alt with the letter, as their mnemonics do; on macOS Option
-                        // with a letter types a character.
-                        let key = button.letter.and_then(Key::from_char);
-                        let letter = key.map(Chord::plain).filter(|_| lettered);
-                        let alt = key.map(|key| Chord::new(Mods::ALT, key)).filter(|_| chorded && os != Os::Mac);
-                        let modified = button.chord.filter(|_| chorded);
-                        let chords = letter.into_iter().chain(alt).chain(modified);
-                        for chord in chords.filter(|_| live && !ui.is_measuring()) {
-                            keys::capture(&ctx, owner, chord);
-                            if keys::take_claimed(&ctx, owner, chord) {
-                                shown.picked = Some(at);
-                            }
-                        }
                     }
                 };
                 if let Some(leading) = leading.as_mut() {
@@ -790,10 +817,11 @@ impl FooterBar {
                 shown
             }
         });
-        let inner = shown.inner.unwrap_or_default();
+        let mut inner = shown.inner.unwrap_or_default();
+        inner.picked = inner.picked.or(shown.output.key_pick);
         let mods = if inner.picked.is_some() || inner.dropped.is_some() { ui.pointer().pick_mods } else { craft_keymap::Mods::NONE };
         let output = FooterOutput {
-            response: shown.output,
+            response: shown.output.response,
             picked: inner.picked,
             dropped: inner.dropped,
             drop_hint: inner.drop_hint,
@@ -843,7 +871,7 @@ impl Component for FooterBar {
     const PARTS: bool = false;
     const STOPS: bool = false;
     type Style = FooterBarStyle;
-    type Output = Response;
+    type Output = FooterBarOutput;
 
     fn style(cx: &StyleCx<'_>, key: FooterBarStyleKey) -> FooterBarStyle {
         if key.actions {
@@ -858,11 +886,50 @@ impl Component for FooterBar {
     /// window focused, and no pointer button, Enter or Space held before every button armed. The focus and the held
     /// keys and buttons are tracked reads, so a change runs the footer at the moment it happens; while the count runs,
     /// the footer asks for a run when the next button arms.
+    ///
+    /// Then it captures the live dialog buttons' keys window-wide while they reach it, and takes the one pressed: a
+    /// button's letter while letters reach the footer, and Alt with the letter (not on macOS, where Option with a
+    /// letter types a character) and the button's chord while the footer is in the top modal layer. A text part does
+    /// not own modified chords, so a focused field does not stop a button's chord. Both facts are tracked reads, so the
+    /// footer runs again and renews its captures when focus or the layers change.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(longest) = self.arms.iter().copied().reduce(f64::max) else { return };
         if cx.is_measuring() {
             return;
         }
+        self.arm(cx);
+        self.key_pick = self.take_keys(cx);
+    }
+
+    fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
+        values.set(ArmedFor(self.armed_for));
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if cx.style.rule {
+            ui.draw().edge_rule(RuleKind::Divider, cx.rect, RectSide::Top);
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    /// A footer bar the caller did not label is named by the words of the family.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        if cx.resolved.label.is_empty() {
+            access.name(Name::Text(cx.words::<SectionWords>().footer.as_str().to_owned()));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> FooterBarOutput {
+        FooterBarOutput { response: cx.response.clone(), key_pick: self.key_pick }
+    }
+}
+
+impl FooterBar {
+    /// The arming count of [`Component::update`].
+    fn arm(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(longest) = self.arms.iter().copied().reduce(f64::max) else { return };
         let ctx = cx.context().clone();
         let now = ctx.time();
         let focused = ctx.window_focused();
@@ -888,29 +955,29 @@ impl Component for FooterBar {
         }
     }
 
-    fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        values.set(ArmedFor(self.armed_for));
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        if cx.style.rule {
-            ui.draw().edge_rule(RuleKind::Divider, cx.rect, RectSide::Top);
+    /// The dialog button whose letter or chord arrived for this run, after renewing the captures of the live buttons'
+    /// keys ([`Component::update`]).
+    fn take_keys(&self, cx: &mut Cx<'_, Self>) -> Option<usize> {
+        if self.keys.is_empty() {
+            return None;
         }
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    /// A footer bar the caller did not label is named by the words of the family.
-    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if cx.resolved.label.is_empty() {
-            access.name(Name::Text(cx.words::<SectionWords>().footer.as_str().to_owned()));
+        let lettered = letters_reach_footer(cx.core);
+        let chorded = cx.core.in_top_modal();
+        let os = cx.context().os();
+        let mut picked = None;
+        for (at, button) in self.keys.iter().enumerate().filter(|(_, button)| button.live(self.armed_for)) {
+            let key = button.letter.and_then(Key::from_char);
+            let letter = key.map(Chord::plain).filter(|_| lettered);
+            let alt = key.map(|key| Chord::new(Mods::ALT, key)).filter(|_| chorded && os != Os::Mac);
+            let modified = button.chord.filter(|_| chorded);
+            for chord in letter.into_iter().chain(alt).chain(modified) {
+                cx.core.capture_in_window(chord);
+                if cx.take_claimed(chord) {
+                    picked = Some(at);
+                }
+            }
         }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+        picked
     }
 }
 

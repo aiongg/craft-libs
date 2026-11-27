@@ -19,7 +19,8 @@ mod words;
 pub(crate) mod panel;
 
 pub use footer::{
-    DialogButtonLook, DialogRole, DropAction, DropActionOutput, DropActionStyle, FooterAction, FooterBar, FooterButton, FooterDrop, FooterOutput,
+    DialogButtonLook, DialogRole, DropAction, DropActionOutput, DropActionStyle, FooterAction, FooterBar, FooterBarOutput, FooterButton, FooterDrop,
+    FooterOutput,
 };
 #[cfg(spike_full)]
 pub use group_box::{GroupBox, GroupBoxStyle};

@@ -11,7 +11,7 @@ use std::hash::Hash;
 use craft_behavior::IconId;
 use craft_keymap::Mods;
 use craft_theme::LabelColor;
-use craft_ui::contract::{Entry, PlainData, ReorderMove};
+use craft_ui::contract::{Entry, MemoKey, MemoProps, PlainData, ReorderMove};
 use craft_ui::list::{LabelUnderline, ThumbTarget};
 use craft_ui::style::DataColor;
 
@@ -463,6 +463,13 @@ pub enum LayerRowKey<Id> {
     /// A mask thumbnail being dragged: a drag payload only, never a row. The footer's Delete
     /// and the rows of other layers take it.
     Mask(Id, LayerPart),
+}
+
+/// A row key keys the list it is shown in by its hash.
+impl<Id: Hash + Sync> MemoProps for LayerRowKey<Id> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
 }
 
 impl<Id> LayerRowKey<Id> {

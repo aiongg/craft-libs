@@ -21,7 +21,7 @@
 //! 5. An Escape nothing took dismisses the topmost layer child that asks (ui-rt).
 
 use craft_behavior::keys::intent;
-use craft_behavior::{Intent, KeyRole, NavMove, OwnerClass};
+use craft_behavior::{Intent, KeyRole, MoveMods, NavMove, OwnerClass};
 use craft_keymap::Chord;
 use craft_ui_rt::{EventCx, Key, KeyInput, Vec2};
 
@@ -133,6 +133,47 @@ pub(crate) fn scroll_move(cx: &EventCx<'_>, k: &KeyInput) -> Option<NodeInput> {
             }
         }
         _ => None,
+    }
+}
+
+/// The collection node the focused text field with `focus` hands `k` to (`CxCore::drive_list`): Up, Down, Page Up,
+/// Page Down and Enter, and Home, End, Left and Right while the field is empty, all without Cmd, Ctrl or Alt. Typed
+/// text and the other keys stay with the field. The collection decides which it takes ([`take_driven`]).
+pub(crate) fn driven_list(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Option<craft_ui_rt::NodeId> {
+    let (list, empty) = focus.drives?;
+    if !k.down || k.mods.cmd || k.mods.ctrl || k.mods.alt {
+        return None;
+    }
+    let list_key = match k.key {
+        Key::Up | Key::Down | Key::PageUp | Key::PageDown | Key::Enter => true,
+        Key::Home | Key::End | Key::Left | Key::Right => empty,
+        _ => false,
+    };
+    if !list_key {
+        return None;
+    }
+    cx.provided::<super::ids::NodeIds>()?.node_of(list)
+}
+
+/// What a collection with `focus` does with a list key a driving text field handed it: the vertical and page moves,
+/// Home and End, Left and Right when its rows are a tree, and Enter as the activation of its lead when it has one.
+/// Each is taken as the collection's own move, plain.
+pub(crate) fn take_driven(focus: &FocusKept, k: &KeyInput) -> Taken {
+    let Some(list) = focus.list_keys else { return Taken::No };
+    let take = |intent, horizontal| Taken::Queue(NodeInput::Intent { intent, horizontal, shift: false });
+    let moved = |mv| take(Intent::Move(mv, MoveMods::PLAIN), false);
+    match k.key {
+        Key::Up => moved(NavMove::Up),
+        Key::Down => moved(NavMove::Down),
+        Key::PageUp => moved(NavMove::PageUp),
+        Key::PageDown => moved(NavMove::PageDown),
+        Key::Home => moved(NavMove::Start),
+        Key::End => moved(NavMove::End),
+        // Horizontal: the collection reads them in its direction.
+        Key::Left if list.tree => take(Intent::Move(NavMove::Back, MoveMods::PLAIN), true),
+        Key::Right if list.tree => take(Intent::Move(NavMove::Forward, MoveMods::PLAIN), true),
+        Key::Enter if list.lead => take(Intent::Activate, false),
+        _ => Taken::No,
     }
 }
 

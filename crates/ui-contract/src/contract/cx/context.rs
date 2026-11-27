@@ -257,6 +257,9 @@ pub(crate) struct RunIo<'a> {
     pub(crate) context: Context,
     /// The run asked for the next Escape (`hold_escape`); kept as `FocusKept::holds_escape`.
     pub(crate) holds_escape: Cell<bool>,
+    /// The collection the run's text field drives and whether the field is empty (`drive_list`); kept as
+    /// `FocusKept::drives`.
+    pub(crate) drives: Cell<Option<(Id, bool)>>,
     /// The opacity target and its tween (`fade_to`); aimed by the driver after the run.
     pub(crate) level: Cell<Option<(f32, MotionSpec)>>,
     /// The editor's caret rect in window coordinates (`ime_cursor`); kept as `ImeKept::caret`.
@@ -429,6 +432,7 @@ impl<'a> RunIo<'a> {
             measuring: false,
             context,
             holds_escape: Cell::new(false),
+            drives: Cell::new(None),
             level: Cell::new(None),
             ime_cursor: Cell::new(None),
             focus_requests: RefCell::new(Vec::new()),
@@ -501,6 +505,37 @@ impl CxCore<'_> {
         self.read_build(|cx| crate::contract::rt::ids::hovers(cx, id)).unwrap_or(false)
     }
 
+    /// Whether focus is inside the node `scope` names (`Ui::focus_in_scope`); `None` when no live node answers to it.
+    /// Tracked.
+    pub fn focus_in_scope(&self, scope: Id) -> Option<bool> {
+        self.read_build(|cx| crate::contract::rt::ids::focus_in_scope(cx, scope)).flatten()
+    }
+
+    /// The window's focused stop (`Ui::focused_stop`); tracked through the window's focus.
+    pub fn focused_stop(&self) -> Option<focus::StopRec> {
+        self.read_build(crate::contract::rt::reads::focused_stop).flatten()
+    }
+
+    /// The focus scope of the top layer that takes keys (`Ui::open_focus_scope`); tracked through the open layers.
+    pub fn open_focus_scope(&self) -> Option<Id> {
+        self.read_build(crate::contract::rt::reads::open_focus_scope).flatten()
+    }
+
+    /// Whether the node runs inside the top modal layer (`Ui::in_top_modal`); tracked through the open layers.
+    pub fn in_top_modal(&self) -> bool {
+        self.read_build(crate::contract::rt::reads::in_top_modal).unwrap_or(false)
+    }
+
+    /// Whether the layer `id` is the window's top modal layer (`Ui::is_top_modal`); tracked through the open layers.
+    pub fn is_top_modal(&self, id: Id) -> bool {
+        self.read_build(|cx| crate::contract::rt::reads::is_top_modal(cx, id)).unwrap_or(false)
+    }
+
+    /// The dialog of the dialog host the node runs in (`Ui::running_dialog`), if it runs in one.
+    pub fn running_dialog(&self) -> Option<Id> {
+        self.read_build(|cx| crate::contract::rt::overlay::running_dialog(cx)).flatten()
+    }
+
     /// The menu layer the node runs in, if it runs in one (`Ui::running_menu`).
     pub fn running_menu(&self) -> Option<Id> {
         self.read_build(|cx| crate::contract::rt::reads::running_menu(cx)).flatten()
@@ -552,6 +587,14 @@ impl CxCore<'_> {
     /// next run instead of the scopes around it. A run that does not ask leaves Escape to them.
     pub fn hold_escape(&self) {
         self.run.holds_escape.set(true);
+    }
+
+    /// The node, a text field, drives the collection `list` (its `Props::id`): while the field has focus, Up, Down,
+    /// Page Up, Page Down and Enter go to the collection as its own moves and activation, and so do Home and End
+    /// while the field is `empty`, and Left and Right while it is empty and the collection is a tree. A run that does
+    /// not call this drives nothing.
+    pub fn drive_list(&self, list: Id, empty: bool) {
+        self.run.drives.set(Some((list, empty)));
     }
 
     /// Why the window was asked to close since the last run, when this component is its close guard

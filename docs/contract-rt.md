@@ -197,6 +197,7 @@ No frozen trait changes. Additions:
 | `LayerSpec::{escape, focus_left, app_modal}`, `DismissReason::{Escape, FocusLeft}`: an unhandled Escape dismisses the topmost layer child that asks, focus leaving one dismisses it, an app-modal child blocks the other windows' input (`Runtime::blocked_by`); `LayerSpec::place` and `constraints` public so a build places its layer child as the runtime will | `layer.rs`, `input.rs` | ~110 |
 | `BuildCx::{provide, provided}`, `PaintCx::provided` (values a node gives itself and what it owns: env cells, the job board), `BuildCx::slot` (a cell created by key, owned by the node), `BuildCx::derived`, `Derived::state`, `Runtime::store_and_images_mut` (a host delivers job results into cells and images together) | `build.rs`, `paint.rs`, `tree.rs`, `state.rs`, `runtime.rs` | ~90 |
 | focus and keys for the craft focus service: `Runtime::{window_node, children, parent, local}` and `EventCx::runtime`/`BuildCx::runtime` (read-only walks over the nodes' `Local`s); `PaintCx::interaction_fact` (a paint read of one fact: the focus ring reads `FocusVisible` alone); a key nothing on a layer child's path took goes to the app root and its content's top nodes last; `BuildCx::focus_into` (focus enters a node's content after the build pass), `BuildCx::set_focus_return` (where focus goes when the node goes with focus inside), `BuildCx::focus_node` | `runtime.rs`, `event.rs`, `build.rs`, `input.rs`, `window.rs` | ~110 |
+| `EventCx::forward_to(node)` and `forwarded_from()` (a handler hands the event on to another node after it returns, as to that node's target: a text field's list keys to the collection it drives) | `event.rs`, `input.rs` | ~25 |
 | `EventCx::provided` (a key stage finds what its window root provides: the command board); with nothing focused, a key goes to an inline root's content (the window root scope: its Tab, F6 and commands) instead of the inline root | `event.rs`, `input.rs` | ~10 |
 
 ## 10. Services
@@ -767,17 +768,18 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `primitives::member_gesture_running` | 1 | `PartsCx::gesture_running` | |
 | `cursor::request`, `request_within` | 3 | `Component::cursor`, `PartBuilder::cursor`; code without a component: Ui `set_cursor(Cursor)` | `Kept.cursor` |
 | `focus::request(ctx, FocusTarget) -> bool` | 22 | Ui, Cx `request_focus(target: FocusTarget) -> bool` | `rt/focus.rs` |
-| `focus::focus_in_scope(ctx, scope) -> Option<bool>` | 2 | Ui `focus_in_scope(scope: Id) -> Option<bool>` | tracked `FocusWithin` |
-| `focus::focused_rec(ctx)` | 3 | Ui `focused_stop() -> Option<StopRec>` | `FocusKept` |
+| `focus::focus_in_scope(ctx, scope) -> Option<bool>` | 2 | Ui, Cx `focus_in_scope(scope: Id) -> Option<bool>` | tracked `FocusWithin` |
+| `focus::focused_rec(ctx)` | 3 | Ui, Cx `focused_stop() -> Option<StopRec>` (tracked through the focused-node cell) | `FocusKept` |
 | `focus::is_focused(ctx, id)` | 2 | Ui `is_focused(id) -> bool` | tracked `Focused` |
-| `focus::open_scope(ctx)` | 2 | Ui `open_focus_scope() -> Option<Id>` | |
+| `focus::open_scope(ctx)` | 2 | Ui, Cx `open_focus_scope() -> Option<Id>` (tracked through the open-layer cell) | |
+| `focus::registration::drive(ctx, field, list, empty)` | 1 | Cx `drive_list(list: Id, empty: bool)`: while the field has focus its list keys go to the collection `list` (Up, Down, Page Up, Page Down, Enter; Home, End, Left and Right while empty), which takes them as its own moves: Left and Right only as a tree, Enter only with a lead row, and a key it declines goes on up the field's path | `FocusKept::{drives, list_keys}`, ui-rt `EventCx::forward_to` |
 | `focus::return_from_pick(ctx, picked)` | 2 | Ui, Cx `return_from_pick(picked: PickedIn)` (Cx: recorded, applied after the run before its focus requests) | `set_focus_return` |
 | `focus::running_menu(ctx)` | 2 | Ui, Cx `running_menu() -> Option<Id>` | |
 | `focus::focus_came_with_open(ctx)` | 1 | Cx `focus_came_with_open() -> bool` (tracked through the focused-node cell) | ui-rt `FocusCause::Entered`, `FocusKept::entered` |
 | `focus::keyboard_in_menu(ctx)` | 3 | Cx `keyboard_in_menu() -> bool` (tracked: focused node, its `FocusVisible`) | |
 | `overlay::pressed_outside(ctx, id)` | 1 | Cx `pressed_outside() -> bool` (a press outside one of the component's `Outside::Keep` popups since its last run) | ui-rt `OutsidePress::Report`, `Event::PressedOutside` |
 | `drag::payload::<P>(ctx)` in `parts` | 1 | `PartsCx::dragging::<P>() -> Option<(Arc<P>, Pos2)>`, as `Pointer::dragging` | `RunIo::drag_over` |
-| `keys::capture`, `claim`, `claim_alt_tap` | 6 | `KeyUse::claims` on the component (kept) | `rt/keys.rs` |
+| `keys::capture`, `claim`, `claim_alt_tap` | 6 | `KeyUse::claims` on the component (kept); window-wide while facts the run reads hold: Cx `capture_in_window(chord: Chord)` (a dialog footer's button keys) | `rt/keys.rs` |
 | `keys::take_claimed(ctx, id, chord)`, `take_alt_tap` | 8 | `NodeInput::Chord` through Cx `intents()` | |
 | `keys::held(ctx)`, `keyed(ctx)` | 5 | `Context::held_keys() -> Vec<Key>`, `Context::keyed() -> bool` (tracked) | |
 | `keys::intents_of(ctx, id, rtl)`, `settle` | 4 | Cx `intents()` | B6b queue |
@@ -799,7 +801,7 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `overlay::raise(ctx, id)` | 2 | Ui `raise_layer(id)` | rt layers |
 | `overlay::opening(ctx, id)`, `is_open`, `entry` | 4 | Ui `layer_opening(id)`, `layer_open(id)`, `layer_entry(id) -> Option<OpenEntry>` (tracked) | |
 | `overlay::any_open(ctx, filter)` | 2 | Ui `any_layer_open(filter: OpenFilter) -> bool` (tracked) | |
-| `overlay::top`, `drawing_parent`, `drawing_top_modal`, `is_top_modal`, `running_dialog` | 6 | Ui `top_layer()`, `layer_parent()`, `in_top_modal()`, `is_top_modal(id)`, `running_dialog()` | |
+| `overlay::top`, `drawing_parent`, `drawing_top_modal`, `is_top_modal`, `running_dialog` | 6 | Ui `top_layer()`, `layer_parent()`, `in_top_modal()`, `is_top_modal(id)`, `running_dialog()`; Cx `in_top_modal()`, `is_top_modal(id)`, `running_dialog()` (one function each with Ui's, `rt/reads.rs`) | |
 | `overlay::request_close(ctx, id, why)` | 1 | Ui, Cx `close_layer(id, why: CloseReason)` (Cx: recorded, applied after the run) | |
 | `overlay::end_stack_dialog`, `stack_place`, `take_keys_for_new_dialog` | 7 | Ui `end_stack_dialog(id)`, `stack_place(place, id, show)`; `take_keys_for_new_dialog` deleted (layer scopes take keys) | |
 | `contract::overlay::opened_from(ctx, opener)` | 1 | Ui `opened_from(opener: Id) -> bool` | |

@@ -685,6 +685,8 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
+    kept.focus.drives = cxx.core.run.drives.get();
+    kept.focus.list_keys = hooks.list_keys();
     build.borrow_mut().keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
     build.borrow_mut().take_released_focus(kept.focus.takes_released_focus());
 

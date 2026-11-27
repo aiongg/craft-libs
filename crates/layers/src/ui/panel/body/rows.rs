@@ -2,7 +2,8 @@
 
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Selection};
 use craft_keymap::Mods;
-use craft_ui::contract::{BodyCx, MemoKey, MemoProps, OpenChange, Revision, SweepApply, Tracked};
+use craft_ui::Ui;
+use craft_ui::contract::{MemoKey, MemoProps, OpenChange, Revision, SweepApply, Tracked};
 use craft_ui::list::{ThumbTarget, tree_steps};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -70,12 +71,12 @@ pub(in crate::ui::panel) struct LayerRows<'t, T: LayerTree> {
 }
 
 impl<'t, T: LayerTree> LayerRows<'t, T> {
-    /// The rows for `filter` and `opened`, derived by the body `cx` from the tracked `tree`.
-    pub(in crate::ui::panel) fn new(cx: &BodyCx<'_>, tree: &'t Tracked<T>, filter: &LayerFilter, opened: &[T::Id]) -> Self {
+    /// The rows for `filter` and `opened`, derived in the body `ui` builds from the tracked `tree`.
+    pub(in crate::ui::panel) fn new(ui: &mut Ui, tree: &'t Tracked<T>, filter: &LayerFilter, opened: &[T::Id]) -> Self {
         let key = RowsKey { tree: tree.revision(), filter, opened };
         // The low half of the key's hash tells the list when the order changed.
         let revision = MemoKey::of(&key) as u64;
-        let model = cx.derived(&key, || RowsModel::walk(&**tree, filter, opened, revision));
+        let model = ui.derived(&key, || RowsModel::walk(&**tree, filter, opened, revision));
         LayerRows { tree: &**tree, model }
     }
 

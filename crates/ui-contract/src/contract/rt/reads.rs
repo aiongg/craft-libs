@@ -8,6 +8,7 @@ use super::layers::LayerChildOf;
 use crate::contract::context::Context;
 use crate::primitives::Id;
 use crate::runtime::focus::PickedIn;
+use crate::runtime::overlay::{OpenEntry, OpenFilter};
 use crate::runtime::pointer::PointerFrame;
 
 /// The window's pointer as a tool reads it: its position, the buttons held, the modifiers and the frame time, with the
@@ -21,6 +22,44 @@ pub(crate) fn pointer(cx: &mut BuildCx<'_>, ctx: &Context, slop: f32, target: f3
         .filter(|button| facts.held(*button))
         .fold(Buttons::empty(), |held, button| held | Buttons::of(button));
     PointerFrame::held(facts.pos, buttons, ctx.modifiers(), cx.now(), slop, target)
+}
+
+/// The focused stop of the window `cx` builds in, from the focused node's kept facts. Tracked through the window's
+/// focused-node cell: the reader runs again when focus moves, and at no other input.
+pub(crate) fn focused_stop(cx: &mut BuildCx<'_>) -> Option<crate::runtime::focus::StopRec> {
+    let node = cx.env().focused.get(cx)?;
+    let rt = cx.runtime();
+    let kept = rt
+        .local::<super::node::ComponentNode>(node)
+        .or_else(|| rt.local::<super::node::ScopeNode>(node))
+        .or_else(|| rt.local::<super::overlay::LayerScope>(node).map(|lk| &lk.kept))?;
+    let keys = kept.focus.stop?;
+    Some(crate::runtime::focus::StopRec::of_kept(kept.id, keys, kept.focus.press_only))
+}
+
+/// The top open layer of the window `cx` builds in that takes keys, if any. Tracked through the open-layer cell.
+pub(crate) fn top_layer(cx: &mut BuildCx<'_>) -> Option<OpenEntry> {
+    super::layers::track(cx);
+    let open = super::layers::open(cx.runtime(), cx.window());
+    open.into_iter().rev().find(|open| super::layers::counts(&open.entry, OpenFilter::Keys)).map(|open| open.entry)
+}
+
+/// The id of the focus scope of the top layer that takes keys, if one is open: the scope a newly opened layer nests
+/// in. Tracked through the open-layer cell.
+pub(crate) fn open_focus_scope(cx: &mut BuildCx<'_>) -> Option<Id> {
+    top_layer(cx).filter(|entry| entry.scoped).map(|entry| entry.id)
+}
+
+/// Whether the node `cx` builds lies in the top modal layer. Tracked through the open-layer cell.
+pub(crate) fn in_top_modal(cx: &mut BuildCx<'_>) -> bool {
+    super::layers::track(cx);
+    super::layers::in_top_modal(cx.runtime(), cx.node())
+}
+
+/// Whether the layer `id` is the top modal layer of the window `cx` builds in. Tracked through the open-layer cell.
+pub(crate) fn is_top_modal(cx: &mut BuildCx<'_>, id: Id) -> bool {
+    super::layers::track(cx);
+    super::layers::top_modal(cx.runtime(), cx.window()).is_some_and(|top| top.entry.id == id)
 }
 
 /// The menu layer the node `cx` builds sits in, if it sits in one.

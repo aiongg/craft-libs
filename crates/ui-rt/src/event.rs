@@ -234,6 +234,10 @@ pub struct EventCx<'a> {
     pub(crate) rt: &'a mut Runtime,
     pub(crate) node: NodeId,
     pub(crate) target: NodeId,
+    /// The node that handed this event on ([`EventCx::forward_to`]); `None` for an event the input stage routed.
+    pub(crate) from: Option<NodeId>,
+    /// The node this handler hands the event on to.
+    pub(crate) forward: Option<NodeId>,
 }
 
 impl Reads for EventCx<'_> {
@@ -257,6 +261,20 @@ impl EventCx<'_> {
     /// The node the event reached first; differs from [`EventCx::node`] while it bubbles.
     pub fn target(&self) -> NodeId {
         self.target
+    }
+
+    /// Hands this event on to `node` once the handler returns: the input stage delivers it there as to its target,
+    /// without bubbling, and that delivery's [`EventCx::forwarded_from`] names this node. The event counts as
+    /// handled when `node` handles it; otherwise the handler's own result stands, so a handler that returns
+    /// [`Handled::No`] lets an event `node` declines go on up its path. A text field hands its list keys to the
+    /// collection it drives this way.
+    pub fn forward_to(&mut self, node: NodeId) {
+        self.forward = Some(node);
+    }
+
+    /// The node that handed this event on with [`EventCx::forward_to`].
+    pub fn forwarded_from(&self) -> Option<NodeId> {
+        self.from
     }
 
     pub fn env(&self) -> Env {

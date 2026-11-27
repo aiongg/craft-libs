@@ -519,7 +519,7 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
             .show(ui, |ui, stack| {
                 let filter = current.borrow().clone();
                 let plan = reveal_plan(tree, reveal.clone());
-                let rows = LayerRows::new(stack, tracked, &filter, &plan.opened());
+                let rows = LayerRows::new(ui, tracked, &filter, &plan.opened());
                 let session = stack.memory::<Session<T::Id>>();
                 if let Some(layer) = rename.clone() {
                     start_rename(ui, list, layer);

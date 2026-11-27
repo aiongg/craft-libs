@@ -1019,12 +1019,31 @@ impl ComponentNode {
     /// A key on this node's path: taken when the node is focused and its kept `KeyUse` says so,
     /// then by its roving group or its trapping scope.
     fn key(&self, kept: &mut Kept, cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
+        // A list key the text field that drives this collection handed on.
+        if cx.forwarded_from().is_some() {
+            return match super::keys::take_driven(&kept.focus, k) {
+                Taken::Queue(input) => {
+                    kept.queue.push(input);
+                    cx.request_build();
+                    Handled::Yes
+                }
+                _ => Handled::No,
+            };
+        }
         // A chord the node captures (ui-rt routes it here ahead of the focused node).
         let captured = kept.captures.take(k);
         if cx.target() == cx.node() || !matches!(captured, Taken::No) {
             // While the input method composes, its keys are the composition's.
             if kept.ime.composing() {
                 return Handled::Yes;
+            }
+            // A text field hands its list keys to the collection it drives; one the collection declines goes on up
+            // the field's path (an Enter with no lead row reaches the dialog's default button).
+            if matches!(captured, Taken::No)
+                && let Some(list) = super::keys::driven_list(&kept.focus, cx, k)
+            {
+                cx.forward_to(list);
+                return Handled::No;
             }
             let taken = match captured {
                 Taken::No => super::keys::take(&kept.focus, cx, k),

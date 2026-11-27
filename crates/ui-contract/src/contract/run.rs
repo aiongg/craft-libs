@@ -48,6 +48,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         None
     }
 
+    /// What a text field that drives this node reads of it at key time; `None` for a node that is no collection.
+    fn list_keys(&self) -> Option<crate::contract::rt::focus::ListKeys> {
+        None
+    }
+
     /// Step 4: the shape's part of the value step (selection snapshot, scroll offset).
     fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id, _env: &Env) {}
 

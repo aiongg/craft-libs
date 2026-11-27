@@ -405,3 +405,59 @@ mod glide {
         assert_eq!(app.visible, at, "after Escape the rows stay where the latch left them");
     }
 }
+
+/// A field that drives the list hands it Up and Down as its moves while typed text stays with the field; with text in
+/// the field, End is the caret's and a flat list takes no Left or Right.
+#[test]
+fn a_field_drives_the_list_s_lead_and_keeps_its_text() {
+    use craft_ui::contract::{Bind, Props as _};
+    use craft_ui::primitives::Id;
+    use craft_ui_rt::{Key, Mods};
+    use std::cell::RefCell;
+
+    let list_id = Id::new("driven list");
+    let text = RefCell::new(String::new());
+    let mut app = app(40);
+    let mut view = |rig: &mut Rig<RecordingRenderer>, app: &mut App| {
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                let mut value = text.borrow().clone();
+                crate::text_field::TextField::new(Bind::bound(&mut value)).drives(list_id).show(ui);
+                *text.borrow_mut() = value;
+                let list = List {
+                    common: Common::new(),
+                    props: ContainerProps::new().sizing(Sizing::Fill),
+                    items: CollectionProps::new().select(SelectMode::Single),
+                    selection: Some(Bind::bound(&mut app.selection)),
+                }
+                .id(list_id);
+                list.show_items(ui, &Count(app.rows), &mut |_, _| Row { common: Common::new() });
+            })
+        })
+    };
+    let mut rig = Rig::inline(VIEW, 1.0, RecordingRenderer::default());
+    for _ in 0..4 {
+        view(&mut rig, &mut app);
+    }
+    let main = rig.main;
+    let mut press = |rig: &mut Rig<RecordingRenderer>, app: &mut App, key: Option<Key>| {
+        match key {
+            Some(key) => rig.driver.platform.key_press(main, key, Mods::NONE),
+            None => rig.driver.platform.text(main, "a"),
+        }
+        view(rig, app);
+        view(rig, app);
+    };
+    press(&mut rig, &mut app, Some(Key::Tab));
+    press(&mut rig, &mut app, Some(Key::Down));
+    assert_eq!(app.selection.lead, Some(0), "Down in the field moves the list's lead onto its first row");
+    press(&mut rig, &mut app, Some(Key::Down));
+    assert_eq!(app.selection.lead, Some(1), "a second Down moves it on");
+    press(&mut rig, &mut app, None);
+    assert_eq!(*text.borrow(), "a", "typed text stays with the field, which kept key focus");
+    press(&mut rig, &mut app, Some(Key::End));
+    press(&mut rig, &mut app, Some(Key::Right));
+    assert_eq!(app.selection.lead, Some(1), "with text in the field, End is the caret's; a flat list takes no Right");
+    press(&mut rig, &mut app, Some(Key::Up));
+    assert_eq!(app.selection.lead, Some(0), "Up moves the lead back");
+}

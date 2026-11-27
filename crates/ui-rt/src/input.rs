@@ -1454,14 +1454,25 @@ impl Runtime {
     }
 
     pub(crate) fn deliver(&mut self, node: NodeId, target: NodeId, ev: &Event) -> Handled {
+        self.deliver_from(node, target, ev, None)
+    }
+
+    /// Delivers `ev` to `node`, handed on by `from` ([`EventCx::forward_to`]), then to the node its handler hands
+    /// it on to.
+    fn deliver_from(&mut self, node: NodeId, target: NodeId, ev: &Event, from: Option<NodeId>) -> Handled {
         let Some(mut el) = self.tree.nodes.get_mut(&node).and_then(|n| n.element.take()) else {
             return Handled::No;
         };
-        let handled = el.event(&mut EventCx { rt: &mut *self, node, target }, ev);
+        let mut cx = EventCx { rt: &mut *self, node, target, from, forward: None };
+        let handled = el.event(&mut cx, ev);
+        let forward = cx.forward;
         if let Some(n) = self.tree.nodes.get_mut(&node) {
             n.element = Some(el);
         }
-        handled
+        match forward {
+            Some(to) if to != node && self.deliver_from(to, to, ev, Some(node)) == Handled::Yes => Handled::Yes,
+            _ => handled,
+        }
     }
 
     fn flush_queue(&mut self, window: WindowId) {

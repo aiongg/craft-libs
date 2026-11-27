@@ -85,8 +85,9 @@ pub trait Focus {
 
 impl CxCore<'_> {
     /// Captures `chord` anywhere in the window, whatever has focus, until a run that does not capture it: a mode the
-    /// component holds (a middle-button auto-scroll latch, which Escape ends). It arrives as a claimed chord.
-    pub(crate) fn capture_in_window(&mut self, chord: Chord) {
+    /// component holds (a middle-button auto-scroll latch, which Escape ends), or keys it takes while facts it reads
+    /// hold (a dialog footer's button letters while focus is in its dialog). It arrives as a claimed chord.
+    pub fn capture_in_window(&mut self, chord: Chord) {
         self.capture(chord);
         self.captures.window = !self.is_measuring();
     }
