@@ -737,3 +737,58 @@ mod members {
         assert!(updates <= 2 * ROWS, "the click runs the collection at most once more than the release itself: {hooks:?}");
     }
 }
+
+/// Focus asked for by `Id` on a node that is no Tab stop (a collection row holding stops) lands on its first stop.
+mod focus_into {
+    use craft_behavior::IconId;
+    use craft_ui_contract::contract::{Id, Props as _, Show as _};
+    use craft_ui_contract::runtime::focus::FocusTarget;
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_rt::Vec2;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_test_kit::rt::Rig;
+
+    use crate::skeleton::{IconButton, Stack};
+
+    #[derive(Default)]
+    struct App {
+        ask: bool,
+        asked: bool,
+        first: bool,
+        second: bool,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                let _ = IconButton::new(IconId::new("minus"), "Outside").show(ui);
+                let row = Id::new("focus-into-row");
+                Stack::new().id(row).show(ui, |ui| {
+                    app.first = IconButton::new(IconId::new("plus"), "First").show(ui).has_focus();
+                    app.second = IconButton::new(IconId::new("cross"), "Second").show(ui).has_focus();
+                });
+                if std::mem::take(&mut app.ask) {
+                    app.asked = ui.request_focus(FocusTarget::Id(row));
+                }
+            })
+        });
+    }
+
+    #[test]
+    fn id_focus_on_a_row_that_is_no_stop_lands_on_its_first_stop() {
+        let mut app = App::default();
+        let mut rig = Rig::inline(Vec2::new(300.0, 200.0), 1.0, RecordingRenderer::default());
+        for _ in 0..3 {
+            step(&mut rig, &mut app);
+        }
+        assert!(!app.first && !app.second);
+        app.ask = true;
+        step(&mut rig, &mut app);
+        assert!(app.asked, "the row's node answers to its id");
+        for _ in 0..3 {
+            step(&mut rig, &mut app);
+        }
+        assert!(app.first, "focus lands on the row's first stop");
+        assert!(!app.second);
+    }
+}

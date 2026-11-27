@@ -1081,7 +1081,8 @@ impl Runtime {
         chain(&self.tree, node).into_iter().find(|id| self.is_focusable(*id))
     }
 
-    fn is_focusable(&self, id: NodeId) -> bool {
+    /// Whether `id` is a Tab stop (its element is focusable).
+    pub fn is_focusable(&self, id: NodeId) -> bool {
         self.tree.nodes.get(&id).and_then(|n| n.element.as_ref()).is_some_and(|e| e.focusable())
     }
 
@@ -1408,10 +1409,22 @@ impl crate::build::BuildCx<'_> {
     /// in tree order, or its first text input when `text_first` and there is one (a dialog that
     /// focuses its first field when it opens).
     pub fn focus_into(&mut self, text_first: bool) {
-        let (node, window) = (self.node(), self.window());
+        let node = self.node();
+        self.focus_into_node(node, text_first);
+    }
+
+    /// [`Self::focus_into`] for `node`: once the build pass has made it, focus moves to `node` when it is a Tab stop,
+    /// else to its first Tab stop in tree order (a collection row that holds stops but is none).
+    pub fn focus_into_node(&mut self, node: NodeId, text_first: bool) {
+        let window = self.window();
         if let Some(w) = self.runtime_mut().windows.get_mut(&window) {
             w.focus_entries.push((node, text_first));
         }
+    }
+
+    /// Whether `node` is a Tab stop (its element is focusable).
+    pub fn is_focusable(&self, node: NodeId) -> bool {
+        self.runtime().is_focusable(node)
     }
 
     /// Gives up key focus once this frame's build pass ends, if this node still holds it then (a

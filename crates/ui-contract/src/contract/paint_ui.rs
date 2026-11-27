@@ -185,7 +185,12 @@ impl PaintUi<'_> {
     /// owner's name names the control.
     pub fn inner<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output {
         let (id, owner) = (self.id.with(key), self.id);
-        host_ui(self.host, |ui| access::fold::request(ui.ctx(), id, owner));
+        // Only the access report reads the fold, and turning the access tree on runs every node again.
+        host_ui(self.host, |ui| {
+            if ui.build_cx().access_enabled() {
+                access::fold::request(ui.ctx(), id, owner);
+            }
+        });
         self.child_with(id, rect, child, None)
     }
 
