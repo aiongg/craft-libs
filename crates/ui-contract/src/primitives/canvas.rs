@@ -153,7 +153,7 @@ impl FrameServices<'_> {
 }
 
 /// No engine and no store: layouts come out empty.
-struct NoServices;
+pub(crate) struct NoServices;
 
 impl Services for NoServices {
     fn scale(&self) -> f32 {
