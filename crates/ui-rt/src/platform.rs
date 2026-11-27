@@ -6,6 +6,7 @@
 
 use std::any::Any;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use craft_behavior::{CursorIcon, PointerButton, PointerKind};
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
-use crate::display::ImageKey;
+use crate::display::{ImageKey, RgbaImage};
 use crate::geom::{Margin, SizeU};
 use crate::id::WindowId;
 
@@ -45,6 +46,14 @@ pub trait SurfaceHost {
 pub trait Clipboard {
     fn set_text(&mut self, text: &str);
     fn request_text(&mut self, window: WindowId);
+    /// Puts an image on the clipboard. Platforms without image support ignore it.
+    fn set_image(&mut self, image: &RgbaImage) {
+        let _ = image;
+    }
+    /// Asks for the clipboard's image; it arrives as [`WindowEvent::PasteImage`] when there is one.
+    fn request_image(&mut self, window: WindowId) {
+        let _ = window;
+    }
 }
 
 /// Wakes the event loop from any thread: a background job or engine thread calls [`Waker::wake`]
@@ -119,6 +128,13 @@ pub struct PointerEvent {
     pub mods: Mods,
 }
 
+/// The operating system's light or dark setting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SystemTheme {
+    Light,
+    Dark,
+}
+
 /// An event of one window.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
@@ -142,6 +158,22 @@ pub enum WindowEvent {
     },
     ImeCommit(String),
     Paste(String),
+    PasteImage(Arc<RgbaImage>),
+    /// An OS file drag is over the window.
+    FileHovered(PathBuf),
+    /// The drag ended without a drop.
+    FileHoverCancelled,
+    /// A file was dropped on the window.
+    FileDropped(PathBuf),
+    /// A pinch gesture step: relative scale change (positive zooms in) at `pos`.
+    Pinch {
+        pos: Pos2,
+        delta: f32,
+    },
+    /// The window's outer top left moved, in logical points on the virtual desktop.
+    Moved(Pos2),
+    /// The system theme changed, or was read when the window opened.
+    Theme(SystemTheme),
     Access(accesskit::ActionRequest),
     /// An assistive technology asked for the window's tree (accesskit's initial tree request).
     /// The next frame sends the whole tree; updates before it are not sent. Sent again on a later
