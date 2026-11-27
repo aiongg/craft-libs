@@ -444,7 +444,7 @@ impl<'a> Draw<'a> {
         if layout.ink() == Rect::NOTHING {
             return;
         }
-        self.canvas.text(layout.rt(), pos);
+        self.canvas.text_turned(layout.rt(), pos, layout.rotation);
     }
 
     /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is

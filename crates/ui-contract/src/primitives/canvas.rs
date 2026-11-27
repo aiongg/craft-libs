@@ -325,8 +325,8 @@ impl<'a> Canvas<'a> {
         }
         match item {
             // A text keeps its layout's colours: the fade composites it.
-            Item::Text { origin, size, color: None, .. } => {
-                self.push(Item::PushOpacity { opacity, bounds: Rect::from_min_size(origin, size) });
+            Item::Text { color: None, .. } => {
+                self.push(Item::PushOpacity { opacity, bounds: item.ink().unwrap_or(Rect::NOTHING) });
                 self.push(item);
                 self.push(Item::PopOpacity);
             }
