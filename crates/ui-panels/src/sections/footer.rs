@@ -10,11 +10,8 @@ use crate::layout_components::Row;
 use crate::primitives::{IconSpec, RectSide};
 use crate::runtime::access::Name;
 use crate::runtime::env::{Env, EnvValue, Label};
-use crate::runtime::focus;
-use crate::runtime::frame;
 use crate::runtime::keys;
 use crate::runtime::memory::Remember as _;
-use crate::runtime::windows::WindowHost;
 use crate::style::{ComponentStyle, GlyphRole, RuleKind, StyleCx};
 use craft_behavior::{Insets, Metrics, OwnerClass, Sense};
 use craft_host::target::Os;
@@ -24,7 +21,7 @@ use craft_theme::{
     variant::{Emphasis, Tone},
 };
 use craft_ui::geom::{Pos2, Rect};
-use craft_ui::{Context, Id, Response, Ui};
+use craft_ui::{Id, Response, Ui};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -329,7 +326,7 @@ impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
         self.over = live && cx.dragging::<P>().is_some_and(|(payload, at)| cx.rect.contains(at) && (self.accepts)(&payload));
         let target = OnSlot { rect: cx.rect, live, accepts: &*self.accepts };
         self.dropped = cx.drop_target(&target);
-        self.mods = if self.dropped.is_some() { crate::runtime::pointer::frame(cx.context()).pick_mods } else { craft_keymap::Mods::NONE };
+        self.mods = if self.dropped.is_some() { cx.core.pointer().pick_mods } else { craft_keymap::Mods::NONE };
     }
 
     fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
@@ -562,18 +559,18 @@ impl FooterButton {
 
 /// Whether a bare letter reaches the footer being shown: focus is inside the focus scope the footer sits in (the
 /// dialog's, whether it is a layer or a full window), on a component that does not own text keys.
-fn letters_reach_footer(ctx: &Context) -> bool {
-    let Some(scope) = focus::open_scope(ctx) else { return false };
-    focus::focus_in_scope(ctx, scope) == Some(true) && focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
+fn letters_reach_footer(ui: &mut Ui) -> bool {
+    let Some(scope) = ui.open_focus_scope() else { return false };
+    ui.focus_in_scope(scope) == Some(true) && ui.focused_stop().is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
 }
 
 /// Whether an Enter reaches the default button of the footer being shown: focus is inside the focus scope the footer
 /// sits in (the dialog's, whether it is a layer or a full window), or nothing is focused and that dialog is the top
 /// modal.
-fn enter_reaches_footer(ctx: &Context) -> bool {
-    focus::open_scope(ctx).is_some_and(|scope| match focus::focus_in_scope(ctx, scope) {
+fn enter_reaches_footer(ui: &mut Ui) -> bool {
+    ui.open_focus_scope().is_some_and(|scope| match ui.focus_in_scope(scope) {
         Some(inside) => inside,
-        None => crate::runtime::overlay::is_top_modal(ctx, scope),
+        None => ui.is_top_modal(scope),
     })
 }
 
@@ -588,12 +585,13 @@ impl EnvValue for ArmedFor {
     }
 }
 
-/// What a footer with armed buttons keeps between frames: the seconds it has been shown, the frame it last was, and
-/// the host's dialog it was shown for.
+/// What a footer with armed buttons keeps while it is shown: the seconds it has been shown, the frame time of its last
+/// run, whether the time since then counts, and the host's dialog it was shown for.
 #[derive(Clone, Copy, Default)]
 struct Arming {
     shown: f64,
-    frame: Option<u64>,
+    last: Option<f64>,
+    counting: bool,
     dialog: Option<Id>,
 }
 
@@ -718,9 +716,9 @@ impl FooterBar {
                 let roles: Vec<DialogRole> = buttons.iter().map(|button| button.role).collect();
                 let mut shown = Shown::default();
                 let (ctx, owner) = (ui.ctx().clone(), ui.scope_id());
-                let lettered = letters_reach_footer(&ctx);
+                let lettered = letters_reach_footer(ui);
                 // A text part does not own modified chords, so a focused field does not stop a button's chord.
-                let chorded = crate::runtime::overlay::drawing_top_modal(&ctx);
+                let chorded = ui.in_top_modal();
                 let os = ctx.os();
                 // Initial focus lands on the first enabled Accept button on every OS.
                 let armed_for = Env::of(&*ui).get::<ArmedFor>().0;
@@ -787,7 +785,7 @@ impl FooterBar {
                     place(ui, &mut shown);
                 }
                 if enter && shown.picked.is_none() && !ui.is_measuring() {
-                    shown.picked = default_at.filter(|_| enter_reaches_footer(&ctx) && keys::take_submit(&ctx));
+                    shown.picked = default_at.filter(|_| enter_reaches_footer(ui) && ui.take_submit());
                 }
                 shown
             }
@@ -855,33 +853,37 @@ impl Component for FooterBar {
         }
     }
 
-    /// Counts the seconds the footer has been shown in the focused window, for the buttons with an `armed_after`. A
-    /// pass adds its own elapsed time, which is zero on a frame's later passes; a pointer button, Enter or Space held
-    /// before every button armed holds the count.
+    /// Counts the seconds the footer has been shown in the focused window, for the buttons with an `armed_after`. The
+    /// count lives as long as the footer's node. Each run adds the time since the last one when that time counted: the
+    /// window focused, and no pointer button, Enter or Space held before every button armed. The focus and the held
+    /// keys and buttons are tracked reads, so a change runs the footer at the moment it happens; while the count runs,
+    /// the footer asks for a run when the next button arms.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(longest) = self.arms.iter().copied().reduce(f64::max) else { return };
-        let ctx = cx.context().clone();
-        if crate::runtime::measure::active(&ctx) {
+        if cx.is_measuring() {
             return;
         }
-        let Some(pass) = frame::running(&ctx) else { return };
-        let focused = WindowHost::of(&ctx).facts(pass.viewport).is_some_and(|facts| facts.focused);
-        let held =
-            !crate::runtime::pointer::frame(&ctx).buttons.is_empty() || ctx.held_keys().iter().any(|key| matches!(key, Key::Enter | Key::Space));
-        let dialog = crate::runtime::overlay::running_dialog(&ctx);
+        let ctx = cx.context().clone();
+        let now = ctx.time();
+        let focused = ctx.window_focused();
+        let held = !cx.core.pointer().buttons.is_empty() || ctx.held_keys().iter().any(|key| matches!(key, Key::Enter | Key::Space));
+        let dialog = cx.core.running_dialog();
         let arming = cx.keep::<Arming>();
+        if let Some(last) = arming.last.filter(|_| arming.counting) {
+            arming.shown += now - last;
+        }
         // A host's next dialog shown in the same place with the same ids waits its own delay.
-        let continues = arming.dialog == dialog && arming.frame.is_some_and(|last| pass.frame_nr == last || pass.frame_nr == last + 1);
-        if !(continues && focused) {
+        if arming.dialog != dialog || !focused {
             arming.shown = 0.0;
         }
-        arming.frame = Some(pass.frame_nr);
+        arming.last = Some(now);
         arming.dialog = dialog;
-        if focused && !(held && arming.shown < longest) {
-            arming.shown += pass.elapsed;
-        }
+        arming.counting = focused && !(held && arming.shown < longest);
         self.armed_for = arming.shown;
-        if let Some(next) = self.arms.iter().copied().filter(|seconds| *seconds > self.armed_for).reduce(f64::min) {
+        let counting = arming.counting;
+        if let Some(next) = self.arms.iter().copied().filter(|seconds| *seconds > self.armed_for).reduce(f64::min)
+            && counting
+        {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(next - self.armed_for));
         }
     }

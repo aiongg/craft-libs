@@ -11,9 +11,9 @@ use crate::primitives::{
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use craft_ui::geom::{Rect, Vec2};
-use craft_ui::{Color32, Id, Response};
-use egui::ColorImage;
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Id, Response};
+use craft_ui_rt::{RgbaImage, SizeU};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -57,7 +57,7 @@ type Paint<'a> = Box<dyn Fn(&ContentPainterCx, Rect) + 'a>;
 /// Where a picture's content comes from.
 enum Source<'a> {
     /// Pixels the caller makes, stored as a texture under `key`.
-    Image { key: u64, image: &'a dyn Fn() -> ColorImage },
+    Image { key: u64, image: &'a dyn Fn() -> RgbaImage },
     /// A content painter that paints into the picture's rect.
     Painter(crate::contract::Versioned<Paint<'a>>),
     /// A picture rendered off the frame by a thumbnail source, shown pending until it arrives.
@@ -72,6 +72,9 @@ enum Source<'a> {
 /// size, in its own colours. The texture fits inside the picture's rect at its own aspect; a painter gets the whole
 /// rect. It is decoration unless labelled: only a labelled picture is in the AccessKit tree, as an
 /// image, and its label shows as its tooltip.
+///
+/// The texture is read in `update`, at the rect the picture was placed in, so the picture runs again when its texture
+/// lands and nothing else does; `paint` paints the state that read kept.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter)]
 pub struct Picture<'a> {
@@ -93,6 +96,9 @@ pub struct Picture<'a> {
     /// a picture that is a mask on the surface it sits on, such as an equation.
     #[prop]
     checker: bool,
+    /// What `update` read of the texture, which `paint` paints: run state, not an input.
+    #[key(skip)]
+    state: TextureState,
 }
 
 impl crate::contract::MemoProps for Source<'_> {
@@ -142,7 +148,7 @@ impl<'a> Picture<'a> {
 
     /// A picture of the image `image` makes, stored under `key`. `label` names it for a screen reader; an empty
     /// one leaves it decorative.
-    pub fn new(label: impl Into<Label>, key: u64, image: &'a dyn Fn() -> ColorImage) -> Self {
+    pub fn new(label: impl Into<Label>, key: u64, image: &'a dyn Fn() -> RgbaImage) -> Self {
         Picture::from_source(label, Source::Image { key, image })
     }
 
@@ -168,7 +174,53 @@ impl<'a> Picture<'a> {
     }
 
     fn from_source(label: impl Into<Label>, source: Source<'a>) -> Self {
-        Picture { common: Common::new(), revision: Revision::default(), source, aspect: None, extent: PictureSize::Icon, checker: true }.label(label)
+        Picture {
+            common: Common::new(),
+            revision: Revision::default(),
+            source,
+            aspect: None,
+            extent: PictureSize::Icon,
+            checker: true,
+            state: TextureState::Empty,
+        }
+        .label(label)
+    }
+
+    /// The texture state of the picture at its placed rect, read for the building node.
+    fn read(&self, cx: &mut Cx<'_, Self>) -> TextureState {
+        let rect = cx.content_rect;
+        let id = cx.resolved.id;
+        let ppp = cx.context().pixels_per_point();
+        match &self.source {
+            Source::Painter(_) => TextureState::Empty,
+            Source::Image { key, image } => TextureState::Ready(store(cx.context()).get_or_put(&mut *cx.core, (id, *key), self.revision, *image)),
+            Source::Rendered { key, thumbnails, source } => {
+                let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ppp);
+                thumbnails.state(&mut *cx.core, *source, key, &request, Priority::VISIBLE)
+            }
+            Source::Svg(svg) => {
+                let size = rect.size() * ppp;
+                let (width, height) = (size.x.round(), size.y.round());
+                if !(width >= 1.0 && height >= 1.0) {
+                    return TextureState::Empty;
+                }
+                // A side past the cap is refused below; the saturating cast keeps that refusal for absurd sizes.
+                let (width, height) = (width as u32, height as u32);
+                let store = store(cx.context());
+                let key = (id, svg_key(svg, width, height));
+                match store.state(&mut *cx.core, &key, self.revision) {
+                    state @ (TextureState::Ready(_) | TextureState::Empty | TextureState::Failed { .. }) => state,
+                    _ => match rasterise_svg(svg, width, height) {
+                        Some(image) => TextureState::Ready(store.put(&mut *cx.core, key, self.revision, image)),
+                        None => {
+                            log::error!("picture {id:?}: the SVG is refused or does not draw at {width}x{height}");
+                            store.put_empty(&mut *cx.core, key, self.revision);
+                            TextureState::Empty
+                        }
+                    },
+                }
+            }
+        }
     }
 
     /// The width of the picture's rect at `height`: the set aspect, else the SVG's own, else a square.
@@ -205,10 +257,11 @@ impl Component for Picture<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         if let (PictureSize::DevicePixels, Source::Image { key, image }) = (self.extent, &self.source) {
             // The texture is the measured content: its size is known only once the image is made, so it is made here
-            // and `paint` finds it at this revision and makes nothing.
-            let ctx = cx.ui.ctx();
-            let texture = store(ctx).get_or_put(ctx, (cx.resolved.id, *key), self.revision, *image);
-            return texture.size_vec2() / ctx.pixels_per_point();
+            // and `update` finds it at this revision and makes nothing. The read goes through the run's `Ui`, so the
+            // image landing in the store runs the measure again.
+            let mut reads = cx;
+            let texture = store(&cx.context()).get_or_put(&mut reads, (cx.resolved.id, *key), self.revision, *image);
+            return texture.size_vec2() / cx.env.scale().0;
         }
         if self.extent == PictureSize::Fill {
             // The room less the padding the pipeline adds, so the picture shrinks to a narrower room and never overflows it.
@@ -237,50 +290,25 @@ impl Component for Picture<'_> {
         }
     }
 
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if cx.style.height > 0.0 {
+            self.state = self.read(cx);
+        }
+    }
+
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         if cx.style.height <= 0.0 {
             return;
         }
         match &self.source {
-            Source::Image { key, image } => {
-                let texture = store(cx.context()).get_or_put(cx.context(), (cx.resolved.id, *key), self.revision, *image);
-                let target = fit_rect(cx.content_rect, texture.size_vec2());
-                // The store packs, so the texture is the picture's part of a shared page.
-                ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
-            }
             Source::Painter(paint) => (paint.value)(&ui.content_painter(cx), cx.content_rect),
-            Source::Rendered { key, thumbnails, source } => {
-                let rect = cx.content_rect;
-                let request = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.ctx.pixels_per_point());
-                let state = thumbnails.state(cx.context(), *source, key, &request, Priority::VISIBLE);
-                thumbnails.paint(&ui.content_painter(cx), rect, &state, &ThumbPaint::default().checker(self.checker));
+            Source::Rendered { thumbnails, .. } => {
+                thumbnails.paint(&ui.content_painter(cx), cx.content_rect, &self.state, &ThumbPaint::default().checker(self.checker));
             }
-            Source::Svg(svg) => {
-                let ppp = cx.ctx.pixels_per_point();
-                let size = cx.content_rect.size() * ppp;
-                let (width, height) = (size.x.round(), size.y.round());
-                if !(width >= 1.0 && height >= 1.0) {
-                    return;
-                }
-                // A side past the cap is refused below; the saturating cast keeps that refusal for absurd sizes.
-                let (width, height) = (width as u32, height as u32);
-                let store = store(cx.context());
-                let key = (cx.resolved.id, svg_key(svg, width, height));
-                let texture = match store.state(cx.context(), &key, self.revision) {
-                    TextureState::Ready(texture) => texture,
-                    TextureState::Empty | TextureState::Failed { .. } => return,
-                    _ => match rasterise_svg(svg, width, height) {
-                        Some(image) => store.put(cx.context(), key, self.revision, image),
-                        None => {
-                            log::error!("picture {:?}: the SVG is refused or does not draw at {width}x{height}", cx.resolved.id);
-                            store.put_empty(cx.context(), key, self.revision);
-                            return;
-                        }
-                    },
-                };
+            Source::Image { .. } | Source::Svg(_) => {
+                let Some(texture) = self.state.shown() else { return };
                 let target = fit_rect(cx.content_rect, texture.size_vec2());
-                // The store packs, so the texture is the picture's part of a shared page.
-                ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
+                ui.content_painter(cx).picture(texture.key, target, Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)), 0.0);
             }
         }
     }
@@ -290,10 +318,9 @@ impl Component for Picture<'_> {
     }
 }
 
-/// The pictures' store of `ctx`: packed, so many small pictures (style tiles, font samples, SVG assets) share a few
-/// page textures; a larger picture takes a texture of its own.
+/// The pictures' store of `ctx`'s window.
 fn store(ctx: &craft_ui::Context) -> TextureStore<(Id, u64)> {
-    TextureStore::in_context(ctx, "picture", TextureStoreOptions::thumbnails().packed_small())
+    TextureStore::in_context(ctx, "picture", TextureStoreOptions::thumbnails())
 }
 
 /// The longest side, in physical pixels, an SVG picture rasterises at; past it the picture draws nothing.
@@ -322,14 +349,14 @@ fn svg_key(svg: &'static [u8], width: u32, height: u32) -> u64 {
 
 /// `svg` at `width` x `height` physical pixels in its own colours, fitted by its larger side and centred; `None` for
 /// a side outside `1..=MAX_SVG_SIDE` or an SVG the bounded parser refuses or the renderer cannot draw.
-fn rasterise_svg(svg: &[u8], width: u32, height: u32) -> Option<ColorImage> {
+fn rasterise_svg(svg: &[u8], width: u32, height: u32) -> Option<RgbaImage> {
     use craft_svg::tree::draw::{self, tiny_skia};
     if !(1..=MAX_SVG_SIDE).contains(&width) || !(1..=MAX_SVG_SIDE).contains(&height) {
         return None;
     }
     // usvg and resvg panic on some malformed drawings (a filter offset past the pixmap): such an asset draws
     // nothing, it does not crash the app.
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<ColorImage> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Option<RgbaImage> {
         let tree = svg_tree::parse(svg).ok()?;
         let view = tree.size();
         let (w, h) = (width as f32, height as f32);
@@ -340,8 +367,15 @@ fn rasterise_svg(svg: &[u8], width: u32, height: u32) -> Option<ColorImage> {
         let (dx, dy) = ((w - view.width() * scale) / 2.0, (h - view.height() * scale) / 2.0);
         let transform = tiny_skia::Transform::from_scale(scale, scale).post_translate(dx, dy);
         let pixmap = draw::render(&tree, transform, width, height, 0, SVG_DRAW_BUDGET).ok()?;
-        let pixels = pixmap.pixels().iter().map(|p| Color32::from_rgba_premultiplied(p.red(), p.green(), p.blue(), p.alpha())).collect();
-        Some(ColorImage::new([width as usize, height as usize], pixels))
+        let pixels = pixmap
+            .pixels()
+            .iter()
+            .flat_map(|p| {
+                let c = p.demultiply();
+                [c.red(), c.green(), c.blue(), c.alpha()]
+            })
+            .collect();
+        Some(RgbaImage { size: SizeU::new(width, height), pixels })
     }))
     .ok()
     .flatten()

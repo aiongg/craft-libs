@@ -59,6 +59,23 @@ impl TextureReads for BuildCx<'_> {
     }
 }
 
+/// A component's `measure` reads through its run's `Ui`: the effects run at once with the build of the node the run
+/// builds (the measured node in a real run, the measuring parent in a measuring run), so a picture that lands runs
+/// that node, and the measure, again.
+impl<C: crate::contract::Component> TextureReads for &crate::contract::MeasureCx<'_, C> {
+    fn now(&self) -> f64 {
+        self.with_ui(|ui| ui.build_cx().now())
+    }
+
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+        self.with_ui(|ui| effect(ui.build_cx()));
+    }
+
+    fn image_room(&mut self) -> bool {
+        self.with_ui(|ui| ui.build_cx().images().has_room())
+    }
+}
+
 /// A component hook's texture reads (`CxCore`): the effects run with the node's build when it ends.
 pub(crate) struct HookReads {
     pub(crate) now: f64,

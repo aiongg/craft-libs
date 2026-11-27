@@ -38,12 +38,16 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
     };
     let mut subs = Vec::with_capacity(access.nodes.len());
     for sub in std::mem::take(&mut access.nodes) {
-        let role = match sub.role {
-            Role::Node(role) => role,
-            _ => NodeRole::GenericContainer,
+        let role = match (&sub.run, sub.role) {
+            (Some(_), _) => NodeRole::TextRun,
+            (None, Role::Node(role)) => role,
+            (None, _) => NodeRole::GenericContainer,
         };
         let mut node = Node::new(role);
         name(&mut node, &sub.name, facts.label);
+        if let Some(run) = &sub.run {
+            text_run(&mut node, run);
+        }
         if let Some(text) = &sub.description {
             node.set_description(text.as_str());
         }
@@ -195,6 +199,14 @@ fn name(node: &mut Node, name: &Name, label: &str) {
         Name::LabelledBy(id) => node.push_labelled_by(accesskit::NodeId(id.value())),
         Name::Decorative => node.set_hidden(),
     }
+}
+
+/// A run of text on one line: its text as the value, and its characters' offsets, advances and direction.
+fn text_run(node: &mut Node, run: &crate::runtime::access::RunFacts) {
+    node.set_value(run.text.as_str());
+    node.set_character_positions(run.positions.clone());
+    node.set_character_widths(run.widths.clone());
+    node.set_text_direction(if run.rtl { accesskit::TextDirection::RightToLeft } else { accesskit::TextDirection::LeftToRight });
 }
 
 /// A numeric value and, with a step and `steps`, the Increment and Decrement it can take.
