@@ -243,6 +243,40 @@ pub enum PressPhase {
     },
 }
 
+/// Constructors for runtimes that recognise presses themselves and report them as phases (the
+/// retained runtime's press machine routes gestures to nodes, which rebuild these).
+impl PressPhase {
+    /// The button went down.
+    pub const fn down(start: PressStart) -> Self {
+        PressPhase::Down { start }
+    }
+
+    /// The button stays down within slop.
+    pub const fn held(start: PressStart, pos: Pos2) -> Self {
+        PressPhase::Held { start, pos }
+    }
+
+    /// The press moved past slop.
+    pub const fn drag_start(start: PressStart, pos: Pos2) -> Self {
+        PressPhase::DragStart { start, pos }
+    }
+
+    /// The drag continues by `delta`.
+    pub const fn drag(start: PressStart, pos: Pos2, delta: Vec2) -> Self {
+        PressPhase::Drag { start, pos, delta }
+    }
+
+    /// The button went up; `click` for a release within slop.
+    pub const fn release(start: PressStart, pos: Pos2, click: bool) -> Self {
+        PressPhase::Release { start, pos, click }
+    }
+
+    /// The press ended without a release.
+    pub const fn cancel(start: PressStart, reason: PressCancel) -> Self {
+        PressPhase::Cancel { start, reason }
+    }
+}
+
 impl PressPhase {
     /// A press is in progress or just ended: not `Idle` or `Hover`.
     pub const fn is_press(&self) -> bool {

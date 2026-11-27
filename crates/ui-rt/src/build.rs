@@ -71,6 +71,15 @@ impl BuildCx<'_> {
         self.rt
     }
 
+    pub(crate) fn runtime(&self) -> &Runtime {
+        self.rt
+    }
+
+    /// A cell's value without recording a read: state the build looks at but does not depend on.
+    pub fn peek<T: 'static>(&self, state: State<T>) -> &T {
+        self.rt.store.peek(state)
+    }
+
     pub fn env(&self) -> Env {
         self.rt.env_of(self.node)
     }

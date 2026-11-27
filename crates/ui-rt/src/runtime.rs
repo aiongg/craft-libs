@@ -16,7 +16,7 @@ use crate::frame::{FrameTree, merge_damage, node_damage, parent_space};
 use crate::geom::{Margin, is_empty};
 use crate::gesture::WheelOptions;
 use crate::id::{IdMap, NodeId, WindowId};
-use crate::input::{ClipboardRequest, Interact};
+use crate::input::{ClipboardRequest, Interact, InteractFact};
 use crate::layer::Layer;
 use crate::layout::{layout_pass, place_layers};
 use crate::paint::paint_pass;
@@ -97,6 +97,8 @@ pub struct Runtime {
     pub(crate) time: f64,
     /// Per-node interaction cells, created when paint first reads one.
     pub(crate) interact: IdMap<State<Interact>>,
+    /// Per-node cells of single interaction facts, created when a build first reads one.
+    pub(crate) interact_facts: IdMap<[Option<State<bool>>; InteractFact::COUNT]>,
     pub(crate) clipboard: Vec<(WindowId, ClipboardRequest)>,
     /// Nodes that repaint at a frame time: (node, time), one entry per node.
     pub(crate) wakes: Vec<(NodeId, f64)>,
@@ -143,6 +145,7 @@ impl Runtime {
             version_clock: NEXT_EPOCH.fetch_add(1, Ordering::Relaxed) << 32,
             time: 0.0,
             interact: IdMap::default(),
+            interact_facts: IdMap::default(),
             clipboard: Vec::new(),
             wakes: Vec::new(),
             media: HashMap::new(),

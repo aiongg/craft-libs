@@ -7,7 +7,7 @@
 
 use std::ops::Range;
 
-use craft_behavior::{CopyKeys, DropOperation, PointerButton, PointerKind, PointerSample, PressCancel, WheelPhase, WheelSource, WheelUnit};
+use craft_behavior::{CopyKeys, DropOperation, PointerButton, PointerKind, PointerSample, PressCancel, Sense, WheelPhase, WheelSource, WheelUnit};
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
@@ -280,6 +280,23 @@ impl EventCx<'_> {
             cur = n.parent;
         }
         None
+    }
+
+    /// The topmost shape of this node's window under `window_pos` whose sense passes `accept`: a
+    /// press owner finds what its drag crosses.
+    pub fn hit(&self, window_pos: Pos2, accept: &dyn Fn(Sense) -> bool) -> Option<Hit> {
+        self.rt.hit(self.window(), window_pos, accept)
+    }
+
+    /// `node`'s tag ([`crate::Element::tag`]), 0 for none or a node that is gone.
+    pub fn tag_of(&self, node: NodeId) -> u64 {
+        self.rt.tree.nodes.get(&node).and_then(|n| n.element.as_ref()).map_or(0, |e| e.tag())
+    }
+
+    /// Queues `node`'s build, as its own [`EventCx::request_build`] would: a press owner marks
+    /// the nodes its gesture changes.
+    pub fn request_build_of(&mut self, node: NodeId) {
+        self.rt.tree.mark_build(node);
     }
 
     /// This node's output for the parent's next build, created on first use. `O` must be the

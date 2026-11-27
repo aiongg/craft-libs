@@ -6,12 +6,15 @@ use egui::Id;
 
 use super::key::{fold, type_key};
 use super::node::{Place, ScopeNode};
+use super::response::{begin_reads, end_reads};
+use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
 use crate::contract::{IdSource, MemoKey, MemoProps};
 
 /// The content of a window's inline root: call it from the closure passed to
 /// `Driver::step_with`/`Runtime::frame_with`. The root scope runs whenever ui-rt runs that closure:
-/// input reached a node under it, or a read in it changed (it reads the viewport and the tokens).
+/// input reached a node under it, or a read in it changed (it reads the viewport and the tokens,
+/// and the interaction facts its code reads from responses).
 pub fn window_root<R>(cx: &mut BuildCx<'_>, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
     let window = cx.window();
     cx.inline(ScopeNode { key: 0 }, |kept, state, cx| {
@@ -19,13 +22,21 @@ pub fn window_root<R>(cx: &mut BuildCx<'_>, f: impl FnOnce(&mut Ui<'_, '_>) -> R
         if state.new {
             cx.mark_changed();
         }
+        let reads = begin_reads(true);
         let viewport = cx.env().viewport.get(cx);
         let tokens = cx.tokens();
         let gap = tokens.space.gap.stack;
         let region = Rect::from_min_size(Pos2::ZERO, viewport);
-        let mut ui = Ui::new(cx, Flow::new(Id::NULL.with(("craft-window", window)), Pos2::ZERO, region, gap, tokens));
+        let sweep = match kept.sweep {
+            Some(cell) => cell,
+            None => *kept.sweep.insert(cx.state(Sweep::default())),
+        };
+        let mut flow = Flow::new(Id::NULL.with(("craft-window", window)), Pos2::ZERO, region, gap, tokens);
+        flow.sweep = Some(sweep);
+        let mut ui = Ui::new(cx, flow);
         let out = f(&mut ui);
         let Ui { cx, flow } = ui;
+        end_reads(reads, cx);
         if kept.placed != flow.placed || kept.size != viewport {
             kept.placed = flow.placed;
             kept.size = viewport;
@@ -80,9 +91,13 @@ impl<P: MemoProps> MemoView<P> {
                 let tokens = cx.tokens();
                 let gap = tokens.space.gap.stack;
                 let region = Rect::from_min_size(origin, place.room);
-                let mut inner = Ui::new(cx, Flow::new(id, origin, region, gap, tokens));
+                let reads = begin_reads(false);
+                let mut nested = Flow::new(id, origin, region, gap, tokens);
+                nested.sweep = flow.sweep;
+                let mut inner = Ui::new(cx, nested);
                 let out = view(&mut inner, &self.props);
                 let Ui { cx, flow: inner } = inner;
+                end_reads(reads, cx);
                 let size: Vec2 = inner.content_size();
                 flow.allocate(cx.node(), size);
                 if kept.placed != inner.placed || kept.size != size {

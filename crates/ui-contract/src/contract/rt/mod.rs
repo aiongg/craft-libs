@@ -8,16 +8,24 @@
 //! This is the skeleton: the `Ui` cursor's vertical flow, scopes (window root, `MemoView`),
 //! reconcile by `IdSource` with per-type ordinals, the component key, the retained node, input
 //! queued with path marks and outputs in the same frame, with `IconButton` and `Stack` on it.
+//!
+//! The input half: `Response` with logged interaction reads, parts kept as hit shapes, the press
+//! phases folded into per-part `PartResult`s, value gestures through the binding, toggle sweeps and
+//! the wheel on a scrolling container's retained half, with `Slider`, `Toggle` and `ScrollArea`
+//! stand-ins.
 
 mod key;
 mod node;
+mod response;
 mod run;
 mod scope;
 pub mod skeleton;
+mod sweep;
 mod ui;
 
 pub use key::ComponentKey;
 pub use node::{NodeInput, Pointer};
-pub use run::{Component, Container, Cx, MeasureCx, Paint};
+pub use response::{EditResponse, Outcome, Response};
+pub use run::{Component, Container, Cx, MeasureCx, Paint, PartBuilder, PartsCx, ValueOf};
 pub use scope::{MemoView, window_root};
 pub use ui::Ui;

@@ -107,7 +107,7 @@ The app's `ui` closure is the window root's content. ui-rt cannot store it (it b
 
 Events that leave a `MemoView` through an `Outbox` in its props work unchanged: the view runs inside its parent's run, which holds the outbox's `Vec`.
 
-A build that reads interaction state from an output (`Response::hovered()`, `contains_pointer()`, `is_pointer_button_down_on()`) records a build read of that node's `Interact` cell for the reading scope, so the scope runs again when it changes. `Response` logs the read into the running build (a per-thread log the bridge drains at the end of each scope's build).
+A build that reads interaction state from an output (`Response::hovered()`, `contains_pointer()`, `is_pointer_button_down_on()`) records a build read of that one fact of the node's interaction state (`InteractFact`) for the reading scope, so the scope runs again when the fact flips and not when another fact (a press under a hover read) changes. `Response` logs the read into the running build (a per-thread log the bridge drains at the end of each scope's build).
 
 Inputs a node's retained half resolves alone stay there: a wheel on a scroll body moves the scroll offset cell (layout moves the content; no run), and a wheel that reveals rows outside the built band marks the body `BUILD`.
 
@@ -188,6 +188,8 @@ No frozen trait changes. Additions:
 | `Driver::step_with(time, roots)`, `Driver::open_inline_window` | `driver.rs` | ~25 |
 | `PaintCx::extend(&DisplayList)` for variants; later an `Arc` swap that skips the copy | `paint.rs` | ~10 |
 | counters `runs` and `scopes` beside `built` (`BuildCx::count_run`, `count_scope`) | `runtime.rs`, `build.rs` | ~20 |
+| `InteractFact` and per-fact interaction cells; `BuildCx::interaction` (no read), `interaction_cell`, `read_interaction(node, fact)` (a build read of one fact, so a scope reading `hovered()` does not rerun on a press), `BuildCx::peek` | `input.rs`, `build.rs`, `runtime.rs` | ~75 |
+| `EventCx::hit(pos, accept)`, `tag_of(node)`, `request_build_of(node)`: a press owner hit-tests along its drag and marks what it crosses (toggle sweeps) | `event.rs` | ~20 |
 
 ## 10. Services
 

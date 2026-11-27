@@ -5,11 +5,12 @@
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, Vec2, WindowId};
+use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, State, Vec2, WindowId};
 use egui::Id;
 
 use super::key::Ordinals;
 use super::node::Placed;
+use super::sweep::Sweep;
 use crate::contract::IdSource;
 
 /// The build cursor of one node: its ui-rt build context and the layout region its children go in.
@@ -35,11 +36,24 @@ pub(crate) struct Flow {
     pub(crate) placed: Vec<Placed>,
     /// The tokens the node's build read.
     pub(crate) tokens: Arc<Tokens>,
+    /// The window's toggle sweep record, handed down from the window root.
+    pub(crate) sweep: Option<State<Sweep>>,
 }
 
 impl Flow {
     pub(crate) fn new(id: Id, origin: Pos2, region: Rect, gap: f32, tokens: Arc<Tokens>) -> Flow {
-        Flow { id, origin, region, cursor: region.min, gap, extent: Rect::NOTHING, ordinals: Ordinals::default(), placed: Vec::new(), tokens }
+        Flow {
+            id,
+            origin,
+            region,
+            cursor: region.min,
+            gap,
+            extent: Rect::NOTHING,
+            ordinals: Ordinals::default(),
+            placed: Vec::new(),
+            tokens,
+            sweep: None,
+        }
     }
 
     /// The craft `Id` and ui-rt child key of the next child of type `type_key`.
