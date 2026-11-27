@@ -22,6 +22,8 @@ pub(crate) struct NodeFacts<'a> {
     pub(crate) enabled: bool,
     pub(crate) clickable: bool,
     pub(crate) focusable: bool,
+    /// The parts whose sense takes a press: their sub-nodes offer Click.
+    pub(crate) pressable: &'a [PartRef],
     /// A context-menu opener ran: the node offers `ShowContextMenu`.
     pub(crate) context_menu: bool,
 }
@@ -81,6 +83,8 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         }
         if !facts.enabled {
             node.set_disabled();
+        } else if facts.pressable.contains(&sub.part) {
+            node.add_action(Action::Click);
         }
         subs.push(BuiltSub { key: part_id(sub.part), part: sub.part, parent: sub.under.map(part_id), node });
     }
@@ -141,6 +145,10 @@ fn write(a: &Access, role: NodeRole, facts: &NodeFacts<'_>) -> Node {
     }
     if let Some(key) = a.access_key {
         node.set_access_key(key.to_string());
+    }
+    if let Some(color) = a.color {
+        let [red, green, blue, alpha] = color.to_rgba().0;
+        node.set_color_value(accesskit::Color { red, green, blue, alpha });
     }
     if let Some(politeness) = a.live {
         node.set_live(match politeness {

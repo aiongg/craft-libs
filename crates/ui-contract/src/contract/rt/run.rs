@@ -35,7 +35,7 @@ use crate::contract::run::{Measuring, NoShape, ShapeHooks, ShowAt, TypeFacts, co
 use crate::contract::steps::{self, MeasureIn, ValueStep};
 use crate::contract::{Activation, Common, Component, Cx, CxCore, Id, Internal, Meta, Resolved, TipFn, Validity, ValueOf};
 use crate::primitives::{Canvas, FrameServices, PartResult, Services};
-use crate::runtime::access::Role;
+use crate::runtime::access::{Role, fold};
 use crate::runtime::commands::{CommandBoard, FireSource, InboxCells, InboxIn, register_inboxes};
 use crate::runtime::env::{AppValues, Env};
 use crate::runtime::memory::{MemoryStage, sub};
@@ -609,7 +609,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, row.as_deref(), cx)).flatten();
+    let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), cx)).flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
         (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
         _ => Vec::new(),
@@ -806,6 +806,7 @@ fn report<C: Component>(
     cx: &Cx<'_, C>,
     resolved: &Resolved<'_>,
     sense: Sense,
+    parts: &[KeptPart],
     row: Option<&crate::runtime::env::ItemFacts>,
     build: &mut BuildCx<'_>,
 ) -> Option<super::access::Built> {
@@ -826,12 +827,24 @@ fn report<C: Component>(
     }
     component.access(&mut access, cx);
     crate::contract::cx::apply_field_label(cx.core, &mut access);
+    // A control shown with `PaintUi::inner` folds into its owner's node: it hands the owner its value
+    // text and keeps no node of its own. An owner whose `access` set no value carries its control's.
+    let ctx = cx.core.context();
+    if let Some(owner) = fold::owner_of(ctx, cx.core.id) {
+        fold::offer(ctx, owner, fold::Folded { inner: cx.core.id, value: access.value.take() });
+        return None;
+    }
+    if access.value.is_none() {
+        access.value = fold::offered(ctx, cx.core.id).and_then(|folded| folded.value);
+    }
     let mut flags = cx.core.state.flags;
     flags.set(craft_theme::Flags::SELECTED, resolved.selected.unwrap_or(flags.contains(craft_theme::Flags::SELECTED)));
+    let pressable: SmallVec<[PartRef; 4]> = parts.iter().filter(|p| p.sense.takes_press()).map(|p| p.part).collect();
     let facts = super::access::NodeFacts {
         label: if component.shows_label() { resolved.label } else { "" },
         flags,
         enabled: resolved.enabled,
+        pressable: &pressable,
         clickable: sense.takes_press(),
         focusable: !sense.intersection(Sense::FOCUS).is_empty(),
         context_menu: cx.core.popups.offers_context_menu(),

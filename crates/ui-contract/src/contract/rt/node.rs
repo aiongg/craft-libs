@@ -497,6 +497,15 @@ impl Element for ComponentNode {
                 } else {
                     super::ime::focus_left(kept, cx);
                 }
+                // The window's edit commands resolve against the focused stop's edits (#3569). A move
+                // clears them on the node that loses focus, then the node that gains it writes its own.
+                if let Some(edits) = cx.provided::<super::commands::FocusedEdits>() {
+                    let set = match on {
+                        true => kept.focus.stop.map_or(crate::runtime::focus::EditSet::NONE, |keys| keys.edits),
+                        false => crate::runtime::focus::EditSet::NONE,
+                    };
+                    edits.set(cx, set);
+                }
                 Handled::Yes
             }
             Event::Text(_) | Event::ImePreedit { .. } | Event::ImeCommit(_) | Event::Paste(_) => super::ime::event(self.text.is_some(), kept, cx, ev),
