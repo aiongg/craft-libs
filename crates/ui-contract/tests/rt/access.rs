@@ -440,10 +440,16 @@ mod fold {
         }
     }
 
+    thread_local! {
+        /// The window's fold requests as of the last step.
+        static REQUESTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
     fn step(rig: &mut Rig<RecordingRenderer>) -> bool {
         rig.step_with(&mut |_, cx| {
             window_root(cx, |ui| {
                 let _ = Owner { common: Common::new() }.label("Size").show(ui);
+                REQUESTS.with(|requests| requests.set(craft_ui_contract::testing::access::fold_requests(ui.ctx())));
             })
         })
         .ran
@@ -457,6 +463,7 @@ mod fold {
         }
         let main = rig.main;
         assert!(rig.driver.runtime.access_snapshot(main).is_empty(), "no access node with the tree off");
+        assert_eq!(REQUESTS.with(std::cell::Cell::get), 0, "no fold request with the tree off");
         rig.driver.runtime.set_access_enabled(main, true);
         for _ in 0..4 {
             step(&mut rig);
@@ -465,5 +472,6 @@ mod fold {
         let owner = snapshot.iter().find(|e| e.node.label() == Some("Size")).expect("the owner's node");
         assert_eq!(owner.node.value(), Some("42"), "the owner carries its folded control's value");
         assert!(!snapshot.iter().any(|e| e.node.role() == accesskit::Role::SpinButton), "the folded control keeps no node of its own");
+        assert!(REQUESTS.with(std::cell::Cell::get) >= 1, "the owner asks for the fold once the tree is on");
     }
 }

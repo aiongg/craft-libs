@@ -792,3 +792,454 @@ mod focus_into {
         assert!(!app.second);
     }
 }
+
+/// Context requests reach the region around the requester (`Cx::context_requests`) through the descendant watch.
+mod context_requests {
+    use std::cell::{Cell, RefCell};
+
+    use craft_behavior::{DisplayOrder, ItemSource, SpanLayout};
+    use craft_ui_contract::contract::{
+        Collection, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx, HoverLead, Id, ItemOutput, NoValue,
+        Outcome, Response, Role, ShowCollection as _, ShowContainer,
+    };
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::{Contact, Input};
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{PointerButton, PointerPhase, Pos2, Rect, Sense, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    const ROW_H: f32 = 20.0;
+
+    thread_local! {
+        /// Runs of the region (its `update`).
+        static REGION_RUNS: Cell<u32> = const { Cell::new(0) };
+        /// The requests the region's `finish` read, every run.
+        static SEEN: RefCell<Vec<(Id, Rect)>> = const { RefCell::new(Vec::new()) };
+        static LIST_RECT: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
+    }
+
+    struct Count(usize);
+
+    impl DisplayOrder<usize> for Count {
+        fn len(&self) -> usize {
+            self.0
+        }
+
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+
+        fn index_of(&self, key: &usize) -> Option<usize> {
+            (*key < self.0).then_some(*key)
+        }
+    }
+
+    impl ItemSource<usize> for Count {}
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Never {}
+
+    struct RowOut {
+        response: Response,
+    }
+
+    impl Outcome for RowOut {
+        type Value = NoValue;
+
+        fn response(&self) -> &Response {
+            &self.response
+        }
+    }
+
+    impl ItemOutput<Never> for RowOut {
+        fn into_event(self) -> Option<Never> {
+            None
+        }
+    }
+
+    /// A row that takes clicks, so a secondary click on it is its own context request.
+    #[derive(Component)]
+    struct Row {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Row {
+        const ROLE: Role = Role::LIST_ITEM;
+        type Style = PlainStyle;
+        type Output = RowOut;
+
+        fn style(_: &StyleCx<'_>, _: RowStyleKey) -> PlainStyle {
+            PlainStyle::min(Vec2::new(10.0, ROW_H))
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER | Sense::CLICK
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> RowOut {
+            RowOut { response: cx.response.clone() }
+        }
+    }
+
+    #[derive(Component)]
+    #[component(collection)]
+    struct List {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        items: CollectionProps,
+    }
+
+    impl Component for List {
+        const ROLE: Role = Role::LIST;
+        type Style = PlainStyle;
+        type Output = CollectionResponse<usize, Never>;
+
+        fn style(_: &StyleCx<'_>, _: ListStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+            cx.collection_response()
+        }
+    }
+
+    impl Collection for List {
+        type Key = usize;
+        type ItemLayout = SpanLayout;
+        type Selection = craft_behavior::Selection<usize>;
+        type Item<'r> = Row;
+        type ItemEvent = Never;
+
+        fn items(&self) -> &CollectionProps {
+            &self.items
+        }
+
+        fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+            SpanLayout::new(source, width, ROW_H)
+        }
+    }
+
+    /// The region around the list: it reads the context requests made under it, as a ribbon's region does.
+    #[derive(Component)]
+    #[component(container, unregistered)]
+    struct Region {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+    }
+
+    impl Component for Region {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: RegionStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn update(&mut self, _: &mut Cx<'_, Self>) {
+            REGION_RUNS.with(|runs| runs.set(runs.get() + 1));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            let requests = cx.context_requests();
+            SEEN.with(|seen| seen.borrow_mut().extend(requests));
+            cx.response.clone()
+        }
+    }
+
+    impl Container for Region {}
+
+    fn step(rig: &mut Rig<RecordingRenderer>) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                let region = Region { common: Common::new(), props: ContainerProps::new() };
+                let _ = ShowContainer::show(region, ui, |ui, _| {
+                    let items = CollectionProps::new().hover_lead(HoverLead::Lead);
+                    let list = List { common: Common::new(), props: ContainerProps::new(), items };
+                    let out = list.show_items(ui, &Count(4), &mut |_, _| Row { common: Common::new() });
+                    LIST_RECT.with(|rect| rect.set(out.response.rect));
+                });
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig)
+    }
+
+    fn secondary(phase: PointerPhase, pos: Pos2) -> Input {
+        Input::pointer(Contact { button: PointerButton::Secondary, ..Contact::MOUSE }, phase, pos)
+    }
+
+    #[test]
+    fn a_context_request_on_a_row_reaches_the_region_around_the_collection_with_one_run_of_it() {
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        let settled = (0..5).any(|_| !step(&mut rig).ran);
+        assert!(settled, "the rig did not settle");
+        // A second build reads the requests from then on: the first run made the region watch.
+        let list = LIST_RECT.with(Cell::get);
+        let row = Pos2::new(list.center().x, list.min.y + ROW_H * 1.5);
+        input(&mut rig, Input::mouse_move(row));
+        assert!(SEEN.with(|seen| seen.borrow().is_empty()), "no request without a click");
+
+        let before = REGION_RUNS.with(Cell::get);
+        input(&mut rig, secondary(PointerPhase::Down, row));
+        assert_eq!(REGION_RUNS.with(Cell::get), before, "a secondary press makes no request and runs no region");
+        input(&mut rig, secondary(PointerPhase::Up, row));
+        assert_eq!(REGION_RUNS.with(Cell::get), before + 1, "the request runs the region once");
+        let seen = SEEN.with(|seen| seen.borrow().clone());
+        assert_eq!(seen.len(), 1, "the region reads the row's request: {seen:?}");
+        assert!(seen[0].1.contains(row), "at the row's rect: {seen:?}");
+
+        let before = REGION_RUNS.with(Cell::get);
+        input(&mut rig, Input::mouse_move(row + Vec2::new(4.0, 0.0)));
+        assert_eq!(REGION_RUNS.with(Cell::get), before, "a frame without requests runs no region");
+    }
+
+    /// The collection follows the pointer with its hover lead (`Cx::hover_point`): a move inside it runs it alone.
+    #[test]
+    fn a_hover_move_inside_a_collection_reruns_only_that_collection() {
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig).ran), "the rig did not settle");
+        let list = LIST_RECT.with(Cell::get);
+        let row = Pos2::new(list.center().x, list.min.y + ROW_H * 0.5);
+        input(&mut rig, Input::mouse_move(row));
+        let regions = REGION_RUNS.with(Cell::get);
+        let within = input(&mut rig, Input::mouse_move(row + Vec2::new(5.0, 2.0)));
+        assert_eq!(within.frame.runs, 1, "a move within a row runs the collection alone: {within:?}");
+        let next = input(&mut rig, Input::mouse_move(row + Vec2::new(0.0, ROW_H)));
+        assert!(next.frame.runs <= 3, "a move to the next row runs the collection and the two rows whose lead moved: {next:?}");
+        assert_eq!(REGION_RUNS.with(Cell::get), regions, "the region around it never runs");
+    }
+}
+
+/// A run-time drop target (`Pointer::drop_target`) shows where a drop would land over its node while a drag is over it.
+mod drop_mark {
+    use craft_ui_contract::contract::*;
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Pos2, Rect, Sense, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    /// Drags a `u32`.
+    #[derive(Component)]
+    struct Source {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Source {
+        const ROLE: Role = Role::BUTTON;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: SourceStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::splat(24.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER | Sense::CLICK | Sense::DRAG
+        }
+
+        fn drag_source(&self) -> Option<DragSource> {
+            Some(DragSource::new(1_u32, DragPreview::None))
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    /// Takes a `u32` anywhere over it; a drop would land on a line across its top.
+    struct TopLine(Rect);
+
+    impl DropTarget<u32> for TopLine {
+        type Drop = ();
+
+        fn accept(&self, _: &u32, _: Pos2, _: DropOperation) -> Option<()> {
+            Some(())
+        }
+
+        fn mark(&self, _: &()) -> DropMark {
+            DropMark::line(Pos2::new(self.0.min.x, self.0.min.y + 10.0), Pos2::new(self.0.max.x, self.0.min.y + 10.0))
+        }
+    }
+
+    #[derive(Component)]
+    struct Target {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Target {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: TargetStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(120.0, 60.0)
+        }
+
+        fn update(&mut self, cx: &mut Cx<'_, Self>) {
+            let rect = cx.rect;
+            let _ = cx.drop_target::<u32, _>(&TopLine(rect));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[derive(Default)]
+    struct App {
+        source: Rect,
+        target: Rect,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                app.source = Show::show(Source { common: Common::new() }, ui).rect;
+                app.target = Show::show(Target { common: Common::new() }, ui).rect;
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig, app)
+    }
+
+    /// Whether the last frame paints a band as wide as the target's top line (the mark's band and its halo).
+    fn shows_line(rig: &Rig<RecordingRenderer>, target: Rect) -> bool {
+        let Some(frame) = rig.driver.renderer.last() else { return false };
+        frame.draws.iter().any(|draw| {
+            draw.list.items.iter().any(
+                |item| matches!(item, craft_ui_rt::Item::Rect { rect, .. } if rect.height() <= 10.0 && (rect.width() - target.width()).abs() <= 10.0),
+            )
+        })
+    }
+
+    #[test]
+    fn a_drop_mark_paints_over_a_run_time_target_while_a_drag_is_over_it() {
+        let mut app = App::default();
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig, &mut app).ran), "the rig did not settle");
+        assert!(!shows_line(&rig, app.target), "no mark without a drag");
+
+        let from = app.source.center();
+        input(&mut rig, &mut app, Input::mouse_move(from));
+        input(&mut rig, &mut app, Input::mouse_down(from));
+        for step in 1..=4 {
+            input(&mut rig, &mut app, Input::mouse_move(from + Vec2::new(0.0, 6.0 * step as f32)));
+        }
+        let over = app.target.center();
+        input(&mut rig, &mut app, Input::mouse_move(over));
+        input(&mut rig, &mut app, Input::mouse_move(over + Vec2::new(3.0, 0.0)));
+        assert!(rig.driver.runtime.drag().is_some(), "the drag runs");
+        assert!(shows_line(&rig, app.target), "the target paints the mark of the drop it would take");
+
+        input(&mut rig, &mut app, Input::mouse_move(Pos2::new(390.0, 290.0)));
+        assert!(!shows_line(&rig, app.target), "the mark goes when the drag leaves the target");
+        input(&mut rig, &mut app, Input::mouse_up(Pos2::new(390.0, 290.0)));
+    }
+}
+
+/// A part's tooltip (`PartBuilder::tooltip`) shows under its part while the pointer rests on it, and on no other part.
+mod part_tips {
+    use craft_behavior::PartKey;
+    use craft_ui_contract::contract::tooltip::DELAY;
+    use craft_ui_contract::contract::*;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::{Rect, Sense, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+
+    const LEFT: PartKey = PartKey::new("left");
+    const RIGHT: PartKey = PartKey::new("right");
+
+    /// Two halves; only the left one has a tooltip.
+    #[derive(Component)]
+    struct Strip {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Strip {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: StripStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(200.0, 40.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER
+        }
+
+        fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+            let (left, right) = rect.split_left_right_at_fraction(0.5);
+            cx.part(LEFT, left).sense(Sense::HOVER | Sense::CLICK).tooltip("Left Part");
+            cx.part(RIGHT, right).sense(Sense::HOVER | Sense::CLICK);
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[test]
+    fn a_part_tip_shows_under_its_part_only() {
+        let mut h = Harness::new_ui_state(|ui, rect: &mut Rect| *rect = Show::show(Strip { common: Common::new() }, ui).rect, Rect::NOTHING);
+        h.run();
+        let (left, right) = h.state().split_left_right_at_fraction(0.5);
+        let tip = |h: &Harness<Rect>| h.layers().into_iter().find(|layer| layer.tip);
+
+        h.send(Input::mouse_move(left.center()));
+        h.advance(DELAY + 0.05);
+        h.run();
+        let shown = tip(&h).expect("the left part's tooltip shows after the delay");
+        assert!(shown.rect.min.y >= left.max.y - 0.5, "under the part: {:?} for {left:?}", shown.rect);
+        assert!(shown.rect.min.x < right.min.x, "at the part's start: {:?} for {left:?}", shown.rect);
+        assert!(h.query_by_label("Left Part").is_some(), "with the part's text");
+
+        h.send(Input::mouse_move(right.center()));
+        h.advance(DELAY + 0.05);
+        h.run();
+        assert!(tip(&h).is_none(), "the right part has no tooltip, and the component none of its own");
+
+        h.send(Input::mouse_move(left.center()));
+        h.run();
+        assert!(tip(&h).is_none(), "back on the left part, the tooltip waits for the delay again");
+        h.advance(DELAY + 0.05);
+        h.run();
+        assert!(tip(&h).is_some());
+    }
+}

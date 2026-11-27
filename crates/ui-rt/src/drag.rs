@@ -24,7 +24,7 @@ use crate::build::BuildCx;
 use crate::element::{Element, ElementBox};
 use crate::event::{Event, Handled};
 use crate::geom::Constraints;
-use crate::hit::{Hit, HitKind, contains, hit_records};
+use crate::hit::{Hit, contains, drop_hit, modal_shown};
 use crate::id::{ChildKey, NodeId, WindowId};
 use crate::layer::{Layer, LayerSpec, Placement};
 use crate::layout::LayoutCx;
@@ -358,14 +358,21 @@ impl Runtime {
         s.accepted = None;
         let (data, mods) = (s.data.clone(), s.mods);
         let w = self.windows.get(&window)?;
-        let hit = pos.and_then(|p| hit_records(&self.tree, w, p, &|h| h.kind == HitKind::Drop)).map(|(hit, _)| hit);
+        let files = data.files().is_some();
+        let hit = pos.and_then(|p| drop_hit(&self.tree, w, p, files));
+        // Under a modal layer an OS file drag reaches only the window targets that take files there.
+        let blocked = files && modal_shown(&self.tree, w);
         if let Some(hit) = hit {
             let ev = Event::Drop(DropInput { phase: DropPhase::Over, data: data.clone(), pos, mods, hit: Some(hit) });
             if let Some(node) = self.dispatch(hit.node, &ev, true) {
                 return Some((node, self.accepted_op(node)));
             }
         }
-        let window_targets: Vec<NodeId> = self.windows.get(&window).map(|w| w.window_drops.iter().rev().copied().collect()).unwrap_or_default();
+        let window_targets: Vec<NodeId> = self
+            .windows
+            .get(&window)
+            .map(|w| w.window_drops.iter().rev().filter(|(_, under_modal)| *under_modal || !blocked).map(|(node, _)| *node).collect())
+            .unwrap_or_default();
         for node in window_targets {
             let ev = Event::Drop(DropInput { phase: DropPhase::Over, data: data.clone(), pos, mods, hit: None });
             if self.deliver(node, node, &ev) == Handled::Yes {

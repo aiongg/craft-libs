@@ -184,3 +184,9 @@ impl<S, R: Renderer> Harness<S, R> {
         AccessView { entries, parents, focus }
     }
 }
+
+/// The fold requests (`PaintUi::inner` folding a control into its owner's access node) made in the window of `ctx`
+/// since it opened: a count trial checks that none is made while the window's access tree is off.
+pub fn fold_requests(ctx: &crate::contract::Context) -> usize {
+    crate::runtime::access::fold::requests(ctx)
+}

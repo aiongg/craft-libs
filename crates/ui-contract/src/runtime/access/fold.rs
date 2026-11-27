@@ -18,6 +18,8 @@ use crate::primitives::Id;
 struct Folds {
     owners: HashMap<Id, Id>,
     offered: HashMap<Id, Folded>,
+    /// Fold requests made since the window opened (`testing::access::fold_requests`).
+    requests: usize,
 }
 
 /// What a folded control hands its owner's node.
@@ -33,7 +35,13 @@ pub(crate) struct Folded {
 pub(crate) fn request(ctx: &Context, inner: Id, owner: Id) {
     ctx.service::<Folds, _>(|folds| {
         folds.owners.insert(inner, owner);
+        folds.requests += 1;
     });
+}
+
+/// The fold requests made in the window of `ctx` since it opened.
+pub(crate) fn requests(ctx: &Context) -> usize {
+    ctx.service::<Folds, _>(|folds| folds.requests)
 }
 
 /// The owner `inner` folds into, if any.

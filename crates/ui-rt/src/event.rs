@@ -195,6 +195,15 @@ pub enum Event {
     /// focused node (or the key root) and bubbles, then reaches the window root's key stage as a
     /// key does.
     LoneAlt,
+    /// The part under the pointer changed while the pointer stays over the node or the nodes under
+    /// it: the part of the node's own shapes it is over now (0 for the node's own shape), `None`
+    /// over a node under it. Entering and leaving the node send [`Event::Hover`] instead. Only nodes
+    /// that asked ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
+    HoverPart(Option<u64>),
+    /// Two or more fingers tapped together (`fingers`, around `at` in window coordinates): the node
+    /// the gesture's start went to gets it, else the node under the fingers that takes presses,
+    /// bubbling.
+    MultiTap(craft_behavior::MultiTap),
 }
 
 /// The context of one node's event handler.

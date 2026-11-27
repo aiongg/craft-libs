@@ -402,7 +402,10 @@ pub(crate) fn settle<C: Component>(
     let resolved = begun.resolved(kept.id);
     let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
-    finish_with(component, &mut core, &begun.style, value)
+    let out = finish_with(component, &mut core, &begun.style, value);
+    // A request the body made while the node was kept: the node runs in this frame to take it.
+    super::node::DescendantWatch::after_build(kept, cx);
+    out
 }
 
 /// The output of a component a measuring run reached: `finish` on a settled `Cx` with no node
@@ -470,15 +473,13 @@ pub(crate) fn run_shaped<C: Component>(
     // shows the node, which reads its output.
     let reads = response::begin_reads(false);
 
-    // 8 sense, from the queue the node's retained half filled since its last run, and for a collection the
-    // presses the nodes under it took.
+    // 8 sense, from the queue the node's retained half filled since its last run, and what its watch took from the
+    // nodes under it (a collection's presses, the context requests a reader of `Cx::context_requests` gets).
     let mut input = std::mem::take(&mut kept.queue);
     input.extend(super::node::MenuBar::take(cx));
     input.extend(super::node::LoneAltClaims::take(cx));
-    if hooks.watches_presses() {
-        input.extend(super::node::PressWatch::take(kept));
-        super::node::PressWatch::provide(kept, cx);
-    }
+    input.extend(super::node::DescendantWatch::take(kept));
+    super::node::DescendantWatch::provide(kept, cx, hooks.watches_presses());
     let (mut in_facts, dragging) = input_facts(&input, rect.min, kept.dragging);
     in_facts.disabled = !resolved.enabled;
     kept.dragging = dragging;
@@ -552,6 +553,15 @@ pub(crate) fn run_shaped<C: Component>(
         steps::declare_parts(&mut component, &cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
     }
     kept.parts = steps::kept_parts(&parts, rect.min);
+    let part_tips: Vec<tip::PartTip> = parts
+        .decls
+        .iter()
+        .zip(&kept.parts)
+        .filter_map(|((_, extras), kept)| {
+            let text = crate::contract::tooltip::resolve_spec(&cxx.core.env, extras.tooltip.as_ref()?.spec(), resolved.enabled);
+            Some(tip::PartTip { id: kept.id, text, rect: bounds(kept.shape) })
+        })
+        .collect();
     kept.sense = sense;
     kept.claim = cxx.core.env.field_label().and_then(|label| label.claim).map(|claim| claim.translate(Pos2::ZERO - rect.min));
     kept.sweep = sweep;
@@ -685,7 +695,9 @@ pub(crate) fn run_shaped<C: Component>(
         cx.announce(text, politeness);
     }
     let tip_text = crate::contract::tooltip::text_of(cxx.core, component.shows_label(), <C as Meta>::CANVAS_CONTROL, None);
-    tip::show(&mut kept.tip, tip_text, true, cx, id, rect, tokens);
+    // The parts' tooltips: the component's own parts', then its members' (a collection's).
+    let part_tips = part_tips.into_iter().chain(std::mem::take(&mut cxx.core.part_tips)).collect();
+    tip::show(&mut kept.tip, tip_text, part_tips, true, cx, id, rect, tokens);
     let _ = tip;
     if let Some((target, spec)) = cxx.core.run.level.take() {
         super::motion::Level::aim(kept.level.get_mut(), target, spec);
@@ -699,6 +711,7 @@ pub(crate) fn run_shaped<C: Component>(
     super::node::LoneAltClaims::register(cxx.core.run.lone_alt_claim.get(), cx);
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.drop_types = cxx.core.run.drop_types.take();
+    kept.drop_under_modal = cxx.core.run.drop_under_modal.get();
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
@@ -751,6 +764,17 @@ pub(crate) fn run_shaped<C: Component>(
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
+    // Context requests: asks made after the context step (item content) come back as this node's own input in a
+    // build of this frame; the run's requests go to the watches above; a read of the requests below keeps the watch.
+    let late = core.run.context_asks.take();
+    kept.queue.extend(late.iter().map(|&rect| NodeInput::ContextRequest { id, rect }));
+    if !late.is_empty() {
+        cx.rebuild();
+    }
+    let requests: Vec<(Id, Rect)> = core.run.context_made.get().into_iter().chain(late).map(|rect| (id, rect)).collect();
+    super::node::DescendantWatch::note_context(cx, &requests);
+    kept.context_watch = core.run.context_watch.get();
+    super::node::DescendantWatch::after_build(kept, cx);
     if let Some(rect) = reveal
         && flow_reveal.is_none()
     {
@@ -882,18 +906,23 @@ pub(crate) fn run_member<I: Component>(
     }
     drop(host);
 
-    // 16 the tooltip of the hovered part, else the member's own, shown by the collection's step 16.
-    let hovered_tip = hovered.and_then(|part| {
-        let at = member_parts.iter().position(|kept| kept.id == part)?;
-        let (_, extras) = parts.decls.iter().nth(at)?;
-        extras
-            .tooltip
-            .as_ref()
-            .map(|tooltip| (member_parts[at].part, bounds(member_parts[at].shape).translate(origin.to_vec2()), tooltip.spec().clone()))
-    });
-    let tip = hovered_tip
-        .or_else(|| hovered.and(resolved.tooltip).map(|tooltip| (run.part, run.rect, tooltip.spec().clone())))
-        .map(|(part, rect, spec)| crate::contract::tooltip::MemberTip { part, spec, rect, pressed });
+    // 16 the parts' tooltips, shown by the collection's node: each part's own, else the member's, under the part; the
+    // member's own over its row.
+    let own_tip = resolved.tooltip.map(|tooltip| crate::contract::tooltip::resolve_spec(&cxx.core.env, tooltip.spec(), run.enabled));
+    let mut tips: Vec<tip::PartTip> = parts
+        .decls
+        .iter()
+        .zip(&member_parts)
+        .filter_map(|((_, extras), kept)| {
+            let text = extras
+                .tooltip
+                .as_ref()
+                .map(|tooltip| crate::contract::tooltip::resolve_spec(&cxx.core.env, tooltip.spec(), run.enabled))
+                .or_else(|| own_tip.clone())?;
+            Some(tip::PartTip { id: kept.id, text, rect: bounds(kept.shape) })
+        })
+        .collect();
+    tips.extend(own_tip.map(|text| tip::PartTip { id: row, text, rect: run.rect.translate(Pos2::ZERO - origin) }));
     let looks = super::items::MemberLooks {
         part: row,
         looks: variants
@@ -908,7 +937,7 @@ pub(crate) fn run_member<I: Component>(
     };
     let output = item.finish(cxx);
     memory.flush();
-    super::items::MemberRan { output, looks, tip }
+    super::items::MemberRan { output, looks, tips }
 }
 
 /// The ui-rt part id of a member's part `part` in the collection's node, for the member whose row part id is
@@ -982,9 +1011,7 @@ fn settle_shaped<C: Component>(
     hooks: &mut dyn ShapeHooks<C>,
 ) -> C::Output {
     reach_layers(&mut component, kept, cx, rect, begun, tokens, context.clone());
-    if hooks.watches_presses() {
-        super::node::PressWatch::provide(kept, cx);
-    }
+    super::node::DescendantWatch::provide(kept, cx, hooks.watches_presses());
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
@@ -1005,6 +1032,8 @@ fn settle_shaped<C: Component>(
     let out = component.finish(cxx);
     super::node::set_drawn(&mut kept.drawn, cx, drawn);
     kept.placed = flow.placed;
+    // A request the item content made while the node was kept: the node runs in this frame to take it.
+    super::node::DescendantWatch::after_build(kept, cx);
     out
 }
 
@@ -1129,7 +1158,7 @@ pub(crate) fn reach_layers<C: Component>(
             cx.rebuild();
         }
     }
-    tip::show(&mut kept.tip, None, false, cx, id, rect, tokens);
+    tip::show(&mut kept.tip, None, Vec::new(), false, cx, id, rect, tokens);
 }
 
 /// Steps 12 and 13 per pointer look: `Rest` always; `Hover` when the paint read `Hovered`; `Press`
@@ -1182,6 +1211,12 @@ fn record_variants<C: Component>(
             let mut pui = paint_ui(&mut lent, &canvas, &begun.env, cxx.core, &*begun.style, look);
             component.paint_over(&mut pui, cxx);
             children |= pui.showed_child.get();
+            // Where a drop of the drag over the node would land, over its content and children in every look.
+            if let Some(mark) = cxx.core.run.drop_mark.get() {
+                let preview = cxx.core.run.drag_over.as_ref().map(|(data, ..)| super::drag::preview_of(data)).unwrap_or_default();
+                let draw = pui.draw();
+                canvas.over(|| crate::contract::ghost::record_drop_mark(&draw, &canvas, &begun.env.tokens, &cxx.core.env, mark, &preview));
+            }
             drop(pui);
             steps::unfade(&canvas, cxx.core, fade);
             let (content, overlay) = canvas.finish();

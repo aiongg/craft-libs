@@ -134,8 +134,8 @@ pub(crate) struct Window {
     /// The window it stacks above and moves with.
     pub(crate) owner: Option<WindowId>,
     /// Nodes that take drops anywhere in the window ([`crate::PaintCx::window_drop_target`]), in
-    /// the order they registered.
-    pub(crate) window_drops: Vec<NodeId>,
+    /// the order they registered, and whether each takes OS file drags under a modal layer.
+    pub(crate) window_drops: Vec<(NodeId, bool)>,
     /// Where focus goes when a node goes with focus inside it, by that node
     /// ([`crate::BuildCx::set_focus_return`]).
     pub(crate) focus_returns: IdMap<NodeId>,

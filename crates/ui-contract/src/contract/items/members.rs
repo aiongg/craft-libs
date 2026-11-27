@@ -56,15 +56,13 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let part = ROW.at(key_hash(&key));
             let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
             let ran = crate::contract::rt::run::run_member(item, ui, &run, cx.core.input());
-            if ran.tip.is_some() {
-                cx.core.member_tip = ran.tip;
-            }
+            cx.core.part_tips.extend(ran.tips);
             if let Some(shown) = shown_rows.get_mut(shown) {
                 shown.openers = self.member_openers(ui, (id, ran.looks.part, &ran.looks.parts), cx.core.input(), enabled, openers);
             }
             self.member_looks.push(ran.looks);
             let label = ran.output.label_rect().unwrap_or(row);
-            self.report_item_output(ctx, id, &key, ran.output);
+            self.report_item_output(cx.core, id, &key, ran.output);
             if renaming {
                 self.rename_row(comp, ui, (ctx, id, &cx.core), (at, &key), label);
             }

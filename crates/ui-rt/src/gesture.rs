@@ -71,6 +71,20 @@ pub(crate) struct Touches {
     spent: bool,
     /// The input time of the last Ctrl+wheel step read as a pinch.
     last_pinch: Option<f64>,
+    /// The contacts down since the first landed, while they may still end as a multi-finger tap.
+    tap: Option<TapTrack>,
+}
+
+/// A touch gesture that may end as a multi-finger tap ([`Event::MultiTap`]): when its first finger landed, where each
+/// landed, the most fingers down at once and the node the gesture's start went to. It ends when a finger moves past
+/// [`craft_behavior::MULTI_TAP_SLOP`] or a contact is cancelled; the last lift taps when two or more fingers were down
+/// and none stayed past [`craft_behavior::MULTI_TAP_TIME`].
+#[derive(Clone, Debug)]
+struct TapTrack {
+    since: f64,
+    landed: smallvec::SmallVec<[(u64, Pos2); 4]>,
+    fingers: u8,
+    owner: Option<NodeId>,
 }
 
 impl Touches {
@@ -166,11 +180,20 @@ impl Runtime {
     /// gesture used it, so it starts, moves or ends no press.
     pub(crate) fn route_touch(&mut self, window: WindowId, p: PointerEvent) -> bool {
         use crate::platform::PointerPhase as P;
+        let now = self.time;
         let Some(t) = self.touches_mut(window) else { return true };
         match p.phase {
             P::Down => {
+                if t.contacts.is_empty() {
+                    t.tap = Some(TapTrack { since: now, landed: Default::default(), fingers: 0, owner: None });
+                }
                 if !t.contacts.iter().any(|c| c.0 == p.id) {
                     t.contacts.push((p.id, p.pos));
+                }
+                let down = t.contacts.len() as u8;
+                if let Some(tap) = t.tap.as_mut() {
+                    tap.landed.push((p.id, p.pos));
+                    tap.fingers = tap.fingers.max(down);
                 }
                 if t.pinch.is_some() || t.spent {
                     return true;
@@ -187,15 +210,28 @@ impl Runtime {
                 let hit = self.hit(window, centre, &|s| s.intersects(Sense::WHEELS));
                 let input = self.touch_input(centre, Vec2::ZERO, 1.0, 0.0, WheelPhase::Start, p.mods, hit);
                 let owner = hit.and_then(|h| self.dispatch(h.node, &Event::Wheel(input), true));
-                if let Some(pinch) = self.touches_mut(window).and_then(|t| t.pinch.as_mut()) {
-                    pinch.owner = owner;
-                    pinch.hit = hit;
+                if let Some(t) = self.touches_mut(window) {
+                    if let Some(pinch) = t.pinch.as_mut() {
+                        pinch.owner = owner;
+                        pinch.hit = hit;
+                    }
+                    if let Some(tap) = t.tap.as_mut() {
+                        tap.owner = owner;
+                    }
                 }
                 true
             }
             P::Move => {
                 if let Some(c) = t.contacts.iter_mut().find(|c| c.0 == p.id) {
                     c.1 = p.pos;
+                }
+                let drifted = t
+                    .tap
+                    .as_ref()
+                    .and_then(|tap| tap.landed.iter().find(|l| l.0 == p.id))
+                    .is_some_and(|l| (p.pos - l.1).length() > craft_behavior::MULTI_TAP_SLOP);
+                if drifted {
+                    t.tap = None;
                 }
                 let Some(pinch) = t.pinch else { return t.spent && t.pos(p.id).is_some() };
                 if !pinch.ids.contains(&p.id) {
@@ -223,6 +259,11 @@ impl Runtime {
             P::Up | P::Cancel | P::Leave => {
                 t.contacts.retain(|c| c.0 != p.id);
                 let empty = t.contacts.is_empty();
+                if p.phase != P::Up {
+                    t.tap = None;
+                }
+                let tapped =
+                    (if empty { t.tap.take() } else { None }).filter(|tap| tap.fingers >= 2 && now - tap.since <= craft_behavior::MULTI_TAP_TIME);
                 let ended = t.pinch.filter(|pinch| pinch.ids.contains(&p.id));
                 let used = ended.is_some() || t.pinch.is_some() || t.spent;
                 if ended.is_some() {
@@ -238,7 +279,28 @@ impl Runtime {
                     let input = self.touch_input(pinch.centre, Vec2::ZERO, 1.0, 0.0, phase, p.mods, pinch.hit);
                     self.deliver(owner, pinch.hit.map_or(owner, |h| h.node), &Event::Wheel(input));
                 }
+                if let Some(tap) = tapped {
+                    self.multi_tap(window, &tap);
+                }
                 used
+            }
+        }
+    }
+
+    /// Sends a finished multi-finger tap to the node the gesture's start went to, else to the topmost node under the
+    /// fingers' centre that takes presses, bubbling.
+    fn multi_tap(&mut self, window: WindowId, tap: &TapTrack) {
+        let n = tap.landed.len().max(1) as f32;
+        let at = Pos2::ZERO + tap.landed.iter().fold(Vec2::ZERO, |sum, l| sum + l.1.to_vec2()) / n;
+        let ev = Event::MultiTap(craft_behavior::MultiTap::new(tap.fingers, at));
+        match tap.owner {
+            Some(owner) => {
+                self.deliver(owner, owner, &ev);
+            }
+            None => {
+                if let Some(hit) = self.hit(window, at, &|s| s.takes_press()) {
+                    let _ = self.dispatch(hit.node, &ev, true);
+                }
             }
         }
     }

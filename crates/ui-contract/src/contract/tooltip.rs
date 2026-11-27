@@ -12,8 +12,6 @@
 //! label as its tooltip: its rect is the canvas, and its parts carry their own tooltips.
 
 use super::TooltipSpec;
-use craft_behavior::PartRef;
-use craft_ui_rt::Rect;
 
 /// Seconds the pointer rests on a component before its tooltip shows.
 pub const DELAY: f64 = 0.6;
@@ -72,13 +70,4 @@ pub(crate) fn text_of(core: &super::CxCore<'_>, shows_label: bool, canvas_contro
 /// A tooltip's text followed by the chord that does the same, as every tooltip shows a key: "Hide Layers (⌘,)".
 pub fn with_chord(base: &str, chord: &craft_keymap::Chord, os: craft_keymap::Platform) -> String {
     format!("{base} ({})", chord.display(os))
-}
-
-/// The tooltip of a member of a collection's run (`Collection::MEMBERS`) the pointer rests on: shown by the
-/// collection's step 16 as a part's, under the collection's timer, with the member's part as its subject.
-pub(crate) struct MemberTip {
-    pub part: PartRef,
-    pub spec: TooltipSpec,
-    pub rect: Rect,
-    pub pressed: bool,
 }

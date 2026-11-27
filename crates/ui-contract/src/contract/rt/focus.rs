@@ -579,3 +579,27 @@ pub(crate) fn enter_layer(own: &Kept, cx: &mut BuildCx<'_>) {
         _ => cx.focus_into(false),
     }
 }
+
+/// The part a focus move from another node names (`FocusTarget::Part` on a foreign id), for the target node to take
+/// as its focused part when it gains focus. One per window, provided by the window root.
+#[derive(Clone, Default)]
+pub(crate) struct PendingPart(std::rc::Rc<std::cell::Cell<Option<(NodeId, craft_behavior::PartRef)>>>);
+
+impl PendingPart {
+    /// Names `part` for `node`, which focus moves to next.
+    pub(crate) fn set(cx: &BuildCx<'_>, node: NodeId, part: craft_behavior::PartRef) {
+        if let Some(pending) = cx.provided::<PendingPart>() {
+            pending.0.set(Some((node, part)));
+        }
+    }
+
+    /// The part named for the node `cx` handles, taken as it gains focus.
+    pub(crate) fn take(cx: &EventCx<'_>) -> Option<craft_behavior::PartRef> {
+        let pending = cx.provided::<PendingPart>()?;
+        let (node, part) = pending.0.get()?;
+        (node == cx.node()).then(|| {
+            pending.0.set(None);
+            part
+        })
+    }
+}

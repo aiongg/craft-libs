@@ -37,13 +37,13 @@ pub(crate) trait ShapeHooks<C: Component> {
         own
     }
 
-    /// The key role the focused node's key stage reads, where the component's `KeyUse` does not
-    /// say it all.
     /// The node watches the presses the nodes under it take (`NodeInput::DescendantPress`): a collection.
     fn watches_presses(&self) -> bool {
         false
     }
 
+    /// The key role the focused node's key stage reads, where the component's `KeyUse` does not
+    /// say it all.
     fn key_role(&self, _comp: &C) -> Option<craft_behavior::KeyRole> {
         None
     }
@@ -247,7 +247,7 @@ pub(crate) fn core_for<'a>(
         part_cursors: Vec::new(),
         claims: Vec::new(),
         reveal: None,
-        member_tip: None,
+        part_tips: Vec::new(),
         header_stops: Vec::new(),
         roving_member: false,
         press_cancel: None,

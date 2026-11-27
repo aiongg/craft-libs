@@ -37,22 +37,44 @@ pub(crate) enum TipPhase {
     Pressed,
 }
 
-/// A component's tooltip, kept on its node.
+/// A part's tooltip: the ui-rt part id it shows over, its text, and the part's rect in node coordinates, which the
+/// tooltip stands under. A collection's members' parts carry their own (or the member's) this way.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PartTip {
+    pub(crate) id: u64,
+    pub(crate) text: String,
+    pub(crate) rect: Rect,
+}
+
+/// A component's tooltip, kept on its node: its own text and its parts' tooltips.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TipKept {
-    pub(crate) text: String,
+    pub(crate) text: Option<String>,
+    pub(crate) parts: Vec<PartTip>,
+    /// The node's part under the pointer, as of the last hover event (0 for its own shape, `None` over a node under it).
+    pub(crate) part: Option<u64>,
     pub(crate) phase: TipPhase,
 }
 
 impl TipKept {
+    /// What shows while the pointer is over `part`: the part's tooltip and its rect, else the component's own text.
+    fn text_for(&self, part: Option<u64>) -> Option<(&str, Option<Rect>)> {
+        let own = || self.text.as_deref().map(|text| (text, None));
+        part.and_then(|id| self.parts.iter().find(|tip| tip.id == id)).map(|tip| (tip.text.as_str(), Some(tip.rect))).or_else(own)
+    }
+
+    /// Starts the delay at this frame time.
+    fn wait(&mut self, cx: &mut EventCx<'_>) {
+        let since = cx.time();
+        self.phase = TipPhase::Waiting { since };
+        cx.request_build_at(Some(since + DELAY));
+    }
+
     /// The pointer entered (`true`) or left the component.
     pub(crate) fn hover(&mut self, on: bool, cx: &mut EventCx<'_>) {
+        self.part = if on { cx.runtime().hovered_part(cx.node()) } else { None };
         match (on, self.phase) {
-            (true, TipPhase::Idle) => {
-                let since = cx.time();
-                self.phase = TipPhase::Waiting { since };
-                cx.request_build_at(Some(since + DELAY));
-            }
+            (true, TipPhase::Idle) if self.text_for(self.part).is_some() => self.wait(cx),
             (false, TipPhase::Waiting { .. }) => {
                 self.phase = TipPhase::Idle;
                 cx.request_build_at(None);
@@ -62,6 +84,28 @@ impl TipKept {
                 cx.request_build();
             }
             (false, TipPhase::Pressed) => self.phase = TipPhase::Idle,
+            _ => {}
+        }
+    }
+
+    /// The pointer moved to another part of the component (`Event::HoverPart`): a part with a tooltip of its own
+    /// starts the delay, or changes the shown tooltip at once; leaving every tooltip ends it.
+    pub(crate) fn hover_part(&mut self, part: Option<u64>, cx: &mut EventCx<'_>) {
+        let before = self.text_for(self.part).map(|(text, rect)| (text.to_owned(), rect));
+        self.part = part;
+        let after = self.text_for(part).map(|(text, rect)| (text.to_owned(), rect));
+        match self.phase {
+            TipPhase::Idle if after.is_some() => self.wait(cx),
+            TipPhase::Waiting { .. } if after.is_none() => {
+                self.phase = TipPhase::Idle;
+                cx.request_build_at(None);
+            }
+            TipPhase::Shown if after != before => {
+                if after.is_none() {
+                    self.phase = TipPhase::Idle;
+                }
+                cx.request_build();
+            }
             _ => {}
         }
     }
@@ -82,14 +126,27 @@ impl TipKept {
 /// The tooltip key among a node's layer children.
 const TIP_KEY: u64 = 0x7469_70;
 
-/// Takes the component's tooltip text from its run, and shows the tooltip while it is due. Runs in
-/// the component's run and in passes that reach a kept component's layer children.
-pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, cx: &mut BuildCx<'_>, owner: Id, rect: Rect, tokens: &Arc<Tokens>) {
+/// Takes the component's tooltip text and its parts' tooltips from its run, and shows the tooltip while it is due:
+/// the hovered part's, under the part, else the component's own, under the component. Runs in the component's run
+/// (`ran`) and in passes that reach a kept component's layer children.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn show(
+    tip: &mut Option<TipKept>,
+    text: Option<String>,
+    parts: Vec<PartTip>,
+    ran: bool,
+    cx: &mut BuildCx<'_>,
+    owner: Id,
+    rect: Rect,
+    tokens: &Arc<Tokens>,
+) {
     if ran {
-        match (tip.as_mut(), text) {
-            (Some(kept), Some(text)) => kept.text = text,
-            (None, Some(text)) => *tip = Some(TipKept { text, phase: TipPhase::Idle }),
-            (_, None) => *tip = None,
+        if text.is_none() && parts.is_empty() {
+            *tip = None;
+        } else {
+            let kept = tip.get_or_insert_with(TipKept::default);
+            kept.text = text;
+            kept.parts = parts;
         }
         cx.hover_events(tip.is_some());
     }
@@ -102,15 +159,22 @@ pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, c
     if kept.phase != TipPhase::Shown {
         return;
     }
+    let Some((text, part_rect)) = kept.text_for(kept.part) else { return };
     let gap = tokens.space.gap.tight;
-    let spec = LayerSpec::new(Placement::Anchor { node: cx.node(), side: Side::Below, align: Align::Min, gap });
+    let (placement, anchor) = match part_rect {
+        Some(part) => {
+            let part = part.translate(rect.min.to_vec2());
+            (Placement::Beside { rect: part, side: Side::Below, align: Align::Min, gap }, part)
+        }
+        None => (Placement::Anchor { node: cx.node(), side: Side::Below, align: Align::Min, gap }, rect),
+    };
     let show = LayerShow {
         layer: Layer::Tooltip,
-        spec,
+        spec: LayerSpec::new(placement),
         surface: Surface::Tip,
         pad: POPUP_PAD.points(tokens),
         share: Vec2::new(0.5, 0.5),
-        anchor: Some(rect),
+        anchor: Some(anchor),
         role: accesskit::Role::Tooltip,
         hover: false,
         sweep: None,
@@ -120,7 +184,7 @@ pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, c
         on_activate: false,
         enter: false,
     };
-    let text = kept.text.clone();
+    let text = text.to_owned();
     show_layer(cx, owner.with("craft-tip"), TIP_KEY, show, ran, &mut |ui| {
         TipText::new(&text).show(ui);
     });

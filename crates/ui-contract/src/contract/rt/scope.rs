@@ -56,6 +56,7 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(
         cx.provide(cells);
         cx.provide(kept.menu.get_or_insert_with(Default::default).clone());
         cx.provide(kept.alt_claims.get_or_insert_with(Default::default).clone());
+        cx.provide(kept.focus_part.get_or_insert_with(Default::default).clone());
         crate::fonts::refresh_facts(cx, cells);
         let ids = cx.slot("craft-node-ids", super::ids::NodeIds::default);
         let ids = cx.peek_state(ids).clone();

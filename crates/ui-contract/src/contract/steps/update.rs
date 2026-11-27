@@ -105,19 +105,32 @@ pub(crate) fn context_slot(id: crate::contract::Id) -> crate::contract::Id {
     crate::runtime::memory::sub(id, "context")
 }
 
-/// Step 9, after `update`: a secondary click on the component or a `ContextMenu` intent it did not
-/// take records a context request that the overlay step and the popups read in this run (9.2 rule
-/// 3): at the part under the pointer for a click, at the active part for the intent, else at the
-/// component.
+/// Step 9, after `update`: a secondary click on the component, a `ContextMenu` intent it did not take or a request
+/// it made at a rect of its own (`CxCore::request_context`) records a context request that the overlay step and the
+/// popups read in this run (9.2 rule 3): at the part under the pointer for a click, at the active part for the intent,
+/// at the asked rect, else at the component. The request goes to the watches above after the run
+/// (`RunIo::context_made`). A request its item content made after this step in its last run (queued under its own
+/// id) is recorded here too, and was passed on then.
 pub(crate) fn record_context(core: &mut CxCore<'_>) {
-    let part = if core.intents.untaken(&Intent::ContextMenu) {
-        core.active
+    let asked = core.run.context_asks.borrow_mut().drain(..).last();
+    let id = core.id;
+    let requeued = core.run.input.iter().rev().find_map(|input| match input {
+        crate::contract::rt::node::NodeInput::ContextRequest { id: from, rect } if *from == id => Some(*rect),
+        _ => None,
+    });
+    let (part, asked_at) = if core.intents.untaken(&Intent::ContextMenu) {
+        (core.active, None)
     } else if core.response.secondary_clicked() {
-        core.results.iter().find(|(_, result)| result.hovered).map(|(&(key, index), _)| PartRef { key, index })
+        (core.results.iter().find(|(_, result)| result.hovered).map(|(&(key, index), _)| PartRef { key, index }), None)
+    } else if let Some(rect) = asked.or(requeued) {
+        (None, Some(rect))
     } else {
         *core.memory.shown::<ContextRequest>(context_slot(core.id)) = ContextRequest(None);
         return;
     };
-    let at = part.and_then(|part| core.results.get(&(part.key, part.index)).map(|result| result.rect)).unwrap_or(core.rect);
+    let at = asked_at.or_else(|| part.and_then(|part| core.results.get(&(part.key, part.index)).map(|result| result.rect))).unwrap_or(core.rect);
+    if asked_at.is_none() || asked.is_some() {
+        core.run.context_made.set(Some(at));
+    }
     *core.memory.shown::<ContextRequest>(context_slot(core.id)) = ContextRequest(Some((at, part)));
 }

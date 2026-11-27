@@ -62,6 +62,9 @@ pub(crate) enum HitKind {
     Input,
     /// Where drags may drop ([`crate::PaintCx::drop_target`]).
     Drop,
+    /// Where drags may drop, OS file drags also under a modal layer
+    /// ([`crate::PaintCx::drop_target_under_modal`]).
+    DropUnderModal,
     /// What the operating system does with a press there ([`crate::PaintCx::window_zone`]).
     Zone,
     /// A press there holds the focused node's draft ([`crate::PaintCx::holds_drafts`]).
@@ -111,6 +114,31 @@ pub(crate) fn hit_records(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn 
 /// (a [`crate::ModalReach`]): below the modal, the topmost shape counts only when it is `through`'s.
 pub(crate) fn hit_test_through(tree: &Tree, window: &Window, pos: Pos2, accept: &dyn Fn(Sense) -> bool, through: Option<NodeId>) -> Option<Hit> {
     hit_records_through(tree, window, pos, &|h| h.kind == HitKind::Input && accept(h.sense), through).map(|(hit, _)| hit)
+}
+
+/// The topmost drop shape under `pos` that takes the drag: for an OS file drag (`files`) a shown
+/// modal layer lets through only the shapes below it that take files under a modal
+/// ([`crate::PaintCx::drop_target_under_modal`]); for any other drag it takes the hit.
+pub(crate) fn drop_hit(tree: &Tree, window: &Window, pos: Pos2, files: bool) -> Option<Hit> {
+    if !files {
+        return hit_records(tree, window, pos, &|h| matches!(h.kind, HitKind::Drop | HitKind::DropUnderModal)).map(|(hit, _)| hit);
+    }
+    let viewport = Rect::from_min_size(Pos2::ZERO, window.viewport);
+    let mut below_modal = false;
+    for layer in Layer::ALL.into_iter().rev() {
+        let id = window.layer(layer);
+        let accept = |h: &HitRecord| h.kind == HitKind::DropUnderModal || (!below_modal && h.kind == HitKind::Drop);
+        if let Some((hit, _)) = visit(tree, id, Vec2::ZERO, viewport, pos, &accept) {
+            return Some(hit);
+        }
+        below_modal |= layer == Layer::Modal && modal_shown(tree, window);
+    }
+    None
+}
+
+/// Whether `window`'s modal layer holds a child: input below it is blocked.
+pub(crate) fn modal_shown(tree: &Tree, window: &Window) -> bool {
+    tree.nodes.get(&window.layer(Layer::Modal)).is_some_and(|n| !n.children.is_empty())
 }
 
 fn hit_records_through(
@@ -209,7 +237,7 @@ pub(crate) fn window_zones(tree: &Tree, window: &Window) -> Vec<WindowZone> {
             match h.kind {
                 HitKind::Zone => out.push(Entry::Zone(h.part, rect, id)),
                 HitKind::Input if !h.sense.is_empty() => out.push(Entry::Input(rect, id)),
-                HitKind::Input | HitKind::Drop | HitKind::Hold => {}
+                HitKind::Input | HitKind::Drop | HitKind::Hold | HitKind::DropUnderModal => {}
             }
         }
         for &child in &node.children {

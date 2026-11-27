@@ -332,11 +332,11 @@ pub(crate) struct MemberRun {
     pub(crate) enabled: bool,
 }
 
-/// What a member's run gives the collection: its output, its paint per look and its tooltip text.
+/// What a member's run gives the collection: its output, its paint per look and its parts' tooltips.
 pub(crate) struct MemberRan<O> {
     pub(crate) output: O,
     pub(crate) looks: MemberLooks,
-    pub(crate) tip: Option<crate::contract::tooltip::MemberTip>,
+    pub(crate) tips: Vec<super::tip::PartTip>,
 }
 
 /// One member row's recorded paint: its sub-list per pointer look its paint read (`Rest` always,

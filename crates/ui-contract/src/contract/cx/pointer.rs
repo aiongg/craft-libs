@@ -39,8 +39,8 @@ pub trait Pointer {
     fn activated_member(&self) -> Option<Id>;
     /// This pass's wheel share, once, with the pointer it came at (`Wheel::at`) in window coordinates (8.3).
     fn take_wheel(&mut self) -> Option<Wheel>;
-    /// This pass's tap, once, when it lies in this component's rect and this component (an arena root with its members)
-    /// wins a press there.
+    /// This run's multi-finger tap, once: two or more fingers tapped together on this component (the touch gesture's
+    /// start went to it, or it is the nearest node under the fingers that takes presses), around a window point.
     fn take_multi_tap(&mut self) -> Option<MultiTap>;
     /// Feeds `pan`, the line pan this pass gave, to this component's wheel ease and returns the eased step for this
     /// pass. `Vec2::ZERO` on a pass with no line pan lets owed motion keep paying.
@@ -154,8 +154,13 @@ impl Pointer for CxCore<'_> {
     }
 
     fn take_multi_tap(&mut self) -> Option<MultiTap> {
-        let _ = self;
-        todo!("multi-finger taps: ui-rt's touch tracker queues a NodeInput on the node under the fingers, INT-1c")
+        if self.run.tap_taken.replace(true) {
+            return None;
+        }
+        self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::MultiTap(tap) => Some(*tap),
+            _ => None,
+        })
     }
 
     fn ease_wheel(&mut self, pan: Vec2) -> Vec2 {
@@ -222,10 +227,22 @@ impl Pointer for CxCore<'_> {
 
     fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         self.run.drop_types.borrow_mut().push((TypeId::of::<P>(), true));
+        if target.under_modal() {
+            self.run.drop_under_modal.set(true);
+        }
         if target.requires_pointer() && self.dragging::<P>().is_none() {
             return None;
         }
-        let (payload, _, mods) = self.dropped(TypeId::of::<P>())?;
+        let Some((payload, _, mods)) = self.dropped(TypeId::of::<P>()) else {
+            // The drag over the window: the mark of what a drop would do, painted with the node.
+            if let Some((payload, _, mods)) = self.over(TypeId::of::<P>()) {
+                let op = craft_behavior::keys::drop_operation(self.context().os(), mods, craft_behavior::CopyKeys::Alt);
+                if let Some(drop) = payload.downcast_ref::<P>().and_then(|payload| target.accept(payload, op)) {
+                    self.run.drop_mark.set(Some(target.mark(&drop)));
+                }
+            }
+            return None;
+        };
         let op = craft_behavior::keys::drop_operation(self.context().os(), mods, craft_behavior::CopyKeys::Alt);
         target.accept(payload.downcast_ref::<P>()?, op)
     }
@@ -288,9 +305,28 @@ impl CxCore<'_> {
     /// and the pointer what a drop on it does, and gets the drop in the run it lands in.
     pub(crate) fn drop_target_of<T: DropTarget<dyn Any + Send + Sync>>(&mut self, payload_type: TypeId, target: &T) -> Option<T::Drop> {
         self.run.drop_types.borrow_mut().push((payload_type, false));
-        let (payload, at, mods) = self.dropped(payload_type)?;
+        if target.under_modal() {
+            self.run.drop_under_modal.set(true);
+        }
+        let Some((payload, at, mods)) = self.dropped(payload_type) else {
+            // The drag over the node: the mark of what a drop here would do, painted over the node's content.
+            if let Some((payload, at, mods)) = self.over(payload_type) {
+                let op = craft_behavior::keys::drop_operation(self.context().os(), mods, target.copy_keys());
+                if let Some(drop) = target.accept(&*payload, at, op) {
+                    self.run.drop_mark.set(Some(target.mark(&drop)));
+                }
+            }
+            return None;
+        };
         let op = craft_behavior::keys::drop_operation(self.context().os(), mods, target.copy_keys());
         target.accept(&*payload, at?, op)
+    }
+
+    /// The payload of type `payload` of the drag over this node in this run, the pointer (window coordinates) and the
+    /// keys held; `None` on a settled `Cx`.
+    fn over(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2, craft_ui_rt::Mods)> {
+        let (data, at, mods) = self.run.drag_over.as_ref().filter(|_| !self.run.settled)?;
+        Some((crate::contract::rt::drag::payload_of(data, payload)?, *at, *mods))
     }
 }
 
