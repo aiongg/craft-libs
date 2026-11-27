@@ -177,3 +177,56 @@ fn escape_closes_the_menu_and_a_row_click_reaches_its_row() {
     settle(&mut rig, &mut app);
     assert_eq!(app.menu.picked.get(), Some(1), "the row took the click");
 }
+
+/// A window root that shows one toast queue; it posts one card with a one-second timeout on its first run and counts
+/// its own runs and the cards it drew.
+struct Toasts {
+    queue: craft_ui_contract::contract::toast::ToastQueue,
+    posted: Option<craft_ui_contract::runtime::toast::ToastId>,
+    root_runs: u32,
+    drawn: u32,
+}
+
+fn toast_ui(ui: &mut Ui<'_, '_>, app: &mut Toasts) {
+    use craft_ui_contract::contract::toast::{CardOutcome, ToastHost};
+    use craft_ui_contract::runtime::toast::Toast;
+    app.root_runs += 1;
+    if app.posted.is_none() {
+        app.posted = Some(app.queue.post(Toast::new("Saved").timeout(Some(1.0))));
+    }
+    let body = Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0));
+    let drawn = &mut app.drawn;
+    ToastHost::show(ui, &mut app.queue, body, &mut |ui, _, salt| {
+        *drawn += 1;
+        Chip::new("Saved").id_source(craft_ui_contract::contract::IdSource::Salt(salt)).show(ui);
+        CardOutcome::new(false, None)
+    });
+}
+
+fn toast_step(rig: &mut Rig<RecordingRenderer>, app: &mut Toasts) -> StepReport {
+    rig.step_with(&mut |_, cx| window_root_with(cx, WindowEnv::default(), |ui| toast_ui(ui, app)))
+}
+
+#[test]
+fn a_waiting_toast_runs_nothing_until_its_timeout_ends_it() {
+    let mut app = Toasts { queue: Default::default(), posted: None, root_runs: 0, drawn: 0 };
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    for _ in 0..6 {
+        if !toast_step(&mut rig, &mut app).ran {
+            break;
+        }
+    }
+    let id = app.posted.expect("the root posted its card");
+    assert!(app.drawn >= 1, "the card was drawn");
+    let (runs, drawn) = (app.root_runs, app.drawn);
+    for _ in 0..3 {
+        let idle = toast_step(&mut rig, &mut app);
+        assert!(!idle.ran, "a waiting card's timer is a build wake, not a frame per step: {idle:?}");
+    }
+    assert_eq!((app.root_runs, app.drawn), (runs, drawn), "nothing ran while the card waited");
+    rig.driver.platform.advance(1.1);
+    toast_step(&mut rig, &mut app);
+    assert_eq!(app.root_runs, runs + 1, "the deadline woke the showing node once");
+    assert_eq!(app.queue.take_end(id), Some(craft_ui_contract::runtime::toast::ToastEnd::Expired), "the timeout ended the card");
+    assert!(app.queue.is_empty());
+}

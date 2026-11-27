@@ -644,12 +644,13 @@ impl Runtime {
         self.wakes.iter().chain(&self.layout_wakes).chain(&self.build_wakes).map(|&(_, at)| at).reduce(f64::min)
     }
 
-    /// `node` builds at frame time `at` (an inline node: its owners take `PATH`), replacing an
-    /// earlier build wake of it; `None` cancels it.
+    /// `node` builds at frame time `at` (an inline node: its owners take `PATH`); it keeps the
+    /// earlier of this and a pending build wake. `None` asks for nothing.
     pub(crate) fn set_build_wake(&mut self, node: NodeId, at: Option<f64>) {
-        self.build_wakes.retain(|&(n, _)| n != node);
-        if let Some(at) = at {
-            self.build_wakes.push((node, at));
+        let Some(at) = at else { return };
+        match self.build_wakes.iter_mut().find(|(n, _)| *n == node) {
+            Some((_, was)) => *was = was.min(at),
+            None => self.build_wakes.push((node, at)),
         }
     }
 

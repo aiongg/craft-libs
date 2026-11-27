@@ -4,9 +4,9 @@
 
 use crate::runtime::env::{Env, Label};
 
+use crate::primitives::Id;
 use crate::style::UiTokens;
 use craft_behavior::{CopyKeys, DropOperation};
-use craft_ui_rt::NodeId;
 use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::any::Any;
 use std::marker::PhantomData;
@@ -186,19 +186,19 @@ pub trait WindowDropTarget<P> {
     }
 }
 
-/// Where a drop target lies: a rect on an egui layer, in that layer's space. A component's own target lies over its
-/// visible rect on its layer; a component that takes drops over an area it does not draw (a preset browser's canvas)
-/// names the area with [`DropZone::new`] and registers with [`zone_target`].
+/// Where a drop target lies: a rect of a node, in that node's space. A component's own target lies over its visible
+/// rect; a component that takes drops over an area it does not draw (a preset browser's canvas) names the area with
+/// [`DropZone::new`].
 #[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct DropZone {
-    owner: Option<NodeId>,
+    owner: Option<Id>,
     rect: Rect,
 }
 
 impl DropZone {
-    /// The zone `rect` of the node `owner` (the node of the `Ui` that draws the area; `None` for the window's own
-    /// layer), in that node's space.
-    pub const fn new(owner: Option<NodeId>, rect: Rect) -> Self {
+    /// The zone `rect` of the node `owner` names (the scope of the `Ui` that draws the area, `Ui::scope_id`; `None`
+    /// for the window's root), in that node's space.
+    pub const fn new(owner: Option<Id>, rect: Rect) -> Self {
         DropZone { owner, rect }
     }
 

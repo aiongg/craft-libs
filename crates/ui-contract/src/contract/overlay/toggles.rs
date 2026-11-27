@@ -2,6 +2,7 @@
 
 use super::popups::PopupHandle;
 use crate::contract::cx::CxCore;
+use crate::contract::rt::NodeInput;
 use crate::contract::{Id, PartBuilder};
 use crate::runtime::overlay::CloseReason;
 use craft_behavior::Intent;
@@ -74,16 +75,16 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
         let part = toggle.part;
         // The root takes Expand and Collapse for a sole toggling part that has no node of its own.
         let sole = toggles.len() == 1;
-        let named = |request: &craft_behavior::AccessRequest| {
-            (request.target == Some(part) || (sole && request.target.is_none()))
-                && matches!(request.action, craft_behavior::AccessAction::Expand | craft_behavior::AccessAction::Collapse)
-        };
-        while let Some(request) = core.intents.take_access_where(named) {
-            if request.action == craft_behavior::AccessAction::Expand {
-                core.popups.set(popup.id, true);
-                opened = Some(at);
-            } else {
-                core.popups.close(popup.id, CloseReason::Requested);
+        for action in part_actions(core, part, sole) {
+            match action {
+                accesskit::Action::Expand => {
+                    core.popups.set(popup.id, true);
+                    opened = Some(at);
+                }
+                accesskit::Action::Collapse => {
+                    core.popups.close(popup.id, CloseReason::Requested);
+                }
+                _ => continue,
             }
             handled = true;
         }
@@ -94,8 +95,7 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
             Some(phase) => phase.is_click(),
             None => false,
         };
-        let clicked = |request: &craft_behavior::AccessRequest| request.target == Some(part) && request.action == craft_behavior::AccessAction::Click;
-        let by_access = core.intents.take_access_where(clicked).is_some();
+        let by_access = part_actions(core, part, false).contains(&accesskit::Action::Click);
         let toggled = by_pointer || by_access || key_activated(core, active, part);
         if toggled {
             let was = popup.is_open_in(core);
@@ -143,6 +143,19 @@ pub(crate) fn drive_toggles(core: &mut CxCore<'_>, overlays: bool, name: &str) {
         toggle.open = toggle.handle(owner).is_open_in(core);
     }
     core.toggles = toggles;
+}
+
+/// The assistive technology's actions on `part` in the run's queue, oldest first: those on its sub-node (keyed by the
+/// part, `Access::node`), and with `sole`, those on the component's own node too.
+fn part_actions(core: &CxCore<'_>, part: PartRef, sole: bool) -> Vec<accesskit::Action> {
+    let key = craft_ui_rt::hash_key(&part);
+    core.input()
+        .iter()
+        .filter_map(|input| match input {
+            NodeInput::Access(a) if a.sub == Some(key) || (sole && a.sub.is_none()) => Some(a.action),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Whether a key (Enter or Space) activated `part`, the focused part of the component.

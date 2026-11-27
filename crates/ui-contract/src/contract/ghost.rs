@@ -1,51 +1,28 @@
-//! The ghost layer's content (8.4, 8.5): the running drag's preview beside the pointer, the mark of the drop target that
-//! would take the payload (with the payload's name inside a region mark, for a drag that names it), and the painted
-//! pointer the cursor service settled on, which goes to the window as its cursor image instead where the window takes
-//! one. They come from the drag session's data and the cursor record; the layer takes no input. Value readouts beside
-//! the pointer during a gesture paint here too, for the pass that asks.
+//! What the drag layer shows beside the pointer besides the drag preview (8.4, 8.5): the mark of the drop target that
+//! would take the payload (with the payload's name inside a region mark, for a drag that names it), and value
+//! readouts beside the pointer during a gesture. Each records into a `Draw` on its layer child's canvas: the drop mark
+//! in the tokens of the target's region, a readout in the env of the region that asks. The drag preview itself is the
+//! ghost ui-rt keeps on its drag layer (`contract::rt::drag::ghost`); the layer takes no input.
 
-use crate::primitives::pointer_art::Art;
-use crate::primitives::pointer_art::pointer_art;
-use crate::primitives::{Draw, DrawEnv, PaintRecord, PaintShape, RuleKind, Span, TextRun, outline};
-use crate::runtime::drag::{self, DragPreview, DropMark};
-use crate::runtime::egui::areas;
-use crate::runtime::env::{Env, EnvView, Label};
-use crate::runtime::{cursor, pointer};
-use crate::style::{Corners, Ink, RuleWidth, SurfaceKind, UiTokens, rule_look};
+use crate::primitives::{Canvas, Draw, RuleKind, Span, TextRun};
+use crate::runtime::drag::{DragPreview, DropMark};
+use crate::runtime::env::{EnvView, Label};
+use crate::style::{Corners, RuleWidth, SurfaceKind, UiTokens, rule_look};
 use craft_behavior::Flow;
 use craft_ui_rt::{Pos2, Rect, Vec2, vec2};
-use egui::{Context, CornerRadius};
-use std::cell::RefCell;
 
-/// The end hook's painter of the ghost layer: pass it to `InstallSpec::frame_layers`. The drag preview paints in the
-/// env of the region the drag started in and the drop mark in the tokens of the target's region; the pointer, which
-/// belongs to no region, in the root env's.
-pub fn paint(ctx: &Context) {
-    let root = Env::of_root(ctx);
-    let painter = painter(ctx);
-    paint_pointer(ctx, &root, &painter);
-    if let Some(session) = drag::ghost(ctx) {
-        paint_drag(ctx, session.env.as_ref().unwrap_or(&root), &painter, &session);
-    }
-}
-
-/// Paints rows of a label and a value beside the pointer at `at`, on the ghost layer, in `env`'s tokens, words and
-/// direction: the env of the region that asks, for this pass only. It sits toward the lower end side of the pointer
-/// (the lower right, mirrored under right-to-left), flips to the other side where the window has no room and stays
-/// inside the window. Labels start at the reading start and values end at the reading end, the widest label and the
-/// widest value a section gap apart. Labels are in the muted ink and values in the normal one. No rows paint nothing.
-pub fn readout(ctx: &Context, env: &EnvView<'_>, at: Pos2, rows: &[(Label, String)]) {
+/// Records rows of a label and a value beside the pointer at `at` into `draw`, in `env`'s tokens, words and direction:
+/// the env of the region that asks. It sits toward the lower end side of the pointer (the lower right, mirrored under
+/// right-to-left), flips to the other side where `window` (the window's rect) has no room and stays inside it. Labels
+/// start at the reading start and values end at the reading end, the widest label and the widest value a section gap
+/// apart. Labels are in the muted ink and values in the normal one. No rows record nothing.
+pub(crate) fn record_readout(draw: &Draw<'_>, env: &EnvView<'_>, at: Pos2, window: Rect, rows: &[(Label, String)]) {
     if rows.is_empty() {
         return;
     }
     let tokens = env.shared_tokens();
     let tokens = &*tokens;
     let direction = env.direction();
-    let painter = painter(ctx);
-    let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
-    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
-    let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction, ink: Ink::OnPanel });
     let runs: Vec<(String, String)> = rows.iter().map(|(label, value)| (env.resolve(label).as_str().to_owned(), value.clone())).collect();
     let layouts: Vec<_> = runs
         .iter()
@@ -62,7 +39,7 @@ pub fn readout(ctx: &Context, env: &EnvView<'_>, at: Pos2, rows: &[(Label, Strin
     let height = 2.0 * pad.y + heights.iter().sum::<f32>() + tokens.stroke.thin * (heights.len() - 1) as f32;
     let tip = tokens.size.pointer_tip;
     let rtl = direction.is_rtl();
-    let outer = readout_place(at, vec2(tip.x, tip.y), vec2(width, height), rtl, ctx.content_rect());
+    let outer = readout_place(at, vec2(tip.x, tip.y), vec2(width, height), rtl, window);
     draw.surface(outer, SurfaceKind::Popup, Corners::All);
     let mut y = outer.min.y + pad.y;
     for ((label, value), row_height) in layouts.iter().zip(&heights) {
@@ -91,142 +68,37 @@ fn readout_place(at: Pos2, offset: Vec2, size: Vec2, rtl: bool, window: Rect) ->
     rect.translate(vec2(dx, dy))
 }
 
-/// The painter of the ghost layer, over the whole screen and above every popup. The layer takes no input.
-#[doc(hidden)]
-pub fn painter(ctx: &Context) -> egui::Painter {
-    areas::ghost_painter(ctx)
-}
-
-/// The painted pointer the cursor service settled on: the window's cursor image where the window takes one at its
-/// size, else painted at the pointer. A brush tip too large for an image hands its centre cross and badge to the
-/// window and paints only its ring, so the pointer itself still moves with the hardware. A badged system cursor keeps
-/// the system's arrow and has only its badge painted. Where the shell cannot set the system cursor nothing is painted.
-///
-/// A tip outline requested within a region (`cursor::request_within`: a canvas's view on the canvas's layer) is a
-/// mark on that canvas: the whole outline goes to the window only while it lies inside the region with no layer above
-/// the region's over it. Otherwise its ring paints on the region's layer clipped to the region, under the panels,
-/// menus and dialogs above it, and the window takes its marks as a too large tip's.
-fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
-    use craft_behavior::{Cursor, PaintedCursor};
-    let Some(at) = areas::pointer_pos(ctx) else { return };
-    let Some(Cursor::Painted(cursor)) = cursor::current(ctx).filter(|_| cursor::paints(ctx)) else { return };
-    let closed = pointer::frame_raw(ctx).buttons.contains(craft_behavior::Buttons::PRIMARY);
-    let tip = matches!(cursor, PaintedCursor::Circle { .. } | PaintedCursor::Outline { .. });
-    let whole = pointer_art(env, &cursor, closed, false);
-    // A brush tip is canvas geometry at the canvas's zoom; any other pointer takes the interface zoom only where it
-    // follows it.
-    let whole = if tip { whole } else { whole.scaled(cursor::art_scale(ctx)) };
-    let confined = cursor::current_region(ctx).filter(|region| tip && !shows_whole(ctx, region, &whole, at));
-    let ring = |painter: &egui::Painter| {
-        let art = pointer_art(env, &cursor.clone().marked(false, None), closed, false);
-        match confined {
-            Some(region) => paint_in_region(ctx, region, &art, at),
-            None => crate::runtime::egui::text_layout::on_painter(painter, |c| art.paint(c, at)),
-        }
-    };
-    let target = cursor::image_target(ctx).filter(|_| !matches!(cursor, PaintedCursor::Badged { .. }));
-    if let Some(target) = target {
-        if confined.is_none() && cursor::show_image(ctx, &whole, target) {
-            return;
-        }
-        if tip && cursor::show_image(ctx, &pointer_art(env, &cursor, closed, true), target) {
-            ring(painter);
-            return;
-        }
-    }
-    match confined {
-        Some(_) => {
-            ring(painter);
-            crate::runtime::egui::text_layout::on_painter(painter, |c| pointer_art(env, &cursor, closed, true).paint(c, at));
-        }
-        None => crate::runtime::egui::text_layout::on_painter(painter, |c| whole.paint(c, at)),
-    }
-}
-
-/// Whether `art` at the pointer `at` lies inside `region` with no layer above the region's layer over it.
-fn shows_whole(ctx: &Context, region: &cursor::CursorRegion, art: &Art, at: Pos2) -> bool {
-    let Some(bounds) = art.bounds().map(|bounds| bounds.translate(at.to_vec2())) else { return true };
-    region.clip.contains_rect(bounds) && !areas::rects_over(ctx, region.layer, None).iter().any(|over| over.intersects(bounds))
-}
-
-/// Paints `art` at the pointer `at` (screen space) on `region`'s layer, clipped to the region.
-fn paint_in_region(ctx: &Context, region: cursor::CursorRegion, art: &Art, at: Pos2) {
-    let to_layer = areas::layer_to_screen(ctx, region.layer).inverse();
-    let painter = egui::Painter::new(ctx.clone(), region.layer, to_layer * region.clip);
-    crate::runtime::egui::text_layout::on_painter(&painter, |c| art.paint(c, to_layer * at));
-}
-
-/// The drag preview, in `env`, the source's, and the drop mark of the running drag, with the payload's name in it.
-fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, session: &drag::Ghost) {
-    if let Some((mark, tokens)) = &session.mark {
-        paint_mark(painter, tokens, *mark);
-        if let (DropMark::Region { area, .. }, DragPreview::Named(name)) = (*mark, &session.preview) {
-            paint_region_name(painter, tokens, env, area, name);
-        }
-    }
-    let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
-    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
-    let draw = &Draw::new(&canvas, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
-    let Some(at) = pointer::frame_raw(ctx).pos else { return };
-    match &session.preview {
-        DragPreview::Badge(label) => {
-            let label = env.view().resolve(label);
-            paint_drag_badge(draw, env, at, label.as_str());
-        }
-        DragPreview::Frame { size, label } => {
-            let frame = Rect::from_center_size(at, *size);
-            canvas.extend(outline(&env.tokens, &PaintShape::Rect(frame, CornerRadius::ZERO)));
-            if let Some(label) = label {
-                let label = env.view().resolve(label);
-                // The label starts at the reading start of the frame's padded rect and wraps inside it.
-                let inner = frame.shrink(env.tokens.space.pad.control);
-                let layout = draw.layout(&TextRun::new(label.as_str()), inner.width());
-                let (at, _) = Flow::new(inner, env.direction.is_rtl()).take_start(layout.size().x);
-                draw.galley(at.min, &layout);
-            }
-        }
-        _ => {}
+/// Records the drop mark `mark` into `draw` in the target region's `tokens`, with the payload's name inside a region
+/// mark when the drag's `preview` names it (in the words and direction of `env`, the source's).
+pub(crate) fn record_drop_mark(draw: &Draw<'_>, canvas: &Canvas<'_>, tokens: &UiTokens, env: &EnvView<'_>, mark: DropMark, preview: &DragPreview) {
+    paint_mark(canvas, tokens, mark);
+    if let (DropMark::Region { area, .. }, DragPreview::Named(name)) = (mark, preview) {
+        paint_region_name(draw, tokens, env, area, name);
     }
 }
 
 /// The payload's name inside the region `area` a drop would take: at the reading start of its top, inside the mark's
-/// band, on one line elided to the area's width. A region too small for the line shows no name. It paints in the mark's
-/// `tokens`, with the words and direction of `env`, the source's.
-fn paint_region_name(painter: &egui::Painter, tokens: &UiTokens, env: &Env, area: Rect, name: &Label) {
-    let name = env.view().resolve(name);
+/// band, on one line elided to the area's width. A region too small for the line shows no name.
+fn paint_region_name(draw: &Draw<'_>, tokens: &UiTokens, env: &EnvView<'_>, area: Rect, name: &Label) {
+    let name = env.resolve(name);
     let inner = area.shrink(tokens.space.pad.control);
     if inner.width() <= 0.0 {
         return;
     }
-    let record = RefCell::new(PaintRecord::default());
-    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), craft_ui_rt::Pos2::ZERO, painter.clip_rect());
-    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
-    let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction: env.direction, ink: Ink::OnPanel });
     let layout = draw.layout(&TextRun::new(name.as_str()).elide(), inner.width());
     if layout.size().y > inner.height() {
         return;
     }
-    let (at, _) = Flow::new(inner, env.direction.is_rtl()).take_start(layout.size().x.min(inner.width()));
+    let (at, _) = Flow::new(inner, env.direction().is_rtl()).take_start(layout.size().x.min(inner.width()));
     draw.galley(at.min, &layout);
-}
-
-fn paint_drag_badge(draw: &Draw<'_>, env: &Env, at: Pos2, text: &str) {
-    let space = &env.tokens.space;
-    let run = TextRun::new(text);
-    let layout = draw.layout(&run, f32::INFINITY);
-    let pad = Vec2::splat(space.pad.control);
-    let outer = Rect::from_min_size(at + Vec2::splat(space.gap.inline), layout.size() + pad * 2.0);
-    draw.surface(outer, SurfaceKind::Popup, Corners::All);
-    draw.galley(outer.min + pad, &layout);
 }
 
 /// The drop mark: bands of the drop rule on a halo of the panel surface one thin stroke wide, so the mark reads over
 /// any content. An area mark is the same band along the inside of its rect; a region is also washed with the rule's
 /// colour, so the area the payload takes reads as one piece, and carries its line band.
-fn paint_mark(painter: &egui::Painter, tokens: &UiTokens, mark: DropMark) {
+fn paint_mark(canvas: &Canvas<'_>, tokens: &UiTokens, mark: DropMark) {
     let look = rule_look(tokens, RuleKind::DropMark);
-    let ppp = painter.ctx().pixels_per_point();
+    let ppp = canvas.pixels_per_point();
     let width = look.width.points(ppp);
     let halo = RuleWidth::Points(tokens.stroke.thin).points(ppp);
     let outline = |rect: Rect| {
@@ -238,7 +110,7 @@ fn paint_mark(painter: &egui::Painter, tokens: &UiTokens, mark: DropMark) {
         DropMark::Line { from, to } => vec![(from, to)],
         DropMark::Into(rect) => outline(rect).collect(),
         DropMark::Region { area, line } => {
-            painter.rect_filled(area, CornerRadius::ZERO, look.color.gamma_multiply(craft_theme::Opacity::WASH));
+            canvas.rect_filled(area, 0u8, look.color.gamma_multiply(craft_theme::Opacity::WASH));
             outline(area).chain(line.map(|[from, to]| (from, to))).collect()
         }
     };
@@ -246,9 +118,9 @@ fn paint_mark(painter: &egui::Painter, tokens: &UiTokens, mark: DropMark) {
     // Every halo before any band, so the halo of one side never covers the band of the side before it.
     let panel = crate::style::rgba_color(tokens.color.surface.panel);
     for &segment in &segments {
-        painter.rect_filled(band(segment, width / 2.0 + halo), CornerRadius::ZERO, panel);
+        canvas.rect_filled(band(segment, width / 2.0 + halo), 0u8, panel);
     }
     for &segment in &segments {
-        painter.rect_filled(band(segment, width / 2.0), CornerRadius::ZERO, look.color);
+        canvas.rect_filled(band(segment, width / 2.0), 0u8, look.color);
     }
 }

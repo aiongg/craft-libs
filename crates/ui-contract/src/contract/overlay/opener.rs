@@ -1,15 +1,10 @@
 //! What opens a free-standing layer: triggers, openers, and the anchor and least width an opener gives.
 
 use super::place::{Anchor, Place};
-use super::popups::with_popups;
 use super::props::Overlay;
+use crate::contract::Response;
 use crate::primitives::Id;
-use crate::runtime::egui::areas::{self};
-use crate::runtime::egui::response;
-use crate::runtime::{keys, pointer};
-use craft_behavior::PointerButton;
 use craft_ui_rt::Rect;
-use egui::{Context, Response};
 
 /// How a free-standing popup's trigger fires.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
@@ -39,76 +34,59 @@ pub enum Trigger {
 pub struct Opener {
     /// The opener's id.
     pub id: Id,
-    /// The opener's rect in its layer space.
+    /// The opener's rect in this frame, in window coordinates.
     pub rect: Rect,
-    /// The opener's egui layer: its rect maps to the screen through this layer's transform.
-    pub layer: areas::Layer,
     /// The trigger.
     pub trigger: Trigger,
-    /// Whether the opener was enabled in the pass that recorded it; a disabled opener closes the layer.
+    /// Whether the opener was enabled in the run that recorded it; a disabled opener closes the layer.
     pub enabled: bool,
     /// Where the layer hangs when this opener opened it. `None` hangs it at the opener's rect, or, for a
-    /// `Trigger::Context` opener, at the pointer a release opened it at or the rect its key request named.
+    /// `Trigger::Context` opener, at the pointer a secondary click opened it at.
     pub anchor: Option<Anchor>,
     /// The other openers of the same layer.
     pub others: Vec<Opener>,
-    /// Whether the opener's response fired `trigger` in the pass that recorded it. A container with no `open`
-    /// binding applies it to the layer's open slot.
+    /// Whether the opener's run fired `trigger`. A container with no `open` binding applies it to the layer's open
+    /// slot.
     pub(crate) fired: bool,
     /// How the opener fired, for where the layer hangs.
     pub(crate) opening: Opening,
     /// The opener is pressed with the primary button, for `Trigger::Hold`.
     pub(crate) pressed: bool,
-    /// A `Trigger::Click` opener's primary click completed in this pass: the release of the press that opened the
+    /// A `Trigger::Click` opener's primary click completed in this run: the release of the press that opened the
     /// layer, whose activation is that opening and no pick.
     pub(crate) clicked: bool,
 }
 
 impl Opener {
     pub(super) fn new(anchor: &Response, trigger: Trigger) -> Opener {
-        // The opener's `Response` carries the press path's verdict, for a root with its own egui widget and for an
-        // arena member alike: whether the open press is on it and whether a click released on it.
-        let pressed_on = response::is_pressed(anchor);
-        if trigger == Trigger::Context && anchor.enabled() {
-            crate::runtime::egui::access::offer_context_menu(&anchor.ctx, anchor.id);
-        }
-        let request = keys::context_request(&anchor.ctx, anchor.id);
-        let (fired, opening, pressed, clicked) = pointer::with_pass_raw(&anchor.ctx, |pass| {
-            let Some(frame) = pass.frame.as_ref() else { return (false, Opening::Plain, false, false) };
-            let inside = frame
-                .pos
-                .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
-            let by_pointer = inside
-                && frame.release == Some(PointerButton::Secondary)
-                && frame.pos.is_some_and(|pos| areas::layer_at(&anchor.ctx, pos) == Some(anchor.layer_id));
+        // The opener's run decided its facts: a primary press that went down on it, a secondary click released on
+        // it, a context request by key or assistive technology, a keyboard or assistive click.
+        let facts = anchor.input();
+        let primary = facts.pressed;
+        let by_pointer = facts.secondary_clicked;
+        let fired = match trigger {
             // A root opener opens on the primary press inside it, as a pop-up button does, however long the press is
             // then held; a `Click` opener's release completes the click that press began.
-            let primary = pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary);
-            let fired = match trigger {
-                Trigger::Click => primary,
-                Trigger::Press => primary || by_pointer,
-                Trigger::Context => by_pointer || request.is_some(),
-                Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
-            };
-            let opening = match (trigger, request) {
-                (Trigger::Context, _) if fired && by_pointer => Opening::Pointer,
-                (Trigger::Context, Some(rect)) if fired => Opening::At(rect),
-                // Opened through its open binding a pass after the press: it still hangs at the pointer over the opener.
-                (Trigger::Context, None) if inside => Opening::Pointer,
-                _ => Opening::Plain,
-            };
-            let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
-            (fired, opening, pressed_on && pass.primary_down, clicked)
-        });
+            Trigger::Click => primary,
+            Trigger::Press => primary || by_pointer,
+            Trigger::Context => by_pointer || facts.context,
+            Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
+        };
         // Keyboard and accessibility clicks have no pointer press; their activation must still open the layer.
-        let activated = anchor.enabled() && response::clicked(anchor) && !response::pointer_clicked(anchor);
-        let fired = fired || (activated && matches!(trigger, Trigger::Click | Trigger::Press));
+        let fired = fired || (facts.activated && matches!(trigger, Trigger::Click | Trigger::Press));
+        // A secondary click hangs a context layer at the pointer it was released at.
+        let opening = match (trigger, facts.pointer) {
+            (Trigger::Context, Some(at)) if by_pointer => Opening::At(Rect::from_min_size(at, craft_ui_rt::Vec2::ZERO)),
+            _ => Opening::Plain,
+        };
+        // Only a hold reads whether the press is held: the read makes the reading scope run when it flips.
+        let pressed = trigger == Trigger::Hold && anchor.is_pointer_button_down_on();
+        let clicked = trigger == Trigger::Click && facts.clicked && !facts.activated;
         Opener {
             id: anchor.id,
             rect: anchor.rect,
-            layer: anchor.layer_id,
             trigger,
-            enabled: anchor.enabled(),
+            enabled: !facts.disabled,
             anchor: None,
             others: Vec::new(),
             fired,
@@ -123,41 +101,29 @@ impl Opener {
         std::iter::once(self).chain(&self.others)
     }
 
-    /// The opener the layer's open slot says opened it, else the first.
-    /// A layer decides its opening in the pass it opens and keeps it (`stored`, from its `LayerMemory`) while it stays open.
-    pub(super) fn active(&self, ctx: &Context, stored: Option<Opening>) -> (&Opener, Opening) {
-        let by = with_popups(ctx, |popups| popups.opened_by.get(&self.id).copied());
+    /// The opener the layer's open slot says opened it (`by`: its id, trigger and opening), else the first with its
+    /// own opening.
+    pub(super) fn active(&self, by: Option<(Id, Trigger, Opening)>) -> (&Opener, Opening) {
         let found = by.and_then(|(id, trigger, opening)| {
             self.all().find(|opener| opener.id == id && opener.trigger == trigger).map(|opener| (opener, opening))
         });
-        let (opener, opening) = found.unwrap_or((self, self.opening));
-        (opener, stored.unwrap_or(opening))
+        found.unwrap_or((self, self.opening))
     }
-}
 
-/// Whether a secondary-button release lands inside `response`'s rect, where its clip shows it, in this pass: the secondary click a
-/// `Trigger::Press` opener opens on.
-pub(super) fn secondary_release_in(response: &Response) -> bool {
-    pointer::with_pass_raw(&response.ctx, |pass| {
-        pass.frame.as_ref().is_some_and(|frame| {
-            frame.release == Some(PointerButton::Secondary)
-                && frame.pos.is_some_and(|pos| {
-                    areas::layer_at(&response.ctx, pos) == Some(response.layer_id)
-                        && response.interact_rect.contains(areas::layer_map(&response.ctx, response.layer_id).map_or(pos, |map| map.to_layer(pos)))
-                })
-        })
-    })
+    /// Whether an opener's run fired its trigger or completed the click that opened the layer: that activation opened
+    /// the layer and closes no layer chain it sits in ([`claim_activation`](super::dismissal::claim_activation)).
+    pub(crate) fn claims_activation(&self) -> bool {
+        self.all().any(|opener| opener.fired || opener.clicked)
+    }
 }
 
 /// How an opener opened its layer: what decides where a `Trigger::Context` layer hangs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 pub(crate) enum Opening {
-    /// A press, click, hold or the binding: the layer hangs from the opener.
+    /// A press, click, hold, key or the binding: the layer hangs from the opener.
     #[default]
     Plain,
-    /// A secondary-button release: the layer hangs at the pointer.
-    Pointer,
-    /// A context request by key or AccessKit at this rect in the opener's layer space: a collection's lead row.
+    /// A secondary click at this point (an empty rect), in window coordinates: the layer hangs there.
     At(Rect),
 }
 
@@ -191,15 +157,13 @@ impl crate::runtime::env::EnvValue for LayerFloor {
 }
 
 /// The anchor a layer opened by `opener` hangs from: the opener's own, else the layer's `Pointer` or `Corner`
-/// place, else the pointer for a context request a secondary release made, else the rect a key's context request
-/// named, else the opener's rect.
-pub(super) fn opener_anchor(opener: &Opener, opening: Opening, place: &Place) -> Anchor {
+/// place, else the point a secondary click opened it at, else the opener's rect.
+pub(crate) fn opener_anchor(opener: &Opener, opening: Opening, place: &Place) -> Anchor {
     if let Some(anchor) = &opener.anchor {
         return anchor.clone();
     }
     match (place, opening) {
         (Place::Anchored { anchor: anchor @ (Anchor::Pointer | Anchor::Corner(..) | Anchor::Parent), .. }, _) => anchor.clone(),
-        (_, Opening::Pointer) => Anchor::Pointer,
         (_, Opening::At(rect)) => Anchor::Rect(rect),
         (_, Opening::Plain) => Anchor::Response,
     }

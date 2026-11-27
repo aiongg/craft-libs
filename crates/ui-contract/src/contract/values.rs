@@ -57,6 +57,11 @@ impl Response {
         Response::new(id, rect, None, Interact::default(), false, InputFacts::default())
     }
 
+    /// The run's input facts, for an opener hung from this response (`Overlay::opened_by`).
+    pub(crate) fn input(&self) -> InputFacts {
+        self.facts
+    }
+
     /// The node behind the response, `None` for an inert one.
     pub(crate) fn node(&self) -> Option<NodeId> {
         self.node
@@ -151,6 +156,10 @@ impl Response {
             pointer: a.pointer.or(b.pointer),
             gained_focus: a.gained_focus || b.gained_focus,
             lost_focus: a.lost_focus || b.lost_focus,
+            pressed: a.pressed || b.pressed,
+            activated: a.activated || b.activated,
+            context: a.context || b.context,
+            disabled: a.disabled && b.disabled,
         };
         let mut joined = self.joined.clone();
         joined.extend(other.node.map(|node| (node, other.interact)));

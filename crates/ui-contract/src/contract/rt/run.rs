@@ -449,7 +449,8 @@ pub(crate) fn run_shaped<C: Component>(
 
     // 8 sense, from the queue the node's retained half filled since its last run.
     let input = std::mem::take(&mut kept.queue);
-    let (in_facts, dragging) = input_facts(&input, rect.min, kept.dragging);
+    let (mut in_facts, dragging) = input_facts(&input, rect.min, kept.dragging);
+    in_facts.disabled = !resolved.enabled;
     kept.dragging = dragging;
     let interact = cx.interaction(node);
     let response = Response::new(id, rect, Some(node), interact, dragging, in_facts);
@@ -968,11 +969,20 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                         facts.drag_stopped |= dragging;
                         dragging = false;
                     }
-                    Gesture::Down { .. } => {}
+                    Gesture::Down { .. } => facts.pressed |= *button == PointerButton::Primary,
                 }
             }
-            NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
-            NodeInput::Intent { intent: Intent::Activate, .. } => facts.clicked = true,
+            NodeInput::Access(a) => {
+                let click = a.action == accesskit::Action::Click && a.sub.is_none();
+                facts.clicked |= click;
+                facts.activated |= click;
+                facts.context |= a.action == accesskit::Action::ShowContextMenu && a.sub.is_none();
+            }
+            NodeInput::Intent { intent: Intent::Activate, .. } => {
+                facts.clicked = true;
+                facts.activated = true;
+            }
+            NodeInput::Intent { intent: Intent::ContextMenu, .. } => facts.context = true,
             NodeInput::Focus(gained) => {
                 facts.gained_focus |= *gained;
                 facts.lost_focus |= !*gained;

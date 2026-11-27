@@ -61,6 +61,20 @@ pub(crate) fn note_activation(cx: &BuildCx<'_>, keep_open: bool) {
     }
 }
 
+/// An opener in the build `cx` runs opened its container's layer by its activation
+/// ([`Opener::claims_activation`](super::opener::Opener::claims_activation)): the closes that activation set on the
+/// layer chain it runs in are taken back, as `Cx::keep_open` would have kept them. Call it from the container's build,
+/// which runs in the same chain as its opener, after the opener showed.
+pub(crate) fn claim_activation(cx: &BuildCx<'_>) {
+    if let Some(chain) = cx.provided::<ActivationChain>() {
+        for closed in &chain.0 {
+            if closed.get() == Some(CloseReason::Activated) {
+                closed.set(None);
+            }
+        }
+    }
+}
+
 impl<C: Component> Cx<'_, C> {
     /// This activation runs but does not close the layer chain it happened in (`Dismiss::on_activate`).
     pub fn keep_open(&mut self) {

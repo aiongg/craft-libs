@@ -2,6 +2,7 @@
 
 use super::opener::{Opener, Trigger};
 use super::place::{Anchor, FloatPlace, OverlayFit, Place, Resize, ResizeEdges, SizeLimits, ViewportShare};
+use crate::contract::Response;
 use crate::primitives::Id;
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusPolicy, Initial};
@@ -11,8 +12,8 @@ use crate::runtime::windows::ResizeEdge;
 use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_behavior::{GesturePhase, OwnerClass};
 use craft_ui_rt::{Pos2, Rect, Vec2};
+use egui::Align2;
 use egui::emath::TSTransform;
-use egui::{Align2, Response};
 use std::borrow::Cow;
 
 /// What a press outside the layer and its anchor does.

@@ -105,7 +105,8 @@ impl<'a> OverlayUi<'a> {
         overlay: Overlay,
         mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
     ) -> Option<R> {
-        let mut content = PopupContent { body: &mut body, env: &self.env, resolved: self.resolved, id: sub(popup.id(), "body") };
+        let env = self.env.clone();
+        let mut content = PopupContent { body: &mut body, env: &env, resolved: self.resolved, id: sub(popup.id(), "body") };
         self.show_layer(popup, &overlay, Surface::Popup, None, &mut content)
     }
 
@@ -143,13 +144,17 @@ impl<'a> OverlayUi<'a> {
             return None;
         }
         let (anchor, owner_ran, rtl, enabled) = (self.anchor, self.owner_ran, self.is_rtl(), self.resolved.enabled);
+        // A shell's popup region (`contain_popups_below`) bounds where the layer goes.
+        let region = self.env.get::<PopupRegion>().0;
         let hover = self.popups.watches_hover(popup.id());
         // A popup with no opener hangs from the owner's node; a part anchor hangs from the part's rect.
         let key = popup.id().value();
         let shown = host_ui(&mut *self.host, |ui| {
             let (tokens, sweep) = (ui.flow.tokens.clone(), ui.flow.sweep);
             let cx = &mut *ui.cx;
-            let base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
+            let mut base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
+            // A popup beside one of the owner's parts hangs from the owner's node: a press on the opener is not outside.
+            base.spec = base.spec.hung_from(Some(cx.node())).within(region);
             let layer = base.layer;
             if let Some(reason) = closes_before_show(cx, overlay, layer, key, enabled) {
                 return Err(reason);
