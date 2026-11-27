@@ -417,6 +417,8 @@ fn start_on<A: App, P: Platform, R: Renderer>(
         contexts: RefCell::new(BTreeMap::new()),
         fonts: crate::fonts::FontHost::new(Some(driver.waker())),
     });
+    // The suite's interface stack, given to the text engine before the first frame.
+    crate::fonts::UiFonts::new(&crate::fonts::I18nScripts).install(&shared.fonts);
     let app = Rc::new(RefCell::new(make(&mut LogicCx::new(driver.runtime.store_mut(), &shared))));
 
     driver.set_wake_handler(move |store, images| {
@@ -596,10 +598,11 @@ impl<A: App> Host<A> {
     }
 }
 
-/// The epaint renderer with the suite's interface faces.
+/// The epaint renderer's faces before the first frame: none. The host installs the suite's stack through its
+/// [`FontHost`](crate::fonts::FontHost), which gives it to the engine before the first frame runs.
 #[cfg(feature = "app")]
 fn epaint_fonts() -> craft_ui_render_epaint::FontDefinitions {
-    crate::fonts::UiFonts::new(&crate::fonts::I18nScripts).stack().flat_definitions()
+    craft_ui_render_epaint::FontDefinitions::empty()
 }
 
 /// Opens the main window and runs `make`'s app until its last window closes.
