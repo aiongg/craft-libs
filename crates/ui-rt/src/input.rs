@@ -19,7 +19,7 @@ use emath::{Pos2, Rect, Vec2};
 
 use crate::event::{AccessInput, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 use crate::gesture::Touches;
-use crate::hit::{Hit, chain, contains, hit_test, window_origin};
+use crate::hit::{Hit, chain, contains, hit_test, hit_test_through, window_origin};
 use crate::id::{NodeId, WindowId};
 use crate::layer::{DismissReason, Layer, OutsidePress};
 use crate::platform::{Cursor, ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowEvent};
@@ -583,6 +583,7 @@ impl Runtime {
                     input.hover_pos = Some(p.pos);
                     input.hover_pointer = Some(p.id);
                 }
+                self.dismiss_away(Some(window));
                 if self.dismiss_outside(window, p.pos) {
                     self.refresh_hover(window);
                     return;
@@ -669,6 +670,28 @@ impl Runtime {
         consumed
     }
 
+    /// Sends [`DismissReason::Away`] to every layer child that asks for it ([`crate::LayerSpec::away`])
+    /// in every window but `pressed` (the window a press landed in; `None` when the app lost key
+    /// focus: every window).
+    pub(crate) fn dismiss_away(&mut self, pressed: Option<WindowId>) {
+        let away: Vec<NodeId> = self
+            .windows
+            .iter()
+            .filter(|(id, _)| Some(**id) != pressed)
+            .flat_map(|(_, w)| w.layered.iter().filter(|(_, spec)| spec.away).map(|(id, _)| *id))
+            .collect();
+        for id in away {
+            self.deliver(id, id, &Event::Dismiss(DismissReason::Away));
+        }
+    }
+
+    /// What the topmost child of `window`'s modal layer lets through to the content below it.
+    pub(crate) fn modal_reach(&self, window: WindowId) -> Option<crate::layer::ModalReach> {
+        let w = self.windows.get(&window)?;
+        let top = *self.tree.nodes.get(&w.layer(Layer::Modal))?.children.last()?;
+        w.layered.get(&top)?.reach
+    }
+
     /// Ends `window`'s open press with `reason`; its owner gets `Gesture::Cancel`.
     pub fn cancel_press(&mut self, window: WindowId, reason: PressCancel) {
         let Some(press) = self.input(window).and_then(|i| i.press) else {
@@ -685,11 +708,13 @@ impl Runtime {
         let held = !matches!(p.phase, PointerPhase::Up | PointerPhase::Cancel);
         let input = PassInput::new(events, self.slop(p.kind), p.pos, held).delta(delta).cancel(cancel);
         let Some(mut machine) = self.input_mut(window).map(|i| std::mem::take(&mut i.machine)) else { return };
+        let reach = self.modal_reach(window);
         let Some(win) = self.windows.get(&window) else { return };
         let tree = &self.tree;
         let step = machine.step(input, |at, button| {
             let accept = |s: Sense| if button == PointerButton::Secondary { s.contains(Sense::CONTEXT_CLICK) } else { s.takes_press() };
-            hit_test(tree, win, at, &accept).map(|h| PressPick::new(h, h.sense))
+            let through = reach.filter(|r| r.admits_press(button, p.mods)).map(|r| r.node);
+            hit_test_through(tree, win, at, &accept, through).map(|h| PressPick::new(h, h.sense))
         });
         if let Some(i) = self.input_mut(window) {
             i.machine = machine;

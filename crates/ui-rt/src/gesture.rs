@@ -117,7 +117,10 @@ impl Runtime {
     }
 
     fn send_wheel(&mut self, window: WindowId, mut input: WheelInput) {
-        if let Some(hit) = self.hit(window, input.pos, &|s| s.intersects(Sense::WHEELS)) {
+        let through = self.modal_reach(window).map(|r| r.node);
+        let hit =
+            self.windows.get(&window).and_then(|w| crate::hit::hit_test_through(&self.tree, w, input.pos, &|s| s.intersects(Sense::WHEELS), through));
+        if let Some(hit) = hit {
             input.hit = Some(hit);
             self.dispatch(hit.node, &Event::Wheel(input), true);
         }

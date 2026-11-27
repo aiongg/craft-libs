@@ -4,6 +4,8 @@
 //! showing it or goes itself). Layer children are placed after the window's layout, so an anchor
 //! that moved in the same frame is where the child goes.
 
+use craft_behavior::PointerButton;
+use craft_keymap::chord::Mods;
 use emath::{Align, Pos2, Rect, Vec2};
 
 use crate::geom::Constraints;
@@ -96,11 +98,73 @@ pub struct LayerSpec {
     /// runtime while it is shown (an app-modal dialog). A press in a blocked window focuses the
     /// child's window.
     pub app_modal: bool,
+    /// A press in another window of the runtime, or the app losing key focus (no window of the
+    /// runtime focused at the next frame), sends [`DismissReason::Away`]: a popup or menu goes when
+    /// the user turns to something else.
+    pub away: bool,
+    /// On the modal layer: the node below the modal that some input still reaches ([`ModalReach`]).
+    pub reach: Option<ModalReach>,
+}
+
+/// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
+/// (a colour picker's eyedropper, a levels dialog's view navigation) lets some input through to
+/// that node. The wheel and middle presses always reach it, and so do presses of the listed
+/// buttons with at least the listed modifiers held. Only where the node is the topmost shape below
+/// the modal: something that covers it keeps the input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModalReach {
+    pub node: NodeId,
+    pub presses: [Option<(PointerButton, Mods)>; 4],
+}
+
+impl ModalReach {
+    /// The wheel and middle presses on `node`.
+    pub const fn view(node: NodeId) -> ModalReach {
+        ModalReach { node, presses: [None; 4] }
+    }
+
+    /// Also presses of `button` with at least `mods` held. A fifth gesture is dropped.
+    #[must_use]
+    pub fn with_press(mut self, button: PointerButton, mods: Mods) -> ModalReach {
+        if !self.presses.contains(&Some((button, mods)))
+            && let Some(free) = self.presses.iter_mut().find(|p| p.is_none())
+        {
+            *free = Some((button, mods));
+        }
+        self
+    }
+
+    /// Whether a press of `button` with `held` down reaches the node.
+    pub fn admits_press(&self, button: PointerButton, held: Mods) -> bool {
+        button == PointerButton::Middle
+            || self.presses.iter().flatten().any(|&(b, need)| {
+                b == button && (!need.cmd || held.cmd) && (!need.ctrl || held.ctrl) && (!need.alt || held.alt) && (!need.shift || held.shift)
+            })
+    }
 }
 
 impl LayerSpec {
     pub const fn new(placement: Placement) -> LayerSpec {
-        LayerSpec { placement, outside_press: OutsidePress::Ignore, match_anchor_width: false, escape: false, focus_left: false, app_modal: false }
+        LayerSpec {
+            placement,
+            outside_press: OutsidePress::Ignore,
+            match_anchor_width: false,
+            escape: false,
+            focus_left: false,
+            app_modal: false,
+            away: false,
+            reach: None,
+        }
+    }
+
+    pub const fn dismiss_on_away(mut self) -> LayerSpec {
+        self.away = true;
+        self
+    }
+
+    pub const fn reach(mut self, reach: Option<ModalReach>) -> LayerSpec {
+        self.reach = reach;
+        self
     }
 
     pub const fn dismiss_on_escape(mut self) -> LayerSpec {
@@ -210,6 +274,8 @@ pub enum DismissReason {
     Escape,
     /// Key focus left it ([`LayerSpec::focus_left`]).
     FocusLeft,
+    /// The user turned to another window or app ([`LayerSpec::away`]).
+    Away,
 }
 
 #[cfg(test)]
