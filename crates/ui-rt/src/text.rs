@@ -151,7 +151,7 @@ impl Default for FaceTweak {
 }
 
 /// One face of a [`FontStack`] family.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct StackFace {
     /// The face's name: a face listed by several families has the same name in each, and the
     /// engine reads its file once.
@@ -163,6 +163,18 @@ pub struct StackFace {
     /// The variation coordinates the face is drawn at (`wght`, `opsz`).
     pub coords: Vec<([u8; 4], f32)>,
     pub tweak: FaceTweak,
+}
+
+impl std::fmt::Debug for StackFace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StackFace")
+            .field("name", &self.name)
+            .field("bytes", &self.bytes.len())
+            .field("index", &self.index)
+            .field("coords", &self.coords)
+            .field("tweak", &self.tweak)
+            .finish()
+    }
 }
 
 /// The faces text is set in, for every renderer: each family's faces in the order a character
