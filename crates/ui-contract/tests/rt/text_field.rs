@@ -4,7 +4,9 @@
 
 use craft_behavior::{PartKey, PlainText};
 use craft_ui_contract::contract::overlay::{Overlay, OverlayUi, Overlays as _};
-use craft_ui_contract::contract::{Bind, BindMut, Common, Component, Cx, EditResponse, Input, MeasureCx, MemoView, PartsCx, Role, Show, Ui};
+use craft_ui_contract::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, MemoKey, MemoProps, MemoView, PartsCx, Response, Role, Show, Ui,
+};
 use craft_ui_contract::primitives::{TextKey, TextOptions};
 use craft_ui_contract::style::StyleCx;
 use craft_ui_contract::testing::Harness;
@@ -116,6 +118,38 @@ impl Component for TextField<'_> {
     }
 }
 
+/// The field's view: keyed by the text it edits and its masking; it counts its runs.
+struct FieldView<'a> {
+    value: &'a mut String,
+    password: bool,
+    runs: Rc<Cell<usize>>,
+}
+
+impl MemoProps for FieldView<'_> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self.value.as_str());
+        key.feed_hash(&self.password);
+    }
+}
+
+fn field_view(props: &mut FieldView<'_>, ui: &mut Ui) -> Rect {
+    props.runs.set(props.runs.get() + 1);
+    let field = TextField::new(Bind::bound(&mut *props.value));
+    let field = if props.password { field.password() } else { field };
+    field.show(ui).response.rect
+}
+
+/// A view with no input but its run counter, which feeds nothing.
+struct Runs(Rc<Cell<usize>>);
+
+impl MemoProps for Runs {
+    fn key(&self, _: &mut MemoKey) {}
+}
+
+fn other_view(runs: &mut Runs, _: &mut Ui) {
+    runs.0.set(runs.0.get() + 1);
+}
+
 /// A window with a field in a view and a second view beside it; the trial counts both views' runs.
 struct Window {
     h: Harness<()>,
@@ -131,15 +165,10 @@ fn window(password: bool) -> Window {
     let (t, fr, or, f) = (Rc::clone(&text), Rc::clone(&field_runs), Rc::clone(&other_runs), Rc::clone(&field));
     let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
         let mut value = t.borrow().clone();
-        let rect = MemoView::new(value.clone()).show(ui, |ui, _| {
-            fr.set(fr.get() + 1);
-            let field = TextField::new(Bind::bound(&mut value));
-            let field = if password { field.password() } else { field };
-            field.show(ui).response.rect
-        });
-        f.set(rect);
+        let props = FieldView { value: &mut value, password, runs: Rc::clone(&fr) };
+        f.set(MemoView::new("field", props, field_view).show(ui).expect("in view").value);
         *t.borrow_mut() = value;
-        MemoView::new(()).show(ui, |_, _| or.set(or.get() + 1));
+        let _ = MemoView::new("other", Runs(Rc::clone(&or)), other_view).show(ui);
     });
     h.run();
     h.key_press(Key::Tab);
@@ -312,13 +341,14 @@ fn a_wheel_over_a_multi_line_field_is_the_field_s_alone() {
 pub struct Bar {
     #[common]
     common: Common,
+    #[key(skip)]
     keys: Rc<Cell<usize>>,
 }
 
 impl Component for Bar {
     const ROLE: Role = Role::MENU_BAR;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: BarStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -335,7 +365,9 @@ impl Component for Bar {
         self.keys.set(self.keys.get() + keys);
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 #[test]
@@ -380,7 +412,7 @@ pub struct Pad {
 impl Component for Pad {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: PadStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -399,7 +431,9 @@ impl Component for Pad {
         cx.part(PartKey::new("page"), rect).sense(Sense::CLICK).holds_drafts();
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 #[test]
@@ -518,7 +552,7 @@ pub struct MenuBarWithMenu {
 impl Component for MenuBarWithMenu {
     const ROLE: Role = Role::MENU_BAR;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: MenuBarWithMenuStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -549,7 +583,9 @@ impl Component for MenuBarWithMenu {
         });
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 #[test]
@@ -586,7 +622,7 @@ pub struct DocProbe {
 impl Component for DocProbe {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: DocProbeStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -603,7 +639,9 @@ impl Component for DocProbe {
         let _ = cx.layout_doc(&craft_ui_contract::primitives::DocText::new(&runs));
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 #[test]

@@ -515,9 +515,10 @@ impl BuildCx<'_> {
         }
     }
 
-    /// While this node or a node under it holds the focus, a primary press no shape takes leaves the
-    /// focus where it is (a trapping scope, a document canvas); elsewhere such a press gives the focus
-    /// up.
+    /// While this node or a node under it holds the focus, a primary press no shape takes, or one on
+    /// a shape that takes no focus, leaves the focus where it is (a trapping scope, a document
+    /// canvas); elsewhere the first gives the focus up, and the second gives up the focus of a node
+    /// that releases it ([`crate::Element::releases_focus`]).
     pub fn keep_focus_on_empty_presses(&mut self, on: bool) {
         if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
             n.keeps_focus = on;

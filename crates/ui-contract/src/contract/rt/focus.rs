@@ -44,6 +44,8 @@ pub(crate) struct FocusKept {
     /// The node's own shape is a stop only for a press (a disabled control that shows its reason on
     /// focus): Tab passes it by.
     pub(crate) press_only: bool,
+    /// The stop is a text stop: the node's text part's or editor's, or a focused selection part's.
+    pub(crate) text: bool,
     /// The part of the node that holds key focus while the node does (a part-level stop); `None` for
     /// the node's own shape.
     pub(crate) part: Option<craft_behavior::PartRef>,
@@ -126,6 +128,14 @@ impl FocusKept {
     /// `BuildCx::keep_focus_on_empty_presses`.
     pub(crate) fn keeps_focus_on_empty_presses(&self) -> bool {
         self.traps() || self.stop.is_some_and(|keys| keys.chrome_key)
+    }
+
+    /// A press on a shape that takes no focus gives up the focus of a text stop (the field commits
+    /// through its focus loss) or a press-only stop, and leaves any other stop's (a button's, a
+    /// canvas's); a trapping scope or a canvas above keeps it either way. ui-rt reads it as the
+    /// node's `Element::releases_focus`.
+    pub(crate) fn releases_focus(&self) -> bool {
+        self.stop.is_some() && (self.text || self.press_only)
     }
 }
 

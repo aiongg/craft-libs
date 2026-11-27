@@ -164,20 +164,23 @@ fn run_selections(core: &mut CxCore<'_>, selections: &[SelectDecl]) -> Option<Ke
 
 /// After the paint: the selection parts it showed become the run's part shapes (node coordinates, `origin` the
 /// node's), with the text cursor, and each part keeps where its text lies for the next run's pointer reads. A part
-/// paints once per recorded look; the first record stands.
+/// paints once per recorded look; the first record stands. Each part's rect joins the run's part results, so the
+/// focus ring goes round a focused part's text.
 pub(crate) fn selection_parts(core: &mut CxCore<'_>, origin: Pos2) -> Vec<KeptPart> {
     let placed = std::mem::take(&mut core.paint.borrow_mut().selections);
     let mut parts: Vec<KeptPart> = Vec::with_capacity(placed.len());
+    let sense = Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS;
     for (part, placed, hit) in placed {
         if parts.iter().any(|kept| kept.part == part) {
             continue;
         }
         core.memory.shown::<Selection>(selection_id(core.id, part)).placed = Some(placed);
+        core.results.insert((part.key, part.index), crate::primitives::PartResult { rect: hit, sense, ..crate::primitives::PartResult::IDLE });
         parts.push(KeptPart {
             part,
             id: crate::contract::rt::node::part_id(part),
             shape: craft_ui_rt::HitShape::Rect(hit.translate(Pos2::ZERO - origin)),
-            sense: Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS,
+            sense,
             cursor: Some(crate::contract::rt::cursor::platform(&craft_behavior::Cursor::System(craft_behavior::CursorIcon::Text))),
             exclusive: None,
             holds: false,

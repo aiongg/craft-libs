@@ -1,7 +1,8 @@
 //! Trials of text input, intents, commands and selection parts on the real trait: a typed character, an IME step, a
 //! dialog's Submit, the cancel rule and a command shortcut run only what they must; a selection part selects by the
-//! pointer and copies; a press on empty space gives the focus up unless a trapping scope or a canvas keeps it; a
-//! lone-Alt claim takes the Alt before the menu bar. Relations only, no times.
+//! pointer and copies; a press on empty space gives the focus up unless a trapping scope or a canvas keeps it; a press
+//! on a shape that takes no focus gives up only a text stop's focus; a lone-Alt claim takes the Alt before the menu
+//! bar. Relations only, no times.
 
 use crate::skeleton::IconButton;
 use crate::text_field::TextField;
@@ -9,7 +10,9 @@ use craft_behavior::{CancelRule, IconId, PartKey};
 use craft_host::target::Os;
 use craft_keymap::{Binding, Chord, CommandDef, Keymap, Scope, Scopes};
 use craft_ui_contract::contract::overlay::{Overlay, show_dialog};
-use craft_ui_contract::contract::{Bind, Common, Component, Cx, Focus as _, Input, MeasureCx, MemoView, PaintUi, PartsCx, Response, Role, Show, Ui};
+use craft_ui_contract::contract::{
+    Bind, Common, Component, Cx, Focus as _, Input, MeasureCx, MemoKey, MemoProps, MemoView, PaintUi, PartsCx, Response, Role, Show, Ui,
+};
 use craft_ui_contract::primitives::TextRun;
 use craft_ui_contract::runtime::commands::{CommandBoard, CommandState};
 use craft_ui_contract::runtime::focus::{FocusPolicy, KeyUse};
@@ -64,20 +67,46 @@ impl App {
     }
 }
 
+/// The field's view: keyed by the text it edits; it counts its runs.
+struct FieldView<'a> {
+    text: &'a mut String,
+    runs: &'a mut u32,
+}
+
+impl MemoProps for FieldView<'_> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self.text.as_str());
+    }
+}
+
+fn field_view(props: &mut FieldView<'_>, ui: &mut Ui) -> Rect {
+    *props.runs += 1;
+    TextField::new(Bind::bound(&mut *props.text)).show(ui).response.rect
+}
+
+/// A view with no input but its run counter, which feeds nothing.
+struct Runs<'a>(&'a mut u32);
+
+impl MemoProps for Runs<'_> {
+    fn key(&self, _: &mut MemoKey) {}
+}
+
+fn reader_view(runs: &mut Runs<'_>, ui: &mut Ui) -> Option<bool> {
+    *runs.0 += 1;
+    ui.command_state("view.grid").is_checked()
+}
+
+fn other_view(runs: &mut Runs<'_>, _: &mut Ui) {
+    *runs.0 += 1;
+}
+
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     app.a = IconButton::new(IconId::new("icon"), "A").show(ui).rect;
-    let (text, view_runs) = (&mut app.text, &mut app.view_runs);
-    app.field = MemoView::new(()).show(ui, |ui, _| {
-        *view_runs += 1;
-        TextField::new(Bind::bound(text)).show(ui).response.rect
-    });
+    let props = FieldView { text: &mut app.text, runs: &mut app.view_runs };
+    app.field = MemoView::new("field", props, field_view).show(ui).expect("in view").value;
     if app.commands {
-        let (reader_runs, other_runs) = (&mut app.reader_runs, &mut app.other_runs);
-        app.checked = MemoView::new(1u8).show(ui, |ui, _| {
-            *reader_runs += 1;
-            ui.command_state("view.grid").is_checked()
-        });
-        MemoView::new(2u8).show(ui, |_, _| *other_runs += 1);
+        app.checked = MemoView::new("reader", Runs(&mut app.reader_runs), reader_view).show(ui).and_then(|shown| shown.value);
+        let _ = MemoView::new("other", Runs(&mut app.other_runs), other_view).show(ui);
     }
     match app.layer {
         Layer::None => {}
@@ -400,11 +429,13 @@ impl Component for Keeper {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS
     }
 
     fn keys(&self) -> KeyUse {
-        KeyUse { chrome_key: !self.trap, ..KeyUse::of(Input::Display) }
+        let mut keys = KeyUse::of(Input::Display);
+        keys.chrome_key = !self.trap;
+        keys
     }
 
     fn focus_scope(&self) -> FocusPolicy {
@@ -460,6 +491,122 @@ fn a_press_on_empty_space_keeps_the_focus_in_a_trapping_scope_and_on_a_canvas() 
     }
 }
 
+/// A shape a press acts on that takes no focus (a swatch, a static row).
+#[derive(Component)]
+pub struct Tile {
+    #[common]
+    common: Common,
+}
+
+impl Component for Tile {
+    const ROLE: Role = Role::GROUP;
+    const STOPS: bool = false;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: TileStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(4.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A plain stop a press focuses (a button that is a Tab stop).
+#[derive(Component)]
+pub struct Knob {
+    #[common]
+    common: Common,
+}
+
+impl Component for Knob {
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: KnobStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(4.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_press_on_a_shape_that_takes_no_focus_commits_a_field_and_leaves_a_button_focused() {
+    let committed = Rc::new(Cell::new(false));
+    let rects = Rc::new(Cell::new([Rect::NOTHING; 3]));
+    let (c, r) = (Rc::clone(&committed), Rc::clone(&rects));
+    let mut text = String::new();
+    let mut h = Harness::builder().with_size(Vec2::new(400.0, 600.0)).build_ui(move |ui: &mut Ui<'_, '_>| {
+        let shown = TextField::new(Bind::bound(&mut text)).show(ui);
+        c.set(c.get() || shown.events.committed().is_some());
+        let tile = Tile { common: Common::new() }.show(ui).rect;
+        let knob = Knob { common: Common::new() }.show(ui).rect;
+        r.set([shown.response.rect, tile, knob]);
+    });
+    h.run();
+    let [field, tile, knob] = rects.get();
+    h.click_at(field.center());
+    h.type_text("x");
+    h.run();
+    assert!(h.focused().is_some() && !committed.get(), "the field types a draft");
+    h.click_at(tile.center());
+    h.run();
+    assert!(h.focused().is_none(), "a press on a shape that takes no focus gives the field's focus up");
+    assert!(committed.get(), "the field commits through its focus loss");
+    h.click_at(knob.center());
+    h.run();
+    let focus = h.focused().map(|target| target.id);
+    assert!(focus.is_some(), "a press focuses the button");
+    h.click_at(tile.center());
+    h.run();
+    assert_eq!(h.focused().map(|target| target.id), focus, "the button keeps the focus");
+}
+
+#[test]
+fn a_press_on_a_shape_that_takes_no_focus_leaves_a_dialog_s_field_focused() {
+    let rects = Rc::new(Cell::new([Rect::NOTHING; 2]));
+    let r = Rc::clone(&rects);
+    let mut text = String::new();
+    let mut h = Harness::builder().with_size(Vec2::new(400.0, 600.0)).build_ui(move |ui: &mut Ui<'_, '_>| {
+        let text = &mut text;
+        let _ = show_dialog(ui, 1, &Overlay::modal(), |ui| {
+            let field = TextField::new(Bind::bound(&mut *text)).show(ui).response.rect;
+            let tile = Tile { common: Common::new() }.show(ui).rect;
+            r.set([field, tile]);
+        });
+    });
+    h.run();
+    let [field, tile] = rects.get();
+    h.click_at(field.center());
+    h.type_text("x");
+    h.run();
+    let focus = h.focused().map(|target| target.id);
+    assert!(focus.is_some(), "the dialog's field holds the focus");
+    h.click_at(tile.center());
+    h.run();
+    assert_eq!(h.focused().map(|target| target.id), focus, "focus stays in the trapping scope");
+}
+
 // ----- lone-Alt claims
 
 /// A menu bar stand-in that counts the menu keys it gets.
@@ -467,13 +614,14 @@ fn a_press_on_empty_space_keeps_the_focus_in_a_trapping_scope_and_on_a_canvas() 
 pub struct MenuStub {
     #[common]
     common: Common,
+    #[key(skip)]
     keys: Rc<Cell<usize>>,
 }
 
 impl Component for MenuStub {
     const ROLE: Role = Role::MENU_BAR;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: MenuStubStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -489,7 +637,9 @@ impl Component for MenuStub {
         self.keys.set(self.keys.get() + keys);
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 /// A canvas tool stand-in that claims the lone Alt and counts the taps it gets.
@@ -497,13 +647,14 @@ impl Component for MenuStub {
 pub struct AltTool {
     #[common]
     common: Common,
+    #[key(skip)]
     taps: Rc<Cell<usize>>,
 }
 
 impl Component for AltTool {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
-    type Output = ();
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: AltToolStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -520,7 +671,9 @@ impl Component for AltTool {
         }
     }
 
-    fn finish(self, _: Cx<'_, Self>) {}
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 fn alt(h: &mut Harness<bool>) {

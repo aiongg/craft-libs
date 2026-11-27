@@ -1052,12 +1052,20 @@ impl Runtime {
             let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
             let held = holds && before.is_some_and(|f| self.tree.nodes.get(&f).and_then(|n| n.element.as_ref()).is_some_and(|e| e.holds_drafts()));
             if !hit.sense.contains(Sense::KEEP_FOCUS) && !held {
-                let stop = self.nearest_focusable(hit.node);
-                self.set_focus(window, stop, FocusCause::Pointer);
-                if stop.is_some()
-                    && let Some(input) = self.input_mut(window)
-                {
-                    input.focus_pressed = true;
+                match self.nearest_focusable(hit.node) {
+                    Some(stop) => {
+                        self.set_focus(window, Some(stop), FocusCause::Pointer);
+                        if let Some(input) = self.input_mut(window) {
+                            input.focus_pressed = true;
+                        }
+                    }
+                    // A shape that takes no focus: only a node that releases its focus on such a
+                    // press gives it up (a text field commits); a button or a canvas keeps it.
+                    None => {
+                        if before.is_some_and(|f| self.releases_focus(f) && !self.keeps_focus_under(f)) {
+                            self.set_focus(window, None, FocusCause::Pointer);
+                        }
+                    }
                 }
             }
             if primary {
@@ -1086,12 +1094,23 @@ impl Runtime {
         let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
         let Some(node) = focused else { return };
         let held = holds && self.tree.nodes.get(&node).and_then(|n| n.element.as_ref()).is_some_and(|e| e.holds_drafts());
-        let kept = chain(&self.tree, node).iter().any(|id| self.tree.nodes.get(id).is_some_and(|n| n.keeps_focus));
-        if held || kept {
+        if held || self.keeps_focus_under(node) {
             self.note_press_kept(window, focused, None, holds);
         } else {
             self.set_focus(window, None, FocusCause::Pointer);
         }
+    }
+
+    /// Whether `node` or a node above it keeps the focus on presses that would give it up
+    /// ([`crate::BuildCx::keep_focus_on_empty_presses`]: a trapping scope, a canvas).
+    fn keeps_focus_under(&self, node: NodeId) -> bool {
+        chain(&self.tree, node).iter().any(|id| self.tree.nodes.get(id).is_some_and(|n| n.keeps_focus))
+    }
+
+    /// Whether the focused `node` gives its focus up on a press on a shape that takes none
+    /// ([`crate::Element::releases_focus`]).
+    fn releases_focus(&self, node: NodeId) -> bool {
+        self.tree.nodes.get(&node).and_then(|n| n.element.as_ref()).is_some_and(|e| e.releases_focus())
     }
 
     /// Whether a primary press at `pos` holds the draft of `focused`: it lands on a
