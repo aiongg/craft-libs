@@ -261,7 +261,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         let known = self.known(comp, true);
         let env = Self::rows_env(comp, at.env, id, at.resolved.size, comp.props(Internal::new()).surface);
         let widths = layout.auto_widths();
-        let mut memory = MemoryStage::open_peek(at.ui.ctx(), id);
+        let mut memory = at.with_ui(|ui| MemoryStage::open_peek(ui.ctx(), id));
         // How many times each row was measured here: its widths once, its height again only at a width the later rows'
         // widths moved it to.
         let mut done: Vec<(usize, u8)> = Vec::new();

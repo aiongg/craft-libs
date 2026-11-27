@@ -594,7 +594,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             self.drags.menu = None;
         }
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
-        self.header.report(cx.context(), id, cx);
+        self.header.report(cx, &mut self.sub_nodes);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         cx.core.collection_events = Some(Box::new(ItemsOut {

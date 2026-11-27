@@ -18,8 +18,7 @@ use crate::contract::{
 use crate::primitives::Id;
 use crate::primitives::{DataMode, DataWidth, PaintShape};
 use crate::primitives::{IconSpec, TextRun};
-use crate::runtime::access::items::{HeaderCell, report_header};
-use crate::runtime::access::{Name, SubDecl, SubNode, report_sub};
+use crate::runtime::access::{Name, SubNode};
 use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, sub};
@@ -313,7 +312,7 @@ impl Header {
 
     /// The width of the header label of the column at display position `at`, its insets and sort mark included; zero
     /// while the header row is not shown.
-    pub(super) fn label_width(&self, ui: &Ui, env: &crate::runtime::env::EnvView<'_>, at: usize) -> f32 {
+    pub(super) fn label_width(&self, ui: &mut Ui, env: &crate::runtime::env::EnvView<'_>, at: usize) -> f32 {
         let Some(spec) = self.specs.get(at).filter(|_| self.height > 0.0) else { return 0.0 };
         let text = env.resolve(&spec.header).as_str().to_owned();
         HeaderText::new(Label::from(text), self.inset, self.sort_of(&spec.key)).measure_in(ui, Proposal::Ideal).x
@@ -552,7 +551,7 @@ impl Header {
 
     /// Fits the column a double click on its edge asked for (`fit`) to `widest`, the widest of its cells among the
     /// rows in view, or to its header label when that is wider.
-    pub(super) fn apply_fit(&mut self, ui: &Ui, env: &crate::runtime::env::EnvView<'_>, widest: f32) {
+    pub(super) fn apply_fit(&mut self, ui: &mut Ui, env: &crate::runtime::env::EnvView<'_>, widest: f32) {
         let Some((key, shown)) = self.fit.take() else { return };
         let Some(at) = self.specs.iter().position(|spec| spec.key == key) else { return };
         let label = self.label_width(ui, env, at) + self.remove_side(at);
@@ -607,8 +606,6 @@ impl Header {
         if self.cells.is_empty() {
             return false;
         }
-        let ctx = cx.context().clone();
-        commands::register_instance(&ctx, ColumnCommands::SCOPE, id);
         let active =
             cx.active_part().filter(|part| part.key == HEADER).and_then(|part| self.cells.iter().position(|cell| Some(cell.hash) == part.index));
         let keyed = active.is_some() && (cx.core.intents.take(Intent::Activate) || cx.activation().is_some_and(|activation| activation.by_key));
@@ -810,12 +807,16 @@ impl Header {
             }
         }
         let target = active.or_else(|| self.menu_target());
-        let chain = cx.core.env.command_chain().pushed(ColumnCommands::SCOPE, id);
-        for command in ColumnCommands::ALL {
-            let enabled = target.is_some_and(|at| self.allowed(command, at, rtl));
-            commands::publish_for(&ctx, &chain, &CommandRef::from(command), CommandState::new().enabled(enabled));
+        // The collection is the instance of the column commands' scope: their states publish under its id, and a
+        // command fired at it reaches this run through its inbox, so only the collection reruns.
+        if let Some(board) = ctx.board() {
+            let chain = cx.core.env.command_chain().pushed(ColumnCommands::SCOPE, id);
+            for command in ColumnCommands::ALL {
+                let enabled = target.is_some_and(|at| self.allowed(command, at, rtl));
+                board.publish(&chain, &CommandRef::from(command), CommandState::new().enabled(enabled));
+            }
         }
-        while let Some((command, _)) = commands::take_for_instance(&ctx, Some(id), false, ColumnCommands::from_ref) {
+        while let Some((command, _)) = commands::Commands::take_command::<ColumnCommands>(cx) {
             let Some(at) = target.filter(|&at| self.allowed(command, at, rtl)) else { continue };
             self.memory.menu = None;
             self.run(command, at, rtl);
@@ -868,48 +869,27 @@ impl Header {
         }
     }
 
-    /// Step 16: the header cells as `ColumnHeader` sub-nodes.
-    pub(super) fn report<C: Collection>(&self, ctx: &Context, id: Id, cx: &Cx<'_, C>) {
-        let focused = self.focused(cx);
-        let names: Vec<String> = self.cells.iter().map(|cell| cx.core.env.resolve(&self.specs[cell.spec].header).as_str().to_owned()).collect();
-        let cells: Vec<HeaderCell<'_>> = self
-            .cells
-            .iter()
-            .zip(&names)
-            .enumerate()
-            .map(|(at, (cell, name))| HeaderCell {
-                part: HEADER.at(cell.hash),
-                name,
-                rect: cell.rect,
-                clickable: self.specs[cell.spec].sortable && !self.hosted.contains(&self.specs[cell.spec].key),
-                active: focused == Some(at),
-                sort: self.sort_of(&self.specs[cell.spec].key),
-            })
-            .collect();
-        report_header(ctx, id, cx.core.resolved.enabled, &cells);
+    /// Step 16: the header cells as `ColumnHeader` sub-nodes of the collection's node, and each remove control as a
+    /// button below it, for the collection's access hook (`ItemsHooks::access_nodes`).
+    pub(super) fn report<C: Collection>(&self, cx: &Cx<'_, C>, out: &mut Vec<SubNode>) {
+        let enabled = cx.core.resolved.enabled;
+        for cell in &self.cells {
+            let spec = &self.specs[cell.spec];
+            let mut node = SubNode::new(HEADER.at(cell.hash), Role::COLUMN_HEADER);
+            node.name = Name::Text(cx.core.env.resolve(&spec.header).as_str().to_owned());
+            node.sort = self.sort_of(&spec.key);
+            node.sortable = spec.sortable && !self.hosted.contains(&spec.key);
+            node.disabled = !enabled;
+            node.bounds(cell.rect);
+            out.push(node);
+        }
         for cell in &self.cells {
             let (Some(rect), Some(remove)) = (cell.remove, &self.specs[cell.spec].remove) else { continue };
-            let name = cx.core.env.resolve(&remove.name).as_str().to_owned();
-            let enabled = cx.core.resolved.enabled && remove.enabled;
-            let part = REMOVE.at(cell.hash);
-            let mut node = SubNode::new(part, Role::BUTTON);
-            node.name = Name::Text(name.clone());
-            report_sub(
-                ctx,
-                &SubDecl {
-                    owner: id,
-                    component: "Collection",
-                    node: &node,
-                    rect,
-                    enabled,
-                    focusable: enabled,
-                    clickable: enabled,
-                    active: cx.active_part() == Some(part),
-                    face: None,
-                    label: &name,
-                    parent: id,
-                },
-            );
+            let mut node = SubNode::new(REMOVE.at(cell.hash), Role::BUTTON);
+            node.name = Name::Text(cx.core.env.resolve(&remove.name).as_str().to_owned());
+            node.disabled = !(enabled && remove.enabled);
+            node.bounds(rect);
+            out.push(node);
         }
     }
 

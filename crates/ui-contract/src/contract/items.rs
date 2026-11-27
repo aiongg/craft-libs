@@ -105,7 +105,6 @@ pub(super) struct Rows<K> {
     pub(super) view: Rect,
 }
 
-const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scroll");
 const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section");
 /// The band of the line between two rows that an edge press takes (`Collection::edge_press`).
 const EDGE: craft_behavior::PartKey = craft_behavior::PartKey::new("items_edge");

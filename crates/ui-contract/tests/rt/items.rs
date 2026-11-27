@@ -6,8 +6,8 @@ use std::cell::Cell;
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SpanLayout};
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome, PaintUi,
-    Response, Role, SelectMode, ShowCollection as _, Sizing, Ui,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, HoverLead, ItemOutput, NoValue, Outcome,
+    PaintUi, Response, Role, SelectMode, ShowCollection as _, Sizing, Ui,
 };
 use craft_ui::primitives::{CornerRadius, PaintShape};
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
@@ -141,6 +141,8 @@ struct App {
     rect: Rect,
     /// The list takes its width from its widest row, with a rows stamp so its kept measure serves.
     content_width: bool,
+    /// What the pointer moving over the rows changes.
+    hover: HoverLead,
 }
 
 fn app_ui(ui: &mut Ui, app: &mut App) {
@@ -152,7 +154,7 @@ fn app_ui(ui: &mut Ui, app: &mut App) {
         items: if app.content_width {
             CollectionProps::new().select(SelectMode::Single).rows_stamp(1)
         } else {
-            CollectionProps::new().select(SelectMode::Single)
+            CollectionProps::new().select(SelectMode::Single).hover_lead(app.hover)
         },
         selection: Some(Bind::bound(&mut app.selection)),
     };
@@ -190,7 +192,7 @@ fn row_center(app: &App, at: usize) -> Pos2 {
 }
 
 fn app(rows: usize) -> App {
-    App { rows, selection: Selection::default(), calls: Cell::new(0), rect: Rect::NOTHING, content_width: false }
+    App { rows, selection: Selection::default(), calls: Cell::new(0), rect: Rect::NOTHING, content_width: false, hover: HoverLead::Off }
 }
 
 #[test]
@@ -259,4 +261,28 @@ fn a_select_keeps_the_largest_row_measure() {
     assert!(up.frame.runs >= 1, "the list runs on the select: {up:?}");
     assert!(craft_ui::contract::take_widest_runs().is_empty(), "the rows, room and stamp hold: the kept measure serves");
     assert!(craft_ui::contract::take_row_builds().is_empty(), "no row is built to be measured again");
+}
+
+#[test]
+fn hover_lead_follows_the_pointer_with_one_list_run_per_move() {
+    let mut app = App { hover: HoverLead::LeadAndSelection, ..app(600) };
+    let mut rig = rig(&mut app);
+    let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
+    assert_eq!(app.selection.lead(), Some(&3), "the lead and the pick follow the pointer onto row 3");
+    assert_eq!(entered.frame.runs, 2, "the list runs once and row 3 takes its new facts: {entered:?}");
+    let inside = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3) + Vec2::new(4.0, 2.0)));
+    assert_eq!(app.selection.lead(), Some(&3), "a move inside the lead row keeps the lead");
+    assert_eq!(inside.frame.runs, 1, "the hover point moved: the list alone runs, no row: {inside:?}");
+    let next = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 4)));
+    assert_eq!(app.selection.lead(), Some(&4), "the lead follows onto row 4");
+    assert_eq!(next.frame.runs, 3, "the list once, row 3 and row 4 whose facts moved: {next:?}");
+}
+
+#[test]
+fn a_list_without_hover_lead_runs_nothing_on_a_move() {
+    let mut app = app(600);
+    let mut rig = rig(&mut app);
+    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
+    let moved = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3) + Vec2::new(4.0, 2.0)));
+    assert_eq!(moved.frame.runs, 0, "only a list with hover lead reads the hover point: {moved:?}");
 }
