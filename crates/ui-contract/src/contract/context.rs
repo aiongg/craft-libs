@@ -698,12 +698,19 @@ impl crate::contract::CxCore<'_> {
         key: &K,
         revision: crate::primitives::textures::Revision,
     ) -> crate::primitives::textures::TextureState {
-        let now = self.memory.ctx().time();
-        let state = crate::primitives::textures::TextureState::of(store.cache().look(key, revision), store.cache().waited(key, now));
-        let (store, key) = (store.clone(), key.clone());
-        log_build_read(move |cx| {
-            store.state(cx, &key, revision);
-        });
-        state
+        store.state(&mut super::rt::textures::HookReads { now: self.memory.ctx().time() }, key, revision)
+    }
+}
+
+/// A hook's texture reads ([`TextureReads`](crate::primitives::textures::TextureReads)): `Thumbnails::state`,
+/// `TextureLoader::ask` and `submit` and the store's puts take the core; their effects run with the node's build when
+/// it ends, and a picture put from a hook shows from the next build.
+impl crate::contract::rt::TextureReads for crate::contract::CxCore<'_> {
+    fn now(&self) -> f64 {
+        self.memory.ctx().time()
+    }
+
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+        log_build_read(effect);
     }
 }

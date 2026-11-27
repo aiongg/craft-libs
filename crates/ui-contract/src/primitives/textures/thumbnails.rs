@@ -5,7 +5,7 @@ use super::limits::MAX_TEXTURE;
 use super::loader::{Cancel, LoadFailure, LoadedPicture, LoaderOptions, Priority, TextureLoader};
 use super::store::{CachedTexture, Revision, TextureKey, TextureState, TextureStoreOptions};
 use super::words::TextureWords;
-use crate::contract::rt::JobBoard;
+use crate::contract::rt::{JobBoard, TextureReads};
 use crate::primitives::{ContentPainterCx, HAlign, IconSpec, Surface, TextRun, Wrap};
 use crate::style::{Corners, DataColor, SurfaceKind, TypeRole, surface_style};
 use craft_behavior::{IconId, PixelSize};
@@ -261,7 +261,14 @@ impl<K: TextureKey> Thumbnails<K> {
 
     /// What `key` shows for `request`, asking `source` when this revision has no picture and no job; for the node
     /// building now, which runs again when the picture's job answers. A ready render is stored at once.
-    pub fn state(&self, cx: &mut BuildCx<'_>, source: &dyn ThumbSource<K>, key: &K, request: &ThumbRequest, priority: Priority) -> TextureState {
+    pub fn state(
+        &self,
+        cx: &mut impl TextureReads,
+        source: &dyn ThumbSource<K>,
+        key: &K,
+        request: &ThumbRequest,
+        priority: Priority,
+    ) -> TextureState {
         let side = request.side.min((self.options.max_side / SIZE_STEP * SIZE_STEP).max(SIZE_STEP));
         let request = ThumbRequest { side, ..*request };
         let revision = Revision::of(&(source.revision(key, &request), side, region_bits(request.region)));
@@ -271,9 +278,9 @@ impl<K: TextureKey> Thumbnails<K> {
         if self.hold.load(Ordering::Relaxed) {
             return self.cache().state(cx, key, revision);
         }
-        if !cx.images().has_room() {
+        if !cx.image_room() {
             let now = cx.now();
-            cx.request_build_at(Some(now));
+            cx.with_build(move |cx| cx.request_build_at(Some(now)));
             return self.cache().state(cx, key, revision);
         }
         match source.render(key, &request) {
@@ -408,12 +415,12 @@ fn paint_placeholder(cx: &ContentPainterCx<'_>, rect: Rect, paper: Option<DataCo
 
 /// A picture with no stand-in that is still loading captions "Still rendering…" once it has waited [`STILL_RENDERING`]
 /// seconds: its node builds again then, so no frame runs just to find out.
-fn caption_wake(cx: &mut BuildCx<'_>, state: TextureState) -> TextureState {
+fn caption_wake(cx: &mut impl TextureReads, state: TextureState) -> TextureState {
     if let TextureState::Loading { stand_in: None, waited: Some(waited), .. } = &state
         && *waited < STILL_RENDERING
     {
         let at = cx.now() + (STILL_RENDERING - waited);
-        cx.request_build_at(Some(at));
+        cx.with_build(move |cx| cx.request_build_at(Some(at)));
     }
     state
 }
