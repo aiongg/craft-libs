@@ -60,10 +60,19 @@ impl<P: MemoProps, R: Clone + PartialEq + Shift + Send + Sync + 'static> MemoVie
     /// in a scroll body. In a measuring run a kept view answers with its kept size and value.
     pub fn show(self, ui: &mut Ui) -> Option<Shown<R>> {
         let MemoView { lazy, mut props, show } = self;
-        let key = Self::key(&Env::of(ui), &props, show);
+        let env = Env::of(ui);
+        let key = Self::key(&env, &props, show);
         let scope =
             ScopeShow { id: lazy.id_source(ui), type_key: type_key::<MemoView<P, R>>(), memo: Some(key), estimate: 0.0, reveal: false, lazy: true };
-        show_scope(ui, scope, Some(R::shifted), &mut |ui| show(&mut props, ui))
+        show_scope(ui, scope, Some(R::shifted), &mut |ui| {
+            let value = show(&mut props, ui);
+            // The run wrote through its props (an app applying its panel's events in the view's body): what it showed
+            // read the values from before, so the view runs again in this frame with the edited ones.
+            if Self::key(&env, &props, show) != key {
+                ui.cx.rebuild();
+            }
+            value
+        })
     }
 
     /// The key of `props` shown through `show` in the scope `env`: the props type, the `fn`'s address, the props' inputs
