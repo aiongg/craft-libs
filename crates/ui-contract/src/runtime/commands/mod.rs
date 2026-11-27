@@ -1,7 +1,7 @@
 //! The command board: the registry and typed sets, per-frame state, the queue, firing and the gate (spec 11).
 
-pub(crate) mod board;
 pub(crate) mod inbox;
+pub(crate) mod keymap;
 pub use crate::contract::rt::commands::CommandBoard;
 pub use inbox::InboxIn;
 pub(crate) use inbox::{InboxCells, register as register_inboxes};
@@ -21,33 +21,11 @@ pub use registry::{SetEntry, sets};
 #[cfg(feature = "suite")]
 pub(crate) use registry::{StorySelection, configure_story_sets, with_story_sets};
 
+pub use keymap::linked_keymap;
+pub(crate) use keymap::{BuiltKeymap, build_keymap, keymap_for};
 #[cfg(feature = "testing")]
 #[doc(hidden)]
-pub use board::clear_focus_vantage;
-#[doc(hidden)]
-pub use board::declare_child;
-#[doc(hidden)]
-pub use board::focus_within;
-pub use board::keymap;
-pub use board::linked_keymap;
-#[doc(hidden)]
-pub use board::note_page_root;
-#[cfg(feature = "testing")]
-pub(crate) use board::observe_fired;
-pub(crate) use board::publish as publish_for;
-pub(crate) use board::runs_now;
-pub(crate) use board::take as take_for_instance;
-pub(crate) use board::{
-    begin, binds_scoped, edit_chords, end, install, note_focus, register_instance, set_input, take_declined, take_delivered, take_dimmed, take_fired,
-    window_shortcuts,
-};
-#[doc(hidden)]
-pub use board::{bound_around, keymap_generation, take_around};
-#[cfg(feature = "testing")]
-#[doc(hidden)]
-pub use board::{chord_text_builds, keymap_builds};
-pub(crate) use board::{fire_bound, fire_resolved, resolve_bound, resolve_scoped};
-pub(crate) use board::{keymap_built, queued_for};
+pub use keymap::{chord_text_builds, keymap_builds};
 
 use crate::contract::{MemoKey, MemoProps, PlainData, Revision, Tracked};
 use crate::runtime::egui::areas::{self, LayerKey};

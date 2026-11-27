@@ -4,72 +4,21 @@
 //! the only one that calls `runtime::egui::access`, which writes nodes and makes the parent and focus calls. One
 //! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
-mod emit;
-pub(crate) mod fold;
-pub(crate) mod items;
-pub(crate) mod live;
-pub(crate) mod scope;
-pub(crate) mod text;
-
-use crate::runtime::egui::access::{self as adapter, NodeRole};
+use crate::runtime::egui::access::NodeRole;
+pub use crate::runtime::egui::access::bounds;
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
-use craft_theme::{Flags, Srgba, variant::Tone};
+use craft_theme::{Flags, Srgba};
 use egui::Id;
-use std::ops::RangeInclusive;
-
-pub use crate::runtime::egui::access::bounds;
-pub use crate::runtime::egui::access::focused_node;
+pub(crate) use emit::PopupShown;
 #[doc(hidden)]
 pub use emit::SubDecl;
-#[doc(hidden)]
-pub use emit::layer_root;
-#[doc(hidden)]
-pub use emit::report_sub;
-#[doc(hidden)]
-pub use emit::sub_node_id;
-pub(crate) use emit::{FaceFacts, Own, PopupShown, hide_exiting_content, report, report_layer, report_modal};
-pub use live::announce;
-pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
-pub use scope::{FieldLabel, FieldLabelRole};
+pub use scope::FieldLabel;
+use std::ops::RangeInclusive;
 
-/// Makes `parent` the node `id` attaches to. Call it before the node of `id` is created.
-pub(crate) fn register_parent(ctx: &egui::Context, id: Id, parent: Id) {
-    adapter::register_parent(ctx, id, parent);
-}
+mod emit;
 
-/// `builder` with `parent` as the node its `Ui`'s AccessKit nodes attach to.
-pub(crate) fn with_parent(builder: egui::UiBuilder, parent: Id) -> egui::UiBuilder {
-    adapter::with_parent(builder, parent)
-}
-
-/// Creates the node of `id` empty if it has none. False while AccessKit is off or the widget is invisible (a
-/// popup in its first-show sizing pass).
-pub(crate) fn create_node(ctx: &egui::Context, id: Id) -> bool {
-    adapter::create_node(ctx, id)
-}
-
-/// Keeps the node egui gives the widget `id` out of the screen-reader tree: a widget that senses input and stands for
-/// no node (a `Role::None` root, a cover's absorber).
-pub(crate) fn hide(ctx: &egui::Context, id: Id) {
-    adapter::hide(ctx, id);
-}
-
-/// Writes `position` into the node of `id`, which reported itself in this pass: the place its roving group's owner
-/// gives it among the group's members of the pass.
-pub(crate) fn write_set_position(ctx: &egui::Context, id: Id, position: SetPosition) {
-    adapter::write_set_position(ctx, id, position.index, position.size);
-}
-
-/// Takes the node of `id` out of what assistive technology reports and keeps its children in their place: a
-/// component whose type has a node and that reports none this pass (`Access::role`), with children that have theirs.
-pub(crate) fn pass_through(ctx: &egui::Context, id: Id) {
-    adapter::pass_through(ctx, id);
-}
-/// Reports `id` as the focused node of this pass.
-pub(crate) fn set_focus(ctx: &egui::Context, id: Id) {
-    adapter::set_focus(ctx, id);
-}
+pub(crate) mod scope;
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -81,25 +30,6 @@ pub enum Role {
     Merged,
     /// A node of this AccessKit role.
     Node(NodeRole),
-}
-
-impl Role {
-    /// The role of a message of `tone`: status for the neutral tones, alert for a warning or a failure.
-    pub const fn of_tone(tone: Tone) -> Role {
-        match tone {
-            Tone::Warn | Tone::Bad => Role::ALERT,
-            _ => Role::STATUS,
-        }
-    }
-
-    /// The cursor over an enabled component of this role: the pointing hand over a link and over a control that picks
-    /// or flips a value on a click (a check box, radio button, switch or colour well); none for the rest.
-    pub const fn hover_cursor(self) -> Option<craft_behavior::CursorIcon> {
-        match self {
-            Role::LINK | Role::CHECK_BOX | Role::RADIO_BUTTON | Role::SWITCH | Role::COLOR_WELL => Some(craft_behavior::CursorIcon::PointingHand),
-            _ => None,
-        }
-    }
 }
 
 /// How a node or sub-node is named.
@@ -593,15 +523,6 @@ impl SubNode {
         self
     }
 
-    /// Makes the node a run of text: `text` laid out on one line, each character's start offset from the node's left
-    /// edge in `positions` and its advance in `widths` (one per character), `rtl` for a right-to-left run. The node
-    /// is a `TextRun` whatever role it was given, takes its [`bounds`](Self::bounds) as the line's rectangle, and is
-    /// a valid end of [`Access::text_selection`].
-    pub fn text_run(&mut self, text: impl Into<String>, positions: Vec<f32>, widths: Vec<f32>, rtl: bool) -> &mut Self {
-        self.run = Some(RunFacts { text: text.into(), positions, widths, rtl });
-        self
-    }
-
     /// Declares Increment and Decrement on a node that steps something with no number (a canvas tool's arrows
     /// nudging what it holds); a part with no focus stop gets them as `take_access` requests that name the part.
     #[doc(hidden)]
@@ -619,13 +540,6 @@ impl SubNode {
     /// A plain text value, for a sub-node that shows text as its value and has no number.
     pub fn value(&mut self, text: impl Into<String>) -> &mut Self {
         self.value = Some(text.into());
-        self
-    }
-
-    /// The column of a cell of an item row; the item step reads the cell's column index from the collection's
-    /// columns.
-    pub fn column(&mut self, key: craft_behavior::ColumnKey) -> &mut Self {
-        self.column = Some(key);
         self
     }
 

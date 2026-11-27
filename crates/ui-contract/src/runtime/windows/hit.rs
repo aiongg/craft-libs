@@ -1,16 +1,6 @@
-//! Window hit testing: resize edges, caption regions, the hit sink the OS asks, and exclusive parts.
-
-use super::Record;
-#[cfg(doc)]
-use super::WindowHost;
-use crate::runtime::egui::input::RawInput;
-use crate::runtime::egui::{pass, scale, widgets};
-use crate::runtime::frame::{PassStep, PerViewport, Stamped, Stored};
-use crate::runtime::pointer;
-use craft_behavior::PartRef;
 use craft_window::Button;
 use craft_window::native::{CaptionEvent, Edge, Hits, Zone};
-use egui::{Context, Id, Pos2, Rect, ViewportId};
+use egui::{Pos2, Rect};
 use std::sync::{Arc, Mutex};
 
 /// An edge or corner a window resize starts from.
@@ -101,38 +91,26 @@ struct Published {
 /// procedure reports the button's hover, press and release through [`Hits::caption`]; the next pass turns them into
 /// the pointer events the button would have had. [`WindowHost::install_hit_sink`] makes the sink; the platform layer
 /// that owns the window procedure holds it.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct HitSink {
     published: Arc<Mutex<Option<Published>>>,
     /// The caption events the window procedure reported since the last pass.
     events: Arc<Mutex<Vec<CaptionEvent>>>,
     /// What to wake when an event arrives from the window procedure.
-    wake: Option<Wake>,
+    wake: Option<craft_ui_rt::Waker>,
 }
 
-/// The loop a caption event wakes: an egui viewport's, or a craft-ui-rt platform's.
-#[derive(Clone)]
-#[cfg_attr(not(windows), allow(dead_code))]
-enum Wake {
-    Egui(Context, ViewportId),
-    Rt(craft_ui_rt::Waker),
-}
-
-impl std::fmt::Debug for Wake {
+impl std::fmt::Debug for HitSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Wake")
+        f.write_str("HitSink")
     }
 }
 
 impl HitSink {
-    pub(super) fn linked(ctx: &Context, viewport: ViewportId) -> Self {
-        HitSink { wake: Some(Wake::Egui(ctx.clone(), viewport)), ..HitSink::default() }
-    }
-
     #[cfg_attr(not(windows), allow(dead_code))]
     /// A sink for a craft-ui-rt window: caption events wake `waker`'s loop.
     pub(crate) fn linked_rt(waker: craft_ui_rt::Waker) -> Self {
-        HitSink { wake: Some(Wake::Rt(waker)), ..HitSink::default() }
+        HitSink { wake: Some(waker), ..HitSink::default() }
     }
 
     /// Gives the window procedure the regions of the window's last pass, at `pixels_per_point`.
@@ -169,10 +147,8 @@ impl Hits for HitSink {
 
     fn caption(&self, event: CaptionEvent) {
         self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event);
-        match &self.wake {
-            Some(Wake::Egui(ctx, viewport)) => ctx.request_repaint_of(*viewport),
-            Some(Wake::Rt(waker)) => waker.wake(),
-            None => {}
+        if let Some(waker) = &self.wake {
+            waker.wake();
         }
     }
 }
@@ -189,163 +165,4 @@ fn edge_of(edge: ResizeEdge) -> Edge {
         ResizeEdge::BottomLeft => Edge::BottomLeft,
         ResizeEdge::BottomRight => Edge::BottomRight,
     }
-}
-
-/// Turns the caption events the window procedure reported for `viewport` into the pointer events the caption button
-/// would have had, so the button looks and acts as on the other platforms: a hover moves the pointer onto it, a press
-/// presses the primary button, a release releases it there (a click), and a leave or a cancelled press moves the
-/// pointer away first so the release is no click.
-pub(super) fn replay_caption_events(ctx: &Context, viewport: ViewportId, input: &mut RawInput) {
-    let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) else { return };
-    let events = sink.take_events();
-    if events.is_empty() {
-        return;
-    }
-    let (buttons, moves) =
-        with_exclusive(ctx, viewport, |exclusive| exclusive.done.as_ref().map(|regions| (regions.buttons.clone(), regions.moves.clone())))
-            .unwrap_or_default();
-    let center = |button: Button| buttons.iter().find(|(held, _)| *held == button).map(|(_, rect)| rect.center());
-    let press = |pos, button, pressed| egui::Event::PointerButton { pos, button, pressed, modifiers: egui::Modifiers::NONE };
-    let primary = |pos, pressed| press(pos, egui::PointerButton::Primary, pressed);
-    let scale = scale::pixels_per_point(ctx).max(f32::EPSILON);
-    // Only a position on a drag area is replayed there.
-    let on_band = |pixel: [f32; 2]| {
-        let at = Pos2::new(pixel[0] / scale, pixel[1] / scale);
-        moves.iter().any(|rect| rect.contains(at)).then_some(at)
-    };
-    let mut replay = Vec::new();
-    for event in events {
-        match event {
-            CaptionEvent::Hover(caption) => replay.extend(center(caption).map(egui::Event::PointerMoved)),
-            CaptionEvent::Press(caption) => {
-                if let Some(at) = center(caption) {
-                    replay.extend([egui::Event::PointerMoved(at), primary(at, true)]);
-                }
-            }
-            CaptionEvent::Release(caption) => replay.extend(center(caption).map(|at| primary(at, false))),
-            CaptionEvent::Leave => replay.push(egui::Event::PointerGone),
-            CaptionEvent::Cancel => replay.extend([egui::Event::PointerMoved(OUTSIDE), primary(OUTSIDE, false), egui::Event::PointerGone]),
-            CaptionEvent::BandDouble(pixel) => {
-                if let Some(at) = on_band(pixel) {
-                    replay.extend([egui::Event::PointerMoved(at), primary(at, true), primary(at, false), primary(at, true), primary(at, false)]);
-                }
-            }
-            CaptionEvent::BandMenu(pixel) => {
-                if let Some(at) = on_band(pixel) {
-                    replay.extend([
-                        egui::Event::PointerMoved(at),
-                        press(at, egui::PointerButton::Secondary, true),
-                        press(at, egui::PointerButton::Secondary, false),
-                    ]);
-                }
-            }
-            _ => {}
-        }
-    }
-    // Before the events winit delivered in the same frame: a pointer that moved on from the button to the client
-    // area is the later fact.
-    input.events.splice(0..0, replay);
-    ctx.request_repaint_of(viewport);
-}
-
-/// A position outside every window: a release there ends a press without a click.
-const OUTSIDE: Pos2 = Pos2::new(-1.0, -1.0);
-
-/// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
-/// the pass's widgets, so this runs at the end of the pass.
-fn regions_of(ctx: &Context, viewport: ViewportId, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
-    if parts.is_empty() {
-        return None;
-    }
-    let mut regions = CaptionRegions::default();
-    for ExclusivePart { owner, part, hit, rect } in parts {
-        match hit {
-            WindowHit::Move => {
-                regions.moves.push(*rect);
-                regions.covers.push(covers_of(ctx, viewport, *owner, *part, *rect));
-            }
-            WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
-            WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
-        }
-    }
-    Some(regions)
-}
-
-/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it,
-/// clipped to the band: each interactive egui widget of the running pass that egui's hit test puts above the
-/// component's widgets, and each of the component's own shapes that a press there goes to instead of the band (a
-/// member over it, a higher part). The component's widgets resolve as the component (8.3), so they are not hits
-/// over the band themselves.
-fn covers_of(ctx: &Context, viewport: ViewportId, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
-    let over = pointer::over_part(ctx, viewport, owner, part);
-    widgets::above(ctx, owner, &over.widgets)
-        .into_iter()
-        .chain(over.above)
-        .map(|cover| cover.intersect(band))
-        .filter(|cover| cover.is_positive())
-        .collect()
-}
-
-/// Keeps the regions of the running pass's exclusive parts for [`WindowHost::caption_regions`] and gives them to
-/// the viewport's hit-test sink.
-pub(super) fn publish_regions(ctx: &Context, viewport: ViewportId) {
-    let parts = with_exclusive(ctx, viewport, |exclusive| exclusive.current.clone());
-    let regions = regions_of(ctx, viewport, &parts);
-    with_exclusive(ctx, viewport, |exclusive| exclusive.done = regions.clone());
-    if let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) {
-        let pixels_per_point = scale::pixels_per_point(ctx);
-        sink.publish(regions.map(|regions| Published { regions, pixels_per_point }));
-    }
-}
-
-/// Whether the platform answers the hit test of `viewport`'s window from the app's exclusive parts.
-pub(crate) fn hit_sink_installed(ctx: &Context, viewport: ViewportId) -> bool {
-    PerViewport::<Record>::with(ctx, viewport, |record| record.sink.is_some())
-}
-
-/// An exclusive part as its component declared it.
-#[derive(Clone, Debug)]
-struct ExclusivePart {
-    owner: Id,
-    part: PartRef,
-    hit: WindowHit,
-    rect: Rect,
-}
-
-/// A viewport's exclusive parts: those the running pass declared so far, and the regions of its last complete pass.
-#[derive(Default)]
-pub(super) struct Exclusive {
-    current: Vec<ExclusivePart>,
-    pub(super) done: Option<CaptionRegions>,
-}
-
-impl Stored for Exclusive {}
-
-pub(super) fn with_exclusive<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Exclusive) -> R) -> R {
-    PerViewport::<Stamped<Exclusive>>::with_pass(
-        ctx,
-        viewport,
-        pass::pass_nr(ctx, viewport),
-        |exclusive, step| {
-            exclusive.current.clear();
-            if matches!(step, PassStep::Skipped) {
-                exclusive.done = None;
-            }
-        },
-        f,
-    )
-}
-
-/// Records that `part` of the component `owner` is, over `rect`, what `hit` says for the running viewport's window. A
-/// part declared again in the same pass replaces its entry. A settled memoized view that replays its last run declares
-/// its parts again, so a settled title bar keeps its caption regions.
-pub(crate) fn note_exclusive(ctx: &Context, owner: Id, part: PartRef, hit: WindowHit, rect: Rect) {
-    crate::runtime::replay::journal(ctx, || (owner, part, hit, rect), |ctx, &(owner, part, hit, rect)| note_exclusive(ctx, owner, part, hit, rect));
-    with_exclusive(ctx, pass::current_viewport(ctx), |exclusive| {
-        let entry = ExclusivePart { owner, part, hit, rect };
-        match exclusive.current.iter_mut().find(|held| held.owner == owner && held.part == part) {
-            Some(held) => *held = entry,
-            None => exclusive.current.push(entry),
-        }
-    });
 }

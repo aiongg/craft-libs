@@ -1,11 +1,9 @@
 //! The registrations of the focus service: a stop and a roving group. The types are `pub` so the testing kit can
 //! name them; the module is crate-private, so no other path reaches them.
 
-use super::{FocusPolicy, Initial, KeyUse, Roving, StopKey, with};
-use crate::runtime::egui::memory as store;
-use crate::runtime::memory::sub;
+use super::{KeyUse, Roving, StopKey};
 use craft_behavior::{KeyRole, PartRef};
-use egui::{Context, Id};
+use egui::Id;
 
 /// A stop as registered at step 7 of the pipeline.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,24 +102,6 @@ impl Stop {
         self
     }
 
-    /// Joins the roving group `group`.
-    pub fn in_group(mut self, group: Id) -> Self {
-        self.group = Some(group);
-        self
-    }
-
-    /// Sits in the body of the roving group `group`, if any.
-    pub fn in_body(mut self, group: Option<Id>) -> Self {
-        self.body = group;
-        self
-    }
-
-    /// Sits in the arena of the root `arena` (a canvas body), if any, whether or not it joined it.
-    pub fn in_arena(mut self, arena: Option<Id>) -> Self {
-        self.arena = arena;
-        self
-    }
-
     /// Marks the stop as the app's own egui widget.
     pub fn host(mut self) -> Self {
         self.host = true;
@@ -204,102 +184,4 @@ impl Group {
         self.owner = Some(owner);
         self
     }
-}
-
-/// The innermost open `KeepAnchor` layer opened from the stop `opener`, the collection the layer names for its
-/// opener's list keys (`FocusPolicy::list`) and the layer's policy. `None` while no such layer is open, or it names no
-/// collection or one that registered no stop in the last pass (a list not shown leaves the keys with the opener). A
-/// layer playing its exit fade is closed: the opener keeps its keys, so an Enter right after Escape opens the list
-/// again instead of activating the row of the list that is leaving.
-pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<(Id, Id, FocusPolicy)> {
-    with(ctx, |state| {
-        let layer = *state.last_scope_order.iter().rev().find(|id| {
-            state
-                .last_scopes
-                .get(*id)
-                .is_some_and(|scope| scope.policy.initial == Initial::KeepAnchor && !scope.closing && scope.opener == Some(opener))
-        })?;
-        let policy = state.last_scopes.get(&layer)?.policy;
-        let shown = |list: &Id| state.last_stops.iter().any(|rec| rec.stop.id == *list);
-        policy.list.filter(shown).map(|list| (layer, list, policy))
-    })
-}
-
-/// What a text stop hands to the collection it drives: set by the field each pass it is shown.
-#[derive(Clone, Copy)]
-pub(crate) struct Drive {
-    /// The collection that takes the field's list keys.
-    pub(crate) list: Id,
-    /// The field holds no text, so Home, End and, for a tree, Left and Right leave the caret and go to the collection.
-    pub(crate) empty: bool,
-    pass: u64,
-}
-
-fn drive_slot(field: Id) -> Id {
-    sub(field, "drives")
-}
-
-/// Records that the text field `field` drives the collection `list` in this pass.
-#[doc(hidden)]
-pub fn drive(ctx: &Context, field: Id, list: Id, empty: bool) {
-    let slot = drive_slot(field);
-    store::put(ctx, slot, Drive { list, empty, pass: crate::runtime::pointer::pass_of(ctx) });
-    crate::runtime::memory::adopt::<Drive>(ctx, field, slot);
-}
-
-/// The collection the text field `field` drove in this pass or the one before.
-pub(crate) fn driven(ctx: &Context, field: Id) -> Option<Drive> {
-    let drive = store::peek_clone::<Drive>(ctx, drive_slot(field))?;
-    (drive.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx)).then_some(drive)
-}
-
-/// Whether a collection navigates as a tree, and the pass that recorded it.
-#[derive(Clone, Copy)]
-struct TreeFact {
-    tree: bool,
-    pass: u64,
-}
-
-fn tree_slot(collection: Id) -> Id {
-    sub(collection, "nav_tree")
-}
-
-/// Records whether the collection `collection` navigates as a tree in this pass: the item step writes it from its
-/// layout, and the key router reads it for the text field that drives the collection.
-pub(crate) fn record_tree(ctx: &Context, collection: Id, tree: bool) {
-    let slot = tree_slot(collection);
-    store::put(ctx, slot, TreeFact { tree, pass: crate::runtime::pointer::pass_of(ctx) });
-    crate::runtime::memory::adopt::<TreeFact>(ctx, collection, slot);
-}
-
-/// Whether the collection `collection` navigated as a tree in this pass or the one before.
-pub(crate) fn is_tree(ctx: &Context, collection: Id) -> bool {
-    store::peek_clone::<TreeFact>(ctx, tree_slot(collection))
-        .is_some_and(|fact| fact.tree && fact.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx))
-}
-
-/// Whether a collection has a lead row to activate, and the pass that recorded it.
-#[derive(Clone, Copy)]
-struct LeadFact {
-    lead: bool,
-    pass: u64,
-}
-
-fn lead_slot(collection: Id) -> Id {
-    sub(collection, "nav_lead")
-}
-
-/// Records whether the collection `collection` has a lead row in this pass: the item step writes it, and the key
-/// router reads it for the text field that drives the collection.
-pub(crate) fn record_lead(ctx: &Context, collection: Id, lead: bool) {
-    let slot = lead_slot(collection);
-    store::put(ctx, slot, LeadFact { lead, pass: crate::runtime::pointer::pass_of(ctx) });
-    crate::runtime::memory::adopt::<LeadFact>(ctx, collection, slot);
-}
-
-/// Whether the collection `collection` recorded no lead row in this pass or the one before. A target that records no
-/// lead fact (a menu a search field drives) never lacks one.
-pub(crate) fn lacks_lead(ctx: &Context, collection: Id) -> bool {
-    store::peek_clone::<LeadFact>(ctx, lead_slot(collection))
-        .is_some_and(|fact| !fact.lead && fact.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx))
 }

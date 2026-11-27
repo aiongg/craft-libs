@@ -1,13 +1,16 @@
 //! The motion service (13): tweens over one clock, the motion table, and one repaint request per viewport.
 
-use crate::runtime::egui::{memory as store, pass, repaint};
+use crate::runtime::egui::{memory as store, pass};
 use crate::runtime::env::MotionPolicy;
 use crate::runtime::frame::{self, PerViewport};
 use crate::runtime::memory::{self, MemoryStage};
 use craft_behavior::{MotionKind, Playback};
-use craft_theme::Motion;
+use craft_theme::{Motion, Tokens};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 use std::hash::Hash;
+/// The instant type [`now`] returns: `std::time::Instant` on native targets, a clock that works in the browser on
+/// wasm.
+pub use web_time::Instant;
 
 /// Which token of `MotionTokens` gives a spec its duration and curve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
@@ -44,6 +47,18 @@ impl MotionSpec {
     /// The kind that picks this spec's row of the motion table.
     pub const fn kind(self) -> MotionKind {
         self.kind
+    }
+
+    /// The motion of this spec's token in `tokens`: what ui-rt's paint phase evaluates at the frame's time.
+    pub(crate) fn motion_of(self, tokens: &Tokens) -> Motion {
+        let m = &tokens.motion;
+        match self.token {
+            Token::Hover => m.hover,
+            Token::Open => m.open,
+            Token::Move => m.r#move,
+            Token::Caret => m.caret,
+            Token::Outline => m.outline,
+        }
     }
 
     fn motion(self, policy: &MotionPolicy) -> Motion {
@@ -243,10 +258,6 @@ pub(crate) struct Wanted {
     wake: Option<f64>,
 }
 
-/// The instant type [`now`] returns: `std::time::Instant` on native targets, a clock that works in the browser on
-/// wasm.
-pub use web_time::Instant;
-
 /// The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
 /// outside a pass that reads the clock.
 pub fn now() -> Instant {
@@ -257,42 +268,6 @@ pub fn now() -> Instant {
 pub(crate) fn note_unsettled(ctx: &Context) {
     crate::runtime::replay::note_unsettled(ctx);
     PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.unsettled = true);
-}
-
-/// The end hook: one repaint request for the running viewport, now when an animation is unsettled, else at the
-/// earliest wake.
-pub(crate) fn end_pass(ctx: &Context) {
-    let viewport = pass::current_viewport(ctx);
-    let wanted = PerViewport::<Wanted>::with(ctx, viewport, std::mem::take);
-    if wanted.unsettled {
-        repaint::request_of(ctx, viewport);
-    } else if let Some(at) = wanted.wake {
-        repaint::request_after(ctx, viewport, at - frame::clock(ctx));
-    }
-}
-
-/// Whether the open tween of the layer `base` still shows it: it opens, shows, or fades out. Reads without driving.
-pub(crate) fn layer_fading(ctx: &Context, base: Id) -> bool {
-    store::peek_clone::<Tween<f32>>(ctx, memory::sub(base, ("anim", "open")))
-        .is_some_and(|tween| !tween.is_settled() || tween.target() > 0.0 || tween.shown() > 0.0)
-}
-
-/// The open-close presence of an overlay layer `base` that no component context drives: the overlay host reads it.
-/// A layer that is closed and fully faded out answers without opening a stage.
-pub(crate) fn layer_presence(ctx: &Context, base: Id, owner: Id, policy: MotionPolicy, open: bool, spec: MotionSpec) -> Presence {
-    let hidden = Presence { t: 0.0, visible: false, exiting: false };
-    if !open && !layer_fading(ctx, base) {
-        return hidden;
-    }
-    let stage = MemoryStage::open_owned(ctx, memory::sub(base, "presence"), owner);
-    let presence = Driver { stage: &stage, base, policy }.presence("open", open, spec);
-    stage.write_back();
-    // The exit that ends here is the last pass in which the layer's hosts run it: from the next pass `layer_fading`
-    // answers false and they skip it. What ran around it this pass does not hold for the next one.
-    if !open && !layer_fading(ctx, base) {
-        note_unsettled(ctx);
-    }
-    presence
 }
 
 /// Moves `tween` toward `target` at `now` by `spec` under `policy`, or sets it there where the mode does not run
@@ -318,32 +293,6 @@ fn keyed_slot_of(base: Id, name: &'static str) -> Id {
     memory::sub(base, ("presence_keyed", name))
 }
 
-/// The keys of the keyed presence `name` of the component `base` that are not among `listed`, closing from where
-/// they are at this pass's clock, each with its last payload. It reads a copy and stores nothing: the same keys,
-/// values and order `Driver::exiting` gives in the same pass, for code that runs before the component's own pass
-/// drives this frame's open keys (a collection's layout).
-pub(crate) fn peek_exiting<P: Clone + Send + Sync + 'static>(
-    ctx: &Context,
-    base: Id,
-    policy: MotionPolicy,
-    name: &'static str,
-    spec: MotionSpec,
-    listed: &[Id],
-) -> Vec<(Presence, P)> {
-    let Some(keyed) = store::peek_clone::<Keyed<P>>(ctx, keyed_slot_of(base, name)) else { return Vec::new() };
-    let now = frame::clock(ctx);
-    keyed
-        .entries
-        .into_iter()
-        .filter(|entry| !listed.contains(&entry.key))
-        .filter_map(|mut entry| {
-            advance_tween(&policy, &mut entry.tween, 0.0, spec, now);
-            let presence = Presence::at(entry.tween.shown(), false);
-            presence.visible.then_some((presence, entry.payload))
-        })
-        .collect()
-}
-
 /// The hover, press and on tweens of one component.
 #[derive(Clone)]
 pub(crate) struct StateTweens([Tween<f32>; 3]);
@@ -363,32 +312,6 @@ impl Driver<'_> {
 
     pub(crate) fn anim<T: Interpolate>(&self, name: &'static str, target: T, spec: MotionSpec) -> T {
         self.run(name, target, spec)
-    }
-
-    /// The pipeline's state values (`hover`, `press`, `on`), stepped in `tweens`, which the component's `Shown`
-    /// record keeps; `None` the first pass, which starts at the targets. A sizing pass's stage keeps nothing, so it
-    /// steps a copy.
-    pub(crate) fn state_anims(&self, tweens: &mut Option<StateTweens>, targets: [bool; 3], specs: [MotionSpec; 3]) -> [f32; 3] {
-        let ctx = self.stage.ctx();
-        let now = frame::clock(ctx);
-        let tweens = tweens.get_or_insert_with(|| StateTweens(targets.map(|on| Tween::at(f32::from(u8::from(on))))));
-        let mut shown = [0.0; 3];
-        for (at, tween) in tweens.0.iter_mut().enumerate() {
-            let target = f32::from(u8::from(targets[at]));
-            if self.policy.mode.playback(specs[at].kind) == Playback::Run {
-                if tween.target() != target {
-                    tween.retarget(target, now);
-                }
-                tween.step(now, specs[at].motion(&self.policy), specs[at].curve);
-            } else {
-                *tween = Tween::at(target);
-            }
-            shown[at] = tween.shown();
-        }
-        if !self.stage.is_peek() && tweens.0.iter().any(|tween| !tween.is_settled()) {
-            note_unsettled(ctx);
-        }
-        shown
     }
 
     /// A sizing pass evaluates a copy and stores nothing: it must not retarget a running tween or adopt a slot
