@@ -77,7 +77,7 @@ impl FaceBytes {
     }
 
     /// The family names of the chain's faces (each drawn alone).
-    fn chain_families(&self) -> Vec<String> {
+    pub(crate) fn chain_families(&self) -> Vec<String> {
         self.chain.iter().map(|key| Kind::Alone.family_name(key)).collect()
     }
 
@@ -95,7 +95,7 @@ impl FaceBytes {
     }
 
     /// Whether egui can draw the face: egui stops on a face it cannot read.
-    fn parses(&self) -> bool {
+    pub(crate) fn parses(&self) -> bool {
         skrifa::FontRef::from_index(&self.bytes, self.index).is_ok()
     }
 
@@ -218,7 +218,7 @@ impl Registry {
 
 /// How a face's family is built.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind {
+pub(crate) enum Kind {
     /// The face alone.
     Alone,
     /// The face, then the proportional family's chain.
@@ -227,7 +227,7 @@ enum Kind {
 
 impl Kind {
     /// The family (and face) name of `key`: one per key and kind.
-    fn family_name(self, key: &str) -> String {
+    pub(crate) fn family_name(self, key: &str) -> String {
         match self {
             Kind::Alone => format!("face:{key}"),
             Kind::OverInterface => format!("face+ui:{key}"),

@@ -21,6 +21,7 @@ epaint = { version = "0.37", default-features = false, features = ["bytemuck"] }
 kurbo = { workspace = true }
 log = "0.4"
 raw-window-handle = "0.6"
+skrifa = { workspace = true }
 web-time = "1.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

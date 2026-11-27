@@ -105,7 +105,7 @@ fn subpaths(path: &BezPath, shift: Vec2, tolerance: f64) -> Vec<(Vec<Pos2>, bool
     out
 }
 
-/// A stroke along `points`: solid, or cut into dashes.
+/// A stroke along `points`, centred on them: solid, or cut into dashes.
 fn stroke_shapes(points: Vec<Pos2>, closed: bool, s: craft_ui_rt::Stroke, opacity: f32, out: &mut Vec<Shape>) {
     let st = Stroke::new(s.width, color(s.color, opacity));
     match s.dash {
@@ -213,19 +213,27 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                     }
                 }
             }
+            // A solid stroke outside the radius is epaint's own circle stroke: one shape, as egui paints it.
+            Item::Circle { center, radius, fill, stroke: Some(s) } if s.dash.is_none() && s.align == StrokeAlign::Outside => {
+                let fill = color(*fill, opacity);
+                shapes.push(Shape::Circle(CircleShape { center: pos(*center, shift), radius: *radius, fill, stroke: stroke(Some(*s), opacity) }));
+            }
             Item::Circle { center, radius, fill, stroke: s } => {
                 let center = pos(*center, shift);
                 if solid(*fill) || s.is_none() {
                     shapes.push(Shape::Circle(CircleShape { center, radius: *radius, fill: color(*fill, opacity), stroke: Stroke::NONE }));
                 }
                 if let Some(s) = s {
+                    // The radius of the circle whose outside the stroke covers (epaint strokes a circle outside it).
                     let grow = match s.align {
-                        StrokeAlign::Inside => -s.width / 2.0,
-                        StrokeAlign::Middle => 0.0,
-                        StrokeAlign::Outside => s.width / 2.0,
+                        StrokeAlign::Inside => -s.width,
+                        StrokeAlign::Middle => -s.width / 2.0,
+                        StrokeAlign::Outside => 0.0,
                     };
                     let r = (radius + grow).max(0.0);
                     if s.dash.is_some() {
+                        // A dashed line along the stroke's centre.
+                        let r = r + s.width / 2.0;
                         let n = ((r * scale).sqrt() * 8.0).ceil().clamp(16.0, 256.0) as u32;
                         let points = (0..n).map(|i| {
                             let a = std::f32::consts::TAU * i as f32 / n as f32;
@@ -289,7 +297,7 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                 out.masks.push(*key);
                 shapes.push(Shape::image(mask_texture(*key), rect(*r, shift), *uv, color(*c, opacity)));
             }
-            Item::Text { layout, origin, color: c, highlight, .. } => {
+            Item::Text { layout, origin, color: c, highlight, angle, .. } => {
                 let Some(shaped) = layout.downcast_ref::<Shaped>() else {
                     continue;
                 };
@@ -299,7 +307,7 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                 if let Some(h) = highlight {
                     highlight_galley(&mut galley, shaped, h, opacity);
                 }
-                let mut text = TextShape::new(pos(*origin, shift), galley, Color32::WHITE);
+                let mut text = TextShape::new(pos(*origin, shift), galley, Color32::WHITE).with_angle(*angle);
                 if let Some(c) = c {
                     text = text.with_override_text_color(color(*c, opacity));
                 } else if opacity < 1.0 {

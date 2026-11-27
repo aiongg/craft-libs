@@ -401,10 +401,15 @@ impl SvgIcon {
             // Each layer is its own texture, so a disabled icon's one-ink fixed layer and the enabled one as drawn
             // are both kept.
             let key = (self.entry, self.set, px, stroke_px, self.mirrored, layer);
-            // A layer with no part registers an empty image, which paints nothing.
             let texture = image_key(&key);
-            services.image(texture, craft_ui_rt::ImageOptions::default(), &mut || rgba_image(&self.layer(square.width(), ppp, layer)));
-            painter.image(texture, rect, uv, color);
+            let mut drawn = || {
+                let image = self.layer(square.width(), ppp, layer);
+                (!image.pixels.iter().all(|pixel| pixel.a() == 0)).then(|| rgba_image(&image))
+            };
+            // A layer with no part is not painted.
+            if services.image_if(texture, craft_ui_rt::ImageOptions::default(), &mut drawn) {
+                painter.image(texture, rect, uv, color);
+            }
         }
     }
 }

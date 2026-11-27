@@ -65,6 +65,8 @@ pub struct SkiaText {
     mgr: FontMgr,
     /// Registered families that follow the primary family in every style, in order.
     fallback: Vec<String>,
+    /// The families `install_face` added.
+    installed: std::collections::HashSet<String>,
 }
 
 impl Default for SkiaText {
@@ -88,7 +90,13 @@ impl SkiaText {
         // FreeType without system fonts where Skia has it (Linux, Android); the platform's
         // manager elsewhere. Either only parses the bytes it is given here.
         let mgr = FontMgr::custom_empty().unwrap_or_else(FontMgr::new);
-        let mut text = SkiaText { fonts: FontCollection::new(), provider: TypefaceFontProvider::new(), mgr, fallback: Vec::new() };
+        let mut text = SkiaText {
+            fonts: FontCollection::new(),
+            provider: TypefaceFontProvider::new(),
+            mgr,
+            fallback: Vec::new(),
+            installed: Default::default(),
+        };
         for bytes in [INTER_REGULAR, INTER_SEMIBOLD] {
             text.add(UI_FAMILY, bytes);
         }
@@ -215,6 +223,24 @@ fn shaped(layout: &TextLayout) -> &Shaped {
 }
 
 impl TextEngine for SkiaText {
+    /// Registers the face under its family. Rich text is set by the trait's default here, which
+    /// keeps every section in the interface face, so the family is not yet drawn.
+    fn install_face(&mut self, face: craft_ui_rt::FaceInstall) -> bool {
+        match self.mgr.new_from_data(Data::new_copy(&face.bytes), Some(face.index)) {
+            Some(typeface) => {
+                self.provider.register_typeface(typeface, face.family.as_ref());
+                self.sync();
+                self.installed.insert(face.family.to_string());
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn has_face(&self, family: &str) -> bool {
+        self.installed.contains(family)
+    }
+
     /// Layouts are in logical points at every scale: Skia rasterises glyphs under the canvas
     /// matrix at the target's pixel size, so the scale changes no metric here.
     fn layout(&mut self, spec: &TextSpec, _scale: f32) -> TextLayout {

@@ -210,12 +210,12 @@ impl PaintCx<'_> {
     }
 
     pub fn text(&mut self, layout: &TextLayout, origin: Pos2, color: Option<Rgba>) {
-        self.push(Item::Text { layout: layout.handle.clone(), origin, size: layout.size, color, highlight: None });
+        self.push(Item::Text { layout: layout.handle.clone(), origin, size: layout.size, color, highlight: None, angle: 0.0 });
     }
 
     /// A text with a range of it filled behind the glyphs (see [`TextHighlight`]).
     pub fn text_highlighted(&mut self, layout: &TextLayout, origin: Pos2, color: Option<Rgba>, highlight: TextHighlight) {
-        self.push(Item::Text { layout: layout.handle.clone(), origin, size: layout.size, color, highlight: Some(highlight) });
+        self.push(Item::Text { layout: layout.handle.clone(), origin, size: layout.size, color, highlight: Some(highlight), angle: 0.0 });
     }
 
     pub fn push_clip(&mut self, clip: impl Into<Clip>) {

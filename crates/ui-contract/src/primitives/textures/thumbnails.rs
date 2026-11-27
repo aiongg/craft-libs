@@ -495,11 +495,14 @@ fn paint_picture(cx: &ContentPainterCx<'_>, cell: Rect, texture: &CachedTexture,
         ThumbFit::Cover => (cell, cover_uv(cell, size)),
     };
     if let Some(paper) = paint.paper {
-        cx.painter.rect_filled(target, 0.0, paper.0);
+        cx.painter.rect_filled(target, egui::CornerRadius::ZERO, paper.0);
     } else if paint.checker {
         cx.checker(target);
     }
-    cx.painter.add(egui::Shape::image(texture.id, target, within(texture.uv(), fit), paint.tint.0));
+    // The texture store still holds egui textures (B9 moves it onto the `ImageStore`); a user texture's id is its key.
+    if let egui::TextureId::User(id) = texture.id {
+        cx.painter.image(craft_ui_rt::ImageKey(id), target, within(texture.uv(), fit), paint.tint.0);
+    }
 }
 
 /// The part `fit` (fractions of `outer`, 0 to 1) of the uv rect `outer`.
@@ -525,7 +528,7 @@ fn paint_placeholder(cx: &ContentPainterCx<'_>, rect: Rect, paper: Option<DataCo
     if let Some(paper) = paper {
         style.fill = paper.0;
     }
-    cx.painter.extend(Surface::shapes(&style, None, rect, Corners::None, cx.direction, cx.pixels_per_point()));
+    cx.painter.extend(Surface::items(&style, None, rect, Corners::None, cx.direction, cx.pixels_per_point()));
 }
 
 /// The caption of a picture that has not arrived: "Rendering…", then "Still rendering…" once it has waited

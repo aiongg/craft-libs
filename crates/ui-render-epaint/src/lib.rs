@@ -536,7 +536,11 @@ fn texture_options(options: ImageOptions) -> TextureOptions {
         craft_ui_rt::Filter::Nearest => TextureFilter::Nearest,
     };
     // `options.mipmaps` is not applied: egui-wgpu textures have one level.
-    TextureOptions { magnification: filter(options.magnify), minification: filter(options.minify), ..TextureOptions::LINEAR }
+    let wrap_mode = match options.wrap {
+        craft_ui_rt::Wrap::Clamp => epaint::textures::TextureWrapMode::ClampToEdge,
+        craft_ui_rt::Wrap::Repeat => epaint::textures::TextureWrapMode::Repeat,
+    };
+    TextureOptions { magnification: filter(options.magnify), minification: filter(options.minify), wrap_mode, ..TextureOptions::LINEAR }
 }
 
 /// The sRGB straight-alpha `rgba` as epaint's premultiplied image; for a mask, white with the

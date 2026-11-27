@@ -102,6 +102,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let shown = self.to_screen(layout, rect, swept, rtl);
         let corners = [shown.left_top(), shown.right_top(), shown.right_bottom(), shown.left_bottom()].map(|corner| self.on_screen(corner));
         let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        painter.extend(crate::primitives::marching_ants(&env.tokens, &corners, true, 0.0, painter.clip_rect(), painter.pixels_per_point()));
+        crate::runtime::egui::text_layout::paint_items(
+            &painter,
+            &crate::primitives::marching_ants(&env.tokens, &corners, true, 0.0, painter.clip_rect(), painter.pixels_per_point()),
+        );
     }
 }

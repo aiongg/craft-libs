@@ -26,7 +26,7 @@ const BOLD_FROM: u16 = 600;
 /// The raw painter of an allowlisted content painter, clipped to its rect.
 #[non_exhaustive]
 pub struct ContentPainterCx<'a> {
-    /// The painter, for theme colours. Colours from data go through [`data_shapes`](Self::data_shapes), the kit's data
+    /// The painter, for theme colours. Colours from data go through [`data_items`](Self::data_items), the kit's data
     /// methods (`picture`, `checker`, `ramp`) or `with_draw`, which dim them while the component paints its Disabled
     /// state; a component that paints data with this painter takes `DisabledLook::Faded`.
     pub painter: &'a Canvas<'a>,
@@ -36,6 +36,16 @@ pub struct ContentPainterCx<'a> {
     ink: Ink,
     /// How the data paths and `with_draw` paint data colours, as the component's `PaintUi::draw` does.
     pub(super) data: super::DataMode,
+    /// The painter cut its painting to a rect (`within`), which ends when it goes.
+    clips: bool,
+}
+
+impl Drop for ContentPainterCx<'_> {
+    fn drop(&mut self) {
+        if self.clips {
+            self.painter.pop_clip();
+        }
+    }
 }
 
 impl<'a> ContentPainterCx<'a> {
@@ -43,7 +53,17 @@ impl<'a> ContentPainterCx<'a> {
     /// content-paint kit reads.
     #[doc(hidden)]
     pub fn new(painter: &'a Canvas<'a>, env: &'a Env, ink: Ink) -> Self {
-        ContentPainterCx { painter, tokens: &env.tokens, direction: env.direction, env, ink, data: super::DataMode::Full }
+        ContentPainterCx { painter, tokens: &env.tokens, direction: env.direction, env, ink, data: super::DataMode::Full, clips: false }
+    }
+
+    /// The same painter with what it paints cut to `rect` (window coordinates) until it goes: the component's rect, as
+    /// `PaintUi::content_painter` gives it.
+    pub(crate) fn within(mut self, rect: egui::Rect) -> Self {
+        if !self.clips {
+            self.painter.push_clip(rect);
+            self.clips = true;
+        }
+        self
     }
 
     /// The same painter whose `with_draw` paints data colours in `data`.

@@ -186,80 +186,15 @@ impl crate::primitives::Services for Context {
 }
 
 /// Paints display items recorded by a canvas whose origin is the window's on an egui painter: what the egui runtime
-/// shows of content painted through `Canvas` (cursor art, drag ghosts). Pictures by image key are not painted.
+/// shows of content painted through `Canvas`. Pictures by image key are not painted: egui holds no such textures.
 pub(crate) fn paint_items(painter: &egui::Painter, items: &[craft_ui_rt::Item]) {
-    use craft_ui_rt::{Item, StrokeAlign};
-    use egui::epaint::{CircleShape, RectShape, Shape, StrokeKind};
-    let color = |c: craft_theme::Rgba, opacity: f32| {
-        let c = egui::Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
-        if opacity < 1.0 { c.gamma_multiply(opacity) } else { c }
-    };
-    let corners = |r: craft_ui_rt::CornerRadii| egui::CornerRadius {
-        nw: r.top_left.round() as u8,
-        ne: r.top_right.round() as u8,
-        se: r.bottom_right.round() as u8,
-        sw: r.bottom_left.round() as u8,
-    };
-    let kind = |a: StrokeAlign| match a {
-        StrokeAlign::Inside => StrokeKind::Inside,
-        StrokeAlign::Middle => StrokeKind::Middle,
-        StrokeAlign::Outside => StrokeKind::Outside,
-    };
+    use craft_ui_rt::Item;
     let mut clips = vec![painter.clone()];
     let mut opacity = vec![1.0_f32];
     for item in items {
         let p = clips.last().expect("the base painter stays").clone();
         let o = *opacity.last().expect("the base opacity stays");
-        let stroke = |s: &Option<craft_ui_rt::Stroke>| s.map_or(egui::Stroke::NONE, |s| egui::Stroke::new(s.width, color(s.color, o)));
         match item {
-            Item::Rect { rect, radii, fill, stroke: s } => {
-                let k = s.map_or(StrokeKind::Inside, |s| kind(s.align));
-                p.add(RectShape::new(*rect, corners(*radii), color(*fill, o), stroke(s), k));
-            }
-            Item::Circle { center, radius, fill, stroke: s } => {
-                p.add(CircleShape { center: *center, radius: *radius, fill: color(*fill, o), stroke: stroke(s) });
-            }
-            Item::Line { from, to, stroke: s } => {
-                p.line_segment([*from, *to], egui::Stroke::new(s.width, color(s.color, o)));
-            }
-            Item::Path { path, fill, stroke: s } => {
-                let points: Vec<egui::Pos2> = path
-                    .elements()
-                    .iter()
-                    .filter_map(|el| match el {
-                        craft_behavior::kurbo::PathEl::MoveTo(q) | craft_behavior::kurbo::PathEl::LineTo(q) => {
-                            Some(egui::pos2(q.x as f32, q.y as f32))
-                        }
-                        _ => None,
-                    })
-                    .collect();
-                let closed = path.elements().iter().any(|el| matches!(el, craft_behavior::kurbo::PathEl::ClosePath));
-                if let Some(f) = fill {
-                    p.add(Shape::convex_polygon(points.clone(), color(f.color, o), egui::Stroke::NONE));
-                }
-                if let Some(line) = s {
-                    let mut path = egui::epaint::PathStroke::from(stroke(s));
-                    path.kind = kind(line.align);
-                    p.add(egui::epaint::PathShape { points, closed, fill: egui::Color32::TRANSPARENT, stroke: path });
-                }
-            }
-            Item::Mesh(mesh) => {
-                let mut out = mesh.texture.map_or_else(egui::Mesh::default, |key| egui::Mesh::with_texture(egui::TextureId::User(key.0)));
-                let uv = |v: &craft_ui_rt::Vertex| if mesh.texture.is_some() { v.uv } else { egui::epaint::WHITE_UV };
-                out.vertices = mesh.vertices.iter().map(|v| egui::epaint::Vertex { pos: v.pos, uv: uv(v), color: color(v.color, o) }).collect();
-                out.indices = mesh.indices.clone();
-                p.add(Shape::mesh(out));
-            }
-            Item::Shadow { rect, radii, offset, blur, spread, color: c } => {
-                p.add(RectShape::filled(rect.translate(*offset).expand(*spread), corners(*radii), color(*c, o)).with_blur_width(*blur));
-            }
-            Item::Text { layout, origin, .. } => {
-                if let Some(shaped) = layout.downcast_ref::<EguiShaped>() {
-                    let mut shape = egui::epaint::TextShape::new(*origin, shaped.galley.clone(), egui::Color32::PLACEHOLDER);
-                    shape.opacity_factor = o;
-                    p.add(shape);
-                }
-            }
             Item::PushClip(clip) => clips.push(p.with_clip_rect(clip.rect.intersect(p.clip_rect()))),
             Item::PopClip => {
                 if clips.len() > 1 {
@@ -272,8 +207,129 @@ pub(crate) fn paint_items(painter: &egui::Painter, items: &[craft_ui_rt::Item]) 
                     opacity.pop();
                 }
             }
-            _ => {}
+            item => p.extend(shapes_of_item(item, o)),
         }
+    }
+}
+
+/// The egui shapes of `items`, which hold no clips or opacity groups: a surface slot's paint.
+pub(crate) fn shapes_of(items: &[craft_ui_rt::Item]) -> Vec<egui::Shape> {
+    items.iter().flat_map(|item| shapes_of_item(item, 1.0)).collect()
+}
+
+/// The egui shapes that paint `item` at `opacity`: the one place display items become epaint shapes while the egui
+/// runtime runs the pipeline.
+fn shapes_of_item(item: &craft_ui_rt::Item, o: f32) -> Vec<egui::Shape> {
+    use craft_ui_rt::{Item, StrokeAlign};
+    use egui::epaint::{CircleShape, PathStroke, RectShape, Shape, StrokeKind};
+    let color = |c: craft_theme::Rgba| {
+        let c = egui::Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
+        if o < 1.0 { c.gamma_multiply(o) } else { c }
+    };
+    let corners = |r: craft_ui_rt::CornerRadii| egui::CornerRadius {
+        nw: r.top_left.round() as u8,
+        ne: r.top_right.round() as u8,
+        se: r.bottom_right.round() as u8,
+        sw: r.bottom_left.round() as u8,
+    };
+    let kind = |a: StrokeAlign| match a {
+        StrokeAlign::Inside => StrokeKind::Inside,
+        StrokeAlign::Middle => StrokeKind::Middle,
+        StrokeAlign::Outside => StrokeKind::Outside,
+    };
+    let stroke = |s: &craft_ui_rt::Stroke| egui::Stroke::new(s.width, color(s.color));
+    // A solid or dashed line along `points`.
+    let line = |points: Vec<egui::Pos2>, closed: bool, s: &craft_ui_rt::Stroke| -> Vec<Shape> {
+        match s.dash {
+            Some(d) => {
+                let mut points = points;
+                if closed && let Some(&first) = points.first() {
+                    points.push(first);
+                }
+                Shape::dashed_line_with_offset(&points, stroke(s), &[d.on], &[d.off], d.offset)
+            }
+            None if closed => vec![Shape::closed_line(points, PathStroke::from(stroke(s)))],
+            None => vec![Shape::line(points, PathStroke::from(stroke(s)))],
+        }
+    };
+    match item {
+        Item::Rect { rect, radii, fill, stroke: s } => {
+            let k = s.map_or(StrokeKind::Inside, |s| kind(s.align));
+            vec![RectShape::new(*rect, corners(*radii), color(*fill), s.as_ref().map_or(egui::Stroke::NONE, stroke), k).into()]
+        }
+        Item::Circle { center, radius, fill, stroke: s } => {
+            // egui strokes a circle outside its radius.
+            let inset = s.map_or(0.0, |s| match s.align {
+                StrokeAlign::Inside => s.width,
+                StrokeAlign::Middle => s.width / 2.0,
+                StrokeAlign::Outside => 0.0,
+            });
+            let stroke = s.as_ref().map_or(egui::Stroke::NONE, stroke);
+            if inset == 0.0 {
+                vec![CircleShape { center: *center, radius: *radius, fill: color(*fill), stroke }.into()]
+            } else {
+                vec![
+                    CircleShape::filled(*center, *radius, color(*fill)).into(),
+                    CircleShape { center: *center, radius: (radius - inset).max(0.0), fill: egui::Color32::TRANSPARENT, stroke }.into(),
+                ]
+            }
+        }
+        Item::Line { from, to, stroke: s } if s.dash.is_none() => vec![Shape::line_segment([*from, *to], stroke(s))],
+        Item::Line { from, to, stroke: s } => line(vec![*from, *to], false, s),
+        Item::Path { path, fill, stroke: s } => {
+            let mut out = Vec::new();
+            let mut subpaths: Vec<(Vec<egui::Pos2>, bool)> = Vec::new();
+            craft_behavior::kurbo::flatten(path.iter(), 0.1, |el| match el {
+                craft_behavior::kurbo::PathEl::MoveTo(q) => subpaths.push((vec![egui::pos2(q.x as f32, q.y as f32)], false)),
+                craft_behavior::kurbo::PathEl::LineTo(q) => {
+                    if let Some((points, _)) = subpaths.last_mut() {
+                        points.push(egui::pos2(q.x as f32, q.y as f32));
+                    }
+                }
+                craft_behavior::kurbo::PathEl::ClosePath => {
+                    if let Some((_, closed)) = subpaths.last_mut() {
+                        *closed = true;
+                    }
+                }
+                _ => {}
+            });
+            for (points, closed) in subpaths {
+                if let Some(f) = fill {
+                    out.push(Shape::convex_polygon(points.clone(), color(f.color), egui::Stroke::NONE));
+                }
+                if let Some(s) = s {
+                    out.extend(line(points, closed, s));
+                }
+            }
+            out
+        }
+        Item::Mesh(mesh) => {
+            let mut out = mesh.texture.map_or_else(egui::Mesh::default, |key| egui::Mesh::with_texture(egui::TextureId::User(key.0)));
+            let uv = |v: &craft_ui_rt::Vertex| if mesh.texture.is_some() { v.uv } else { egui::epaint::WHITE_UV };
+            out.vertices = mesh.vertices.iter().map(|v| egui::epaint::Vertex { pos: v.pos, uv: uv(v), color: color(v.color) }).collect();
+            out.indices = mesh.indices.clone();
+            vec![Shape::mesh(out)]
+        }
+        Item::Shadow { rect, radii, offset, blur, spread, color: c } => {
+            let radii = craft_ui_rt::CornerRadii {
+                top_left: radii.top_left + spread,
+                top_right: radii.top_right + spread,
+                bottom_right: radii.bottom_right + spread,
+                bottom_left: radii.bottom_left + spread,
+            };
+            vec![RectShape::filled(rect.translate(*offset).expand(*spread), corners(radii), color(*c)).with_blur_width(*blur).into()]
+        }
+        Item::VGradient { rect, top, bottom } => vec![Shape::gradient_rect(*rect, egui::Direction::TopDown, [color(*top), color(*bottom)])],
+        Item::Text { layout, origin, angle, .. } => match layout.downcast_ref::<EguiShaped>() {
+            Some(shaped) => {
+                let mut shape = egui::epaint::TextShape::new(*origin, shaped.galley.clone(), egui::Color32::PLACEHOLDER).with_angle(*angle);
+                shape.opacity_factor = o;
+                vec![shape.into()]
+            }
+            None => Vec::new(),
+        },
+        Item::Image { .. } | Item::ImageMask { .. } | Item::Surface { .. } => Vec::new(),
+        Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => Vec::new(),
     }
 }
 

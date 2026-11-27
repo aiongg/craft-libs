@@ -50,7 +50,7 @@ pub use access::{AccessCx, AccessEntry};
 pub use build::{BuildCx, InlineState, Peek};
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,
-    StrokeAlign, SurfaceKey, TextHighlight, Vertex,
+    StrokeAlign, SurfaceKey, TextHighlight, Vertex, Wrap,
 };
 pub use drag::{DragData, DragGhost, DragInfo, DragOutcome, DragPointer, DragStart, DropInput, DropPhase};
 pub use driver::{Driver, StepReport};
@@ -73,8 +73,8 @@ pub use render::{ReadBack, ReadBackId, RenderStats, Renderer};
 pub use runtime::{FrameReport, Runtime};
 pub use state::{Access, DeriveCx, Derived, Phase, Reads, State, Store, Writes};
 pub use text::{
-    FontFace, FontSpec, GlyphPlace, Overflow, RichText, TextEngine, TextFormat, TextHandle, TextLayout, TextLine, TextMetrics, TextRow, TextSection,
-    TextSpec, TextWrap, overflow_text,
+    FaceInstall, FontFace, FontSpec, GlyphPlace, Overflow, RichText, TextEngine, TextFormat, TextHandle, TextLayout, TextLine, TextMetrics, TextRow,
+    TextSection, TextSpec, TextWrap, overflow_text,
 };
 pub use window::Env;
 

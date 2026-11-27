@@ -184,7 +184,10 @@ impl BodyHooks<'_> {
             let max = self.max_offset(self.shown_view(scroll, at).size()).y;
             let (live, dead) = (crate::style::rgba_color(tokens.color.text.normal), crate::style::rgba_color(tokens.color.text.disabled));
             for (strip, back, moves) in [(strips.0, true, self.offset.y > 0.5), (strips.1, false, self.offset.y < max - 0.5)] {
-                ui.painter().add(ScrollBar::strip_arrow(strip, back, if moves { live } else { dead }));
+                crate::runtime::egui::text_layout::paint_items(
+                    ui.painter(),
+                    ScrollBar::strip_arrow(strip, back, if moves { live } else { dead }).as_slice(),
+                );
             }
             return;
         }
@@ -195,7 +198,10 @@ impl BodyHooks<'_> {
             let content = Vec2::new(if scroll.horizontal_on() { ex } else { view.width() }, if scroll.vertical_on() { ey } else { view.height() });
             let offset = Vec2::new(self.offset.x as f32, self.offset.y as f32);
             let background = surface_style(tokens, SurfaceKind::under(own_surface(props, cx), env.surface)).fill;
-            ui.painter().extend(ScrollBar::fades(view, HiddenContent::new(content, view.size(), offset, rtl), background));
+            crate::runtime::egui::text_layout::paint_items(
+                ui.painter(),
+                &ScrollBar::fades(view, HiddenContent::new(content, view.size(), offset, rtl), background),
+            );
         }
         if let Some(view) = self.view {
             use crate::contract::Pointer as _;
@@ -209,7 +215,7 @@ impl BodyHooks<'_> {
                     continue;
                 }
                 let state = cx.core.scroll_bar_state(bar.key);
-                ui.painter().extend(ScrollBar::shapes(&look, bar.track, bar.axis, rtl, &span, &state));
+                crate::runtime::egui::text_layout::paint_items(ui.painter(), &ScrollBar::items(&look, bar.track, bar.axis, rtl, &span, &state));
             }
         }
     }

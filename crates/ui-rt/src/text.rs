@@ -115,6 +115,21 @@ pub enum FontFace {
     Family(Arc<str>),
 }
 
+/// A font face an app installs while it runs (a document's face), for [`TextEngine::install_face`].
+#[derive(Clone, Debug)]
+pub struct FaceInstall {
+    /// The family name text sets it with ([`FontFace::Family`]).
+    pub family: Arc<str>,
+    /// The font file.
+    pub bytes: Arc<[u8]>,
+    /// The face's index in the file.
+    pub index: u32,
+    /// The variation coordinates the face is drawn at.
+    pub coords: Vec<([u8; 4], f32)>,
+    /// The faces that draw what this one has no glyph for, in order.
+    pub fallback: Vec<FontFace>,
+}
+
 /// An underline or strike-through line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextLine {
@@ -269,6 +284,20 @@ pub trait TextEngine {
             overflow,
         };
         self.layout(&spec, scale)
+    }
+
+    /// Installs `face`, so text in its family sets in it. Returns false when the engine installs no
+    /// faces while it runs, or cannot read the face; text in the family then falls back as the
+    /// engine sets an unknown family.
+    fn install_face(&mut self, face: FaceInstall) -> bool {
+        let _ = face;
+        false
+    }
+
+    /// Whether the family `family` was installed ([`install_face`](Self::install_face)).
+    fn has_face(&self, family: &str) -> bool {
+        let _ = family;
+        false
     }
 
     /// The rows, glyphs and ink of `layout`. An engine without glyph metrics gives one row of the

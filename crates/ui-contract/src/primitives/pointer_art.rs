@@ -12,10 +12,10 @@ use crate::runtime::env::Env;
 use crate::style::Ink;
 use crate::style::UiTokens;
 pub(crate) use art::Art;
-use art::Mark;
+use art::{LineStyle, Mark};
 use craft_behavior::{CountMark, CursorBadge, PaintedCursor, PointerGlyph};
 use craft_i18n::Direction;
-use egui::{Color32, Pos2, Rect, Stroke, Vec2};
+use egui::{Color32, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
@@ -231,7 +231,7 @@ impl Pen {
             if color.a() == 0 {
                 continue;
             }
-            let stroke = Stroke::new(width, color);
+            let stroke = LineStyle::new(width, color);
             for line in lines {
                 self.push(match line {
                     Line::Segment(a, b) => Mark::Line(*a, *b, stroke),
@@ -250,14 +250,14 @@ impl Pen {
 
     /// The segment `a` to `b` grown by `radius`.
     fn capsule(&self, a: Vec2, b: Vec2, radius: f32, color: Color32) {
-        self.push(Mark::Line(a, b, Stroke::new(2.0 * radius, color)));
+        self.push(Mark::Line(a, b, LineStyle::new(2.0 * radius, color)));
         self.disc(a, radius, color);
         self.disc(b, radius, color);
     }
 
     /// A polygon filled with the mark colour and outlined in the halo.
     fn polygon(&self, points: Vec<Vec2>) {
-        self.push(Mark::Polygon(points, self.fill, Stroke::new(self.thin, self.halo)));
+        self.push(Mark::Polygon(points, self.fill, LineStyle::new(self.thin, self.halo)));
     }
 }
 
@@ -286,8 +286,8 @@ pub(crate) fn tip_marks(pen: &Pen, centre: bool, badge: Option<CursorBadge>, wid
 pub(crate) fn outline(pen: &Pen, rings: &[Vec<Pos2>]) {
     for ring in rings.iter().filter(|ring| ring.len() >= 2) {
         let points: Vec<Vec2> = ring.iter().map(|p| p.to_vec2()).collect();
-        pen.push(Mark::Path(points.clone(), true, Stroke::new(pen.thin * 3.0, pen.halo)));
-        pen.push(Mark::Path(points, true, Stroke::new(pen.thin, pen.fill)));
+        pen.push(Mark::Path(points.clone(), true, LineStyle::new(pen.thin * 3.0, pen.halo)));
+        pen.push(Mark::Path(points, true, LineStyle::new(pen.thin, pen.fill)));
     }
 }
 
@@ -311,7 +311,7 @@ pub(crate) fn hand(pen: &Pen, closed: bool) {
         let (a, b, r) = if closed { FIST_THUMB } else { THUMB };
         pen.capsule(shift(a), shift(b), r + grow, color);
     }
-    let stroke = Stroke::new(pen.thin, pen.halo);
+    let stroke = LineStyle::new(pen.thin, pen.halo);
     let crease = |a: [f32; 2], b: [f32; 2]| {
         pen.push(Mark::Line(shift(a), shift(b), stroke));
     };
@@ -335,7 +335,7 @@ pub(crate) fn zoom(pen: &Pen, out: bool) {
         pen.disc(Vec2::ZERO, LENS + grow, color);
         pen.capsule(v(a), v(b), r + grow, color);
     }
-    let stroke = Stroke::new(pen.thin, pen.halo);
+    let stroke = LineStyle::new(pen.thin, pen.halo);
     pen.push(Mark::Line(v([-GLYPH_ARM, 0.0]), v([GLYPH_ARM, 0.0]), stroke));
     if !out {
         pen.push(Mark::Line(v([0.0, -GLYPH_ARM]), v([0.0, GLYPH_ARM]), stroke));
@@ -413,10 +413,10 @@ pub(crate) fn type_on(pen: &Pen, path: bool) {
 /// The locator: a square frame centred on the pointer between halo frames a hairline outside and inside it.
 pub(crate) fn locator(pen: &Pen) {
     let rect = Rect::from_center_size(Pos2::ZERO, Vec2::splat(LOCATOR_SIDE));
-    let halo = Stroke::new(pen.thin, pen.halo);
+    let halo = LineStyle::new(pen.thin, pen.halo);
     pen.push(Mark::Frame(rect.expand(pen.thin), halo));
     pen.push(Mark::Frame(rect.shrink(pen.thin), halo));
-    pen.push(Mark::Frame(rect, Stroke::new(pen.thin, pen.fill)));
+    pen.push(Mark::Frame(rect, LineStyle::new(pen.thin, pen.fill)));
 }
 
 /// The arrow with its tip on the pointer: filled with the halo and edged in the mark colour, or the other way round when
@@ -436,9 +436,9 @@ pub(crate) fn arrow(pen: &Pen, hollow: bool, toward: Option<Vec2>) {
         }
     };
     for triangle in ARROW_TRIANGLES {
-        pen.push(Mark::Polygon(triangle.iter().map(|&i| turned[i]).collect(), fill, Stroke::NONE));
+        pen.push(Mark::Polygon(triangle.iter().map(|&i| turned[i]).collect(), fill, LineStyle::NONE));
     }
-    pen.push(Mark::Path(turned, true, Stroke::new(pen.thin, edge)));
+    pen.push(Mark::Path(turned, true, LineStyle::new(pen.thin, edge)));
 }
 
 /// The I-beam across a path with a filled triangle toward each grabbable end: right for `start`, left for `end`.
@@ -607,8 +607,8 @@ pub(crate) fn turn(pen: &Pen, toward: Vec2) {
     let mid = (-u.y).atan2(-u.x);
     let on_arc = |a: f32| centre + Vec2::new(a.cos(), a.sin()) * TURN_RADIUS;
     let points: Vec<Vec2> = (0..=ARC_SEGMENTS).map(|i| on_arc(mid - HALF_SWEEP + 2.0 * HALF_SWEEP * i as f32 / ARC_SEGMENTS as f32)).collect();
-    pen.push(Mark::Path(points.clone(), false, Stroke::new(pen.thin * 3.0, pen.halo)));
-    pen.push(Mark::Path(points, false, Stroke::new(pen.thin, pen.fill)));
+    pen.push(Mark::Path(points.clone(), false, LineStyle::new(pen.thin * 3.0, pen.halo)));
+    pen.push(Mark::Path(points, false, LineStyle::new(pen.thin, pen.fill)));
     let head = TURN_RADIUS * HEAD_PER_RADIUS;
     for (a, sign) in [(mid - HALF_SWEEP, -1.0f32), (mid + HALF_SWEEP, 1.0)] {
         let tangent = Vec2::new(-a.sin(), a.cos()) * sign;
@@ -636,9 +636,9 @@ pub(crate) fn distort(pen: &Pen, dir: Vec2) {
     let (left, right, notch) = (base + perp * DART_HALF_WIDTH, base - perp * DART_HALF_WIDTH, -u * (DART_LENGTH * DART_NOTCH));
     // Two triangles meeting along the tip and the notch: the dart is not convex.
     for triangle in [vec![Vec2::ZERO, left, notch], vec![Vec2::ZERO, notch, right]] {
-        pen.push(Mark::Polygon(triangle, pen.fill, Stroke::NONE));
+        pen.push(Mark::Polygon(triangle, pen.fill, LineStyle::NONE));
     }
-    pen.push(Mark::Path(vec![Vec2::ZERO, left, notch, right], true, Stroke::new(pen.thin * 2.0, pen.halo)));
+    pen.push(Mark::Path(vec![Vec2::ZERO, left, notch, right], true, LineStyle::new(pen.thin * 2.0, pen.halo)));
 }
 
 /// The skew pointer: two opposed arrows beside each other along `dir` (along x for zero).
@@ -649,8 +649,8 @@ pub(crate) fn skew(pen: &Pen, dir: Vec2) {
         let centre = perp * offset;
         let end = centre + u * (sign * SKEW_HALF_LENGTH);
         let start = centre - u * (sign * SKEW_HALF_LENGTH);
-        pen.push(Mark::Line(start, end, Stroke::new(pen.thin * 3.0, pen.halo)));
-        pen.push(Mark::Line(start, end, Stroke::new(pen.thin, pen.fill)));
+        pen.push(Mark::Line(start, end, LineStyle::new(pen.thin * 3.0, pen.halo)));
+        pen.push(Mark::Line(start, end, LineStyle::new(pen.thin, pen.fill)));
         pen.polygon(vec![
             end + u * (sign * SKEW_HEAD),
             end - u * (sign * SKEW_BACK) + perp * SKEW_HEAD,

@@ -1,16 +1,16 @@
 //! `Canvas`: where `Draw` and the shape painters record a component's paint, as craft-ui-rt display items in the
-//! node's local coordinates (docs/contract-rt.md sections 5 and 8). Painters keep composing epaint shapes; the canvas
-//! lowers each to the display item that paints the same pixels, and text arrives already shaped by the frame's
+//! node's local coordinates (docs/contract-rt.md sections 5 and 8). Painters build items in window coordinates
+//! (`items`); the canvas moves them into the node's and applies the fade in force. Text arrives shaped by the frame's
 //! `TextEngine`. `Services` is the frame's text engine and image store, which text layout and pictures go through.
 
-use crate::fonts::{FaceBytes, FaceState, StackFacts};
+use crate::fonts::document::Kind;
+use crate::fonts::{FaceBytes, FaceState, FontRef, StackFacts};
 use craft_theme::Rgba;
 use craft_ui_rt::{
-    Clip, CornerRadii, DisplayList, Fill, ImageKey, ImageOptions, ImageStore, Item, Mesh, RgbaImage, RichText, Stroke as RtStroke, StrokeAlign,
-    TextEngine, TextLayout as RtLayout, TextMetrics, Vertex,
+    Clip, DisplayList, FaceInstall, FontFace, ImageKey, ImageOptions, ImageStore, Item, RgbaImage, RichText, TextEngine, TextLayout as RtLayout,
+    TextMetrics,
 };
-use egui::epaint::{CircleShape, PathShape, RectShape, Shape, StrokeKind, TextureId};
-use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
@@ -26,6 +26,12 @@ pub trait Services {
     fn metrics(&self, layout: &RtLayout) -> TextMetrics;
     /// Registers the pixels `make` builds under `key`, sampled by `options`, unless `key` is already there.
     fn image(&self, key: ImageKey, options: ImageOptions, make: &mut dyn FnMut() -> Arc<RgbaImage>);
+    /// Registers what `make` builds under `key` as [`image`](Self::image) does, `make` giving `None` when there is
+    /// nothing to draw (an icon layer with no part); returns whether `key` holds a picture to draw. A store that keeps
+    /// no pictures has none.
+    fn image_if(&self, _key: ImageKey, _options: ImageOptions, _make: &mut dyn FnMut() -> Option<Arc<RgbaImage>>) -> bool {
+        false
+    }
     /// The document face `key` over the interface face, its bytes from `load` the first time (`DocumentFaces`). An
     /// engine that installs no faces at run time leaves it unavailable.
     fn face_over_interface(&self, _key: &str, _load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
@@ -100,6 +106,49 @@ impl Services for FrameServices<'_> {
         if !images.contains(key) {
             images.insert_with(key, make(), options);
         }
+    }
+
+    fn image_if(&self, key: ImageKey, options: ImageOptions, make: &mut dyn FnMut() -> Option<Arc<RgbaImage>>) -> bool {
+        let mut images = self.images.borrow_mut();
+        if !images.contains(key) {
+            // Nothing to draw is kept as one clear texel, so the next frame knows without building it again.
+            let image = make().unwrap_or_else(|| Arc::new(RgbaImage::new(craft_ui_rt::SizeU::new(1, 1))));
+            images.insert_with(key, image, options);
+        }
+        images.get(key).is_some_and(|image| !(image.size == craft_ui_rt::SizeU::new(1, 1) && image.pixels[3] == 0))
+    }
+
+    /// The face from `load`, installed in the engine the first time `key` is asked for, over the interface face.
+    fn face_over_interface(&self, key: &str, load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
+        let family = Kind::OverInterface.family_name(key);
+        self.install(&family, true, &mut || load())
+    }
+
+    /// The face the job loads, installed alone. The load runs here, in the frame: craft-ui-rt has no job queue for it
+    /// yet (B9), so the first frame that asks waits for the bytes.
+    fn face(&self, key: &str, job: FaceJob<'_>) -> FaceState {
+        let family = Kind::Alone.family_name(key);
+        let mut job = Some(job);
+        self.install(&family, false, &mut || job.take().and_then(|job| job()()))
+    }
+}
+
+impl FrameServices<'_> {
+    /// Installs the face `load` gives as `family` unless the engine has it: then its fallbacks, its chain of document
+    /// faces and, `over_interface`, the interface face.
+    fn install(&self, family: &str, over_interface: bool, load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
+        let mut text = self.text.borrow_mut();
+        let Some(engine) = text.as_deref_mut() else { return FaceState::Unavailable };
+        if engine.has_face(family) {
+            return FaceState::Ready(FontRef::named(family));
+        }
+        let Some(face) = load().filter(FaceBytes::parses) else { return FaceState::Unavailable };
+        let mut fallback: Vec<FontFace> = face.chain_families().into_iter().map(|name| FontFace::Family(name.into())).collect();
+        if over_interface {
+            fallback.push(FontFace::Slot(craft_theme::FontSlot::Ui));
+        }
+        let install = FaceInstall { family: family.into(), bytes: Arc::clone(&face.bytes), index: face.index, coords: face.coords.clone(), fallback };
+        if engine.install_face(install) { FaceState::Ready(FontRef::named(family)) } else { FaceState::Unavailable }
     }
 }
 
@@ -209,13 +258,24 @@ impl<'a> Canvas<'a> {
 
     /// Records what `f` paints cut to `rect` (window coordinates) inside the clip in force.
     pub fn clipped<R>(&self, rect: Rect, f: impl FnOnce() -> R) -> R {
+        self.push_clip(rect);
+        let out = f();
+        self.pop_clip();
+        out
+    }
+
+    /// Cuts what is recorded from here on to `rect` (window coordinates) inside the clip in force, until the matching
+    /// [`pop_clip`](Self::pop_clip).
+    pub(crate) fn push_clip(&self, rect: Rect) {
         let clip = rect.intersect(self.clip_rect());
         self.clips.borrow_mut().push(clip);
         self.push(Item::PushClip(Clip::from(clip.translate(-self.origin))));
-        let out = f();
+    }
+
+    /// Ends the clip of the last [`push_clip`](Self::push_clip).
+    pub(crate) fn pop_clip(&self) {
         self.push(Item::PopClip);
         self.clips.borrow_mut().pop();
-        out
     }
 
     /// Records what `f` paints `share` as opaque (stacking with the fade in force).
@@ -229,174 +289,75 @@ impl<'a> Canvas<'a> {
         out
     }
 
-    /// A colour with the fade in force, as a display-list colour.
-    fn color(&self, color: Color32) -> Rgba {
+    /// A colour with the fade in force.
+    fn faded_color(&self, color: Rgba) -> Rgba {
         let opacity = self.opacity.get();
-        let color = if opacity < 1.0 { color.gamma_multiply(opacity) } else { color };
-        Rgba(color.to_srgba_unmultiplied())
-    }
-
-    fn stroke(&self, stroke: Stroke, kind: StrokeKind) -> Option<RtStroke> {
-        if stroke.is_empty() {
-            return None;
-        }
-        let align = match kind {
-            StrokeKind::Inside => StrokeAlign::Inside,
-            StrokeKind::Middle => StrokeAlign::Middle,
-            StrokeKind::Outside => StrokeAlign::Outside,
-        };
-        Some(RtStroke::new(stroke.width, self.color(stroke.color)).aligned(align))
-    }
-
-    fn local(&self, pos: Pos2) -> Pos2 {
-        pos - self.origin
+        if opacity < 1.0 { super::items::fade(color, opacity) } else { color }
     }
 
     /// Records a laid-out text with its top-left corner at `pos` (window coordinates).
     pub fn text(&self, layout: &RtLayout, pos: Pos2) {
-        let origin = self.local(pos);
-        let opacity = self.opacity.get();
-        let item = Item::Text { layout: layout.handle.clone(), origin, size: layout.size, color: None, highlight: None };
-        if opacity < 1.0 {
-            self.push(Item::PushOpacity { opacity, bounds: Rect::from_min_size(origin, layout.size) });
-            self.push(item);
-            self.push(Item::PopOpacity);
-        } else {
-            self.push(item);
-        }
+        self.text_turned(layout, pos, 0.0);
+    }
+
+    /// Records a laid-out text turned by `angle` radians (clockwise on screen) about its top-left corner `pos`.
+    pub fn text_turned(&self, layout: &RtLayout, pos: Pos2, angle: f32) {
+        self.add(Item::Text { layout: layout.handle.clone(), origin: pos, size: layout.size, color: None, highlight: None, angle });
     }
 
     /// Records `image` in `rect`, its part `uv`, multiplied by `tint`.
     pub fn image(&self, key: ImageKey, rect: Rect, uv: Rect, tint: Color32) {
-        self.push(Item::Image { key, rect: rect.translate(-self.origin), uv, tint: self.color(tint) });
+        self.add(Item::Image { key, rect, uv, tint: super::items::rgba(tint) });
     }
 
     /// Records `color` through the alpha of `image` in `rect`.
     pub fn image_mask(&self, key: ImageKey, rect: Rect, uv: Rect, color: Color32) {
-        self.push(Item::ImageMask { key, rect: rect.translate(-self.origin), uv, color: self.color(color) });
+        self.add(Item::ImageMask { key, rect, uv, color: super::items::rgba(color) });
     }
 
-    /// Records `shape` (window coordinates) as the display items that paint it.
-    pub fn add(&self, shape: impl Into<Shape>) {
-        self.lower(shape.into());
+    /// Records `item` (window coordinates) with the fade in force.
+    pub fn add(&self, mut item: Item) {
+        super::items::translate(&mut item, -self.origin);
+        let opacity = self.opacity.get();
+        if opacity >= 1.0 {
+            self.push(item);
+            return;
+        }
+        match item {
+            // A text keeps its layout's colours: the fade composites it.
+            Item::Text { origin, size, color: None, .. } => {
+                self.push(Item::PushOpacity { opacity, bounds: Rect::from_min_size(origin, size) });
+                self.push(item);
+                self.push(Item::PopOpacity);
+            }
+            mut item => {
+                super::items::map_colors(&mut item, |c| self.faded_color(c));
+                self.push(item);
+            }
+        }
     }
 
-    /// Records each of `shapes`.
-    pub fn extend<I: IntoIterator<Item = Shape>>(&self, shapes: I) {
-        for shape in shapes {
-            self.lower(shape);
+    /// Records each of `items`.
+    pub fn extend<I: IntoIterator<Item = Item>>(&self, items: I) {
+        for item in items {
+            self.add(item);
         }
     }
 
     /// A filled rounded rect.
     pub fn rect_filled(&self, rect: Rect, radius: impl Into<CornerRadius>, color: impl Into<Color32>) {
-        self.add(RectShape::filled(rect, radius, color));
+        self.add(super::items::rect_filled(rect, radius.into(), color.into()));
     }
 
     /// A filled circle.
     pub fn circle_filled(&self, center: Pos2, radius: f32, color: impl Into<Color32>) {
-        self.add(CircleShape::filled(center, radius, color));
+        self.add(super::items::circle_filled(center, radius, color.into()));
     }
 
-    /// A line segment.
-    pub fn line_segment(&self, points: [Pos2; 2], stroke: impl Into<Stroke>) {
-        self.add(Shape::line_segment(points, stroke));
+    /// A line segment `width` wide.
+    pub fn line_segment(&self, [from, to]: [Pos2; 2], width: f32, color: Color32) {
+        self.extend(super::items::segment(from, to, width, color));
     }
-
-    fn lower(&self, shape: Shape) {
-        match shape {
-            Shape::Noop => {}
-            Shape::Vec(shapes) => self.extend(shapes),
-            Shape::Rect(r) => self.lower_rect(&r),
-            Shape::Circle(c) => {
-                let fill = self.color(c.fill);
-                let stroke = self.stroke(c.stroke, StrokeKind::Outside);
-                // egui strokes a circle centred on its radius.
-                let stroke = stroke.map(|s| s.aligned(StrokeAlign::Middle));
-                self.push(Item::Circle { center: self.local(c.center), radius: c.radius, fill, stroke });
-            }
-            Shape::Ellipse(e) => {
-                let n = 64;
-                let points: Vec<Pos2> = (0..n)
-                    .map(|i| {
-                        let a = std::f32::consts::TAU * i as f32 / n as f32;
-                        e.center + Vec2::new(e.radius.x * a.cos(), e.radius.y * a.sin())
-                    })
-                    .collect();
-                self.lower(Shape::Path(PathShape { points, closed: true, fill: e.fill, stroke: e.stroke.into() }));
-            }
-            Shape::LineSegment { points, stroke } => {
-                if let Some(stroke) = self.stroke(stroke, StrokeKind::Middle) {
-                    self.push(Item::Line { from: self.local(points[0]), to: self.local(points[1]), stroke });
-                }
-            }
-            Shape::Path(p) => {
-                if p.points.len() < 2 {
-                    return;
-                }
-                let mut path = craft_behavior::kurbo::BezPath::new();
-                let at = |q: Pos2| {
-                    let q = self.local(q);
-                    craft_behavior::kurbo::Point::new(f64::from(q.x), f64::from(q.y))
-                };
-                path.move_to(at(p.points[0]));
-                for &q in &p.points[1..] {
-                    path.line_to(at(q));
-                }
-                if p.closed {
-                    path.close_path();
-                }
-                let fill = (p.closed && p.fill != Color32::TRANSPARENT).then(|| Fill::convex(self.color(p.fill)));
-                let stroke = match &p.stroke.color {
-                    egui::epaint::ColorMode::Solid(color) => self.stroke(Stroke::new(p.stroke.width, *color), p.stroke.kind),
-                    egui::epaint::ColorMode::UV(_) => None,
-                };
-                if fill.is_some() || stroke.is_some() {
-                    self.push(Item::Path { path: Arc::new(path), fill, stroke });
-                }
-            }
-            Shape::Mesh(mesh) => {
-                let texture = match mesh.texture_id {
-                    TextureId::User(id) => Some(ImageKey(id)),
-                    TextureId::Managed(_) => None,
-                };
-                let opacity = self.opacity.get();
-                let vertices = mesh
-                    .vertices
-                    .iter()
-                    .map(|v| {
-                        let color = if opacity < 1.0 { v.color.gamma_multiply(opacity) } else { v.color };
-                        Vertex { pos: self.local(v.pos), uv: v.uv, color: Rgba(color.to_srgba_unmultiplied()) }
-                    })
-                    .collect();
-                self.push(Item::Mesh(Arc::new(Mesh { vertices, indices: mesh.indices.clone(), texture })));
-            }
-            // Text reaches the canvas shaped by the frame's engine (`Canvas::text`); quadratic and cubic curves and
-            // callbacks are not painted by the shape painters.
-            Shape::Text(_) | Shape::Band(_) | Shape::QuadraticBezier(_) | Shape::CubicBezier(_) | Shape::Callback(_) => {}
-        }
-    }
-
-    fn lower_rect(&self, r: &RectShape) {
-        let radii = radii(r.corner_radius);
-        let rect = r.rect.translate(-self.origin);
-        if r.blur_width > 0.0 {
-            self.push(Item::Shadow { rect, radii, offset: Vec2::ZERO, blur: r.blur_width, spread: 0.0, color: self.color(r.fill) });
-            return;
-        }
-        if let Some(brush) = &r.brush {
-            if let TextureId::User(id) = brush.fill_texture_id {
-                self.push(Item::Image { key: ImageKey(id), rect, uv: brush.uv, tint: self.color(r.fill) });
-                return;
-            }
-        }
-        self.push(Item::Rect { rect, radii, fill: self.color(r.fill), stroke: self.stroke(r.stroke, r.stroke_kind) });
-    }
-}
-
-/// egui's whole-point corner radii as display-list radii.
-pub(crate) fn radii(r: CornerRadius) -> CornerRadii {
-    CornerRadii { top_left: f32::from(r.nw), top_right: f32::from(r.ne), bottom_right: f32::from(r.se), bottom_left: f32::from(r.sw) }
 }
 
 /// The image key of a picture keyed by `key` in the app's or the framework's own key space.

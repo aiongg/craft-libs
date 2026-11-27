@@ -206,7 +206,7 @@ pub(super) fn paint_edge_rule(ui: &mut Ui, props: &ContainerProps, env: &Env, re
     let Mount::Pane(pane) = &props.mount else { return };
     let Some(side) = RectSide::toward_centre(pane.edge, env.direction.is_rtl()).filter(|_| props.edge_rule) else { return };
     let rule = rule_look(&env.tokens, RuleKind::Divider);
-    ui.painter().extend(Rule::edge(&rule, rect, side, ui.ctx().pixels_per_point()));
+    crate::runtime::egui::text_layout::paint_items(ui.painter(), &Rule::edge(&rule, rect, side, ui.ctx().pixels_per_point()));
 }
 
 /// The divider rules above and under the header, beside the footer and beside the end region, each in its band.
@@ -214,7 +214,7 @@ pub(super) fn paint_rules(ui: &mut Ui, env: &Env, regions: &Regions) {
     let rule = rule_look(&env.tokens, RuleKind::Divider);
     let ppp = ui.ctx().pixels_per_point();
     for (band, side) in regions.rules.iter().flatten() {
-        ui.painter().extend(Rule::edge(&rule, *band, *side, ppp));
+        crate::runtime::egui::text_layout::paint_items(ui.painter(), &Rule::edge(&rule, *band, *side, ppp));
     }
 }
 
@@ -238,7 +238,7 @@ pub(super) fn paint_bracket(ui: &mut Ui, env: &Env, took: &crate::layout::Bracke
         (Pos2::new(line, first), Pos2::new(line, middle.top().max(first))),
         (Pos2::new(line, middle.bottom().min(last)), Pos2::new(line, last)),
     ] {
-        painter.extend(Rule::shapes(&look, from, to, ppp));
+        crate::runtime::egui::text_layout::paint_items(painter, &Rule::items(&look, from, to, ppp));
     }
 }
 

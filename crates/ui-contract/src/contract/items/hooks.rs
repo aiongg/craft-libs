@@ -740,13 +740,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // The rows blend into the surface they sit on.
             let background = surface_style(&env.tokens, SurfaceKind::under(own, env.surface)).fill;
             let hidden = HiddenContent::new(self.content, rect.size(), Vec2::new(self.offset_x as f32, self.offset as f32), rtl);
-            ui.painter().extend(ScrollBar::fades(rect, hidden, background));
+            crate::runtime::egui::text_layout::paint_items(ui.painter(), &ScrollBar::fades(rect, hidden, background));
             if self.shows_bar(rect) {
                 let track = bar_track(rect, look.thickness, rtl);
                 let content = f64::from(self.content.y);
                 let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(rect.height()));
                 let state = cx.core.scroll_bar_state(SCROLL);
-                ui.painter().extend(ScrollBar::shapes(&look, track, Axis::Y, rtl, &span, &state));
+                crate::runtime::egui::text_layout::paint_items(ui.painter(), &ScrollBar::items(&look, track, Axis::Y, rtl, &span, &state));
             }
             middle_mark(ui, env, cx.core.memory.session::<MiddleScroll>(sub(id, "middle")), rect);
         }
@@ -886,8 +886,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 /// The latch's mark over the rows in `rect`, at the place the middle press latched; nothing while no latch is held.
 fn middle_mark(ui: &Ui, env: &Env, scroll: &MiddleScroll, rect: Rect) {
     if let Some(anchor) = scroll.anchor() {
-        let mark = AutoScrollMark::shapes(&auto_scroll_mark_look(&env.tokens), anchor);
-        ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())).extend(mark);
+        let mark = AutoScrollMark::items(&auto_scroll_mark_look(&env.tokens), anchor);
+        crate::runtime::egui::text_layout::paint_items(&ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())), &mark);
     }
 }
 

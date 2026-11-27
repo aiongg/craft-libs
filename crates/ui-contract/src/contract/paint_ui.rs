@@ -286,7 +286,7 @@ impl PaintUi<'_> {
     /// data colours as [`draw`](Self::draw) does.
     pub fn content_painter<C: ContentPainter>(&self, cx: &Cx<'_, C>) -> ContentPainterCx<'_> {
         let _ = cx;
-        ContentPainterCx::new(&self.canvas, self.env, self.ink).data(self.data)
+        ContentPainterCx::new(&self.canvas, self.env, self.ink).data(self.data).within(self.rect)
     }
 }
 

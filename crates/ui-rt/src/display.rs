@@ -123,6 +123,41 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    /// An empty mesh sampling `texture`.
+    pub fn with_texture(texture: ImageKey) -> Mesh {
+        Mesh { texture: Some(texture), ..Mesh::default() }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.indices.is_empty() || self.vertices.is_empty()
+    }
+
+    /// Adds an untextured vertex of `color`.
+    pub fn colored_vertex(&mut self, pos: Pos2, color: Rgba) {
+        self.vertices.push(Vertex { pos, uv: Pos2::ZERO, color });
+    }
+
+    pub fn add_triangle(&mut self, a: u32, b: u32, c: u32) {
+        self.indices.extend([a, b, c]);
+    }
+
+    /// Adds `rect` filled with `color` as two triangles.
+    pub fn add_colored_rect(&mut self, rect: Rect, color: Rgba) {
+        let base = self.vertices.len() as u32;
+        for p in [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()] {
+            self.colored_vertex(p, color);
+        }
+        self.add_triangle(base, base + 1, base + 2);
+        self.add_triangle(base, base + 2, base + 3);
+    }
+
+    /// Adds `other`'s triangles (its texture must be this mesh's).
+    pub fn append(&mut self, other: Mesh) {
+        let base = self.vertices.len() as u32;
+        self.vertices.extend(other.vertices);
+        self.indices.extend(other.indices.into_iter().map(|i| base + i));
+    }
+
     pub fn bounds(&self) -> Option<Rect> {
         let mut it = self.vertices.iter();
         let first = it.next()?;
@@ -202,13 +237,15 @@ pub enum Item {
         bottom: Rgba,
     },
     /// A laid-out text at `origin` (the layout's top left), `size` its layout size. `color`
-    /// replaces the layout's colour; `highlight` fills a range of it behind its glyphs.
+    /// replaces the layout's colour; `highlight` fills a range of it behind its glyphs. `angle`
+    /// turns the text about `origin`, in radians, clockwise on screen (0 for level text).
     Text {
         layout: TextHandle,
         origin: Pos2,
         size: Vec2,
         color: Option<Rgba>,
         highlight: Option<TextHighlight>,
+        angle: f32,
     },
     /// The app-drawn surface `key` inside `rect`.
     Surface {
@@ -267,7 +304,17 @@ impl Item {
             Item::Mesh(mesh) => mesh.bounds()?,
             Item::Shadow { rect, offset, blur, spread, .. } => rect.translate(*offset).expand(spread.max(0.0) + blur * SHADOW_REACH),
             Item::Image { rect, .. } | Item::ImageMask { rect, .. } | Item::VGradient { rect, .. } | Item::Surface { rect, .. } => *rect,
-            Item::Text { origin, size, .. } => Rect::from_min_size(*origin, *size).expand(size.y * GLYPH_OVERHANG),
+            Item::Text { origin, size, angle, .. } => {
+                let reach = size.y * GLYPH_OVERHANG;
+                if *angle == 0.0 {
+                    Rect::from_min_size(*origin, *size).expand(reach)
+                } else {
+                    // The turned box's corners, about the origin.
+                    let rot = emath::Rot2::from_angle(*angle);
+                    let corners = [Vec2::ZERO, Vec2::new(size.x, 0.0), *size, Vec2::new(0.0, size.y)].map(|c| *origin + rot * c);
+                    Rect::from_points(&corners).expand(reach)
+                }
+            }
             Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => return None,
         };
         // Rects built from flipped corners are normalised before the margin goes on.
@@ -345,6 +392,16 @@ pub enum Filter {
     Nearest,
 }
 
+/// What a renderer samples outside the image's normalised `0..1` coordinates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Wrap {
+    /// The edge pixels.
+    #[default]
+    Clamp,
+    /// The image again, tiled: a pattern (the transparency checkerboard) painted as one image.
+    Repeat,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ImageOptions {
     /// When the image is drawn larger than its pixels.
@@ -353,6 +410,8 @@ pub struct ImageOptions {
     pub minify: Filter,
     /// Build mipmaps (thumbnails drawn far below their size).
     pub mipmaps: bool,
+    /// Outside the image's coordinates.
+    pub wrap: Wrap,
 }
 
 /// One change to the [`ImageStore`] since the renderers last synced.

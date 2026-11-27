@@ -4889,6 +4889,7 @@ dependencies = [
  "log",
  "pollster 0.4.0",
  "raw-window-handle",
+ "skrifa 0.47.0",
  "web-time",
 ]
 

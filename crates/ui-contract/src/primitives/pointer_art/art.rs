@@ -1,10 +1,31 @@
 //! A painted pointer's art as data: marks in points around the hotspot, drawn either on the ghost painter or into the
 //! image a window shows as its cursor. Both come from the one list, so the two look the same.
 
+use super::super::items;
 use crate::primitives::SvgIcon;
 use crate::runtime::cursor::{CursorArt, CursorBitmap};
 use craft_svg::tree::draw::tiny_skia;
-use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2};
+use craft_ui_rt::StrokeAlign;
+use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
+
+/// A mark's line: its width in points and its colour.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct LineStyle {
+    pub(crate) width: f32,
+    pub(crate) color: Color32,
+}
+
+impl LineStyle {
+    pub(crate) const NONE: LineStyle = LineStyle { width: 0.0, color: Color32::TRANSPARENT };
+
+    pub(crate) const fn new(width: f32, color: Color32) -> LineStyle {
+        LineStyle { width, color }
+    }
+
+    fn stroke(self) -> Option<craft_ui_rt::Stroke> {
+        items::stroke(self.width, self.color, StrokeAlign::Middle)
+    }
+}
 use std::sync::Arc;
 
 /// How far past a mark's geometry its antialiasing reaches, in device pixels.
@@ -16,22 +37,22 @@ const ARC_HANDLE: f32 = 0.552_284_8;
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Mark {
     /// A straight line with square-cut ends.
-    Line(Vec2, Vec2, Stroke),
+    Line(Vec2, Vec2, LineStyle),
     /// An axis-aligned line whose position and width round to whole device pixels, so a thin stroke is never split
     /// across two pixel columns; a slanted one is drawn along its longer axis.
-    Rule(Vec2, Vec2, Stroke),
+    Rule(Vec2, Vec2, LineStyle),
     /// A circle's outline.
-    Ring(Vec2, f32, Stroke),
+    Ring(Vec2, f32, LineStyle),
     /// A rectangle's outline, centred on its edges.
-    Frame(Rect, Stroke),
+    Frame(Rect, LineStyle),
     /// A filled circle.
     Disc(Vec2, f32, Color32),
     /// A filled rectangle with corners rounded by the radius.
     Block(Rect, f32, Color32),
     /// A filled convex polygon with its outline.
-    Polygon(Vec<Vec2>, Color32, Stroke),
+    Polygon(Vec<Vec2>, Color32, LineStyle),
     /// A line through the points, closed when the flag is set.
-    Path(Vec<Vec2>, bool, Stroke),
+    Path(Vec<Vec2>, bool, LineStyle),
     /// A catalog icon in a colour, centred in a square.
     Icon(Rect, SvgIcon, Color32),
 }
@@ -39,7 +60,7 @@ pub(crate) enum Mark {
 impl Mark {
     /// The mark `factor` times its size about the hotspot, its lines included.
     fn scaled(self, factor: f32) -> Self {
-        let line = |stroke: Stroke| Stroke::new(stroke.width * factor, stroke.color);
+        let line = |stroke: LineStyle| LineStyle::new(stroke.width * factor, stroke.color);
         let rect = |rect: Rect| Rect::from_min_max((rect.min.to_vec2() * factor).to_pos2(), (rect.max.to_vec2() * factor).to_pos2());
         let points = |points: Vec<Vec2>| points.into_iter().map(|p| p * factor).collect();
         match self {
@@ -57,8 +78,9 @@ impl Mark {
 
     /// The rect the mark covers, its line included.
     fn bounds(&self) -> Rect {
-        let around =
-            |points: &[Vec2], stroke: &Stroke| Rect::from_points(&points.iter().map(|p| p.to_pos2()).collect::<Vec<_>>()).expand(stroke.width / 2.0);
+        let around = |points: &[Vec2], stroke: &LineStyle| {
+            Rect::from_points(&points.iter().map(|p| p.to_pos2()).collect::<Vec<_>>()).expand(stroke.width / 2.0)
+        };
         match self {
             Mark::Line(a, b, stroke) => around(&[*a, *b], stroke),
             // A point of room covers the rounding of the edges at any scale from one up.
@@ -102,9 +124,7 @@ impl Art {
         let path = |points: &[Vec2]| points.iter().map(|p| at + *p).collect::<Vec<_>>();
         for mark in &self.marks {
             match mark {
-                Mark::Line(a, b, stroke) => {
-                    painter.line_segment([at + *a, at + *b], *stroke);
-                }
+                Mark::Line(a, b, stroke) => painter.line_segment([at + *a, at + *b], stroke.width, stroke.color),
                 Mark::Rule(a, b, stroke) => {
                     // Round to the painter's physical pixels, as egui rounds a pixel-aligned shape.
                     let ppp = painter.pixels_per_point();
@@ -113,14 +133,18 @@ impl Art {
                         let device = snapped_rule(scaled(a), scaled(b), stroke.width * ppp);
                         let back = |p: Pos2| Pos2::new(p.x / ppp, p.y / ppp);
                         let rect = Rect::from_min_max(back(device.min), back(device.max));
-                        painter.rect_filled(rect, 0.0, stroke.color);
+                        painter.rect_filled(rect, CornerRadius::ZERO, stroke.color);
                     }
                 }
-                Mark::Ring(centre, radius, stroke) => {
-                    painter.add(egui::epaint::CircleShape::stroke(at + *centre, *radius, *stroke));
-                }
+                Mark::Ring(centre, radius, stroke) => painter.add(items::circle_stroke(at + *centre, *radius, stroke.width, stroke.color)),
                 Mark::Frame(rect, stroke) => {
-                    painter.add(egui::epaint::RectShape::stroke(rect.translate(at.to_vec2()), 0.0, *stroke, egui::StrokeKind::Middle));
+                    painter.add(items::rect_stroke(
+                        rect.translate(at.to_vec2()),
+                        CornerRadius::ZERO,
+                        stroke.width,
+                        stroke.color,
+                        StrokeAlign::Middle,
+                    ));
                 }
                 Mark::Disc(centre, radius, color) => {
                     painter.circle_filled(at + *centre, *radius, *color);
@@ -128,12 +152,8 @@ impl Art {
                 Mark::Block(rect, round, color) => {
                     painter.rect_filled(rect.translate(at.to_vec2()), *round, *color);
                 }
-                Mark::Polygon(points, fill, stroke) => {
-                    painter.add(Shape::convex_polygon(path(points), *fill, *stroke));
-                }
-                Mark::Path(points, closed, stroke) => {
-                    painter.add(if *closed { Shape::closed_line(path(points), *stroke) } else { Shape::line(path(points), *stroke) });
-                }
+                Mark::Polygon(points, fill, stroke) => painter.extend(items::convex_polygon(&path(points), *fill, stroke.stroke())),
+                Mark::Path(points, closed, stroke) => painter.extend(items::polyline(&path(points), *closed, stroke.stroke())),
                 Mark::Icon(rect, icon, color) => icon.paint(painter, rect.translate(at.to_vec2()), *color),
             }
         }
@@ -180,7 +200,7 @@ fn paint_of(color: Color32) -> tiny_skia::Paint<'static> {
     paint
 }
 
-fn stroke_path(pixmap: &mut tiny_skia::Pixmap, path: Option<tiny_skia::Path>, stroke: Stroke, transform: tiny_skia::Transform) {
+fn stroke_path(pixmap: &mut tiny_skia::Pixmap, path: Option<tiny_skia::Path>, stroke: LineStyle, transform: tiny_skia::Transform) {
     if let Some(path) = path
         && stroke.width > 0.0
         && stroke.color.a() > 0

@@ -5,7 +5,9 @@
 use std::sync::Arc;
 
 use craft_theme::FontSlot;
-use craft_ui_rt::{FontFace, GlyphPlace, Overflow, RichText, TextEngine, TextHandle, TextLayout, TextMetrics, TextRow, TextSpec, overflow_text};
+use craft_ui_rt::{
+    FaceInstall, FontFace, GlyphPlace, Overflow, RichText, TextEngine, TextHandle, TextLayout, TextMetrics, TextRow, TextSpec, overflow_text,
+};
 use emath::{Pos2, Rect, Vec2};
 use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
 use epaint::{Color32, ImageDelta};
@@ -50,6 +52,9 @@ pub struct EpaintText {
     fonts: Fonts,
     semibold: FontFamily,
     condensed: FontFamily,
+    /// The atlas generations of the `Fonts` an installed face replaced, so a generation never
+    /// repeats across them.
+    generation_base: u64,
 }
 
 impl EpaintText {
@@ -59,7 +64,7 @@ impl EpaintText {
         let has = |name: &str| definitions.families.contains_key(&FontFamily::Name(name.into()));
         let semibold = if has(SEMIBOLD_FAMILY) { FontFamily::Name(SEMIBOLD_FAMILY.into()) } else { FontFamily::Proportional };
         let condensed = if has(CONDENSED_FAMILY) { FontFamily::Name(CONDENSED_FAMILY.into()) } else { semibold.clone() };
-        EpaintText { fonts: Fonts::new(options, definitions), semibold, condensed }
+        EpaintText { fonts: Fonts::new(options, definitions), semibold, condensed, generation_base: 0 }
     }
 
     fn family(&self, slot: FontSlot) -> FontFamily {
@@ -75,7 +80,7 @@ impl EpaintText {
     /// older generation hold stale glyph coordinates; the renderer shapes those again when it
     /// draws them (`Shaped::generation`), and callers that cache galleys of their own compare it.
     pub fn atlas_generation(&self) -> u64 {
-        self.fonts.atlas_generation()
+        self.generation_base + self.fonts.atlas_generation()
     }
 
     pub(crate) fn atlas_size(&self) -> [usize; 2] {
@@ -104,7 +109,7 @@ impl EpaintText {
         let mut format = TextFormat::simple(FontId::new(spec.font.size, self.family(spec.font.slot)), Color32::from_rgba_unmultiplied(r, g, b, a));
         let wraps = spec.overflow == Overflow::Wrap;
         let max_width = if wraps { spec.max_width.unwrap_or(f32::INFINITY) } else { f32::INFINITY };
-        let generation = self.fonts.atlas_generation();
+        let generation = self.atlas_generation();
         let mut fonts = self.fonts.with_pixels_per_point(scale);
         // A run without its own line height takes the font's row height rounded up to whole
         // points, as craft's text layout sets it (`text_layout::layout_with`).
@@ -129,7 +134,7 @@ impl EpaintText {
     /// The job craft's text runs lay out: one section per format, rows at the left edge (then
     /// placed by `row_align`), the paragraph direction for bidi.
     fn shape_rich(&mut self, rich: &RichText, scale: f32) -> Shaped {
-        let generation = self.fonts.atlas_generation();
+        let generation = self.atlas_generation();
         let sections: Vec<(std::ops::Range<usize>, f32, TextFormat)> = rich
             .sections
             .iter()
@@ -193,7 +198,7 @@ impl EpaintText {
     /// `shaped` shaped again when the atlas was cleared since it was made, `None` while it is
     /// current. Metrics are the same, only the glyph coordinates differ.
     pub(crate) fn reshaped(&mut self, shaped: &Shaped) -> Option<Shaped> {
-        (shaped.generation != self.fonts.atlas_generation()).then(|| match &shaped.source {
+        (shaped.generation != self.atlas_generation()).then(|| match &shaped.source {
             Source::Plain(spec) => self.shape(spec, shaped.scale),
             Source::Rich(rich) => self.shape_rich(rich, shaped.scale),
         })
@@ -250,6 +255,38 @@ impl TextEngine for EpaintText {
 
     fn layout_rich(&mut self, text: &RichText, scale: f32) -> TextLayout {
         layout_of(self.shape_rich(text, scale))
+    }
+
+    /// Makes the fonts again with the face added: epaint takes faces only through its
+    /// definitions. Layouts shaped before carry an older atlas generation and are shaped again
+    /// when drawn.
+    fn install_face(&mut self, face: FaceInstall) -> bool {
+        if skrifa::FontRef::from_index(&face.bytes, face.index).is_err() {
+            return false;
+        }
+        let mut definitions = self.fonts.definitions().clone();
+        let name = face.family.to_string();
+        let blob: epaint::text::Blob = Arc::new(Arc::clone(&face.bytes));
+        let tweak = epaint::text::FontTweak { coords: epaint::text::VariationCoords::new(face.coords.iter().copied()), ..Default::default() };
+        definitions.font_data.insert(name.clone(), Arc::new(epaint::text::FontData::from_blob(blob, face.index).tweak(tweak)));
+        let mut list = vec![name.clone()];
+        for fallback in &face.fallback {
+            let family = self.face(fallback);
+            for font in definitions.families.get(&family).into_iter().flatten() {
+                if !list.contains(font) {
+                    list.push(font.clone());
+                }
+            }
+        }
+        definitions.families.insert(FontFamily::Name(name.into()), list);
+        let options = *self.fonts.options();
+        self.generation_base += self.fonts.atlas_generation() + 1;
+        self.fonts = Fonts::new(options, definitions);
+        true
+    }
+
+    fn has_face(&self, family: &str) -> bool {
+        self.fonts.definitions().families.contains_key(&FontFamily::Name(family.into()))
     }
 
     fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {

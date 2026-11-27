@@ -24,11 +24,12 @@ impl PaintSlot {
         PaintSlot { layer, idx: ctx.graphics_mut(|graphics| graphics.entry(layer).add(clip, Shape::Noop)) }
     }
 
-    /// Adds `shapes` to the slot, after the shapes it holds, keeping the slot's clip.
-    pub fn extend(self, ctx: &Context, shapes: Vec<Shape>) {
-        if shapes.is_empty() {
+    /// Adds `items` (window coordinates) to the slot, after what it holds, keeping the slot's clip.
+    pub fn extend(self, ctx: &Context, items: Vec<craft_ui_rt::Item>) {
+        if items.is_empty() {
             return;
         }
+        let shapes = super::text_layout::shapes_of(&items);
         ctx.graphics_mut(|graphics| {
             graphics.entry(self.layer).mutate_shape(self.idx, |clipped| {
                 if let Shape::Vec(list) = &mut clipped.shape {

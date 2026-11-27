@@ -1,8 +1,9 @@
 //! `StateLayer`: the colour the resolver chose, over a shape.
 
+use super::items;
 use crate::style::StyleColor;
-use egui::epaint::RectShape;
-use egui::{CornerRadius, Rect, Shape, Stroke, StrokeKind};
+use craft_ui_rt::{Item, StrokeAlign};
+use egui::{CornerRadius, Rect};
 
 /// How a state layer paints its colour.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -20,11 +21,11 @@ pub struct StateLayer;
 
 impl StateLayer {
     /// The shape of `color` over `rect`; an outline is `width` wide.
-    pub fn shapes(kind: StateLayerKind, color: StyleColor, rect: Rect, radius: CornerRadius, width: f32) -> Vec<Shape> {
+    pub fn items(kind: StateLayerKind, color: StyleColor, rect: Rect, radius: CornerRadius, width: f32) -> Vec<Item> {
         let color = color.egui();
         match kind {
-            StateLayerKind::Fill => vec![Shape::Rect(RectShape::filled(rect, radius, color))],
-            StateLayerKind::Outline => vec![Shape::Rect(RectShape::stroke(rect, radius, Stroke::new(width, color), StrokeKind::Inside))],
+            StateLayerKind::Fill => vec![items::rect_filled(rect, radius, color)],
+            StateLayerKind::Outline => vec![items::rect_stroke(rect, radius, width, color, StrokeAlign::Inside)],
         }
     }
 }

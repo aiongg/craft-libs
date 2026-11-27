@@ -2,10 +2,11 @@
 //! turned off, draws the fill alone and makes no texture (#4542).
 
 use craft_theme::{Contrast, Mode, Rgba, Size};
-use craft_ui::primitives::{CheckerArea, paint_surround};
+use craft_ui::primitives::{Canvas, CheckerArea, FrameServices, paint_surround};
 use craft_ui::style::{SurroundLook, UiTokens};
-use craft_ui::testing::{Frames, trial};
-use egui::{CornerRadius, Rect, Shape, TextureId, pos2, vec2};
+use craft_ui::testing::trial;
+use craft_ui_rt::{ImageStore, Item};
+use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 use std::sync::Arc;
 
 /// `base` with its canvas pattern set to `pattern`, or to the canvas fill for none.
@@ -24,10 +25,14 @@ fn only_a_theme_pattern_draws_the_canvas_surround_texture() {
     let dotted = with_pattern(&base, Some(dot));
 
     let area = Rect::from_min_size(pos2(40.0, 30.0), vec2(200.0, 120.0));
-    let mut frames = Frames::new();
-    let mut painted = |look: SurroundLook| -> Vec<Shape> {
-        let shapes = frames.frame_shapes(|ui| paint_surround(ui.painter(), CheckerArea::Rect(area, CornerRadius::ZERO), &look));
-        shapes.into_iter().filter(|shape| shape.visual_bounding_rect() == area).collect()
+    let painted = |look: SurroundLook| -> (Vec<Item>, usize) {
+        let mut store = ImageStore::default();
+        let services = FrameServices::new(None, &mut store, 1.0);
+        let canvas = Canvas::new(&services, Pos2::ZERO, Rect::EVERYTHING);
+        paint_surround(&canvas, CheckerArea::Rect(area, CornerRadius::ZERO), &look);
+        let items = canvas.finish().0.items;
+        drop(services);
+        (items, store.changes().len())
     };
 
     let cases = [
@@ -39,9 +44,10 @@ fn only_a_theme_pattern_draws_the_canvas_surround_texture() {
     ];
     for (case, look, textured) in cases {
         assert_eq!(look.pattern.is_some(), textured, "{case}: the look's pattern");
-        let shapes = painted(look);
-        let fills = shapes.iter().filter(|shape| shape.texture_id() == TextureId::default()).count();
-        let dots = shapes.iter().filter(|shape| shape.texture_id() != TextureId::default()).count();
+        let (items, images) = painted(look);
+        let fills = items.iter().filter(|item| matches!(item, Item::Rect { rect, .. } if *rect == area)).count();
+        let dots = items.iter().filter(|item| matches!(item, Item::Image { rect, .. } if *rect == area)).count();
         assert_eq!((fills, dots), (1, usize::from(textured)), "{case}: one fill, and the dot texture only with a pattern");
+        assert_eq!(images, usize::from(textured), "{case}: the dot texture is made only with a pattern");
     }
 }
