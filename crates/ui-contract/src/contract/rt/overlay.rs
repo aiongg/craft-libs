@@ -39,6 +39,7 @@ use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
 use crate::contract::overlay::{ActivationChain, Anchor, Outside, Overlay, OverlayFit, Place};
 use crate::contract::{Context, Id, POPUP_PAD};
+use crate::primitives::text_adapter::ScopeEscape;
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
@@ -658,6 +659,12 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
         if let Some(value) = kept_value.filter(|_| !rerun && !state.must_run() && !state.path) {
             cx.keep_children();
             return value;
+        }
+        // The text fields in its body follow its Escape rules: whether an Escape closes it, keeps their typing, or is
+        // its Cancel (a modal).
+        if focus != FocusPolicy::NONE || spec.escape {
+            let closes = spec.escape || matches!(focus.cancel, craft_behavior::CancelRule::Close);
+            cx.provide(ScopeEscape { closes, keeps_typing: focus.escape_keeps_typing, modal: layer == Layer::Modal });
         }
         let run = LayerRun { id, layer, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl, entry, host, on_activate, enter };
         let out = run_layer(lk, state, cx, run, body);
