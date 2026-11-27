@@ -815,7 +815,7 @@ mod context_requests {
     thread_local! {
         /// Runs of the region (its `update`).
         static REGION_RUNS: Cell<u32> = const { Cell::new(0) };
-        /// The requests the region's last `finish` read.
+        /// The requests the region's `finish` read, every run.
         static SEEN: RefCell<Vec<(Id, Rect)>> = const { RefCell::new(Vec::new()) };
         static LIST_RECT: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
     }
@@ -876,7 +876,7 @@ mod context_requests {
         }
 
         fn sense(&self) -> Sense {
-            Sense::click()
+            Sense::HOVER | Sense::CLICK
         }
 
         fn finish(self, cx: Cx<'_, Self>) -> RowOut {
@@ -949,7 +949,7 @@ mod context_requests {
 
         fn finish(self, cx: Cx<'_, Self>) -> Response {
             let requests = cx.context_requests();
-            SEEN.with(|seen| *seen.borrow_mut() = requests);
+            SEEN.with(|seen| seen.borrow_mut().extend(requests));
             cx.response.clone()
         }
     }
