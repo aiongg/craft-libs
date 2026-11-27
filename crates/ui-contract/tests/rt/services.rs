@@ -598,3 +598,65 @@ fn a_picture_reads_ready_only_once_it_is_in_the_image_store() {
     }
     assert!(!w.rig.driver.runtime.needs_frame());
 }
+
+// ----- drawing from a build
+
+mod drawn {
+    use craft_ui_contract::contract::{MemoView, Ui};
+    use craft_ui_contract::primitives::Color32;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_rt::{Item, Part, Pos2, Rect, Vec2};
+
+    const UNDER: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(10.0, 10.0) };
+    const OVER: Rect = Rect { min: Pos2::new(20.0, 0.0), max: Pos2::new(30.0, 10.0) };
+    const OTHER: Rect = Rect { min: Pos2::new(40.0, 0.0), max: Pos2::new(50.0, 10.0) };
+
+    /// While `on`, draws one rect under the scope's children and one over them, at the scope's start; else one rect
+    /// elsewhere, under them.
+    fn drawer(on: &mut bool, ui: &mut Ui) -> u32 {
+        let at = ui.available_rect_before_wrap().min.to_vec2();
+        let draw = ui.draw();
+        let canvas = draw.canvas();
+        if *on {
+            canvas.rect_filled(UNDER.translate(at), 0, Color32::RED);
+            canvas.over(|| canvas.rect_filled(OVER.translate(at), 0, Color32::BLUE));
+        } else {
+            canvas.rect_filled(OTHER.translate(at), 0, Color32::GREEN);
+        }
+        0
+    }
+
+    /// The part of the newest recorded list holding a rect at `rect` (node coordinates), with the list's node.
+    fn newest(h: &Harness<bool>, rect: Rect) -> Option<(Part, craft_ui_rt::NodeId)> {
+        let draws = h.driver.renderer.frames.iter().flat_map(|frame| frame.draws.iter());
+        draws
+            .filter(|draw| draw.list.items.iter().any(|item| matches!(item, Item::Rect { rect: r, .. } if *r == rect)))
+            .last()
+            .map(|draw| (draw.part, draw.node))
+    }
+
+    /// What a build draws through `Ui::draw` paints with its node, in the node's coordinates: the under list beneath
+    /// the children, the over list above them. The next build's drawing replaces it.
+    #[test]
+    fn ui_draw_paints_under_and_over_the_node_children() {
+        let mut h = Harness::new_ui_state(
+            |ui, on: &mut bool| {
+                ui.add_space(30.0);
+                let _ = MemoView::new("drawer", *on, drawer).show(ui);
+            },
+            true,
+        );
+        h.run();
+        let (under, node) = newest(&h, UNDER).expect("the under rect paints, at the scope's own origin");
+        let (over, over_node) = newest(&h, OVER).expect("the over rect paints");
+        assert_eq!((under, over), (Part::Content, Part::Overlay));
+        assert_eq!(node, over_node, "both lists belong to the drawing scope");
+
+        *h.state_mut() = false;
+        h.run();
+        assert_eq!(newest(&h, OTHER), Some((Part::Content, node)), "the next build's drawing paints with the scope");
+        let content = h.driver.renderer.frames.iter().flat_map(|frame| frame.draws.iter());
+        let content = content.filter(|draw| draw.node == node && draw.part == Part::Content).last().expect("the scope's list");
+        assert!(!content.list.items.iter().any(|item| matches!(item, Item::Rect { rect, .. } if *rect == UNDER)), "and replaces the old one");
+    }
+}
