@@ -114,6 +114,10 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// Step 15, after the settle step.
     fn settle(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+
+    /// On a kept node, after `content`: the outputs `finish` reports on the settled `Cx`, from what the last run kept
+    /// and the content this build reached (a collection's visible rows, latch and drop preview).
+    fn settled(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
 }
 
 /// A leaf adds nothing to its run.

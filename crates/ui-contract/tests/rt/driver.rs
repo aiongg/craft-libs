@@ -306,7 +306,7 @@ mod nested {
     use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection, SpanLayout};
     use craft_ui_contract::contract::{
         Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome,
-        Response, Role, SelectMode, ShowCollection as _, Ui,
+        Response, Role, SelectMode, ShowCollection as _, Sizing, Ui,
     };
     use craft_ui_contract::runtime::windows::window_root;
     use craft_ui_contract::style::StyleCx;
@@ -504,8 +504,9 @@ mod nested {
         rig.step_with(&mut |_, cx| {
             window_root(cx, |ui| {
                 app.button = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
-                let outer =
-                    Outer { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new(), inner: Some(&mut app.selection) };
+                // The outer list fills the window, so its empty state has the room the inner list shows in.
+                let props = ContainerProps::new().sizing(Sizing::Fill);
+                let outer = Outer { common: Common::new(), props, items: CollectionProps::new(), inner: Some(&mut app.selection) };
                 let _ = outer.show_items(ui, &Count(0), &mut |_, _| Row { common: Common::new() });
             })
         })

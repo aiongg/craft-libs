@@ -8,7 +8,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use craft_ui_contract::contract::overlay::{Overlay, OverlayUi, Overlays as _, Trigger};
+use craft_ui_contract::contract::overlay::{Dismiss, Outside, Overlay, OverlayUi, Overlays as _, Trigger};
 use craft_ui_contract::contract::{
     Common, Component, Container, ContainerProps, Cx, DragPreview, DragSource, MeasureCx, Mount, Props as _, Response, Role, Show as _,
     ShowContainer, Ui,
@@ -631,7 +631,10 @@ fn a_panel_popup_stays_open_while_used_and_closes_on_a_row_click() {
                 let open = Chip::new("Open").show(ui);
                 opener.set(open.rect);
                 let (rows, picked) = (rows.clone(), picked.clone());
-                let _ = ShowContainer::show(Panel::new(Overlay::menu().opened_by(&open, Trigger::Click)), ui, move |ui, _| {
+                // Production's menu layer (ui-widgets menu::popup::layer): a plain `Overlay::menu()` keeps open on an
+                // activation; the menu layer asks for the close on a row's activation.
+                let overlay = Overlay::menu().dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true));
+                let _ = ShowContainer::show(Panel::new(overlay.opened_by(&open, Trigger::Click)), ui, move |ui, _| {
                     let mut at = [Rect::NOTHING; 2];
                     for (row, name) in ["One", "Two"].iter().enumerate() {
                         let shown = Chip::new(name).show(ui);
@@ -657,6 +660,47 @@ fn a_panel_popup_stays_open_while_used_and_closes_on_a_row_click() {
     assert_eq!(picked.get(), Some(1), "the row took the click");
     past_fades(&mut rig, &mut |rig| frame(rig, None));
     assert!(layer_children(&rig).is_empty(), "the row click closed the panel, and its fade ended");
+}
+
+#[test]
+fn a_held_opener_opens_its_closed_layer_at_the_hold_time_with_no_frame_while_it_waits() {
+    use craft_ui_contract::contract::overlay::HOLD;
+    let opener = Rc::new(Cell::new(Rect::NOTHING));
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+        if let Some(input) = input {
+            let main = rig.main;
+            rig.inject(main, input);
+        }
+        let opener = opener.clone();
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                let open = Chip::new("Hold").show(ui);
+                opener.set(open.rect);
+                let _ = ShowContainer::show(Panel::new(Overlay::menu().opened_by(&open, Trigger::Hold)), ui, |ui, _| {
+                    Chip::new("Row").show(ui);
+                });
+            })
+        })
+    };
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    let at = opener.get().center();
+    frame(&mut rig, Some(Input::mouse_move(at)));
+    frame(&mut rig, Some(Input::mouse_down(at)));
+    assert!(layer_children(&rig).is_empty(), "a press opens nothing before the hold time");
+    // The closed layer's node holds the timer: a build wake at the deadline, nothing built or run per step while the
+    // press waits (the pressed chip's own look may still paint).
+    for _ in 0..3 {
+        let idle = frame(&mut rig, None);
+        assert_eq!((idle.frame.built, idle.frame.runs), (0, 0), "the hold time is a build wake, not a build per step: {idle:?}");
+    }
+    rig.driver.platform.advance(HOLD / 2.0);
+    frame(&mut rig, None);
+    assert!(layer_children(&rig).is_empty(), "half the hold time opens nothing");
+    rig.driver.platform.advance(HOLD / 2.0 + 0.05);
+    frame(&mut rig, None);
+    assert_eq!(layer_children(&rig).len(), 1, "the layer opens when the hold time ends, the press still held");
+    frame(&mut rig, Some(Input::mouse_up(at)));
 }
 
 /// A canvas under a modal; it counts the clicks that reach it.
