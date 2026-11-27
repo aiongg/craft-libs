@@ -1,12 +1,17 @@
-//! The open state of a container's layer with no binding, kept in its opener's slot, and `Popup`.
+//! The open state of a container's layer with no binding, kept in its opener's slot, and `Popup`. The slot is session
+//! memory under the opener's id; whether it is open is also a cell on the opener's node (found through the window's
+//! id map), so an opener that shows its expanded state (`opened_from`) runs again when its container opens or closes.
 
 use super::opener::{Opener, Opening, Trigger, opener_anchor};
 use super::place::{Anchor, Place};
 use super::popups::{HOLD, PopupHandle, dwell};
+use crate::contract::context::log_build_read;
 use crate::contract::cx::CxCore;
+use crate::contract::rt::ids;
 use crate::contract::{Component, Context, Cx};
 use crate::primitives::Id;
 use crate::runtime::memory::{MemoryStage, sub};
+use craft_ui_rt::{BuildCx, State};
 
 /// Open state a container with no `open` binding keeps in its opener's slot.
 #[derive(Clone, Copy, Default)]
@@ -48,7 +53,11 @@ pub(crate) fn opener_open(core: &mut CxCore<'_>, first: &Opener) -> bool {
     if !slot.open {
         slot.by = None;
     }
-    slot.open
+    let open = slot.open;
+    if !core.memory.is_peek() {
+        note_open(first.id, open);
+    }
+    open
 }
 
 /// Where the layer of the container hung from `first` hangs, as its slot recorded the opener that opened it: that
@@ -69,7 +78,31 @@ pub(crate) fn hung_from(stage: &mut MemoryStage, first: &Opener, place: &Place) 
 ///
 /// [`Overlay::opened_by`]: super::Overlay::opened_by
 pub fn opened_from(ctx: &Context, opener: Id) -> bool {
-    MemoryStage::peek_session::<OpenerOpen>(ctx, sub(opener, "opens")).open
+    let open = MemoryStage::peek_session::<OpenerOpen>(ctx, sub(opener, "opens")).open;
+    // Inside a build, a tracked read of the cell on the opener's node.
+    log_build_read(move |cx| {
+        if let Some(cell) = open_cell(cx, opener, open) {
+            cell.get(cx);
+        }
+    });
+    open
+}
+
+/// The cell on the node of `opener` (found through the window's id map) that holds whether the container hung from it
+/// is open, made holding `open` on first use; `None` while no node shows `opener`.
+fn open_cell(cx: &mut BuildCx<'_>, opener: Id, open: bool) -> Option<State<bool>> {
+    let node = ids::node_of(cx, opener)?;
+    cx.slot_of(node, ("craft-opener-open", opener.value()), || open)
+}
+
+/// The slot of `opener` holds `open`: when the running build ends, the cell on the opener's node takes it, and its
+/// readers run again if it moved.
+fn note_open(opener: Id, open: bool) {
+    log_build_read(move |cx| {
+        if let Some(cell) = open_cell(cx, opener, open) {
+            cell.set_if_changed(cx, open);
+        }
+    });
 }
 
 /// Writes the opener's slot: the container closed itself (Escape, a press outside, a row ran).
@@ -78,6 +111,9 @@ pub(crate) fn set_opener_open(stage: &mut MemoryStage, opener: &Opener, open: bo
     slot.open = open;
     if !open {
         slot.by = None;
+    }
+    if !stage.is_peek() {
+        note_open(opener.id, open);
     }
 }
 
@@ -106,6 +142,10 @@ impl Popup {
         let slot = cx.core.memory.session::<OpenerOpen>(sub(opener, "opens"));
         slot.open = to.unwrap_or(!slot.open);
         slot.by = None;
+        let open = slot.open;
+        if !cx.core.memory.is_peek() {
+            note_open(opener, open);
+        }
         cx.core.keep_open = true;
     }
 

@@ -758,9 +758,10 @@ fn record_frame(cx: &mut BuildCx<'_>, surface: Surface, size: Vec2, tokens: &Arc
     let ui_tokens = UiTokens::new(tokens.clone(), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
     let canvas = Canvas::new(&services, Pos2::ZERO, Rect::EVERYTHING);
     let record = RefCell::new(PaintRecord::default());
-    let draw =
-        Draw::new(&canvas, &record, DrawEnv { tokens: &ui_tokens, direction: if rtl { Direction::Rtl } else { Direction::Ltr }, ink: Ink::OnPanel });
-    draw.surface(Rect::from_min_size(Pos2::ZERO, size), SurfaceKind::Popup, Corners::All);
+    {
+        let env = DrawEnv { tokens: &ui_tokens, direction: if rtl { Direction::Rtl } else { Direction::Ltr }, ink: Ink::OnPanel };
+        Draw::new(&canvas, &record, env).surface(Rect::from_min_size(Pos2::ZERO, size), SurfaceKind::Popup, Corners::All);
+    }
     canvas.finish().0
 }
 

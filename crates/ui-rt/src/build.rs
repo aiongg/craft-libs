@@ -171,16 +171,28 @@ impl BuildCx<'_> {
     /// node: per-node memory that needs no id map. The same key gives the same cell in every build.
     pub fn slot<T: 'static>(&mut self, key: impl Hash, init: impl FnOnce() -> T) -> State<T> {
         let key = hash_key(&(std::any::TypeId::of::<T>(), key));
-        if let Some(n) = self.rt.tree.nodes.get(&self.node)
-            && let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key)
-        {
-            return State::from_slot(*at);
+        match self.rt.tree.nodes.contains_key(&self.node) {
+            true => self.keyed_slot(self.node, key, init).expect("the node is in the tree"),
+            false => self.rt.store.create(init()),
+        }
+    }
+
+    /// [`slot`](Self::slot) on another node of the tree: the cell `node` owns under `key`, made on first use and freed
+    /// with `node`. Code that finds a node through its own id map keeps a fact there that the node's readers track
+    /// (an opener's open state, written by the popup it opens). `None` when `node` is not in the tree.
+    pub fn slot_of<T: 'static>(&mut self, node: NodeId, key: impl Hash, init: impl FnOnce() -> T) -> Option<State<T>> {
+        let key = hash_key(&(std::any::TypeId::of::<T>(), key));
+        self.keyed_slot(node, key, init)
+    }
+
+    fn keyed_slot<T: 'static>(&mut self, node: NodeId, key: u64, init: impl FnOnce() -> T) -> Option<State<T>> {
+        let n = self.rt.tree.nodes.get(&node)?;
+        if let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key) {
+            return Some(State::from_slot(*at));
         }
         let state = self.rt.store.create(init());
-        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
-            n.slots.push((key, state.slot_ref()));
-        }
-        state
+        self.rt.tree.nodes.get_mut(&node)?.slots.push((key, state.slot_ref()));
+        Some(state)
     }
 
     /// A derived cell owned by this node, freed with it. Its readers are marked when an input it
