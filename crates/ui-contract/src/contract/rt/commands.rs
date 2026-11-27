@@ -36,6 +36,8 @@ struct Board {
     edits: Vec<(CommandRef, EditCommand)>,
     states: Vec<(CommandRef, State<CommandState>)>,
     handlers: Vec<(CommandRef, Handler)>,
+    /// Where `take_command` routes each command (`runtime::commands::inbox`).
+    routes: Rc<RefCell<crate::runtime::commands::inbox::Routes>>,
 }
 
 /// The app's commands: the keymap, each command's state as a cell and what each command does.
@@ -45,7 +47,7 @@ pub struct CommandBoard(Rc<RefCell<Board>>);
 impl CommandBoard {
     /// A board over `keymap`, with no handlers and every command enabled.
     pub fn new(keymap: Keymap) -> CommandBoard {
-        CommandBoard(Rc::new(RefCell::new(Board { keymap, edits: Vec::new(), states: Vec::new(), handlers: Vec::new() })))
+        CommandBoard(Rc::new(RefCell::new(Board { keymap, edits: Vec::new(), states: Vec::new(), handlers: Vec::new(), routes: Rc::default() })))
     }
 
     /// The board with the edit commands of `S` (`#[command(edit = ...)]`): a focused component that
@@ -62,6 +64,11 @@ impl CommandBoard {
         let mut board = self.0.borrow_mut();
         board.handlers.retain(|(c, _)| *c != command);
         board.handlers.push((command, Box::new(handler)));
+    }
+
+    /// The routes of the nodes that take commands (`take_command`).
+    pub(crate) fn routes(&self) -> Rc<RefCell<crate::runtime::commands::inbox::Routes>> {
+        self.0.borrow().routes.clone()
     }
 
     /// The cell of `command`'s state, created enabled on first use.
@@ -121,16 +128,22 @@ impl CommandBoard {
             _ => return Handled::No,
         };
         let fired = Fired::new(command.clone(), FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
+        self.run(&fired, cx.store_mut());
+        Handled::Yes
+    }
+
+    /// Runs the handler of `fired`'s command at once (a key, a component's activation, `Cx::fire`).
+    /// Returns whether a handler ran.
+    pub(crate) fn run(&self, fired: &Fired, store: &mut Store) -> bool {
         // The handler runs outside the board's borrow: it may set command states.
         let taken = {
             let mut board = self.0.borrow_mut();
-            board.handlers.iter().position(|(c, _)| *c == command).map(|at| board.handlers.remove(at))
+            board.handlers.iter().position(|(c, _)| *c == fired.command).map(|at| board.handlers.remove(at))
         };
-        if let Some((command, mut handler)) = taken {
-            handler(&fired, cx.store_mut());
-            self.0.borrow_mut().handlers.push((command, handler));
-        }
-        Handled::Yes
+        let Some((command, mut handler)) = taken else { return false };
+        handler(fired, store);
+        self.0.borrow_mut().handlers.push((command, handler));
+        true
     }
 }
 

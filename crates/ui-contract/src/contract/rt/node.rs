@@ -10,12 +10,11 @@ use craft_ui_rt::{
     ImePurpose, InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rect, Rgba, Sense, State, Vec2,
 };
 
-use egui::Id;
+use crate::contract::Id;
 
 use super::drag::{DragSource, DropRule};
 use super::focus::FocusKept;
 use super::keys::Taken;
-use super::memory::Memory;
 use super::overlay::PopupStates;
 use super::sweep::Sweep;
 use super::tip::TipKept;
@@ -82,6 +81,9 @@ pub enum NodeInput {
     Ime(EditorInput),
     /// The node is its window's close guard and the window was asked to close.
     Close(craft_ui_rt::CloseReason),
+    /// The node gained (`true`) or lost key focus: the next run's `Response::gained_focus` and
+    /// `lost_focus`. Queued without marking the node.
+    Focus(bool),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -157,7 +159,8 @@ pub(crate) struct Kept {
     pub(crate) plan: Option<super::container::Plan>,
     /// Whether the last real run of the body under this node met fill children; `None` before it.
     pub(crate) body_fills: Option<bool>,
-    pub(crate) memory: Memory,
+    /// The node's memory slots (`Remember`, the pipeline's records), freed with the node.
+    pub(crate) memory: crate::runtime::memory::MemoryStage,
     /// The window's toggle sweep record: the window root creates it, every run copies it from the
     /// flow it was shown in.
     pub(crate) sweep: Option<State<Sweep>>,
@@ -217,7 +220,7 @@ impl Kept {
             sizes: smallvec::SmallVec::new(),
             plan: None,
             body_fills: None,
-            memory: Memory::default(),
+            memory: Default::default(),
             sweep: None,
             toggle: None,
             press: None,
@@ -332,15 +335,13 @@ impl Element for ComponentNode {
     /// fades between them and tweens the node's opacity at the frame's time ([`super::motion`]), and
     /// re-records the kept hit shapes: the node's own, then its parts above it.
     fn paint(&self, kept: &Kept, cx: &mut PaintCx<'_>) {
-        let look = if kept.variants.len() > 1 {
-            let state = cx.interaction();
-            if state.pressed {
-                Pointer::Press
-            } else if state.hovered {
-                Pointer::Hover
-            } else {
-                Pointer::Rest
-            }
+        // Each fact is read only when a look for it was recorded, so a press does not repaint a node
+        // that keeps no press look, and a single look reads nothing.
+        let has = |look: Pointer| kept.variants.iter().any(|v| v.look == look);
+        let look = if has(Pointer::Press) && cx.interaction_fact(InteractFact::Pressed) {
+            Pointer::Press
+        } else if has(Pointer::Hover) && cx.interaction_fact(InteractFact::Hovered) {
+            Pointer::Hover
         } else {
             Pointer::Rest
         };
@@ -378,6 +379,9 @@ impl Element for ComponentNode {
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
             Event::Focus(on) => {
+                if self.stop {
+                    kept.queue.push(NodeInput::Focus(*on));
+                }
                 if *on {
                     kept.focus.took_focus();
                 } else {

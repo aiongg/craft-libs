@@ -1,510 +1,63 @@
-//! A component's run inside its scope's build, and the keep decision before it
-//! (docs/contract-rt.md sections 3.3, 4, 7 and 8).
+//! A component's run inside its scope's build, and the keep decision before it (docs/contract-rt.md
+//! sections 3.3, 4, 7, 8 and 15).
 //!
-//! The skeleton's [`Component`] has the hooks of `contract::Component` the bridge's stand-ins use,
-//! over contexts on craft-ui-rt. The pipeline tasks move the real trait's contexts (`Cx`,
-//! `MeasureCx`, `PaintUi`, `Draw`) onto these and retire this cut.
+//! The real `contract::Component` hooks run here in the pipeline's order: 1 env and 2 style
+//! ([`begin`], also for a kept node, whose settled `Cx` reads them), 3 id (the reconcile,
+//! `Flow::child`), 4 value, 5 measure (or the node's size cache), 6 place, 7 parts, 8 sense, 9
+//! update, 10 overlay, 11 apply, 12 state and 13 paint (once per recorded pointer look), 15 settle,
+//! 16 report (access once per run, never per look), 17 finish with the bound command's fire. A node
+//! whose type, component key and room are unchanged and that carries no mark runs none of them:
+//! `finish` gets a settled `Cx` built from what the node kept.
 
-use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, EditEvents, EditorInput, GestureId, GesturePhase, Intent, Mixed, PartRef, PressPhase, PressState};
-use craft_i18n::Direction;
+use craft_behavior::{Flow as Geometry, Intent, PartRef, PressPhase, PressState, Proposal};
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, Cursor, Gesture, HitShape, ImePurpose, InlineState, Interact, PointerButton, Pos2, Rect, Sense, Vec2};
-use egui::Id;
+use craft_ui_rt::{BuildCx, Gesture, HitShape, InlineState, InteractFact, NodeId, PointerButton, Pos2, Rect, Sense, Vec2};
 use smallvec::SmallVec;
 
 use super::access::Access;
-use super::drag::{DragSource, DropRule};
-use super::env::{EnvSnapshot, LayerFrame};
-use super::key::{ComponentKey, component_key, fold, type_key};
-use super::memory::Memory;
-use super::motion::{Level, MotionSpec};
+use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, KeptPart, NodeInput, Place, Pointer, Variant, part_id};
 use super::overlay::OverlayUi;
-use super::response::{EditResponse, InputFacts, Outcome, Response};
+use super::response::{self, InputFacts, Response};
 use super::sweep;
 use super::tip;
 use super::ui::{Flow, Ui};
-use crate::contract::{BindMut, IdSource};
-use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord, PartResult};
-use crate::runtime::focus::{FocusPolicy, KeepKeys, KeyUse, Roving};
-use crate::runtime::keys::Intents;
-use crate::runtime::memory::Slot;
-use crate::style::{Ink, UiTokens};
+use crate::contract::run::{ShowAt, TypeFacts, core_for, paint_ui};
+use crate::contract::steps::{self, MeasureIn, ValueStep};
+use crate::contract::{Activation, Common, Component, Cx, CxCore, Id, Internal, Meta, Resolved, TipFn, Validity, ValueOf};
+use crate::primitives::{Canvas, FrameServices, PartResult};
+use crate::runtime::access::Role;
+use crate::runtime::commands::{CommandBoard, FireSource, InboxCells, InboxIn, register_inboxes};
+use crate::runtime::env::{AppValues, Env};
+use crate::runtime::memory::{MemoryStage, sub};
 
-/// The value type of `C`'s output.
-pub type ValueOf<C> = <<C as Component>::Output as Outcome>::Value;
-
-/// What `measure` sees: the room the component is shown in.
-pub struct MeasureCx<'a> {
-    /// The room the component is shown in.
-    pub room: Vec2,
-    /// The tokens the node's run read.
-    pub tokens: &'a Tokens,
-    env: &'a EnvSnapshot,
+/// What steps 1 and 2 resolve before the keep decision: `Common` moved out of the component, the env
+/// the node shows in, the bound command and the style from the window's cache.
+pub(crate) struct Begun<C: Component> {
+    pub(crate) env: Env,
+    pub(crate) common: Common,
+    pub(crate) step1: steps::EnvStep,
+    pub(crate) style: Arc<C::Style>,
+    pub(crate) facts: TypeFacts,
 }
 
-impl MeasureCx<'_> {
-    /// The flow direction. Reading it makes a direction change run the node again.
-    pub fn direction(&self) -> Direction {
-        self.env.direction()
-    }
-
-    /// The density preset. Reading it makes a density change run the node again.
-    pub fn density(&self) -> craft_theme::Size {
-        self.env.density()
+impl<C: Component> Begun<C> {
+    /// `Common` after step 1, for the node `id`.
+    pub(crate) fn resolved(&self, id: Id) -> Resolved<'_> {
+        steps::resolved(id, &self.step1, &self.common)
     }
 }
 
-/// The facts of one run, or of a kept node (settled: no input, the kept facts).
-pub struct Cx<'a, C: Component> {
-    /// The node's craft `Id`.
-    pub id: Id,
-    /// The node's rect in this frame, in window coordinates.
-    pub rect: Rect,
-    /// The tokens of the run, or of the scope that shows a kept node.
-    pub tokens: &'a Tokens,
-    /// The response `finish` returns: the run's input facts and the node's interaction state.
-    pub response: Response,
-    input: &'a [NodeInput],
-    parts: &'a [(PartRef, PartResult)],
-    own: PartResult,
-    memory: &'a mut Memory,
-    edit: Edit<ValueOf<C>>,
-    swept: Option<bool>,
-    settled: bool,
-    env: &'a EnvSnapshot,
-    level: Cell<Option<(f32, MotionSpec)>>,
-    holds_escape: Cell<bool>,
-    intents: Intents,
-    ime_cursor: Cell<Option<Rect>>,
-}
-
-/// The value a run shows and the edits it made.
-struct Edit<V> {
-    shown: Option<Mixed<V>>,
-    events: EditEvents<V>,
-}
-
-/// The value gesture a press carries across runs, in the node's memory.
-#[derive(Clone)]
-struct HeldGesture<V> {
-    id: Option<GestureId>,
-    before: Option<Mixed<V>>,
-    next: u64,
-}
-
-impl<V> Default for HeldGesture<V> {
-    fn default() -> Self {
-        HeldGesture { id: None, before: None, next: 0 }
-    }
-}
-
-impl<'a, C: Component> Cx<'a, C> {
-    /// The inputs queued since the last run, oldest first.
-    pub fn input(&self) -> &[NodeInput] {
-        self.input
-    }
-
-    /// The intents queued for the node since its last run (activation, moves, edits, typed text,
-    /// Submit, Cancel ...), each taken once. Horizontal moves are read in the node's direction.
-    pub fn intents(&mut self) -> &mut Intents {
-        &mut self.intents
-    }
-
-    /// The node's editor input since its last run, in arrival order: IME preedits and commits, and
-    /// the intents an editor reads (text, moves `keep` keeps, deletes, edits, Enter, Tab, Escape)
-    /// that no taker took, taken.
-    pub fn editor_input(&mut self, keep: KeepKeys) -> Vec<EditorInput> {
-        super::intents::editor_input(self.input, &mut self.intents, keep)
-    }
-
-    /// Reports the caret rect (window coordinates) of the node's editor: the platform places the
-    /// input method's candidate window there while the node has focus.
-    pub fn ime_cursor(&self, caret: Rect) {
-        self.ime_cursor.set(Some(caret));
-    }
-
-    /// Takes the next Escape while the node has focus (an open draft, a running gesture): the key
-    /// reaches this node's next run instead of the scopes around it. A run that does not ask
-    /// leaves Escape to them.
-    pub fn hold_escape(&self) {
-        self.holds_escape.set(true);
-    }
-
-    /// Why the window was asked to close since the last run, when this component is its close
-    /// guard ([`Component::close_guard`]).
-    pub fn close_request(&self) -> Option<craft_ui_rt::CloseReason> {
-        self.input.iter().rev().find_map(|i| match i {
-            NodeInput::Close(reason) => Some(*reason),
-            _ => None,
-        })
-    }
-
-    /// The node did not run: its outputs are the kept ones.
-    pub fn is_settled(&self) -> bool {
-        self.settled
-    }
-
-    /// A primary click or an assistive technology's click reached the node since the last run.
-    pub fn clicked(&self) -> bool {
-        self.response.clicked()
-    }
-
-    /// The result of `part` in this run: its rect, its press as the run's input left it, and what
-    /// it senses. A part `parts` did not declare reads idle.
-    pub fn part(&self, part: impl Into<PartRef>) -> &PartResult {
-        self.part_if_declared(part).unwrap_or(&PartResult::IDLE)
-    }
-
-    /// The result of `part`, `None` when `parts` did not declare it.
-    pub fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult> {
-        let part = part.into();
-        self.parts.iter().find(|(p, _)| *p == part).map(|(_, r)| r)
-    }
-
-    /// The press on the component's own shape.
-    pub fn press(&self) -> &PressState {
-        &self.own.press
-    }
-
-    /// The flow direction. Reading it makes a direction change run the node again.
-    pub fn direction(&self) -> Direction {
-        self.env.direction()
-    }
-
-    /// The density preset. Reading it makes a density change run the node again.
-    pub fn density(&self) -> craft_theme::Size {
-        self.env.density()
-    }
-
-    /// The motion mode in effect. Reading it makes a change of the mode run the node again.
-    pub fn motion_mode(&self) -> craft_behavior::MotionMode {
-        self.env.motion()
-    }
-
-    /// The rounded frame of the layer the node is in. Reading it makes a change of the frame run the
-    /// node again.
-    pub fn frame(&self) -> Option<LayerFrame> {
-        self.env.frame()
-    }
-
-    /// Aims the node's opacity at `target` (0 to 1): the paint phase tweens toward it over `spec`'s
-    /// duration, reading the frame time while it runs, so no hook runs per frame. The first target a
-    /// node names is shown at once.
-    pub fn fade_to(&self, target: f32, spec: MotionSpec) {
-        self.level.set(Some((target.clamp(0.0, 1.0), spec)));
-    }
-
-    /// The node's memory slot of type `T`, created with its default on first use.
-    pub fn memory<T: Slot>(&mut self) -> &mut T {
-        self.memory.shown::<T>(self.id)
-    }
-
-    /// A copy of the node's memory slot of type `T`, or its default.
-    pub fn recall<T: Slot>(&self) -> T {
-        self.memory.recall::<T>(self.id)
-    }
-
-    /// The value a primary-button sweep sets on this toggle in this run, `None` when no sweep
-    /// reached it. `on` is the value the toggle shows. Only toggles that return their value from
-    /// `Component::sweep_value` and share a layout take part; the press owner's run gets the value
-    /// first, each toggle the sweep crosses gets it once.
-    pub fn swept_toggle(&self, on: Option<bool>) -> Option<bool> {
-        self.swept.filter(|&swept| on != Some(swept))
-    }
-
-    /// The value the component shows: its binding's, with this run's edits applied.
-    pub fn value(&self) -> Option<&ValueOf<C>> {
-        self.edit.shown.as_ref().and_then(Mixed::same)
-    }
-
-    /// The running value gesture's phase: `Begin` in the run that began it, `Commit` in the run
-    /// that ended it, `Update` in between; `None` when none runs.
-    pub fn gesture(&self) -> Option<GesturePhase> {
-        let last = self.edit.events.iter().rev().find_map(EditEvent::phase);
-        match last {
-            Some(phase) => Some(phase),
-            None => self.memory.recall::<HeldGesture<ValueOf<C>>>(self.id).id.map(|_| GesturePhase::Update),
-        }
-    }
-
-    /// Begins a value gesture (one undo step) unless one runs.
-    pub fn begin(&mut self) {
-        let before = self.edit.shown.clone();
-        let held = self.memory.shown::<HeldGesture<ValueOf<C>>>(self.id);
-        if held.id.is_some() {
-            return;
-        }
-        let id = GestureId::new(held.next);
-        held.next += 1;
-        held.id = Some(id);
-        held.before = before.clone();
-        if let Some(before) = before {
-            self.edit.events.push(EditEvent::begin(id, before, Arc::from(""), None));
-        }
-    }
-
-    /// Proposes `v` in the running gesture, beginning one when none runs.
-    pub fn propose(&mut self, v: ValueOf<C>) {
-        self.begin();
-        if let Some(id) = self.memory.recall::<HeldGesture<ValueOf<C>>>(self.id).id {
-            self.edit.events.push(EditEvent::update(id, v.clone()));
-            self.edit.shown = Some(Mixed::Same(v));
-        }
-    }
-
-    /// Ends the running gesture with the shown value.
-    pub fn commit(&mut self) {
-        let held = std::mem::take(self.memory.shown::<HeldGesture<ValueOf<C>>>(self.id));
-        let next = held.next;
-        self.memory.shown::<HeldGesture<ValueOf<C>>>(self.id).next = next;
-        if let (Some(id), Some(before), Some(after)) = (held.id, held.before, self.value().cloned()) {
-            self.edit.events.push(EditEvent::commit(id, before, after));
-        }
-    }
-
-    /// Sets `v` in one step, outside a gesture.
-    pub fn set(&mut self, v: ValueOf<C>) {
-        if let Some(before) = self.edit.shown.clone() {
-            self.edit.events.push(EditEvent::set(before, v.clone(), Arc::from(""), None));
-        }
-        self.edit.shown = Some(Mixed::Same(v));
-    }
-
-    /// The output of a component that edits a value: the response, the run's edits and the shown
-    /// value.
-    pub fn edit_response(&self) -> EditResponse<ValueOf<C>> {
-        EditResponse {
-            response: self.response.clone(),
-            events: self.edit.events.clone(),
-            shown: self.edit.shown.clone().map(|m| match m {
-                Mixed::Same(v) => Mixed::Same(Arc::new(v)),
-                Mixed::Mixed => Mixed::Mixed,
-            }),
-        }
-    }
-}
-
-/// One paint variant being recorded: the content-paint API (`Draw`, in window coordinates, recorded as display items
-/// in the node's coordinates) and the pointer state the variant shows.
-pub struct Paint<'a> {
-    /// The tokens of the run.
-    pub tokens: &'a Tokens,
-    rect: Rect,
-    pointer: Pointer,
-    read: Cell<bool>,
-    canvas: &'a Canvas<'a>,
-    record: &'a RefCell<PaintRecord>,
-    ui_tokens: &'a UiTokens,
-    env: &'a EnvSnapshot,
-}
-
-impl Paint<'_> {
-    /// The flow direction. Reading it makes a direction change run the node again.
-    pub fn direction(&self) -> Direction {
-        self.env.direction()
-    }
-
-    /// The rounded frame of the layer the node is in, in window coordinates. Reading it makes a
-    /// change of the frame run the node again.
-    pub fn frame(&self) -> Option<LayerFrame> {
-        self.env.frame()
-    }
-
-    /// The pointer state this variant shows. Reading it makes the run record a variant per state.
-    pub fn pointer(&self) -> Pointer {
-        self.read.set(true);
-        self.pointer
-    }
-
-    /// The node's rect in window coordinates, where `draw` paints.
-    pub fn bounds(&self) -> Rect {
-        self.rect
-    }
-
-    /// The content-paint API.
-    pub fn draw(&self) -> Draw<'_> {
-        Draw::new(self.canvas, self.record, DrawEnv { tokens: self.ui_tokens, direction: self.env.peek_direction(), ink: Ink::OnPanel })
-    }
-}
-
-/// Where `parts` declares the component's named sub-rects.
-pub struct PartsCx<'a, C: Component> {
-    /// The tokens of the run.
-    pub tokens: &'a Tokens,
-    value: Option<&'a ValueOf<C>>,
-    origin: Pos2,
-    parts: &'a mut Vec<KeptPart>,
-}
-
-impl<C: Component> PartsCx<'_, C> {
-    /// The value the component shows.
-    pub fn value(&self) -> Option<&ValueOf<C>> {
-        self.value
-    }
-
-    /// Declares `part` over `shape` (window coordinates). It senses nothing until
-    /// [`PartBuilder::sense`] says what.
-    pub fn part(&mut self, part: impl Into<PartRef>, shape: impl Into<HitShape>) -> PartBuilder<'_> {
-        let part = part.into();
-        let shape = translate(shape.into(), Pos2::ZERO - self.origin);
-        self.parts.retain(|p| p.part != part);
-        self.parts.push(KeptPart { part, id: part_id(part), shape, sense: Sense::empty(), cursor: None, exclusive: None });
-        PartBuilder { part: self.parts.last_mut().expect("the part was just pushed") }
-    }
-}
-
-/// Sets what a declared part senses and shows.
-pub struct PartBuilder<'a> {
-    part: &'a mut KeptPart,
-}
-
-impl PartBuilder<'_> {
-    /// What the part senses.
-    pub fn sense(self, sense: Sense) -> Self {
-        self.part.sense = sense;
-        self
-    }
-
-    /// What the operating system does with a press on the part: it moves the window, resizes it from
-    /// an edge or is a caption button. The Windows hit test answers from these parts
-    /// ([`super::windows::publish_zones`]).
-    pub fn exclusive(self, hit: crate::runtime::windows::WindowHit) -> Self {
-        self.part.exclusive = Some(hit);
-        self
-    }
-
-    /// The cursor over the part, kept while a press that went down on it runs.
-    pub fn cursor(self, cursor: impl Into<Cursor>) -> Self {
-        self.part.cursor = Some(cursor.into());
-        self
-    }
-}
-
-fn translate(shape: HitShape, by: Vec2) -> HitShape {
-    match shape {
-        HitShape::Rect(r) => HitShape::Rect(r.translate(by)),
-        HitShape::RoundedRect(r, radius) => HitShape::RoundedRect(r.translate(by), radius),
-        HitShape::Circle(c, radius) => HitShape::Circle(c + by, radius),
-    }
-}
-
-fn bounds(shape: HitShape) -> Rect {
-    match shape {
-        HitShape::Rect(r) | HitShape::RoundedRect(r, _) => r,
-        HitShape::Circle(c, radius) => Rect::from_center_size(c, Vec2::splat(2.0 * radius)),
-    }
-}
-/// The skeleton's component-author trait: `contract::Component`'s hooks over craft-ui-rt contexts.
-/// The hooks run in the build of the scope that shows the component, and only when the keep
-/// decision says so; their outputs are kept per node.
-pub trait Component: ComponentKey + Sized {
-    /// The AccessKit role.
-    const ROLE: accesskit::Role;
-    /// What `show` returns.
-    type Output: Outcome;
-
-    /// Where the node's id comes from (`Common`'s id source).
-    fn id_source(&self) -> IdSource {
-        IdSource::Auto
-    }
-
-    /// The node's size in the room it has.
-    fn measure(&mut self, _cx: &MeasureCx<'_>) -> Vec2 {
-        Vec2::ZERO
-    }
-
-    /// How input reaches the component's own shape.
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    /// The cursor over the component's own shape: kept with the node and picked by ui-rt on hover, so
-    /// a hover runs no hook. `None` inherits the nearest cursor above.
-    fn cursor(&self) -> Option<Cursor> {
-        None
-    }
-
-    /// Named sub-rects (thumbs, tracks, handles), kept as hit shapes until the next run.
-    fn parts(&mut self, _rect: Rect, _cx: &mut PartsCx<'_, Self>) {}
-
-    /// Value components return their binding; the same binding on every call, with no side effects.
-    fn bind(&mut self) -> Option<BindMut<'_, ValueOf<Self>>> {
-        None
-    }
-
-    /// A toggle that takes part in primary-button sweeps returns the value it shows.
-    fn sweep_value(&self) -> Option<bool> {
-        None
-    }
-
-    /// Sees the queued input ([`Cx::input`], [`Cx::part`]) and edits the value.
-    fn update(&mut self, _cx: &mut Cx<'_, Self>) {}
-
-    /// Paints in local coordinates; may run once per pointer state it reads.
-    fn paint(&mut self, _paint: &Paint<'_>, _cx: &Cx<'_, Self>) {}
-
-    /// Says what the node is to assistive technology: its name and facts beyond the role and the
-    /// sense. Runs only while the window's access tree is on.
-    fn access(&self, _access: &mut Access, _cx: &Cx<'_, Self>) {}
-
-    /// Shows the component's popups (step 10): after `update` in a run, and on a pass that reaches
-    /// a marked node in one of its popups while the component keeps its outputs.
-    fn overlay(&mut self, _ui: &mut OverlayUi<'_, '_>) {}
-
-    /// The tooltip text; it shows after [`tip::DELAY`] with the pointer resting on the component.
-    fn tooltip(&self) -> Option<String> {
-        None
-    }
-
-    /// What a drag from the component carries; ui-rt starts the session when a press on it moves
-    /// past slop.
-    fn drag_source(&self) -> Option<DragSource> {
-        None
-    }
-
-    /// Whether the component answers its window's close requests: the close button, Alt+F4 and
-    /// Quit reach it ([`Cx::close_request`]) instead of closing the window. It closes the window
-    /// itself ([`super::windows::close_window`]), at once or after a prompt.
-    fn close_guard(&self) -> bool {
-        false
-    }
-
-    /// The payloads the component takes as drops.
-    fn drop_target(&self) -> Option<DropRule> {
-        None
-    }
-
-    /// The keys the component takes while it has key focus; `None` (the default) makes its shape
-    /// no Tab stop. Kept with the node: the Tab order and the key stage read it without a run.
-    /// The real trait's `STOPS` and `keys()` map onto it.
-    fn keys(&self) -> Option<KeyUse> {
-        None
-    }
-
-    /// The focus scope the component opens around its content and its own stop
-    /// (`Component::focus_scope` of the real trait; a container's `ContainerProps::focus`).
-    fn focus_scope(&self) -> FocusPolicy {
-        FocusPolicy::NONE
-    }
-
-    /// The roving group over the stops in the component's content: one Tab stop whose members take
-    /// the arrows (a container's `ContainerProps::roving`).
-    fn roving(&self) -> Option<Roving> {
-        None
-    }
-
-    /// The component takes text input while focused, with this purpose: ui-rt runs a platform IME
-    /// session for it ([`super::ime`]). Kept with the node, as `keys` is.
-    fn text_input(&self) -> Option<ImePurpose> {
-        None
-    }
-
-    /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
-    fn finish(self, cx: &Cx<'_, Self>) -> Self::Output;
+/// Steps 1 and 2. `Env::of` registers its reads for the scope that shows the node, so an env write
+/// reruns that scope (contract-rt 15.13 item 6).
+pub(crate) fn begin<C: Component>(component: &mut C, ui: &mut Ui<'_, '_>) -> Begun<C> {
+    let env = Env::of(ui);
+    let common = std::mem::take(component.common_mut(Internal::new()));
+    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
+    let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), component.style_key());
+    Begun { env, common, step1, style, facts: TypeFacts::of::<C>() }
 }
 
 /// Whether a node keeps its outputs: it ran before with this component key and carries no mark.
@@ -522,58 +75,75 @@ pub(crate) fn sweep_tag<C: Component>(component: &C, flow: &Flow) -> u64 {
 
 /// Shows a leaf: keeps it, or runs its hooks. In a measuring run it only reports its size: a kept
 /// node's from its size cache, otherwise `measure`'s.
-pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
-    let (id, child) = ui.flow.child(type_key::<C>(), component.id_source());
+pub(crate) fn show_leaf<C: Component>(mut component: C, ui: &mut Ui<'_, '_>, at: ShowAt, tip: Option<TipFn<'_>>) -> C::Output {
+    let begun = begin(&mut component, ui);
+    let (id, child) = ui.flow.child(type_key::<C>(), begun.common.id.clone());
     let key = component_key(&component);
     let room = ui.flow.room();
     let tag = sweep_tag(&component, &ui.flow);
-    let mut component = component;
+    let command = begun.step1.command.clone();
     if let Some(under) = ui.flow.measuring {
         let cached =
             under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).filter(|p| holds(p.local, key, p.state)).and_then(|p| p.local.cached(room));
-        let tokens = ui.flow.tokens.clone();
-        let env = EnvSnapshot::peek(ui.cx);
-        let size = cached.unwrap_or_else(|| component.measure(&MeasureCx { room, tokens: &tokens, env: &env }));
-        env.register(ui.cx);
-        let rect = ui.flow.allocate(None, size, false);
-        return finish_measured(component, id, rect, &tokens);
+        let mut stage = MemoryStage::default();
+        let value = steps::value(&mut component, &mut stage, id, command.as_deref());
+        let size = cached.unwrap_or_else(|| measure(&mut component, &begun, id, room, &value, ui.cx));
+        let rect = place(&mut ui.flow, None, at, size);
+        return finish_measured(component, id, rect, &begun, value);
     }
-    let Ui { cx, flow } = ui;
+    let Ui { cx, flow, .. } = ui;
+    let node = ComponentNode {
+        key: key.map_or(0, fold),
+        tag,
+        stop: C::STOPS && steps::takes_focus(&begun.resolved(id)),
+        text: component.text_input(),
+    };
     cx.keyed(child, |cx| {
-        cx.inline(
-            ComponentNode { key: key.map_or(0, fold), tag, stop: component.keys().is_some(), text: component.text_input() },
-            |kept, state, cx| {
-                let kept_outputs = holds(kept, key, state);
-                let size = match kept.cached(room).filter(|_| kept_outputs) {
-                    Some(size) => size,
-                    None => {
-                        let tokens = if kept_outputs { flow.tokens.clone() } else { super::env::tokens(cx) };
-                        let env = EnvSnapshot::peek(cx);
-                        let size = component.measure(&MeasureCx { room, tokens: &tokens, env: &env });
-                        env.register(cx);
-                        size
-                    }
-                };
-                let rect = flow.allocate(Some(cx.node()), size, false);
-                if kept_outputs && size == kept.size {
-                    kept.cache(room, size);
-                    if state.path {
-                        // A node in one of its layer children is marked: reach them.
-                        reach_layers(&mut component, kept, cx, rect, &flow.tokens, flow.sweep);
-                    } else {
-                        cx.keep_children();
-                    }
-                    return settle(component, kept, cx, rect, &flow.tokens);
+        cx.inline(node, |kept, state, cx| {
+            let kept_outputs = holds(kept, key, state);
+            let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
+            let size = match kept.cached(room).filter(|_| kept_outputs) {
+                Some(size) => size,
+                None => measure(&mut component, &begun, id, room, &value, cx),
+            };
+            let rect = place(flow, Some(cx.node()), at, size);
+            if kept_outputs && size == kept.size {
+                kept.cache(room, size);
+                if state.path {
+                    // A node in one of its layer children is marked: reach them.
+                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep);
+                } else {
+                    cx.keep_children();
                 }
-                let tokens = super::env::tokens(cx);
-                run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep })
-            },
-        )
+                return settle(component, kept, cx, rect, &begun, value);
+            }
+            let tokens = super::env::tokens(cx);
+            run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep: flow.sweep, begun: &begun, value, tip })
+        })
     })
 }
 
+/// Step 6: the rect the node takes: the next place in the flow, or the rect it is shown at.
+fn place(flow: &mut Flow, node: Option<NodeId>, at: ShowAt, size: Vec2) -> Rect {
+    match at {
+        ShowAt::Flow => flow.allocate(node, size, false),
+        ShowAt::Rect(rect) => flow.place_at(node, rect),
+    }
+}
+
+/// Step 5: `measure` over the room's content width, plus padding and the style's floors.
+fn measure<C: Component>(component: &mut C, begun: &Begun<C>, id: Id, room: Vec2, value: &ValueStep<ValueOf<C>>, cx: &mut BuildCx<'_>) -> Vec2 {
+    let resolved = begun.resolved(id);
+    let scale = cx.scale();
+    let (text, images) = cx.paint_services();
+    let services = FrameServices::new(text, images, scale);
+    let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(room.x), services: Some(&services) };
+    let content = component.measure(&steps::measure_cx::<C>(&input, &begun.style, &resolved, value.value.as_deref()));
+    steps::measure(&*begun.style, &input, content, Vec2::ZERO, &resolved)
+}
+
 /// The facts of a run decided before its hooks.
-pub(crate) struct Ran<'a> {
+pub(crate) struct Ran<'a, C: Component> {
     pub(crate) id: Id,
     pub(crate) key: Option<u128>,
     pub(crate) place: Place,
@@ -581,135 +151,365 @@ pub(crate) struct Ran<'a> {
     pub(crate) rect: Rect,
     pub(crate) tokens: &'a Arc<Tokens>,
     pub(crate) sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
+    pub(crate) begun: &'a Begun<C>,
+    pub(crate) value: ValueStep<ValueOf<C>>,
+    pub(crate) tip: Option<TipFn<'a>>,
+}
+
+/// The `Cx` a kept node's `finish` gets: no input, the kept facts, `is_settled` true.
+fn settled_core<'a>(begun_env: &'a Env, resolved: &'a Resolved<'a>, memory: &'a mut MemoryStage, response: Response, begun: &steps::EnvStep) -> CxCore<'a> {
+    let mut core = core_for(begun_env, resolved, memory, response, begun.command.clone());
+    core.settled = true;
+    core
 }
 
 /// The output of a kept node: `finish` on a settled `Cx` with the kept facts and no input.
-pub(crate) fn settle<C: Component>(component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, rect: Rect, tokens: &Tokens) -> C::Output {
+pub(crate) fn settle<C: Component>(component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, rect: Rect, begun: &Begun<C>, value: ValueStep<ValueOf<C>>) -> C::Output {
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
-    finish_settled(component, kept.id, rect, tokens, response, &mut kept.memory)
+    let resolved = begun.resolved(kept.id);
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1);
+    place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
+    finish_with(component, &mut core, &begun.style, value)
 }
 
 /// The output of a component a measuring run reached: `finish` on a settled `Cx` with no node
 /// behind it, so its response has no interaction state and logs no reads.
-pub(crate) fn finish_measured<C: Component>(component: C, id: Id, rect: Rect, tokens: &Tokens) -> C::Output {
-    let response = Response::new(id, rect, None, Interact::default(), false, InputFacts::default());
-    finish_settled(component, id, rect, tokens, response, &mut Memory::default())
+pub(crate) fn finish_measured<C: Component>(component: C, id: Id, rect: Rect, begun: &Begun<C>, value: ValueStep<ValueOf<C>>) -> C::Output {
+    let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
+    let resolved = begun.resolved(id);
+    let mut stage = MemoryStage::default();
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1);
+    core.rect = rect;
+    core.content_rect = rect;
+    core.visible = rect;
+    finish_with(component, &mut core, &begun.style, value)
 }
 
-fn finish_settled<C: Component>(mut component: C, id: Id, rect: Rect, tokens: &Tokens, response: Response, memory: &mut Memory) -> C::Output {
-    let shown = component.bind().and_then(|b| b.get());
-    let env = EnvSnapshot::default();
-    let rcx = Cx {
-        id,
-        rect,
-        tokens,
-        response,
-        input: &[],
-        parts: &[],
-        own: PartResult::IDLE,
-        memory,
-        edit: Edit { shown, events: EditEvents::new() },
-        swept: None,
-        settled: true,
-        env: &env,
-        level: Cell::new(None),
-        holds_escape: Cell::new(false),
-        intents: Intents::default(),
-        ime_cursor: Cell::new(None),
-    };
-    component.finish(&rcx)
+fn finish_with<'a, C: Component>(component: C, core: &'a mut CxCore<'a>, style: &'a C::Style, value: ValueStep<ValueOf<C>>) -> C::Output {
+    component.finish(Cx { core, style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok })
 }
 
-/// Runs the hooks after `measure`: parts, input, update and the binding's writes, paint variants,
-/// access, finish. The node's layout, paint and access run in this frame.
-pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ran: Ran<'_>) -> C::Output {
+/// The geometry fields of a core: the rect, the content rect inside the padding (mirrored for right
+/// to left) and the visible rect.
+fn place_core<C: Component>(core: &mut CxCore<'_>, component: &C, style: &C::Style, rect: Rect, resolved: &Resolved<'_>, rtl: bool) {
+    let flow = Geometry::new(rect, rtl && !resolved.ltr_axis);
+    core.rect = rect;
+    core.content_rect = flow.inset(steps::padding(component.padding(rect, style), resolved.pad));
+    core.flow = flow;
+    core.visible = rect;
+}
+
+/// Steps 7 to 17 after `measure` and the place. The node's layout, paint and access run in this
+/// frame.
+pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ran: Ran<'_, C>) -> C::Output {
     cx.count_run();
     cx.mark_changed();
     let node = cx.node();
-    let env = EnvSnapshot::peek(cx);
-    let sense = component.sense();
-    kept.cursor = component.cursor();
-    let shown = component.bind().and_then(|b| b.get());
-    let mut parts = Vec::new();
-    component
-        .parts(ran.rect, &mut PartsCx { tokens: ran.tokens, value: shown.as_ref().and_then(Mixed::same), origin: ran.rect.min, parts: &mut parts });
-    kept.parts = parts;
-    kept.sense = sense;
-    kept.sweep = ran.sweep;
-    kept.toggle = component.sweep_value();
+    let Ran { id, key, place, size, rect, tokens, sweep, begun, value, tip } = ran;
+    let resolved = begun.resolved(id);
+    let facts = begun.facts;
+    let style = &*begun.style;
+    let rtl = begun.env.direction.is_rtl() && !resolved.ltr_axis;
+    let board = cx.provided::<CommandBoard>().cloned();
+    // Interaction reads of the hooks below (a `Response` read in `update`, `parts` or `access`) are
+    // build reads of this node (contract-rt 15.6 rule 2). `finish`'s reads belong to the scope that
+    // shows the node, which reads its output.
+    let reads = response::begin_reads(false);
+
+    // 8 sense, from the queue the node's retained half filled since its last run.
     let input = std::mem::take(&mut kept.queue);
-    let (facts, dragging) = input_facts(&input, ran.rect.min, kept.dragging);
+    let (in_facts, dragging) = input_facts(&input, rect.min, kept.dragging);
     kept.dragging = dragging;
     let interact = cx.interaction(node);
-    let (own, results) = part_results(&kept.parts, sense, &input, ran.rect, interact.hovered);
-    let swept = match (kept.toggle, ran.sweep) {
+    let response = Response::new(id, rect, Some(node), interact, dragging, in_facts);
+    let cells = kept.memory.recall::<InboxCells>(sub(id, "inbox"));
+    let inbox = InboxIn::read(&cells, cx);
+    let stop = C::STOPS && steps::takes_focus(&resolved);
+    // Only a stop can hold focus, so only a stop reads it: a focus move reruns the stops it touches.
+    let focused = stop && cx.read_interaction(node, InteractFact::Focused);
+    let swept = match (component.sweep_value(), sweep) {
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
     };
-    let response = Response::new(ran.id, ran.rect, Some(node), interact, dragging, facts);
-    let intents = super::intents::of_queue(&input, || env.direction() == Direction::Rtl);
-    let mut rcx = Cx {
-        id: ran.id,
-        rect: ran.rect,
-        tokens: ran.tokens,
-        response,
-        input: &input,
-        parts: &results,
-        own,
-        memory: &mut kept.memory,
-        edit: Edit { shown, events: EditEvents::new() },
-        swept,
-        settled: false,
-        env: &env,
-        level: Cell::new(None),
-        holds_escape: Cell::new(false),
-        intents,
-        ime_cursor: Cell::new(None),
-    };
-    component.update(&mut rcx);
-    kept.ime.caret = rcx.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - ran.rect.min));
-    let wrote = !rcx.edit.events.is_empty();
-    if wrote && let Some(mut bind) = component.bind() {
-        for event in rcx.edit.events.iter() {
-            bind.apply(event);
-        }
+    let mut core = core_for(&begun.env, &resolved, &mut kept.memory, response, begun.step1.command.clone());
+    place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
+    core.inbox = inbox;
+    core.input = input;
+    core.swept = swept;
+    core.parted = true;
+    core.faded = facts.faded && !resolved.enabled;
+    core.focus = super::focus::facts(&kept.focus, focused, cx.interaction(node).focus_visible);
+    core.intents = super::intents::of_queue(&core.input, || rtl);
+    let mut cxx = Cx { core: &mut core, style, shown: value.value, mixed: value.mixed, events: value.cancelled.into_iter().collect(), applied: 0, validity: Validity::Ok };
+
+    // 7 parts: declared in node coordinates and kept as hit shapes until the next run.
+    let sense = own_sense(&component, &resolved);
+    let mut parts = steps::PartsStep::default();
+    if facts.parts {
+        let input = MeasureIn { env: &begun.env, proposal: Proposal::Ideal, room: Some(place.room.x), services: None };
+        steps::declare_parts(&mut component, &mut cxx, rect, &mut parts, &input);
     }
-    // `rcx` borrows `kept.memory`: the hooks below take Kept's other fields one by one.
-    overlay_pass(&mut component, OverlayUi::new(cx, ran.id, ran.rect, &mut kept.popups, true, ran.tokens.clone(), ran.sweep));
-    tip::show(&mut kept.tip, component.tooltip(), true, cx, ran.id, ran.rect, ran.tokens);
-    kept.drag = component.drag_source();
-    kept.drop = component.drop_target();
-    let stop = component.keys();
-    kept.focus.ring = stop.map(|_| craft_ui_rt::Stroke::new(ran.tokens.stroke.focus, ran.tokens.color.line.focus));
-    kept.focus.stop = stop;
+    kept.parts = steps::kept_parts(&parts, rect.min);
+    kept.sense = sense;
+    kept.sweep = sweep;
+    kept.toggle = component.sweep_value();
+    kept.cursor = component.cursor().map(Into::into);
+    let results = part_results(&kept.parts, &parts, sense, &cxx.core.input, rect, interact.hovered);
+    cxx.core.results = results.1;
+    cxx.core.press = results.0.press;
+    cxx.core.toggles = steps::toggles(&parts);
+    cxx.core.value_parts = steps::declared_with(&parts, |extras| extras.value);
+    cxx.core.state_layer_parts = steps::declared_with(&parts, |extras| extras.state_layer);
+    cxx.core.own_reset_parts = steps::declared_with(&parts, |extras| extras.own_reset);
+    cxx.core.focus_shapes = steps::focus_shapes(&parts);
+    cxx.core.active = cxx.core.focus.part.filter(|part| cxx.core.results.contains_key(&(part.key, part.index)));
+    cxx.core.activation = activation_of(&resolved, &cxx.core.input, sense);
+
+    // 9 update, then the stops it decides (a member that joins its body's roving group).
+    steps::gesture_gate(&component, &mut cxx);
+    steps::update_inputs(cxx.core);
+    steps::edit_intents(&mut component, &mut cxx);
+    steps::scrub_by_label(&component, &mut cxx);
+    component.update(&mut cxx);
+    steps::record_context(cxx.core);
+    let ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
+    kept.focus.ring = ring;
+    kept.focus.stop = stop.then(|| component.keys());
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
-    kept.focus.holds_escape = rcx.holds_escape.get();
+    kept.focus.holds_escape = cxx.core.holds_escape.get();
+    kept.ime.caret = cxx.core.ime_caret.get().map(|caret| caret.translate(Pos2::ZERO - rect.min));
+
+    // 10 overlay: the popups show their content as layer children of this node.
+    if facts.overlays {
+        let mut overlays = OverlayUi::new(cx, id, rect, &mut kept.popups, true, tokens.clone(), sweep);
+        component.overlay(&mut overlays, &mut cxx);
+    }
+
+    // 11 apply: the run's edits reach the binding, and the shown value follows.
+    steps::after_update(cxx.core);
+    let wrote = !steps::apply_values(&mut component, &mut cxx).is_empty();
+    steps::register_reset(&mut component, &cxx);
+
+    // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6).
+    let open = facts.overlays && kept.popups.any_open();
+    let (variants, values) = record_variants(&mut component, &mut cxx, cx, begun, sense, &kept.parts, open);
+    kept.variants = variants;
+    let _ = values;
+
+    // 15 settle: edits a paint adopted reach the binding; a reveal goes to the scroll owner.
+    let settled = steps::settle(&mut component, &mut cxx);
+    let wrote = wrote || !settled.is_empty();
+
+    // 16 report: the access node, once per run and only while the window's access tree is on, then
+    // the tooltip and the kept retained facts.
     kept.close_guard = component.close_guard();
-    kept.variants = record_variants(&mut component, &rcx, cx, sense);
-    // Nothing is built while the window's access tree is off; turning it on rebuilds every node.
-    let built = cx.access_enabled().then(|| {
-        let mut access = Access::default();
-        component.access(&mut access, &rcx);
-        access.finish(C::ROLE, sense)
-    });
-    let (access, subs) = built.flatten().map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
+    kept.drag = component.drag_source();
+    kept.drop = component.drop_target();
+    let built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, sense)).flatten();
+    let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
     kept.access = access;
     kept.access_subs = subs;
-    kept.id = ran.id;
-    kept.key = if wrote { component_key(&component) } else { ran.key };
-    kept.place = ran.place;
-    kept.size = ran.size;
-    // The size cache holds only this run's size (field access: `rcx` still borrows the memory).
-    kept.sizes.clear();
-    kept.sizes.push((ran.place.room, ran.size));
-    if let Some((target, spec)) = rcx.level.take() {
-        Level::aim(kept.level.get_mut(), target, spec);
+    tip::show(&mut kept.tip, tip_text(&resolved), true, cx, id, rect, tokens);
+    let _ = tip;
+    if let Some((target, spec)) = cxx.core.level.take() {
+        super::motion::Level::aim(kept.level.get_mut(), target, spec);
     }
-    let out = component.finish(&rcx);
-    env.register(cx);
+    response::end_reads(reads, cx);
+
+    // 17 finish: the activation fires the bound command once, at event time on the board's handler.
+    let activated = component.activated(&cxx) && resolved.enabled;
+    let injected = cxx.core.injected.take().filter(|_| resolved.enabled);
+    let changed = steps::value_changed(&cxx.events);
+    steps::before_finish(cxx.core, activated || injected.is_some(), injected, changed, board.as_ref(), cx);
+    let wants = std::mem::take(&mut cxx.core.inbox.wants);
+    kept.id = id;
+    kept.key = if wrote { component_key(&component) } else { key };
+    kept.place = place;
+    kept.size = size;
+    // The size cache holds only this run's size.
+    kept.sizes.clear();
+    kept.sizes.push((place.room, size));
+    let out = component.finish(cxx);
+    if let Some(board) = board {
+        register_inboxes(wants, id, &mut kept.memory, &board, cx.store_mut());
+    }
     out
+}
+
+/// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop
+/// and senses nothing else; one bound to an edit command keeps the focus where it is on a press.
+fn own_sense<C: Component>(component: &C, resolved: &Resolved<'_>) -> Sense {
+    let sense = component.sense();
+    match resolved.enabled {
+        true if resolved.command.is_some_and(|command| command.edit) => sense.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS),
+        true => sense,
+        false if steps::takes_focus(resolved) => Sense::HOVER | sense.intersection(Sense::FOCUS),
+        false => Sense::HOVER,
+    }
+}
+
+/// The activation of a run: a key or AccessKit activation, or a primary click; none for a component
+/// that takes none (read only, or no click sense).
+fn activation_of(resolved: &Resolved<'_>, input: &[NodeInput], sense: Sense) -> Option<Activation> {
+    if !steps::takes_activation(resolved) {
+        return None;
+    }
+    input.iter().rev().find_map(|i| match i {
+        NodeInput::Intent { intent: Intent::Activate, .. } => Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE }),
+        NodeInput::Access(a) if a.action == accesskit::Action::Click && a.sub.is_none() => Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE }),
+        NodeInput::Pointer { gesture: Gesture::Up { click: true, .. }, button: PointerButton::Primary, part: 0, mods, .. } if sense.takes_press() => {
+            Some(Activation { by_key: false, mods: *mods })
+        }
+        _ => None,
+    })
+}
+
+/// The tooltip text of `Common::tooltip`: its disabled text while the component is disabled.
+fn tip_text(resolved: &Resolved<'_>) -> Option<String> {
+    let tip = resolved.tooltip?;
+    let label = if resolved.enabled { &tip.text } else { tip.disabled_text.as_ref().unwrap_or(&tip.text) };
+    Some(label.as_str().to_owned()).filter(|text| !text.is_empty())
+}
+
+/// Step 16's access node: the label, description, value words and enabled and selected facts from
+/// the resolved props, then the component's own `access`. Built once per run.
+fn report<C: Component>(component: &C, cx: &Cx<'_, C>, resolved: &Resolved<'_>, sense: Sense) -> Option<super::access::Built> {
+    let Role::Node(role) = C::ROLE else { return None };
+    #[cfg(feature = "testing")]
+    crate::runtime::measure::count_access_build_rt();
+    let mut access = Access::default();
+    if component.shows_label() && !resolved.label.is_empty() {
+        access.label(resolved.label);
+    }
+    if let Some(description) = resolved.description {
+        access.description(description);
+    }
+    if let Some(words) = component.value_text(cx) {
+        access.value(words);
+    }
+    if let Some(key) = resolved.access_key {
+        access.access_key(key);
+    }
+    access.disabled(!resolved.enabled);
+    if let Some(selected) = resolved.selected {
+        access.selected(selected);
+    }
+    component.access(&mut access, cx);
+    access.finish(role, sense)
+}
+
+/// Runs the overlay and tooltip passes of a node that keeps its own outputs while a build reaches
+/// its layer children (a marked node under one of them, or a container whose body runs): the popups
+/// keep their bodies unless marked, and a popup that opened or closed here makes the node run in
+/// this frame.
+pub(crate) fn reach_layers<C: Component>(
+    component: &mut C,
+    kept: &mut Kept,
+    cx: &mut BuildCx<'_>,
+    rect: Rect,
+    begun: &Begun<C>,
+    tokens: &Arc<Tokens>,
+    sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
+) {
+    let id = kept.id;
+    if C::OVERLAYS {
+        let node = cx.node();
+        let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
+        let resolved = begun.resolved(id);
+        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1);
+        place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
+        let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
+        let mut overlays = OverlayUi::new(cx, id, rect, &mut kept.popups, false, tokens.clone(), sweep);
+        component.overlay(&mut overlays, &mut cxx);
+        if overlays.changed {
+            cx.rebuild();
+        }
+    }
+    tip::show(&mut kept.tip, None, false, cx, id, rect, tokens);
+}
+
+/// Steps 12 and 13 per pointer look: `Rest` always; `Hover` when the paint read `Hovered`; `Press`
+/// when it read `Pressed` and the node takes presses. During a look's recording the pointer facts
+/// answer that look's state. A paint that showed children records one look, with the current
+/// pointer state, and its pointer reads become build reads (15.6 rule 5).
+fn record_variants<C: Component>(
+    component: &mut C,
+    cxx: &mut Cx<'_, C>,
+    build: &mut BuildCx<'_>,
+    begun: &Begun<C>,
+    sense: Sense,
+    parts: &[KeptPart],
+    open: bool,
+) -> (SmallVec<[Variant; 1]>, AppValues) {
+    let node = build.node();
+    let now = build.interaction(node);
+    let takes_press = sense.takes_press() || parts.iter().any(|p| p.sense.takes_press());
+    let scale = build.scale();
+    let (text, images) = build.paint_services();
+    let services = FrameServices::new(text, images, scale);
+    let mut values = AppValues::default();
+    let mut paint_as = |look: Pointer, cxx: &mut Cx<'_, C>, values: &mut AppValues| {
+        let (hovered, pressed) = match look {
+            Pointer::Rest => (false, false),
+            Pointer::Hover => (true, false),
+            Pointer::Press => (true, true),
+        };
+        let ((variant, children), read) = crate::style::pointer_reads(|| {
+            steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
+            let canvas = Canvas::new(&services, cxx.core.rect.min, Rect::EVERYTHING);
+            let fade = steps::fade(&begun.env, cxx.core);
+            if let Some(items) = steps::surface_items(&begun.env, cxx.core, &*begun.style, scale) {
+                canvas.extend(items);
+            }
+            steps::paint_part_layers(&canvas, &begun.env, cxx.core);
+            component.paint(&mut paint_ui(&canvas, &begun.env, cxx.core, &*begun.style, look), cxx);
+            if look == Pointer::Rest {
+                component.content_env(cxx, values);
+            }
+            component.paint_over(&mut paint_ui(&canvas, &begun.env, cxx.core, &*begun.style, look), cxx);
+            steps::unfade(&canvas, cxx.core, fade);
+            let children = cxx.core.paint.borrow().children_shown;
+            let (content, overlay) = canvas.finish();
+            (Variant { look, content, overlay }, children)
+        });
+        (variant, children, read)
+    };
+    let mut out = SmallVec::new();
+    let (rest, children, read) = paint_as(Pointer::Rest, cxx, &mut values);
+    if children {
+        // Children are reconciled once, in the first recording; the node keeps one look, recorded in
+        // the current pointer state, and reruns when a pointer fact its paint read flips.
+        let look = if now.pressed && read.press {
+            Pointer::Press
+        } else if now.hovered && read.hover {
+            Pointer::Hover
+        } else {
+            Pointer::Rest
+        };
+        let shown = if look == Pointer::Rest { rest } else { paint_as(look, cxx, &mut values).0 };
+        out.push(Variant { look: Pointer::Rest, ..shown });
+    } else {
+        out.push(rest);
+        if read.hover {
+            out.push(paint_as(Pointer::Hover, cxx, &mut values).0);
+        }
+        if read.press && takes_press {
+            out.push(paint_as(Pointer::Press, cxx, &mut values).0);
+        }
+    }
+    drop(paint_as);
+    drop(services);
+    if children {
+        if read.hover {
+            build.read_interaction(node, InteractFact::Hovered);
+        }
+        if read.press {
+            build.read_interaction(node, InteractFact::Pressed);
+        }
+    }
+    (out, values)
 }
 
 /// The response's input facts from a run's queue, and whether a drag of the node's press runs after
@@ -745,6 +545,10 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
             }
             NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
             NodeInput::Intent { intent: Intent::Activate, .. } => facts.clicked = true,
+            NodeInput::Focus(gained) => {
+                facts.gained_focus |= *gained;
+                facts.lost_focus |= !*gained;
+            }
             _ => {}
         }
     }
@@ -753,7 +557,14 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
 
 /// The press of the node's own shape and of each declared part, folded from the run's queue: the
 /// last phase on it, drag moves summed. Positions are window coordinates.
-fn part_results(parts: &[KeptPart], sense: Sense, input: &[NodeInput], rect: Rect, hovered: bool) -> (PartResult, Vec<(PartRef, PartResult)>) {
+fn part_results(
+    kept: &[KeptPart],
+    parts: &steps::PartsStep,
+    sense: Sense,
+    input: &[NodeInput],
+    rect: Rect,
+    hovered: bool,
+) -> (PartResult, crate::contract::cx::PartResults) {
     let press_of = |id: u64| {
         let mut state = PressState::IDLE;
         for i in input {
@@ -777,10 +588,12 @@ fn part_results(parts: &[KeptPart], sense: Sense, input: &[NodeInput], rect: Rec
         state
     };
     let own = PartResult { rect, press: press_of(0), hovered, sense, ..PartResult::IDLE };
-    let results = parts
+    let results = kept
         .iter()
         .map(|p| {
-            (p.part, PartResult { rect: bounds(p.shape).translate(rect.min.to_vec2()), press: press_of(p.id), sense: p.sense, ..PartResult::IDLE })
+            let inactive = steps::inactive(parts, p.part);
+            let result = PartResult { rect: bounds(p.shape).translate(rect.min.to_vec2()), press: press_of(p.id), sense: p.sense, inactive, ..PartResult::IDLE };
+            ((p.part.key, p.part.index), result)
         })
         .collect();
     (own, results)
@@ -793,68 +606,27 @@ fn drag_delta(phase: PressPhase) -> Vec2 {
     }
 }
 
-/// Runs the component's `overlay` hook over its kept popups. Returns whether a popup opened or
-/// closed.
-pub(crate) fn overlay_pass<C: Component>(component: &mut C, mut ui: OverlayUi<'_, '_>) -> bool {
-    component.overlay(&mut ui);
-    ui.changed
+fn bounds(shape: HitShape) -> Rect {
+    match shape {
+        HitShape::Rect(r) | HitShape::RoundedRect(r, _) => r,
+        HitShape::Circle(c, radius) => Rect::from_center_size(c, Vec2::splat(2.0 * radius)),
+    }
 }
 
-/// The overlay and tooltip passes of a node that keeps its own outputs while a build reaches its
-/// layer children (a marked node under one of them, or a container whose body runs): the popups
-/// keep their bodies unless marked, and a popup that opened or closed here makes the node run in
-/// this frame.
-pub(crate) fn reach_layers<C: Component>(
-    component: &mut C,
-    kept: &mut Kept,
-    cx: &mut BuildCx<'_>,
-    rect: Rect,
-    tokens: &Arc<Tokens>,
-    sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
-) {
-    let id = kept.id;
-    if overlay_pass(component, OverlayUi::new(cx, id, rect, &mut kept.popups, false, tokens.clone(), sweep)) {
-        cx.rebuild();
-    }
-    tip::show(&mut kept.tip, None, false, cx, id, rect, tokens);
+/// The ui-rt part id of a declared part (re-exported for the parts step).
+pub(crate) fn kept_part_id(part: PartRef) -> u64 {
+    part_id(part)
 }
 
-/// One paint, then one per further pointer state when the paint read it (`Press` only for a
-/// component that takes presses).
-fn record_variants<C: Component>(component: &mut C, cx: &Cx<'_, C>, build: &mut BuildCx<'_>, sense: Sense) -> SmallVec<[Variant; 1]> {
-    let scale = build.scale();
-    let (text, images) = build.paint_services();
-    let services = FrameServices::new(text, images, scale);
-    let ui_tokens = UiTokens::new(Arc::new(cx.tokens.clone()), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
-    let mut paint_as = |look: Pointer| {
-        let canvas = Canvas::new(&services, cx.rect.min, Rect::EVERYTHING);
-        let record = RefCell::new(PaintRecord::default());
-        let p = Paint {
-            tokens: cx.tokens,
-            rect: cx.rect,
-            pointer: look,
-            read: Cell::new(false),
-            canvas: &canvas,
-            record: &record,
-            ui_tokens: &ui_tokens,
-            env: cx.env,
-        };
-        component.paint(&p, cx);
-        let read = p.read.get();
-        if record.borrow().direction_read {
-            cx.env.mark_direction();
-        }
-        let (content, overlay) = canvas.finish();
-        (Variant { look, content, overlay }, read)
-    };
-    let (rest, read) = paint_as(Pointer::Rest);
-    let mut out = SmallVec::new();
-    out.push(rest);
-    if read {
-        out.push(paint_as(Pointer::Hover).0);
-        if sense.takes_press() {
-            out.push(paint_as(Pointer::Press).0);
-        }
+/// Fires `command` from code (`Cx::fire`, `Ui::fire`): the board runs its handler at once.
+pub(crate) fn fire(board: &CommandBoard, cx: &mut BuildCx<'_>, fired: &crate::runtime::commands::Fired) -> bool {
+    board.run(fired, cx.store_mut())
+}
+
+/// The source a component's own activation fires its bound command with.
+pub(crate) fn activation_source(activation: Option<Activation>) -> FireSource {
+    match activation {
+        Some(Activation { by_key: true, .. }) => FireSource::Key,
+        _ => FireSource::Component,
     }
-    out
 }
