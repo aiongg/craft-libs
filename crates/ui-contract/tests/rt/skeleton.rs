@@ -55,7 +55,7 @@ impl Component for IconButton {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS
     }
 
     /// The look follows the pointer through the state step: a hover and a press fill.

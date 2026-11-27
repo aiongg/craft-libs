@@ -8,6 +8,7 @@ use craft_ui_contract::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, MemoKey, MemoProps, MemoView, PartsCx, Response, Role, Show, Ui,
 };
 use craft_ui_contract::primitives::{TextKey, TextOptions};
+use craft_ui_contract::runtime::commands::{CommandBoard, EditCommands, linked_keymap};
 use craft_ui_contract::style::StyleCx;
 use craft_ui_contract::testing::Harness;
 use craft_ui_rt::{Key, Mods, Rect, Sense, Vec2};
@@ -118,6 +119,15 @@ impl Component for TextField<'_> {
     }
 }
 
+/// A harness of `view` with the window's commands and the linked edit commands, on Linux's chords; the harness runs
+/// on Linux to match, so the edit chords a trial presses do not depend on the host.
+pub(crate) fn edit_harness(view: impl FnMut(&mut Ui<'_, '_>) + 'static) -> Harness<()> {
+    let keymap = linked_keymap(false, craft_keymap::Platform::Linux).expect("the linked command sets are valid");
+    let mut h = Harness::builder().with_commands(CommandBoard::new(keymap).with_edits::<EditCommands>()).build_ui(view);
+    h.os(craft_host::target::Os::Linux);
+    h
+}
+
 /// The field's view: keyed by the text it edits and its masking; it counts its runs.
 struct FieldView<'a> {
     value: &'a mut String,
@@ -163,7 +173,7 @@ fn window(password: bool) -> Window {
     let text = Rc::new(RefCell::new(String::new()));
     let (field_runs, other_runs, field) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)), Rc::new(Cell::new(Rect::NOTHING)));
     let (t, fr, or, f) = (Rc::clone(&text), Rc::clone(&field_runs), Rc::clone(&other_runs), Rc::clone(&field));
-    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+    let mut h = edit_harness(move |ui: &mut Ui<'_, '_>| {
         let mut value = t.borrow().clone();
         let props = FieldView { value: &mut value, password, runs: Rc::clone(&fr) };
         f.set(MemoView::new("field", props, field_view).show(ui).expect("in view").value);
@@ -209,7 +219,7 @@ fn a_caret_blink_repaints_and_builds_nothing() {
 fn paste_reaches_the_field_through_the_platform_clipboard() {
     let mut w = window(false);
     w.h.driver.platform.set_clipboard_text("pasted\ntext");
-    w.h.key(Key::V, Mods { cmd: true, ..Mods::NONE });
+    w.h.key(Key::V, Mods { ctrl: true, ..Mods::NONE });
     w.h.run();
     assert_eq!(*w.text.borrow(), "pasted text", "a single line pastes the clipboard's text, its line break a space");
 }
@@ -375,7 +385,7 @@ fn f10_focuses_the_menu_bar_and_escape_gives_the_field_back_its_selection() {
     let text = Rc::new(RefCell::new(String::from("word")));
     let keys = Rc::new(Cell::new(0));
     let (t, k) = (Rc::clone(&text), Rc::clone(&keys));
-    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+    let mut h = edit_harness(move |ui: &mut Ui<'_, '_>| {
         Bar { common: Common::new(), keys: Rc::clone(&k) }.show(ui);
         let mut value = t.borrow().clone();
         TextField::new(Bind::bound(&mut value)).show(ui);
@@ -385,7 +395,7 @@ fn f10_focuses_the_menu_bar_and_escape_gives_the_field_back_its_selection() {
     h.key_press(Key::Tab);
     h.key_press(Key::Tab);
     h.run();
-    h.key(Key::A, Mods { cmd: true, ..Mods::NONE });
+    h.key(Key::A, Mods { ctrl: true, ..Mods::NONE });
     h.run();
     let field = h.focused().expect("the field holds the focus");
     h.key_press(Key::F10);

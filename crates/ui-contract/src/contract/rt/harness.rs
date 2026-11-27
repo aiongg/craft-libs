@@ -467,7 +467,8 @@ impl<S, R: Renderer> Harness<S, R> {
 
     /// Every node of the access tree with a role or a name, in tree order.
     pub fn nodes(&self) -> Vec<Target> {
-        let focus = self.driver.platform.updates_for(self.window).last().map(|u| u.focus);
+        // The access tree names the window as focused when no node is: that is no focus here.
+        let focus = self.driver.runtime.focused(self.window).and(self.driver.platform.updates_for(self.window).last().map(|u| u.focus));
         self.driver
             .runtime
             .access_snapshot(self.window)
@@ -920,7 +921,7 @@ impl<S, R: Renderer> Harness<S, R> {
     }
 
     fn nodes_of(&self, keep: impl Fn(&craft_ui_rt::AccessEntry<'_>) -> bool) -> Vec<Target> {
-        let focus = self.driver.platform.updates_for(self.window).last().map(|update| update.focus);
+        let focus = self.driver.runtime.focused(self.window).and(self.driver.platform.updates_for(self.window).last().map(|update| update.focus));
         self.driver
             .runtime
             .access_snapshot(self.window)

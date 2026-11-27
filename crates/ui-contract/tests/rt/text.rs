@@ -365,7 +365,7 @@ impl Component for Words {
 fn words() -> (Harness<()>, Rc<Cell<Rect>>) {
     let rect = Rc::new(Cell::new(Rect::NOTHING));
     let r = Rc::clone(&rect);
-    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| r.set(Words { common: Common::new() }.show(ui).rect));
+    let mut h = crate::text_field::edit_harness(move |ui: &mut Ui<'_, '_>| r.set(Words { common: Common::new() }.show(ui).rect));
     h.run();
     (h, rect)
 }
