@@ -487,7 +487,7 @@ fn split_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 fn open_menu(fixture: &mut Harness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(SplitButton<'static, u8>, covers = [Open], drive = Drive::Custom(open_menu))]

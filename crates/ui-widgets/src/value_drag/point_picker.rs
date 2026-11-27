@@ -365,7 +365,7 @@ fn with_axis(value: &[Mixed<f64>; 2], axis: usize, to: f64) -> [Mixed<f64>; 2] {
 impl Component for PointPicker<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    const KEYS: KeyUse = KeyUse { activate: ActivateKeys::Neither, ..KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows) };
     const DISABLED: DisabledLook = DisabledLook::Faded;
     type Style = PointPickerStyle;
     type Output = EditResponse<[Mixed<f64>; 2]>;

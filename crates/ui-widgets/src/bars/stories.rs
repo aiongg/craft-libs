@@ -214,7 +214,7 @@ fn bar_items(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn open_overflow(fixture: &mut Harness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.key(Key::End, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(BarItems, covers = [Open], drive = Drive::Custom(open_overflow))]

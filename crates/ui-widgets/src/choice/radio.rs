@@ -123,7 +123,7 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
         let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().live));
         // Step 13 runs right before the body: the members the body shows register again, and a pass that runs no
         // body leaves the registrations of the last one. A measuring run registers no member, so it leaves them too.
-        if !crate::runtime::measure::active(&cx.core.ctx) {
+        if !cx.is_measuring() {
             handle.begin_registration();
         }
         values.set(handle);

@@ -264,7 +264,7 @@ impl ListRow<'_> {
                 cell: if cells { crate::runtime::access::sub_node_id(id, TOGGLE_CELL.at(at as u64)) } else { id },
             })
             .collect();
-        crate::contract::put_toggle_names(cx.ui.ctx(), cx.resolved.id, names);
+        crate::contract::put_toggle_names(cx.context(), cx.resolved.id, names);
     }
 
     /// How the wrapped lines fit: all of them, or cut after `line_limit`.

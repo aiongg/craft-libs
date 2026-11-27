@@ -20,7 +20,7 @@ const NARROW: f32 = 160.0;
 
 fn open_hidden(fixture: &mut Harness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(BreadcrumbBar<'static, u8>, covers = [Open], drive = Drive::Custom(open_hidden))]

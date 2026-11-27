@@ -635,7 +635,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// in view, and the end gap with the last tile in view. The gaps are named by display position, so rows scrolled
     /// out of view change no position.
     fn place_gaps(&mut self, clip: Rect, cx: &mut PartsCx<'_, Self>) {
-        let dragging = crate::runtime::drag::active::<ListDrag<K>>(cx.ui.ctx()).is_some_and(|drag| drag.list == cx.id);
+        let dragging = cx.dragging::<ListDrag<K>>().is_some_and(|(drag, _)| drag.list == cx.id);
         if self.insert_gaps.is_none() || dragging {
             return;
         }
@@ -788,7 +788,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 cx.claim(chord);
                 while cx.take_claimed(chord) {
                     self.step_zoom(&label, |value, steps| steps.step(value, step));
-                    self.chord_at = crate::runtime::pointer::frame(&cx.core.ctx).pos;
+                    self.chord_at = cx.pointer().pos;
                 }
             }
         }
@@ -806,7 +806,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             if let Some(result) = cx.part_if_declared(part)
                 && let PressPhase::Release { start, click: true, .. } = result.press.phase
             {
-                let mods = crate::runtime::pointer::frame(&cx.core.ctx).pick_mods;
+                let mods = cx.context().modifiers();
                 self.events.push(match start.button {
                     PointerButton::Secondary => {
                         GridEvent::GroupMenu { group, at: if cx.flow.is_rtl() { rect.right_bottom() } else { rect.left_bottom() } }
@@ -951,7 +951,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         }
         let mut events = self.events;
         // Only a pass with events reads the pointer, so a pass without one does not depend on it.
-        let mods = if response.events.is_empty() { Mods::NONE } else { crate::runtime::pointer::frame(&cx.core.ctx).pick_mods };
+        let mods = if response.events.is_empty() { Mods::NONE } else { cx.context().modifiers() };
         let group_of = |key: &K| self.groups.iter().position(|group| group.key == *key);
         let is_tail = |key: &K| self.tail.iter().any(|row| row.key == *key);
         let mut kept = Vec::with_capacity(response.events.len());

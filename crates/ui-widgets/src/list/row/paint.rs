@@ -27,7 +27,7 @@ impl ListRow<'_> {
             || cx.response.hovered()
             || selected
             || menu_open
-            || cx.part_state(key).flags.contains(Flags::FOCUSED)
+            || cx.part_state(key).has(Flags::FOCUSED)
             || item_part_open(cx.context(), cx.id, key)
     }
 
@@ -411,7 +411,7 @@ fn split_field_text(room: Rect, rtl: bool, text_width: f32, gap: f32) -> (Rect, 
 fn glyph_ink(cx: &Cx<'_, ListRow<'_>>, part: PartRef, on: bool) -> StyleColor {
     let (row, cell) = (cx.state(), cx.part_state(part));
     let look = if on { &cx.style.toggle } else { &cx.style.toggle_off };
-    StateSet::new(cell.state, row.flags, StateMix::new(cell.t.hover, cell.t.press, row.t.on)).resolve(&look.color)
+    StateSet::new(cell.state, row.flags(), StateMix::new(cell.t.hover, cell.t.press, row.t.on)).resolve(&look.color)
 }
 
 /// The down-right clipping mark: a stem down from the top, then a leg toward the reading end with an arrowhead.

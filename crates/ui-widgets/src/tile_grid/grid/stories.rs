@@ -174,7 +174,7 @@ fn tile_grid_rule_heads(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 /// Focuses the grid and steps its zoom in.
 fn zoom_in(fixture: &mut Harness) {
     fixture.key(Key::Tab, Mods::NONE).idle(1);
-    fixture.key(Key::Equals, Mods::COMMAND).idle(2);
+    fixture.key(Key::Equals, Mods::CMD).idle(2);
 }
 
 /// A zoom the grid steps itself: Cmd/Ctrl + = / - / 0 and Ctrl/Cmd with the wheel, keeping the tile under the pointer

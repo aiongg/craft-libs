@@ -172,7 +172,7 @@ impl Component for ToggleButton<'_> {
 
     fn keys(&self) -> KeyUse {
         let armed = self.escape_disarms && self.value.as_ref().is_some_and(|value| value.holds(&true));
-        if armed { Self::KEYS.with_claims(ESCAPE) } else { Self::KEYS }
+        if armed { KeyUse { claims: ESCAPE, ..Self::KEYS } } else { Self::KEYS }
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {

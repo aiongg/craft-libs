@@ -6,7 +6,6 @@ use crate::contract::{
     Pad, PaintUi, PartsCx, Pointer as _, Politeness, Props as _, Remember as _, Role, ShowContainer, Sizing, WindowDropTarget, WordSetCx as _,
 };
 use crate::display::Text;
-use crate::runtime::drag;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, Insets, Stateful, StyleCx, SurfaceKind, SurfaceLook, TypeRole, UiTokens};
 use craft_behavior::{Metrics, Proposal, Sense};
@@ -218,7 +217,7 @@ impl Component for DropVeil {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        let held = drag::active::<OsFiles>(cx.ui.ctx()).is_some_and(|files| !files.files.is_empty());
+        let held = cx.dragging::<OsFiles>().is_some_and(|(files, _)| !files.files.is_empty());
         self.card = held.then(|| {
             let size = cx.child("card", &mut VeilCard::new(cx.label()), Proposal::Width(rect.width()));
             Rect::from_center_size(rect.center(), size)
@@ -226,13 +225,13 @@ impl Component for DropVeil {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let held = drag::active::<OsFiles>(cx.context()).is_some_and(|files| !files.files.is_empty());
+        let held = cx.dragging::<OsFiles>().is_some_and(|(files, _)| !files.files.is_empty());
         let target = WholeWindow::new(cx.rect);
         let target = if self.positional { target.positional() } else { target };
-        let (id, ordinal) = (cx.id, drag::next_ordinal(cx.context(), cx.id));
         let dropped = cx.window_drop_target::<OsFiles, _>(&target);
         // The veil shows only while it is the target that would take the drop.
-        self.hovering = held && dropped.is_none() && drag::winning(cx.context(), id, ordinal);
+        // REQUEST (P1a): `Cx::drag_winning(owner, ordinal)` (15.9 `drag_ordinal`/`drag_winning`) to pick the veil of the target that takes the drop.
+        self.hovering = held && dropped.is_none();
         *self.dropped.lock().unwrap_or_else(PoisonError::into_inner) = dropped;
         let announced = cx.memory::<Announced>();
         let first = self.hovering && !announced.0;

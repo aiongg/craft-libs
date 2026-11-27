@@ -124,7 +124,7 @@ impl Component for ListRow<'_> {
         self.adopt_facts(&cx.env, cx.resolved.id);
         let sizes = &cx.style.sizes;
         if self.separator {
-            return Vec2::new(0.0, cx.style.separator.height(cx.ui.ctx().pixels_per_point()));
+            return Vec2::new(0.0, cx.style.separator.height(cx.env.scale().0));
         }
         if self.spacer {
             return Vec2::ZERO;
@@ -161,7 +161,7 @@ impl Component for ListRow<'_> {
         // A document label is laid out as it paints, at the document's size; its colour does not change its size.
         let document = self.document_run(cx.resolved.label, craft_ui::Color32::PLACEHOLDER).map(|run| {
             let runs = [run];
-            DocText::new(&runs).layout(cx.ui.ctx(), cx.tokens, cx.env.text_direction()).size()
+            cx.layout_doc(&DocText::new(&runs)).size()
         });
         let detail = if self.detail_line() { sizes.detail_line } else { 0.0 };
         let text = sizes.label_line + detail + self.progress_line(sizes) + wrapped + self.below_height(sizes);
@@ -371,7 +371,7 @@ impl Component for ListRow<'_> {
                 && start.button == PointerButton::Primary
             {
                 let preview = DragPreview::frame(self.thumb_size(&cx.style.sizes), None);
-                crate::runtime::drag::start(cx.context(), cx.id, &cx.env, payload.clone(), Vec::new(), preview);
+                cx.start_drag(payload.clone(), preview);
                 self.event = Some(RowEvent::PartDrag(RowDragSpot::Thumb(target)));
             } else if let Some(source) = cx.part_activated(target.part()) {
                 let clicks = part_clicks(source, phase);
@@ -398,7 +398,7 @@ impl Component for ListRow<'_> {
                     && matches!(result.press.phase, PressPhase::DragStart { start, .. } if start.button == PointerButton::Primary)
                 {
                     let preview = DragPreview::frame(result.rect.size(), None);
-                    crate::runtime::drag::start(cx.context(), cx.id, &cx.env, payload.clone(), Vec::new(), preview);
+                    cx.start_drag(payload.clone(), preview);
                     self.event = Some(RowEvent::PartDrag(RowDragSpot::Trailing(*part)));
                 }
                 continue;
@@ -811,7 +811,7 @@ impl ListRow<'_> {
                         Some(tip) => cx.env.resolve(tip).as_str().to_owned(),
                         None => named(toggle.name_pattern(&cx.words::<ListWords>()), cx.resolved.label),
                     };
-                    Some(Label::from(crate::contract::tooltip::with_chord(&base, &chord, cx.ui.ctx().os())))
+                    Some(Label::from(crate::contract::tooltip::with_chord(&base, &chord, cx.context().os())))
                 }
                 (None, None) => None,
             };
