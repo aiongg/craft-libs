@@ -19,50 +19,10 @@ type StartIndex = fn(&Context);
 /// What a context remembers of the stack installed in it and of the font definitions it was given last.
 #[derive(Default)]
 struct State {
-    /// The facts of the definitions given last ([`record_facts`]).
-    facts: StackFacts,
     /// The provider that serves the stack's faces after the system fonts, swapped in place by every install.
     installed: Option<Arc<Installed>>,
     /// A stack installed before the OS face resolved, to install again with it.
     pending: Option<Stack>,
-}
-
-/// The size, in points, at which the leading face's line height is measured. Large, so the pixel rounding of a row
-/// height is negligible in the ratio.
-const LINE_PROBE_SIZE: f32 = 100.0;
-
-/// What text layout and control sizing read of the font definitions a context was given last ([`crate::fonts::load`],
-/// which a stack's install calls), read once per layout or pass.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[doc(hidden)]
-pub struct StackFacts {
-    /// Whether the OS's interface face draws in the proportional family ([`craft_theme::InterfaceFont::System`], once
-    /// the face resolved).
-    pub system_ui: bool,
-    /// Whether the semibold family ([`SEMIBOLD`]) exists.
-    pub semibold: bool,
-    /// Whether the tab-title family ([`TAB_TITLE`]) exists.
-    pub tab_title: bool,
-    /// The line height per point of text of the face that leads the proportional family; 0 before a stack installs.
-    pub line_ratio: f32,
-}
-
-/// The facts of the font definitions `ctx` was given last.
-pub(crate) fn stack_facts(ctx: &Context) -> StackFacts {
-    memory::with::<State, _>(ctx, |state| state.facts)
-}
-
-/// Records the facts of `definitions`, which `ctx` is given now: `providers` serve the characters their faces lack, to
-/// the probe that measures the line ratio.
-pub(in crate::fonts) fn record_facts(ctx: &Context, definitions: &FontDefinitions, providers: Vec<Arc<dyn FontProvider>>) {
-    let proportional = definitions.families.get(&FontFamily::Proportional).map(Vec::as_slice).unwrap_or_default();
-    let facts = StackFacts {
-        system_ui: proportional.iter().any(|name| name == SYSTEM_UI_REGULAR) && definitions.font_data.contains_key(SYSTEM_UI_REGULAR),
-        semibold: definitions.families.contains_key(&FontFamily::Name(SEMIBOLD.into())),
-        tab_title: definitions.families.contains_key(&FontFamily::Name(TAB_TITLE.into())),
-        line_ratio: GlyphProbe::new(definitions.clone(), providers).row_height(&FontRef::proportional(), LINE_PROBE_SIZE) / LINE_PROBE_SIZE,
-    };
-    memory::with::<State, _>(ctx, |state| state.facts = facts);
 }
 
 /// Installs the stack kept for `ctx` once the OS face has resolved: the first pass after it resolves.

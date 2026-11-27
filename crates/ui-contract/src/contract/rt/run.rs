@@ -115,8 +115,9 @@ impl<'b, 'c> RunHost<'b, 'c> {
 
     fn services<R>(&self, f: impl FnOnce(&FrameServices<'_>) -> R) -> R {
         let mut cx = self.cx.borrow_mut();
+        let fonts = crate::fonts::stack_facts(&mut cx);
         let (text, images) = cx.paint_services();
-        f(&FrameServices::new(text, images, self.scale))
+        f(&FrameServices::new(text, images, self.scale, fonts))
     }
 }
 

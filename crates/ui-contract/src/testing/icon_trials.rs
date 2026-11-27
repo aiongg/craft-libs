@@ -137,7 +137,7 @@ impl TextEngine for Spy {
 fn recorded(paint: impl FnOnce(&Canvas<'_>)) -> (Vec<Item>, Vec<RichText>) {
     let (mut store, mut spy) = (ImageStore::default(), Spy::default());
     let items = {
-        let services = FrameServices::new(Some(&mut spy), &mut store, 1.0);
+        let services = FrameServices::new(Some(&mut spy), &mut store, 1.0, Default::default());
         let canvas = Canvas::new(&services, Pos2::ZERO, Rect::EVERYTHING);
         paint(&canvas);
         let (content, overlay) = canvas.finish();

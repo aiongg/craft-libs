@@ -230,11 +230,28 @@ pub struct FixedLayout {
 }
 
 /// Every character advances half the font size; lines are the line height (1.25 x size when the
-/// spec has none). One line unless the spec wraps.
+/// spec has none). One line unless the spec wraps. A stack it is given changes no metric; it is
+/// kept and counted, as a real engine keeps it.
 #[derive(Default)]
-pub struct FixedText;
+pub struct FixedText {
+    stack: Option<crate::text::FontStack>,
+    stack_generation: u64,
+}
 
 impl TextEngine for FixedText {
+    fn set_stack(&mut self, stack: &crate::text::FontStack) {
+        self.stack = Some(stack.clone());
+        self.stack_generation += 1;
+    }
+
+    fn stack_generation(&self) -> u64 {
+        self.stack_generation
+    }
+
+    fn stack(&self) -> Option<&crate::text::FontStack> {
+        self.stack.as_ref()
+    }
+
     fn layout(&mut self, spec: &TextSpec, _scale: f32) -> TextLayout {
         let size = spec.font.size;
         let advance = size * 0.5;

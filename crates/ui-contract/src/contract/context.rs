@@ -525,6 +525,7 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cells.motion.get(cx);
                 cells.frame.get(cx);
                 cells.root.get(cx);
+                cells.fonts.get(cx);
                 scale.get(cx);
             }
             CellRead::Wake(after) => wake = Some(wake.map_or(after, |w| w.min(after))),

@@ -123,20 +123,32 @@ impl BuildCx<'_> {
     }
 
     /// The frame's text engine; `None` outside an inline root (an element's own build measures
-    /// text in layout).
+    /// text in layout). Lending it records a read of the font stack's generation, so a stack
+    /// change runs the node again.
     pub fn text_engine(&mut self) -> Option<&mut dyn TextEngine> {
+        self.read_text_stack();
         self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t })
     }
 
     /// Shapes `text` at the window's scale with the frame's engine; `None` outside an inline root.
     pub fn text_layout_rich(&mut self, text: &RichText) -> Option<TextLayout> {
         let scale = self.scale();
+        self.read_text_stack();
         Some(self.text.as_deref_mut()?.layout_rich(text, scale))
     }
 
+    fn read_text_stack(&mut self) {
+        if self.text.is_some() {
+            let stack = self.env().text_stack;
+            stack.get(self);
+        }
+    }
+
     /// The text engine and the image store together, for code that lays out text and registers
-    /// images while it records a paint (a component's run).
+    /// images while it records a paint (a component's run). Lending the engine records a read of
+    /// the font stack's generation, as [`Self::text_engine`] does.
     pub fn paint_services(&mut self) -> (Option<&mut dyn TextEngine>, &mut crate::display::ImageStore) {
+        self.read_text_stack();
         (self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t }), &mut self.rt.images)
     }
 

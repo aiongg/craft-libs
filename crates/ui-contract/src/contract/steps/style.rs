@@ -19,8 +19,9 @@ pub(crate) fn style<C: Component>(cx: &mut BuildCx<'_>, ctx: &Context, scx: &Sty
     let caches = cx.provided::<StyleCaches>();
     // Peeked: the env read that gave the style its key already tracks the scale.
     let scale = *cx.peek_state(cx.env().scale);
+    let fonts = crate::fonts::stack_facts(cx);
     let (text, images) = cx.paint_services();
-    let services = crate::primitives::FrameServices::new(text, images, scale);
+    let services = crate::primitives::FrameServices::new(text, images, scale, fonts);
     let scx = scx.with_services(&services);
     let style = match &caches {
         Some(caches) => resolve_style(&scx.with_caches(caches), key, caches, C::style),

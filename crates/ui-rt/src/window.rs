@@ -35,6 +35,9 @@ pub struct Env {
     /// Moves on every [`crate::PlatformEvent::Wake`]: a node that drains a background job's
     /// channel reads it in build and reruns when the job wakes the loop.
     pub wakes: State<u64>,
+    /// The text engine's [`crate::TextEngine::stack_generation`], the same cell in every window:
+    /// a node that laid text out reads it and runs again when the font stack changes.
+    pub text_stack: State<u64>,
     /// The running drag ([`DragInfo`]), the same cell in every window: a dock shows its drop
     /// zones while a panel drag runs.
     pub drag: State<Option<DragInfo>>,

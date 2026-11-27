@@ -15,7 +15,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use craft_theme::{FontSlot, Rgba};
-use craft_ui_rt::{Overflow, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text};
+use craft_ui_rt::{FaceInstall, FontFace as StackFamily, FontStack, Overflow, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text};
 use emath::{Pos2, Rect, pos2, vec2};
 use skia_safe::font_style::{Slant, Weight, Width};
 use skia_safe::textlayout::{
@@ -65,8 +65,12 @@ pub struct SkiaText {
     mgr: FontMgr,
     /// Registered families that follow the primary family in every style, in order.
     fallback: Vec<String>,
-    /// The families `install_face` added.
-    installed: std::collections::HashSet<String>,
+    /// The faces `install_face` added, registered again over every new stack.
+    installed: Vec<FaceInstall>,
+    /// The stack `set_stack` gave last, and how many it gave. With a stack, each slot sets in its
+    /// family's faces, each registered under its own name.
+    stack: Option<FontStack>,
+    stack_generation: u64,
 }
 
 impl Default for SkiaText {
@@ -95,7 +99,9 @@ impl SkiaText {
             provider: TypefaceFontProvider::new(),
             mgr,
             fallback: Vec::new(),
-            installed: Default::default(),
+            installed: Vec::new(),
+            stack: None,
+            stack_generation: 0,
         };
         for bytes in [INTER_REGULAR, INTER_SEMIBOLD] {
             text.add(UI_FAMILY, bytes);
@@ -122,11 +128,19 @@ impl SkiaText {
     }
 
     fn add(&mut self, family: &str, bytes: &[u8]) {
-        match self.mgr.new_from_data(Data::new_copy(bytes), None) {
+        self.add_at(family, bytes, 0);
+    }
+
+    fn add_at(&mut self, family: &str, bytes: &[u8], index: usize) -> bool {
+        match self.mgr.new_from_data(Data::new_copy(bytes), Some(index)) {
             Some(face) => {
                 self.provider.register_typeface(face, family);
+                true
             }
-            None => log::error!("skia could not read the {family} face"),
+            None => {
+                log::error!("skia could not read the {family} face");
+                false
+            }
         }
     }
 
@@ -134,7 +148,23 @@ impl SkiaText {
         self.fonts.set_asset_font_manager(Some(self.provider.clone().into()));
     }
 
+    /// The faces of the stack family that sets `slot`: its own, else the next lighter slot's.
+    fn stack_faces(&self, slot: FontSlot) -> Option<Vec<&str>> {
+        let stack = self.stack.as_ref()?;
+        let chain: &[FontSlot] = match slot {
+            FontSlot::Ui => &[FontSlot::Ui],
+            FontSlot::Mono => &[FontSlot::Mono],
+            FontSlot::UiSemibold => &[FontSlot::UiSemibold, FontSlot::Ui],
+            FontSlot::UiCondensed => &[FontSlot::UiCondensed, FontSlot::UiSemibold, FontSlot::Ui],
+        };
+        let faces = chain.iter().find_map(|slot| stack.family(&StackFamily::Slot(*slot)))?;
+        Some(faces.iter().map(|face| face.name.as_ref()).collect())
+    }
+
     fn families(&self, slot: FontSlot) -> Vec<&str> {
+        if let Some(faces) = self.stack_faces(slot) {
+            return faces.into_iter().chain(self.fallback.iter().map(String::as_str)).collect();
+        }
         let primary: &[&str] = match slot {
             FontSlot::Ui | FontSlot::UiSemibold | FontSlot::UiCondensed => &[UI_FAMILY],
             FontSlot::Mono => &MONO_FAMILIES,
@@ -225,20 +255,50 @@ fn shaped(layout: &TextLayout) -> &Shaped {
 impl TextEngine for SkiaText {
     /// Registers the face under its family. Rich text is set by the trait's default here, which
     /// keeps every section in the interface face, so the family is not yet drawn.
-    fn install_face(&mut self, face: craft_ui_rt::FaceInstall) -> bool {
-        match self.mgr.new_from_data(Data::new_copy(&face.bytes), Some(face.index)) {
-            Some(typeface) => {
-                self.provider.register_typeface(typeface, face.family.as_ref());
-                self.sync();
-                self.installed.insert(face.family.to_string());
-                true
-            }
-            None => false,
+    fn install_face(&mut self, face: FaceInstall) -> bool {
+        if !self.add_at(&face.family, &face.bytes, face.index as usize) {
+            return false;
         }
+        self.sync();
+        self.installed.retain(|kept| kept.family != face.family);
+        self.installed.push(face);
+        true
     }
 
     fn has_face(&self, family: &str) -> bool {
-        self.installed.contains(family)
+        self.installed.iter().any(|face| &*face.family == family)
+    }
+
+    /// Registers every face of `stack` under its own name, in place of the faces registered
+    /// before, and the installed faces again. Variation coordinates and draw tweaks are not
+    /// applied here: skparagraph sets each face at its default instance.
+    fn set_stack(&mut self, stack: &FontStack) {
+        self.provider = TypefaceFontProvider::new();
+        let mut added: Vec<&str> = Vec::new();
+        for (_, faces) in &stack.families {
+            for face in faces {
+                if !added.contains(&face.name.as_ref()) {
+                    added.push(face.name.as_ref());
+                    let (name, bytes, index) = (face.name.clone(), Arc::clone(&face.bytes), face.index as usize);
+                    self.add_at(&name, &bytes, index);
+                }
+            }
+        }
+        for face in std::mem::take(&mut self.installed) {
+            self.add_at(&face.family, &face.bytes, face.index as usize);
+            self.installed.push(face);
+        }
+        self.sync();
+        self.stack = Some(stack.clone());
+        self.stack_generation += 1;
+    }
+
+    fn stack_generation(&self) -> u64 {
+        self.stack_generation
+    }
+
+    fn stack(&self) -> Option<&FontStack> {
+        self.stack.as_ref()
     }
 
     /// Layouts are in logical points at every scale: Skia rasterises glyphs under the canvas

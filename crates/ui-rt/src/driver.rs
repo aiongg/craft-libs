@@ -16,6 +16,7 @@ use crate::platform::{Platform, PlatformEvent, Waker, WindowEvent, WindowSpec};
 use crate::render::{RenderStats, Renderer};
 use crate::runtime::{FrameReport, Runtime};
 use crate::state::Store;
+use crate::text::TextEngine;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StepReport {
@@ -179,6 +180,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
             if self.runtime.wants_time() {
                 self.runtime.set_time(time);
             }
+            self.runtime.note_text_stack(self.renderer.text().stack_generation());
             if self.runtime.needs_frame() {
                 report.frame = match roots {
                     Some(roots) => self.runtime.frame_with(self.renderer.text(), roots),

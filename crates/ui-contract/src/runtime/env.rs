@@ -710,9 +710,7 @@ impl Env {
         let scale = Scale(values.map_or(1.0, |values| values.scale));
         let active = values.is_none_or(|values| values.active);
         let direction = values.map_or(root.direction, |values| values.direction);
-        // The interface stack's line facts are not measured on craft-ui-rt yet: control heights take
-        // the token alone.
-        let line_ratio = 0.0;
+        let line_ratio = values.map_or(0.0, |values| values.fonts.line_ratio);
         let shell = Arc::new(ShellInfo::default());
         let keyboard = Arc::new(craft_keymap::Layout::default());
         let words = host_words(ctx, host.as_ref());
@@ -866,7 +864,7 @@ impl Env {
     }
 
     /// The window's root env, built again only when the root values the env cells hold
-    /// ([`EnvCells::set_root`]) or the host the host provides moved.
+    /// ([`EnvCells::set_root`]), the font stack's facts or the host the host provides moved.
     fn root(cx: &BuildCx<'_>, ctx: &Context, values: &CellValues) -> Env {
         let root = values.inputs.root.clone();
         let host = cx.provided::<Arc<Host>>();
@@ -881,7 +879,7 @@ impl Env {
                 (None, None) => true,
                 _ => false,
             };
-            cache.env.clone().filter(|_| same_root && same_host)
+            cache.env.clone().filter(|_| same_root && same_host && cache.fonts == values.fonts)
         });
         if let Some(env) = kept {
             return env;
@@ -894,6 +892,7 @@ impl Env {
             cache.env = Some(env.clone());
             cache.root = root;
             cache.host = host;
+            cache.fonts = values.fonts;
         });
         env
     }
@@ -906,7 +905,8 @@ impl Env {
             && self.motion.mode == values.motion
             && self.scale == Scale(values.scale)
             && self.active == values.active
-            && self.frame == values.frame;
+            && self.frame == values.frame
+            && self.line_ratio == values.fonts.line_ratio;
         if same {
             return self;
         }
@@ -921,6 +921,7 @@ impl Env {
             inherited.tokens = values.tokens.clone();
             inherited.scale = Scale(values.scale);
             inherited.active = values.active;
+            inherited.line_ratio = values.fonts.line_ratio;
         });
         if let Some(root) = values.ctx.service::<RootCache, _>(|cache| cache.env.clone())
             && Arc::ptr_eq(&root.scoped, &self.scoped)
@@ -1057,6 +1058,8 @@ struct RootCache {
     env: Option<Env>,
     root: Option<Arc<RootEnv>>,
     host: Option<Arc<Host>>,
+    /// The font facts the env was built on.
+    fonts: crate::fonts::StackFacts,
 }
 
 /// The env cells' values a new cursor starts from, read without recording (`Env::of` registers the
@@ -1070,6 +1073,7 @@ pub(crate) struct CellValues {
     active: bool,
     frame: Option<LayerFrame>,
     inputs: RootInputs,
+    fonts: crate::fonts::StackFacts,
 }
 
 impl CellValues {
@@ -1079,7 +1083,7 @@ impl CellValues {
         let window = cx.env();
         let scale = *cx.peek_state(window.scale);
         let active = *cx.peek_state(window.window_focused);
-        let (tokens, theme, direction, density, motion, frame, inputs) = match EnvCells::of(cx) {
+        let (tokens, theme, direction, density, motion, frame, inputs, fonts) = match EnvCells::of(cx) {
             Some(cells) => {
                 // Through the store, which records no reader and brings a derived cell up to date.
                 let store = cx.store_mut();
@@ -1091,15 +1095,16 @@ impl CellValues {
                     cells.motion.get(store),
                     cells.frame.get(store),
                     cells.root.get(store),
+                    cells.fonts.get(store),
                 )
             }
             None => {
                 let tokens = cx.peek_state(window.tokens).clone();
-                (tokens, None, Direction::Ltr, craft_theme::Size::Compact, MotionMode::Full, None, RootInputs::default())
+                (tokens, None, Direction::Ltr, craft_theme::Size::Compact, MotionMode::Full, None, RootInputs::default(), Default::default())
             }
         };
         let tokens = ui_tokens(ctx, tokens, theme, density);
-        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active, frame, inputs }
+        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active, frame, inputs, fonts }
     }
 }
 

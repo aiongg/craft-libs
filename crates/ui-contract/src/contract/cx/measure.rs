@@ -62,8 +62,9 @@ impl<C: Component> MeasureCx<'_, C> {
         self.with_ui(|ui| {
             let build = ui.build_cx();
             let scale = build.scale();
+            let fonts = crate::fonts::stack_facts(build);
             let (text, images) = build.paint_services();
-            f(&FrameServices::new(text, images, scale))
+            f(&FrameServices::new(text, images, scale, fonts))
         })
     }
 

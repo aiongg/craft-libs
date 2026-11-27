@@ -145,6 +145,8 @@ struct Shared {
     waker: craft_ui_rt::Waker,
     /// Each window's `Context`, made when the window first builds and provided above its root.
     contexts: RefCell<BTreeMap<WindowId, Context>>,
+    /// The font stacks the app's fonts offer the text engine, provided above every window root.
+    fonts: crate::fonts::FontHost,
 }
 
 impl Shared {
@@ -413,6 +415,7 @@ fn start_on<A: App, P: Platform, R: Renderer>(
         memory: RuntimeMemory::new(),
         waker: driver.waker(),
         contexts: RefCell::new(BTreeMap::new()),
+        fonts: crate::fonts::FontHost::new(Some(driver.waker())),
     });
     let app = Rc::new(RefCell::new(make(&mut LogicCx::new(driver.runtime.store_mut(), &shared))));
 
@@ -467,6 +470,7 @@ impl<A: App> Host<A> {
         };
         self.shared.apply(&mut driver.runtime);
         self.registry.before_step(&mut driver.runtime);
+        self.shared.fonts.give(driver.renderer.text());
 
         let (app, shared, env, shell, frame) = (&self.app, &*self.shared, &self.env, &self.shell, &self.frame);
         let report = driver.step_with(time, &mut |window, cx| {
@@ -478,6 +482,7 @@ impl<A: App> Host<A> {
                 cx.provide(decision.clone());
             }
             cx.provide(shared.memory.clone());
+            cx.provide(shared.fonts.clone());
             cx.provide(shared.context(window));
             window_root_with(cx, env.clone(), |ui| {
                 if let Ok(mut app) = app.try_borrow_mut() {

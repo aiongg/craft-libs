@@ -4,7 +4,7 @@
 use crate::contract::Response;
 use crate::contract::Ui;
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _, Styled as _};
-use crate::fonts::stack_facts;
+use crate::fonts::peek_stack_facts;
 use crate::primitives::Id;
 use crate::primitives::TextEnv;
 use crate::primitives::{TextRun, Wrap};
@@ -56,7 +56,7 @@ const ROLE: TypeRole = TypeRole::Body;
 pub(in crate::contract) fn height(ui: &Ui, tokens: &UiTokens, text: &Label, width: f32) -> f32 {
     let env = Env::of(ui);
     let text = env.view().resolve(text);
-    let layout_env = TextEnv { tokens, direction: env.text_direction, ink: ink_color(tokens, env.ink), fonts: stack_facts(ui.ctx()) };
+    let layout_env = TextEnv { tokens, direction: env.text_direction, ink: ink_color(tokens, env.ink), fonts: peek_stack_facts(ui.cx) };
     let pad = EmptyText::padding(tokens, control_metrics(tokens, env.size, env.line_ratio).pad_x);
     EmptyText::run(text.as_str()).layout(ui.ctx(), &layout_env, (width - pad.start - pad.end).max(0.0)).size().y + pad.top + pad.bottom
 }
