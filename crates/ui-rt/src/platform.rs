@@ -13,17 +13,67 @@ use std::sync::Arc;
 use craft_behavior::{CursorIcon, PointerButton, PointerKind, PointerSample, WheelPhase, WheelSource, WheelUnit};
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
+use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
 use crate::display::{ImageKey, RgbaImage};
 use crate::geom::{Margin, SizeU};
 use crate::id::WindowId;
 
-/// What a renderer draws into. `Native` holds the platform's object (a winit window, a web canvas
-/// element, an Android native window); the renderer for that platform downcasts it.
+/// What a renderer draws into. `Native` holds the platform's object; platforms whose windows have
+/// raw window and display handles (winit on desktop and web, Android) put a [`NativeWindow`] there,
+/// which every renderer reads with [`SurfaceHandle::native`].
 #[derive(Clone)]
 pub enum SurfaceHandle {
     Offscreen,
     Native(Rc<dyn Any>),
+}
+
+impl SurfaceHandle {
+    /// The window as raw handles, when the platform handed one over.
+    pub fn native(&self) -> Option<&NativeWindow> {
+        match self {
+            SurfaceHandle::Native(any) => any.downcast_ref::<NativeWindow>(),
+            SurfaceHandle::Offscreen => None,
+        }
+    }
+}
+
+/// What a platform's window type provides to renderers: raw handles, valid while anyone holds the
+/// `Arc`. A winit window, a web canvas wrapper and an Android native window all qualify.
+pub trait WindowHandles: HasWindowHandle + HasDisplayHandle + Send + Sync + Any {}
+
+impl<T: HasWindowHandle + HasDisplayHandle + Send + Sync + Any> WindowHandles for T {}
+
+/// A platform window as renderers see it. The platform returns it from
+/// [`SurfaceHost::surface`] through [`NativeWindow::handle`].
+#[derive(Clone)]
+pub struct NativeWindow(pub Arc<dyn WindowHandles>);
+
+impl NativeWindow {
+    pub fn new<W: WindowHandles>(window: Arc<W>) -> NativeWindow {
+        NativeWindow(window)
+    }
+
+    pub fn handle(&self) -> SurfaceHandle {
+        SurfaceHandle::Native(Rc::new(self.clone()))
+    }
+
+    /// Whether both wrap the same window object.
+    pub fn same(&self, other: &NativeWindow) -> bool {
+        std::ptr::addr_eq(Arc::as_ptr(&self.0), Arc::as_ptr(&other.0))
+    }
+}
+
+impl HasWindowHandle for NativeWindow {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        self.0.window_handle()
+    }
+}
+
+impl HasDisplayHandle for NativeWindow {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.0.display_handle()
+    }
 }
 
 /// The platform's windows as surfaces: what the driver attaches renderers to.

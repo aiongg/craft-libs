@@ -8,12 +8,12 @@ use craft_ui_rt::{
 
 use craft_ui_render_epaint::{EpaintOptions, EpaintRenderer};
 
-use crate::common::{Painted, Scene, Stage, fonts, paint, px, renderer, rgba};
+use crate::common::{Gpu, Painted, Scene, Stage, gpu, paint, px, renderer, renderer_with, rgba};
 
 /// A scene with fixed content and a chip at a fractional offset whose colour follows `shade`.
-fn demo(size: SizeU, scale: f32, shade: u8) -> (Scene, State<u8>) {
+fn demo(gpu: &Gpu, size: SizeU, scale: f32, shade: u8) -> (Scene, State<u8>) {
     let mut cell = None;
-    let scene = Scene::new(renderer(), size, scale, |rt, r| {
+    let scene = Scene::new(renderer(gpu), size, scale, |rt, r| {
         let shade = rt.store_mut().create(shade);
         cell = Some(shade);
         let label = r.text().layout(
@@ -68,9 +68,9 @@ fn area(rects: &[Rect]) -> f32 {
     rects.iter().map(|r| r.width() * r.height()).sum()
 }
 
-fn damage_only_equals_full_redraw(scale: f32) {
+fn damage_only_equals_full_redraw(gpu: &Gpu, scale: f32) {
     let size = SizeU::new((200.0 * scale) as u32, (120.0 * scale) as u32);
-    let (mut scene, shade) = demo(size, scale, 40);
+    let (mut scene, shade) = demo(gpu, size, scale, 40);
     scene.frame();
     shade.set(&mut scene.rt, 210);
     let stats = scene.frame();
@@ -78,7 +78,7 @@ fn damage_only_equals_full_redraw(scale: f32) {
     assert_eq!(stats.prepared, 1, "only the chip's list is tessellated again");
     let partial = scene.pixels();
 
-    let (mut full, _) = demo(size, scale, 210);
+    let (mut full, _) = demo(gpu, size, scale, 210);
     full.frame();
     assert_eq!(partial, full.pixels(), "damage-only drawing differs from a full redraw at scale {scale}");
     // The change itself shows: the chip's colour is the new one.
@@ -89,17 +89,19 @@ fn damage_only_equals_full_redraw(scale: f32) {
 
 #[test]
 fn damage_only_drawing_equals_a_full_redraw_byte_for_byte() {
-    damage_only_equals_full_redraw(1.0);
-    damage_only_equals_full_redraw(1.5);
+    let gpu = gpu();
+    damage_only_equals_full_redraw(&gpu, 1.0);
+    damage_only_equals_full_redraw(&gpu, 1.5);
 }
 
 /// Text drawn after the glyph atlas was cleared is shaped again and draws the same pixels.
 #[test]
 fn text_laid_out_before_an_atlas_reset_draws_after_it() {
+    let gpu = gpu();
     let small = || {
         let options =
             EpaintOptions { text: epaint::text::TextOptions { max_texture_side: 1024, ..Default::default() }, ..EpaintOptions::predictable() };
-        EpaintRenderer::create_blocking(options, fonts(), None).expect("a wgpu adapter")
+        renderer_with(&gpu, options)
     };
     let size = SizeU::new(120, 40);
     let spec = |size: f32| TextSpec {
@@ -131,8 +133,8 @@ fn text_laid_out_before_an_atlas_reset_draws_after_it() {
 }
 
 /// Items with a known place on a 200 x 120 window.
-fn items_scene() -> Scene {
-    Scene::new(renderer(), SizeU::new(200, 120), 1.0, |rt, _| {
+fn items_scene(gpu: &Gpu) -> Scene {
+    Scene::new(renderer(gpu), SizeU::new(200, 120), 1.0, |rt, _| {
         let mask = ImageKey(7);
         let mut pixels = RgbaImage::new(SizeU::new(8, 8));
         for y in 0..8 {
@@ -182,7 +184,8 @@ fn items_scene() -> Scene {
 
 #[test]
 fn every_new_display_item_draws_where_it_belongs() {
-    let mut scene = items_scene();
+    let gpu = gpu();
+    let mut scene = items_scene(&gpu);
     scene.frame();
     let img = scene.pixels();
     assert_eq!(px(&img, 20, 20), [255, 0, 0, 255], "rect");

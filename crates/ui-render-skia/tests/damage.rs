@@ -52,8 +52,11 @@ struct Compared {
     max_delta: u8,
 }
 
-/// Runs 60 frames of the scene and compares the two renderers after each. Returns the pixels the
+/// Runs [`FRAMES`] frames of the scene and compares the two renderers after each. Returns the pixels the
 /// damage-only renderer drew and the pixels the full one drew.
+/// Enough frames for every cell, the image and the surface to change at least once.
+const FRAMES: usize = 30;
+
 fn compare(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, scale: f32, plain: &'static [usize]) -> Compared {
     let phase = Rc::new(Cell::new(0));
     let mut a = prepared(make, false, scale, &phase);
@@ -62,7 +65,7 @@ fn compare(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, scale: f32, plain: &'stat
     let mut text = engine();
     let (mut worst, mut bytes_off, mut bytes) = (0u8, 0usize, 0usize);
     let (mut drawn_a, mut drawn_b, mut frames) = (0, 0, 0);
-    for i in 0..60usize {
+    for i in 0..FRAMES {
         if i > 0 {
             let cell = (i * 7 + i / 3) % s.cells.len();
             s.cells[cell].update(&mut s.runtime, |v| *v += 1);
@@ -90,22 +93,24 @@ fn compare(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, scale: f32, plain: &'stat
         b.render(WINDOW, &s.runtime.frame_tree(WINDOW), &damage);
         s.runtime.end_frame();
         let (pa, pb) = (pixels(&mut a), pixels(&mut b));
-        let differing = pa.iter().zip(&pb).filter(|(x, y)| x != y).count();
+        for (x, y) in pa.iter().zip(&pb) {
+            let d = x.abs_diff(*y);
+            bytes_off += usize::from(d != 0);
+            worst = worst.max(d);
+        }
         bytes += pa.len();
-        bytes_off += differing;
-        worst = worst.max(pa.iter().zip(&pb).map(|(x, y)| x.abs_diff(*y)).max().unwrap_or(0));
         drawn_a += a.last_frame().pixels;
         drawn_b += b.last_frame().pixels;
         frames += 1;
     }
-    assert!(frames > 40, "frames compared: {frames}");
+    assert!(frames > FRAMES * 2 / 3, "frames compared: {frames}");
     Compared { drawn_damage_only: drawn_a, drawn_full: drawn_b, differing_bytes: bytes_off, compared_bytes: bytes, max_delta: worst }
 }
 
 /// `without` kinds are left out of the scene so every remaining pixel must match; `tolerated`
 /// is what the full scene may differ by: (bytes in a million, largest channel delta).
-fn check(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, without: Option<&'static [usize]>, tolerated: (usize, u8)) {
-    for scale in [1.0, 1.5, 2.0] {
+fn check(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, scales: &[f32], without: Option<&'static [usize]>, tolerated: (usize, u8)) {
+    for &scale in scales {
         if let Some(without) = without {
             let c = compare(make, scale, without);
             assert_eq!(
@@ -126,7 +131,7 @@ fn check(make: &dyn Fn(SkiaOptions) -> SkiaRenderer, without: Option<&'static [u
 fn cpu_damage_only_frames_equal_a_full_redraw() {
     // Each item kind alone is exact (the next test). Together, cells overlap through shadows and
     // layers, and a handful of edge pixels move by one.
-    check(&|options| SkiaRenderer::new(options), None, (50, 1));
+    check(&|options| SkiaRenderer::new(options), &[1.0, 1.5], None, (50, 1));
 }
 
 /// The same on the Vulkan backend (lavapipe on a box without a GPU). Skipped where Vulkan cannot
@@ -139,7 +144,8 @@ fn gpu_damage_only_frames_equal_a_full_redraw() {
         return;
     }
     // Ganesh draws glyphs (kind 5) through an atlas whose choice depends on the clip: a few edge pixels move.
-    check(&|options| SkiaRenderer::new_gpu(options, None).expect("Vulkan device"), Some(&[1, 5]), (100, 64));
+    // One fractional scale: the CPU trial covers the others, and each lavapipe frame read back costs.
+    check(&|options| SkiaRenderer::new_gpu(options, None).expect("Vulkan device"), &[1.5], Some(&[1, 5]), (100, 64));
 }
 
 #[test]

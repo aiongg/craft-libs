@@ -3,35 +3,20 @@
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use craft_ui_rt::{RectU, SizeU};
+use craft_ui_rt::{NativeWindow, RectU, SizeU, WindowHandles};
+#[cfg(feature = "gpu")]
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use skia_safe::{ColorType, Surface};
 
-/// What a platform's window type provides: raw handles, kept valid while the renderer holds the
-/// `Arc`.
-pub trait WindowHandles: HasWindowHandle + HasDisplayHandle + Send + Sync + std::any::Any {}
-
-impl<T: HasWindowHandle + HasDisplayHandle + Send + Sync + std::any::Any> WindowHandles for T {}
-
-/// The object a native platform puts in `SurfaceHandle::Native(Rc<dyn Any>)` for this renderer
-/// (`Rc::new(NativeWindow::new(window))`).
-#[derive(Clone)]
-pub struct NativeWindow(pub Arc<dyn WindowHandles>);
-
-impl NativeWindow {
-    pub fn new<W: WindowHandles>(window: Arc<W>) -> NativeWindow {
-        NativeWindow(window)
-    }
-
-    #[cfg(feature = "gpu")]
-    pub(crate) fn window_ref(&self) -> Option<craft_ui_render_skia_gpu::WindowRef> {
-        let keep: craft_ui_render_skia_gpu::Keep = self.0.clone();
-        Some(craft_ui_render_skia_gpu::WindowRef {
-            window: self.0.window_handle().ok()?.as_raw(),
-            display: self.0.display_handle().ok()?.as_raw(),
-            keep,
-        })
-    }
+/// The raw handles the GPU backend presents to; `keep` holds the window alive with them.
+#[cfg(feature = "gpu")]
+pub(crate) fn window_ref(native: &NativeWindow) -> Option<craft_ui_render_skia_gpu::WindowRef> {
+    let keep: craft_ui_render_skia_gpu::Keep = native.0.clone();
+    Some(craft_ui_render_skia_gpu::WindowRef {
+        window: native.0.window_handle().ok()?.as_raw(),
+        display: native.0.display_handle().ok()?.as_raw(),
+        keep,
+    })
 }
 
 /// The CPU backend's window: softbuffer takes the canvas each frame.

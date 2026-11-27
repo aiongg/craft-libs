@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use craft_ui_rt::{BezPath, Fill, FillRule, Rect, SizeU, Vec2, pos2, vec2};
 
-use crate::common::{Painted, Scene, Stage, paint, px, renderer, rgba};
+use crate::common::{Gpu, Painted, Scene, Stage, gpu, paint, px, renderer, rgba};
 
 fn poly(points: &[(f64, f64)]) -> BezPath {
     let mut p = BezPath::new();
@@ -14,8 +14,8 @@ fn poly(points: &[(f64, f64)]) -> BezPath {
     p
 }
 
-fn scene() -> Scene {
-    Scene::new(renderer(), SizeU::new(220, 100), 1.0, |_, _| {
+fn scene(gpu: &Gpu) -> Scene {
+    Scene::new(renderer(gpu), SizeU::new(220, 100), 1.0, |_, _| {
         // An L: the top-right quarter of the 50-pixel square at (10, 10) is missing.
         let l = poly(&[(10.0, 10.0), (35.0, 10.0), (35.0, 35.0), (60.0, 35.0), (60.0, 60.0), (10.0, 60.0)]);
         // A ring: two contours wound the same way, so only even-odd leaves the middle open.
@@ -41,7 +41,8 @@ fn scene() -> Scene {
 
 #[test]
 fn a_concave_fill_renders_inside_only() {
-    let mut s = scene();
+    let gpu = gpu();
+    let mut s = scene(&gpu);
     s.frame();
     let img = s.pixels();
     let red = [255, 0, 0, 255];
