@@ -275,6 +275,9 @@ pub(crate) struct RunIo<'a> {
     /// claims Alt alone; the driver keeps it, and the window root routes F10, a lone Alt and Alt mnemonics to the
     /// node as `NodeInput::Menu`.
     pub(crate) menu_bar: Cell<Option<bool>>,
+    /// The run took its page and end moves (`Focus::take_scroll_moves`): the node owns a scroll, and the driver keeps
+    /// it as the scroll owner the page and end keys its focused descendants leave bubble to.
+    pub(crate) scroll_owner: Cell<bool>,
     /// The run asks to run again in the next frame (a wheel ease paying out); the driver asks the node's build.
     pub(crate) wake: Cell<bool>,
     /// `Pointer::take_wheel` took the run's wheel steps.
@@ -317,6 +320,7 @@ impl<'a> RunIo<'a> {
             swept: None,
             inbox: Default::default(),
             menu_bar: Cell::new(None),
+            scroll_owner: Cell::new(false),
             wake: Cell::new(false),
             wheel_taken: Cell::new(false),
             drag_start: RefCell::new(None),

@@ -293,6 +293,9 @@ pub(crate) struct Kept {
     pub(crate) members: Vec<super::items::MemberLooks>,
     /// The column group reports the node's last build or run made, handed to the open groups again while it is kept.
     pub(crate) column_reports: Vec<crate::layout::Report>,
+    /// The node's last run took its page and end moves (`Focus::take_scroll_moves`): the page and end keys a focused
+    /// descendant leaves bubble to it and queue as moves for its next run.
+    pub(crate) scroll_owner: bool,
     /// A collection's watch over the presses its rows and their parts take ([`PressWatch`]).
     pub(crate) press_watch: Option<PressWatch>,
     /// The node's control folds into its owner's access node: its entries leave the window's folds with the node.
@@ -347,6 +350,7 @@ impl Kept {
             column_reports: Vec::new(),
             press_watch: None,
             fold: None,
+            scroll_owner: false,
         }
     }
 
@@ -616,10 +620,17 @@ impl ComponentNode {
             }
             return super::focus::trap_tab(kept, false, cx, k);
         }
-        match super::focus::rove(kept, cx, k) {
-            Handled::No => super::focus::trap_tab(kept, false, cx, k),
-            handled => handled,
+        if let Handled::Yes = super::focus::rove(kept, cx, k) {
+            return Handled::Yes;
         }
+        if kept.scroll_owner
+            && let Some(input) = super::keys::scroll_move(cx, k)
+        {
+            kept.queue.push(input);
+            cx.request_build();
+            return Handled::Yes;
+        }
+        super::focus::trap_tab(kept, false, cx, k)
     }
 
     /// The press machine's phases on this node. `Down` takes the press; a sweeping toggle's drag

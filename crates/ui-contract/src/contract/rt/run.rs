@@ -660,6 +660,7 @@ pub(crate) fn run_shaped<C: Component>(
     // What the run asked of its node, applied after it: the menu-bar registration, a build wake (a
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
+    kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
