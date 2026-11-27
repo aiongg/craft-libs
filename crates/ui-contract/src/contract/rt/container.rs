@@ -202,6 +202,8 @@ struct Shape {
     /// The container is a row of a vertical flow, not a member of a row's line (`label::in_column`): its field label
     /// lines up with the form's control column.
     in_column: bool,
+    /// The container has a field label (`ContainerProps::label`): the label step places its body.
+    labelled: bool,
 }
 
 impl Shape {
@@ -250,6 +252,7 @@ impl Shape {
             },
             band: props.header.and_then(|h| h.fill).map(|fill| crate::primitives::items::rgba(crate::style::band_color(&env.tokens, fill))),
             in_column: !matches!(parent.dir_ref(), Dir::Row { .. }) || env.column_row,
+            labelled: props.label.is_some(),
         }
     }
 
@@ -298,6 +301,7 @@ impl Shape {
             || self.closed
             || self.collapsing()
             || self.edge_rule.is_some()
+            || self.labelled
     }
 
     /// The container takes a share of what its parent's flow leaves along that flow's axis.
