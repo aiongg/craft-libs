@@ -40,7 +40,7 @@ use crate::contract::{
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
-use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge};
+use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
 
@@ -661,11 +661,11 @@ fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: 
 /// run, under its kept node, and reports its size. `place` is the env the container's children are
 /// placed under.
 ///
-/// A container mounted on a layer (`Mount::Layer`, `FullWindow`, and `Viewport` on its fallback layer)
-/// is shown as the content of a layer child of the node that shows it, unless it is that content already (the layer provides its `LayerHost` and the
-/// container is shown in the layer body's flow): then it fills the layer's region and its close goes
-/// to the layer. A container with a theme (`ContainerProps::theme`) is shown inside a scope that
-/// gives it and everything under it that theme.
+/// A container mounted on a layer (`Mount::Layer`, `FullWindow`) is shown as the content of a layer child of the node
+/// that shows it, unless it is that content already (the layer provides its `LayerHost` and the container is shown in
+/// the layer body's flow): then it fills the layer's region and its close goes to the layer. A `Viewport` mount is the
+/// content of a window the showing node hosts (`show_in_window`). A container with a theme (`ContainerProps::theme`)
+/// is shown inside a scope that gives it and everything under it that theme.
 pub(crate) fn show_container<C: Container, R>(
     slot: &mut Option<C>,
     ui: &mut Ui<'_, '_>,
@@ -674,18 +674,26 @@ pub(crate) fn show_container<C: Container, R>(
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
     let props = slot.as_ref().expect("a container is shown once").props(Internal::new());
-    // A full-window mount is a layer over the whole window with the props' focus scope; a viewport mount shows on its
-    // fallback layer.
+    // A full-window mount is a layer over the whole window with the props' focus scope.
     let layer = match &props.mount {
         Mount::Layer(overlay) => Some(overlay.clone()),
         Mount::FullWindow => Some(Overlay::full_window(props.focus)),
-        Mount::Viewport { fallback, .. } => Some(fallback.clone()),
         _ => None,
     };
     let (layer_like, theme) = (matches!(props.mount, Mount::FullWindow | Mount::Viewport { .. }), props.theme.clone());
     let hosted = hosted_by(ui);
     if layer_like && let Some(output) = unshown(slot, ui) {
         return Inner { output, inner: None, settle: None };
+    }
+    if let Mount::Viewport { fallback, spec } = &props.mount
+        && hosted.is_none()
+    {
+        if ui.flow.measuring.is_none() {
+            return show_in_window(slot, ui, fallback, spec.as_ref(), body);
+        }
+        // Like a layer mount, it takes no room in the flow that shows it.
+        let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
+        return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
     if let Some(overlay) = layer
         && hosted.is_none()
@@ -697,6 +705,19 @@ pub(crate) fn show_container<C: Container, R>(
         let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
         return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
+    show_themed(slot, ui, (at, place), body, tip, hosted, theme)
+}
+
+/// `show_plain` inside a scope that gives the container and everything under it `theme`, when it has one.
+fn show_themed<C: Container, R>(
+    slot: &mut Option<C>,
+    ui: &mut Ui<'_, '_>,
+    (at, place): (ShowAt, Env),
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    tip: Option<TipFn<'_>>,
+    hosted: Option<LayerHost>,
+    theme: Option<ThemeScope>,
+) -> Inner<C::Output, R> {
     let Some(theme) = theme else { return show_plain(slot, ui, (at, place), body, tip, hosted) };
     // The scope always runs its content: the container's body runs whenever its scope's build reaches it.
     let scope = EnvScope::new().theme(theme);
@@ -753,6 +774,82 @@ fn show_on_layer<C: Container, R>(
     let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
     content.shown.expect("a layer mount runs its content in every build that shows it")
+}
+
+/// Shows a `Viewport`-mounted container as the whole content of a window the node `ui` builds hosts
+/// (`BuildCx::hosted_window`), built inside that node's build, so the borrowed body runs there. The window opens with
+/// the container's first open build (a dialog window for a modal `fallback`, a tool window otherwise, unless `spec`
+/// says how), at the container's ideal size, owned by the showing window; it closes when a build stops showing the
+/// container (closed, or no longer shown). A window the user closes closes the container (`Container::closed`,
+/// `Requested`). The container keeps the id it has in the showing flow and shares the showing window's env cells,
+/// job board and command board.
+fn show_in_window<C: Container, R>(
+    slot: &mut Option<C>,
+    ui: &mut Ui<'_, '_>,
+    fallback: &Overlay,
+    spec: Option<&crate::runtime::windows::WindowSpec>,
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+) -> Inner<C::Output, R> {
+    if let Some(output) = unshown(slot, ui) {
+        return Inner { output, inner: None, settle: None };
+    }
+    let component = slot.as_mut().expect("a container is shown once");
+    let source = component.common_mut(Internal::new()).id.clone();
+    let (id, _) = ui.flow.child(type_key::<C>(), source);
+    let key = ("craft-viewport", id.value());
+    // The spec is made once, when the window is first asked for: the ideal size needs a measuring run.
+    let spec = match ui.cx.hosted_state(key) {
+        Some(_) => None,
+        None => {
+            let size = measure_container(component, ui, craft_behavior::Proposal::Ideal, &mut *body);
+            let title = component.common(Internal::new()).label.as_str().to_owned();
+            let base = spec.cloned().unwrap_or_else(|| {
+                use crate::runtime::windows::WindowSpec;
+                if fallback.rank.is_modal() { WindowSpec::dialog() } else { WindowSpec::tool() }
+            });
+            let frame_of = |_: craft_host::target::WindowKind| None;
+            let mut rt = super::windows::rt_spec(&base, &title, None, &frame_of);
+            rt.size = Some(size);
+            rt.owner = Some(ui.cx.window());
+            Some(rt)
+        }
+    };
+    let window = match ui.cx.hosted_window(key, || spec.expect("made when first asked")) {
+        craft_ui_rt::HostedWindow::Open(window) => window,
+        craft_ui_rt::HostedWindow::Opening => {
+            let output = C::Output::unshown(Response::inert(id, Rect::NOTHING));
+            if let Some(output) = output {
+                return Inner { output, inner: None, settle: None };
+            }
+            // A container with no unshown form shows once more in the showing flow until its window opens.
+            return show_plain(slot, ui, (ShowAt::Rect(Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO)), Env::of(ui)), body, None, None);
+        }
+        craft_ui_rt::HostedWindow::Closed => {
+            component.closed(crate::runtime::overlay::CloseReason::Requested);
+            let output = C::Output::unshown(Response::inert(id, Rect::NOTHING));
+            if let Some(output) = output {
+                return Inner { output, inner: None, settle: None };
+            }
+            return show_plain(slot, ui, (ShowAt::Rect(Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO)), Env::of(ui)), body, None, None);
+        }
+    };
+    let env = super::scope::WindowEnv {
+        cells: super::EnvCells::of(ui.cx),
+        jobs: ui.cx.provided::<super::pending::JobBoard>(),
+        commands: ui.cx.provided::<super::commands::CommandBoard>(),
+    };
+    let escape = super::dialog::scope_escape(fallback);
+    let host = LayerHost { id, closed: BodyClose::default() };
+    let theme = component.props(Internal::new()).theme.clone();
+    let shown = ui.cx.window_content(window, |cx| {
+        super::scope::window_root_with(cx, env, |ui| {
+            ui.cx.provide(escape);
+            let rect = ui.flow.region;
+            let place = Env::of(ui);
+            show_themed(slot, ui, (ShowAt::Rect(rect), place), body, None, Some(host), theme)
+        })
+    });
+    shown.expect("an open hosted window builds in its requester's build")
 }
 
 /// A container shown as the content of its own layer child (`show_on_layer`).

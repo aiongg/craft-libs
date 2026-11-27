@@ -6,7 +6,7 @@ use craft_theme::Tokens;
 use crate::element::{AnyElement, Element, ElementBox, Memo};
 use crate::id::{ChildKey, IdSet, NodeId, WindowId, hash_key};
 use crate::layer::{Layer, LayerSpec};
-use crate::runtime::Runtime;
+use crate::runtime::{Hosted, HostedWindow, Runtime};
 use crate::state::{Access, Phase, Reader, Reads, State, Store, Writes};
 use crate::text::{RichText, TextEngine, TextLayout};
 use crate::tree::{Dirty, Node};
@@ -91,6 +91,44 @@ impl BuildCx<'_> {
     pub fn open_inline_window(&mut self, spec: crate::platform::WindowSpec) {
         let node = self.node;
         self.rt.queue_inline_window(node, spec);
+    }
+
+    /// The window `key` this node hosts: a window whose content this node's build creates
+    /// ([`BuildCx::window_content`]), so content borrowed from the build (a container's body) shows
+    /// in it. The first ask queues the window (`spec` makes its spec); the driver opens it after
+    /// this step and this node builds again. Every build of this node that wants the window asks
+    /// for it again: a build that leaves it out closes it, and so does this node's removal. A
+    /// window the user closed stays [`HostedWindow::Closed`] while the node keeps asking.
+    pub fn hosted_window(&mut self, key: impl Hash, spec: impl FnOnce() -> crate::platform::WindowSpec) -> HostedWindow {
+        let (node, key) = (self.node, hash_key(&key));
+        if let Some(hosted) = self.rt.hosted.iter_mut().find(|h| h.requester == node && h.key == key) {
+            hosted.asked = true;
+            return hosted.state;
+        }
+        self.rt.hosted.push(Hosted { requester: node, key, state: HostedWindow::Opening, asked: true });
+        self.rt.queue_hosted_window(node, key, spec());
+        HostedWindow::Opening
+    }
+
+    /// Where the window `key` this node hosts stands, without asking for it; `None` before the
+    /// first ask, or after a build that left it out.
+    pub fn hosted_state(&self, key: impl Hash) -> Option<HostedWindow> {
+        let (node, key) = (self.node, hash_key(&key));
+        self.rt.hosted.iter().find(|h| h.requester == node && h.key == key).map(|h| h.state)
+    }
+
+    /// Builds the content of `window`, a window this node hosts ([`BuildCx::hosted_window`]),
+    /// inside this build: `content` creates the window root's children as a host's `roots`
+    /// closure does for an inline root. Input and marks under the window build this node again.
+    /// `None` when `window` is not open as this node's hosted window.
+    pub fn window_content<R>(&mut self, window: WindowId, content: impl FnOnce(&mut BuildCx<'_>) -> R) -> Option<R> {
+        let node = self.node;
+        if !self.rt.hosted.iter().any(|h| h.requester == node && h.state == HostedWindow::Open(window)) {
+            return None;
+        }
+        let root = self.rt.windows.get(&window)?.app_root;
+        let text = self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t });
+        build_root(self.rt, root, text, |_, cx| content(cx))
     }
 
     pub(crate) fn runtime_mut(&mut self) -> &mut Runtime {
@@ -365,6 +403,9 @@ impl BuildCx<'_> {
         let out = f(local, state, &mut cx);
         let BuildCx { children, layered, keep, .. } = cx;
         finish_children(self.rt, id, old, old_layered, children, layered, keep);
+        if !self.rt.hosted.is_empty() {
+            self.rt.settle_hosted(id, keep);
+        }
         if let Some(node) = self.rt.tree.nodes.get_mut(&id) {
             node.element = Some(boxed);
         }
@@ -659,6 +700,9 @@ pub(crate) fn build_node(rt: &mut Runtime, id: NodeId) {
     el.build(&mut cx);
     let BuildCx { children, layered, keep, .. } = cx;
     finish_children(rt, id, old, old_layered, children, layered, keep);
+    if !rt.hosted.is_empty() {
+        rt.settle_hosted(id, keep);
+    }
     if let Some(node) = rt.tree.nodes.get_mut(&id) {
         node.element = Some(el);
     }
@@ -671,30 +715,41 @@ pub(crate) fn build_node(rt: &mut Runtime, id: NodeId) {
 /// Runs an inline root's build: `content` creates its children. Marks its layout only when its
 /// child list changed; the children mark what they changed themselves.
 pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn FnMut(WindowId, &mut BuildCx<'_>), text: &mut dyn TextEngine) {
-    let Some(node) = rt.tree.nodes.get_mut(&id) else {
-        return;
-    };
+    let _ = build_root(rt, id, Some(text), |window, cx| content(window, cx));
+}
+
+/// The build of the inline root `id`, by the host's `roots` closure or a hosting node's build
+/// (`BuildCx::window_content`); `None` when the node is gone.
+fn build_root<R>(
+    rt: &mut Runtime,
+    id: NodeId,
+    text: Option<&mut dyn TextEngine>,
+    content: impl FnOnce(WindowId, &mut BuildCx<'_>) -> R,
+) -> Option<R> {
+    let node = rt.tree.nodes.get_mut(&id)?;
     node.dirty.remove(Dirty::BUILD);
     node.dirty.remove(Dirty::PATH);
     let window = node.window;
-    let Some(mut el) = node.element.take() else {
-        return;
-    };
+    let mut el = node.element.take()?;
     let old = std::mem::take(&mut node.children);
     let old_layered = std::mem::take(&mut node.layered);
-    let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false, text: Some(text) };
+    let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false, text };
     // Creates the root's `Local` on the first build; the element's own build adds nothing.
     el.build(&mut cx);
-    content(window, &mut cx);
+    let out = content(window, &mut cx);
     let BuildCx { children, layered, keep, .. } = cx;
     if let Some(node) = rt.tree.nodes.get_mut(&id) {
         node.element = Some(el);
     }
     let changed = !keep && (children != old || layered != old_layered);
     finish_children(rt, id, old, old_layered, children, layered, keep);
+    if !rt.hosted.is_empty() {
+        rt.settle_hosted(id, keep);
+    }
     if changed {
         rt.tree.mark_layout(id);
     }
+    Some(out)
 }
 
 /// Stores a build's children on `id` and drops the old ones it did not reach; with `keep`, the old
