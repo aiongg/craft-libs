@@ -88,6 +88,8 @@ pub enum NodeInput {
     Wheel(craft_behavior::Wheel),
     /// A menu key the window root routed to its menu bar node (F10, a lone Alt, an Alt mnemonic).
     Menu(crate::runtime::keys::MenuKey),
+    /// A reveal a child of a container that owns its body's scroll asked for, in window coordinates (`Focus::take_reveal`).
+    Reveal(craft_ui_rt::Rect),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.

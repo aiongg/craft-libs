@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use craft_behavior::{ColumnKey, Sense};
 use craft_ui::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps, MemoView,
-    Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
+    BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps,
+    MemoView, Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
 };
 use craft_ui::layout::{BodyLayout, ColumnGroup};
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
@@ -477,4 +477,90 @@ fn a_column_group_settles_in_its_first_frame_and_rebuilds_only_when_a_row_read_a
     assert_eq!(read, [50.0; 3], "the rows before the widest read it after the second build");
     assert_eq!(last, first + 1, "one more build of the group's node in the same frame, none when the widest came first");
     assert!(!idle.ran, "a settled group builds nothing: {idle:?}");
+}
+
+/// A collapsing section whose header chip toggles its open state.
+#[derive(craft_ui::contract::Component)]
+#[component(container, unregistered)]
+struct Fold {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    #[key(skip)]
+    toggle: Rc<Cell<Rect>>,
+    #[key(skip)]
+    measures: Rc<Cell<u32>>,
+}
+
+impl Component for Fold {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FoldStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Fold {
+    fn header(&mut self, ui: &mut Ui, bcx: &mut BodyCx<'_>) {
+        let toggle = chip(ui, "Fold", ROW, &self.measures);
+        self.toggle.set(toggle.rect);
+        if toggle.clicked() {
+            let open = bcx.is_open();
+            *bcx.open() = !open;
+        }
+    }
+}
+
+/// A folding section with a body of three chips, and a chip after it.
+struct Folds {
+    toggle: Rc<Cell<Rect>>,
+    after: Rect,
+    measures: Rc<Cell<u32>>,
+}
+
+fn folds_ui(ui: &mut Ui, folds: &mut Folds) {
+    let measures = folds.measures.clone();
+    let props = props(|p| p.collapse(Collapse::new()).header(HeaderRegion::new()));
+    let fold = Fold { common: Common::new(), props, toggle: folds.toggle.clone(), measures: measures.clone() };
+    let _ = fold.show(ui, |ui, _| {
+        for name in ["a", "b", "c"] {
+            chip(ui, name, ROW, &measures);
+        }
+    });
+    folds.after = chip(ui, "After", ROW, &measures).rect;
+}
+
+#[test]
+fn a_collapse_builds_its_section_once_per_frame_while_it_moves_and_never_after() {
+    const FRAME: f64 = 1.0 / 60.0;
+    let mut folds = Folds { toggle: Rc::default(), after: Rect::NOTHING, measures: Rc::default() };
+    let mut rig = rig();
+    let step = |rig: &mut Rig<RecordingRenderer>, folds: &mut Folds| rig.step_with(&mut |_, cx| root(cx, |ui| folds_ui(ui, folds)));
+    settle(&mut rig, &mut |rig| step(rig, &mut folds));
+    let open_after = folds.after;
+    let up = click(&mut rig, folds.toggle.get().center(), &mut |rig| step(rig, &mut folds));
+    assert!(up.ran, "the click toggles the section");
+    // The collapse: the section runs once per frame while its height moves; its body's chips are kept and the chip
+    // after it moves up without running.
+    let mut moving = 0;
+    for _ in 0..120 {
+        rig.driver.platform.advance(FRAME);
+        let frame = step(&mut rig, &mut folds);
+        if !frame.ran {
+            break;
+        }
+        moving += 1;
+        assert!(frame.frame.runs <= 1, "only the section's own hooks run while it collapses: {frame:?}");
+    }
+    assert!(moving > 1, "the collapse takes more than one frame");
+    assert!(folds.after.min.y < open_after.min.y, "After moved up under the closed section");
+    let idle = step(&mut rig, &mut folds);
+    assert!(!idle.ran, "nothing runs once the collapse has settled: {idle:?}");
 }
