@@ -185,6 +185,7 @@ pub(crate) fn show_scope<R: Clone + 'static>(
                 && let Some(value) = kept_value::<R>(kept, start, shift)
             {
                 cx.keep_children();
+                crate::layout::replay(&crate::contract::Context::of_build(cx), &kept.column_reports);
                 flow.allocate(Some(cx.node()), kept.size, false);
                 return Some(Shown { value, fresh: false });
             }
@@ -195,7 +196,10 @@ pub(crate) fn show_scope<R: Clone + 'static>(
             let tokens = if scope.memo.is_some() { super::env::tokens(cx) } else { flow.tokens.clone() };
             let reads = scope.memo.map(|_| begin_reads(false));
             let mut inner = Ui::new(cx, Flow::new(id, start, region, gap, tokens).in_view(flow.view).with_sweep(flow.sweep));
+            let ctx = inner.ctx().clone();
+            crate::layout::begin_capture(&ctx);
             let value = content(&mut inner);
+            kept.column_reports = crate::layout::end_capture(&ctx);
             let Ui { cx, flow: inner, .. } = inner;
             if let Some(reads) = reads {
                 end_reads(reads, cx);
