@@ -22,7 +22,8 @@ use std::sync::Arc;
 
 use craft_theme::{FontSlot, Rgba};
 use craft_ui_rt::{
-    FaceInstall, FallbackAsk, FontFace as StackFamily, FontStack, Overflow, StackFace, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text,
+    FaceInstall, FallbackAsk, FontFace as StackFamily, FontStack, GlyphPlace, Overflow, StackFace, TextEngine, TextHandle, TextLayout, TextMetrics,
+    TextRow, TextSpec, overflow_text,
 };
 use emath::{Pos2, Rect, pos2, vec2};
 use skia_safe::font_arguments::{VariationPosition, variation_position::Coordinate};
@@ -62,7 +63,12 @@ struct CharBox {
 pub(crate) struct Shaped {
     pub blob: Option<TextBlob>,
     pub color: Rgba,
-    text_len: usize,
+    /// The text as laid out: the source text, or what the overflow kept of it.
+    text: Arc<str>,
+    /// The overflow cut the text, or it ran past its one line.
+    elided: bool,
+    /// Each line's box in layout coordinates, top to bottom.
+    rows: Vec<Rect>,
     boxes: Vec<CharBox>,
     height: f32,
     unresolved: usize,
@@ -410,10 +416,19 @@ impl TextEngine for SkiaText {
         let baseline = paragraph.alphabetic_baseline();
         let lines = paragraph.line_number();
         let boxes = boxes(&paragraph, &text);
+        let elided = *text != *spec.text || paragraph.did_exceed_max_lines();
+        let rows = paragraph
+            .get_line_metrics()
+            .iter()
+            .map(|line| {
+                let (left, baseline) = (line.left as f32, line.baseline as f32);
+                Rect::from_min_max(pos2(left, baseline - line.ascent as f32), pos2(left + line.width as f32, baseline + line.descent as f32))
+            })
+            .collect();
         let blob = blob(&mut paragraph);
         let unresolved = paragraph.unresolved_glyphs().unwrap_or(0);
         TextLayout {
-            handle: TextHandle::new(Arc::new(Shaped { blob, color: spec.color, text_len: text.len(), boxes, height: size.y, unresolved })),
+            handle: TextHandle::new(Arc::new(Shaped { blob, color: spec.color, text, elided, rows, boxes, height: size.y, unresolved })),
             size,
             baseline,
             lines,
@@ -449,6 +464,25 @@ impl TextEngine for SkiaText {
             None => at(0.0, 0.0, sh.height),
         }
     }
+
+    /// Each line with the characters whose box centre is nearest it, in text order; the ink is the union of the
+    /// characters' boxes.
+    fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {
+        let sh = shaped(layout);
+        let mut rows: Vec<TextRow> = sh.rows.iter().map(|&rect| TextRow { rect, glyphs: Vec::new() }).collect();
+        let mut ink = Rect::NOTHING;
+        for b in &sh.boxes {
+            ink = ink.union(b.rect);
+            let y = b.rect.center().y;
+            let Some(row) = rows.iter_mut().min_by(|a, c| dist(y, (a.rect.min.y, a.rect.max.y)).total_cmp(&dist(y, (c.rect.min.y, c.rect.max.y))))
+            else {
+                continue;
+            };
+            let chr = sh.text[b.start..].chars().next().unwrap_or(' ');
+            row.glyphs.push(GlyphPlace { chr, x: b.rect.min.x - row.rect.min.x, advance: b.rect.width(), rtl: b.rtl });
+        }
+        TextMetrics { text: sh.text.clone(), rows, ink, elided: sh.elided }
+    }
 }
 
 impl Shaped {
@@ -478,7 +512,7 @@ fn dist(y: f32, (y0, y1): (f32, f32)) -> f32 {
 
 /// The byte after the character starting at `start`.
 fn next_start(sh: &Shaped, start: usize) -> usize {
-    sh.boxes.iter().map(|b| b.start).find(|&s| s > start).unwrap_or(sh.text_len)
+    sh.boxes.iter().map(|b| b.start).find(|&s| s > start).unwrap_or(sh.text.len())
 }
 
 pub(crate) fn downcast(layout: &TextHandle) -> Option<&Shaped> {

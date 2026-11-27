@@ -36,6 +36,7 @@ use super::ids::node_of;
 use super::node::{Kept, NodeInput, Placed};
 use super::ui::{Flow, Ui};
 use crate::contract::{Id, Notch, Scroll, ScrollAnchor};
+use crate::primitives::{HiddenContent, ScrollBar};
 use crate::style::{StyleColor, scroll_bar_look};
 
 /// The share of the view's extent built beyond each of its edges: a step within it moves the kept
@@ -139,8 +140,8 @@ struct Look {
     thumb: States<Rgba>,
     /// The track's fill per state.
     track: States<Rgba>,
+    /// The fill of the surface the content sits on: the edge fades blend into it and scroll strips are filled with it.
     fade: Rgba,
-    fade_extent: f32,
     line: f32,
     /// The height of a scroll strip.
     strip: f32,
@@ -166,7 +167,6 @@ impl Look {
             thumb: fill(bar.thumb.off),
             track: fill(bar.track.off),
             fade,
-            fade_extent: tokens.space.gap.section,
             line: tokens.size.button,
             strip: tokens.size.control.sm,
         }
@@ -182,7 +182,6 @@ impl Look {
             thumb: clear,
             track: clear,
             fade: Rgba([0; 4]),
-            fade_extent: 0.0,
             line: 0.0,
             strip: 0.0,
         }
@@ -420,15 +419,18 @@ impl Element for ScrollNode {
         // A bar is in its hover look while the pointer is on its thumb and in its pressed look while dragged.
         let on_bar = cx.hovered_part();
         cx.over(|cx| {
-            if self.scroll.vertical_on() {
-                let clear = look.fade.faded(0.0);
-                if sk.offset.y > 0.0 {
-                    cx.vgradient(Rect::from_min_size(bounds.min, Vec2::new(bounds.width(), look.fade_extent)), look.fade, clear);
-                }
-                if sk.offset.y < max.y {
-                    let top = bounds.max.y - look.fade_extent;
-                    cx.vgradient(Rect::from_min_max(Pos2::new(bounds.min.x, top), bounds.max), clear, look.fade);
-                }
+            // The shared edge fades, at each end of a scrolling axis past which content is hidden. Offsets here count
+            // from the left edge in every direction.
+            let mut hidden = HiddenContent::new(sk.extent, sk.view, sk.offset, false);
+            if !self.scroll.vertical_on() {
+                (hidden.top, hidden.bottom) = (0.0, 0.0);
+            }
+            if !self.scroll.horizontal_on() {
+                (hidden.left, hidden.right) = (0.0, 0.0);
+            }
+            let [r, g, b, a] = look.fade.0;
+            for fade in ScrollBar::fades(bounds, hidden, egui::Color32::from_rgba_unmultiplied(r, g, b, a)) {
+                cx.push(fade);
             }
             if self.scroll.has_strips() {
                 let back = Rect::from_min_size(bounds.min, Vec2::new(bounds.width(), look.strip));
