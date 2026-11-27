@@ -113,7 +113,7 @@ fn window() -> (Harness<()>, Rc<RefCell<Doc>>, Rc<Cell<usize>>) {
     let shown = Rc::clone(&doc);
     let mut h = Harness::builder().with_commands(board).build_ui(move |ui: &mut Ui<'_, '_>| {
         drop(Show::show(Editor { common: Common::new(), doc: Rc::clone(&shown) }, ui));
-        IconButton::new(IconId::new("go"), "Go").show(ui);
+        IconButton::new(IconId::new("go"), "Go").focusable().show(ui);
     });
     // The chords are Linux's, as the keymap's.
     h.os(craft_host::target::Os::Linux);

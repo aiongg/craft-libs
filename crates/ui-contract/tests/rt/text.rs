@@ -101,7 +101,7 @@ fn other_view(runs: &mut Runs<'_>, _: &mut Ui) {
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
-    app.a = IconButton::new(IconId::new("icon"), "A").show(ui).rect;
+    app.a = IconButton::new(IconId::new("icon"), "A").focusable().show(ui).rect;
     let props = FieldView { text: &mut app.text, runs: &mut app.view_runs };
     app.field = MemoView::new("field", props, field_view).show(ui).expect("in view").value;
     if app.commands {

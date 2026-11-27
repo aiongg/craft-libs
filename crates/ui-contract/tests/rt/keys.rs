@@ -55,7 +55,7 @@ fn window(overrides: Option<Overrides>) -> (Harness<()>, Rc<Cell<usize>>) {
     let seen = Rc::clone(&runs);
     board.on_app(move |_, _| seen.set(seen.get() + 1));
     let mut h = Harness::builder().with_commands(board).build_ui(|ui: &mut Ui<'_, '_>| {
-        IconButton::new(IconId::new("go"), "Go").show(ui);
+        IconButton::new(IconId::new("go"), "Go").focusable().show(ui);
         drop(Show::show(Field { common: Common::new() }, ui));
     });
     h.run();
