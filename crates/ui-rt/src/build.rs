@@ -806,6 +806,8 @@ fn build_root<R>(
     let mut el = node.element.take()?;
     let old = std::mem::take(&mut node.children);
     let old_layered = std::mem::take(&mut node.layered);
+    // A reborrow for the build alone: the engine outlives this call, the build's borrow of `rt` must not.
+    let text = text.map(|t| -> &mut dyn TextEngine { t });
     let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false, text };
     // Creates the root's `Local` on the first build; the element's own build adds nothing.
     el.build(&mut cx);
