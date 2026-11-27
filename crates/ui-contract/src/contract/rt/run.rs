@@ -202,7 +202,12 @@ pub(crate) fn show_shaped<C: Component>(
     if let Some(under) = ui.flow.measuring {
         let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child));
         let node = peeked.as_ref().map(|p| p.node);
-        let cached = peeked.filter(|p| !shaped && holds(p.local, key, p.state)).and_then(|p| p.local.cached(room));
+        // A kept node answers from its size cache and hands the open column groups its captured reports.
+        let cached = peeked.filter(|p| !shaped && holds(p.local, key, p.state)).and_then(|p| {
+            let size = p.local.cached(room)?;
+            crate::layout::replay(&ui.ctx, &p.local.column_reports);
+            Some(size)
+        });
         let mut stage = MemoryStage::default();
         let value = steps::value(&mut component, &mut stage, id, command.as_deref());
         hooks.read(&mut component, &mut stage, id, &begun.env);
@@ -235,6 +240,8 @@ pub(crate) fn show_shaped<C: Component>(
             let rect = place_in(flow, Some(cx.node()), at, size);
             if kept_outputs && size == kept.size {
                 kept.cache(room, size);
+                // Kept, it reports nothing: the column reports its last run captured join the open groups.
+                crate::layout::replay(&context, &kept.column_reports);
                 if shaped {
                     // The shape's content reconciles its children itself; its kept hooks stay.
                     let tokens = flow.tokens.clone();
@@ -249,7 +256,9 @@ pub(crate) fn show_shaped<C: Component>(
                 return settle(component, kept, cx, rect, &begun, value, context);
             }
             let tokens = super::env::tokens(cx);
-            run_shaped(
+            let capture = context.clone();
+            crate::layout::begin_capture(&capture);
+            let out = run_shaped(
                 component,
                 kept,
                 cx,
@@ -268,7 +277,9 @@ pub(crate) fn show_shaped<C: Component>(
                     flow_reveal: &mut flow.reveal,
                 },
                 hooks,
-            )
+            );
+            kept.column_reports = crate::layout::end_capture(&capture);
+            out
         })
     })
 }

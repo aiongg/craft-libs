@@ -433,6 +433,14 @@ impl BuildCx<'_> {
         self.rt.access_dirty(node);
     }
 
+    /// Starts a drag session from this node's open press, as `EventCx::start_drag` does from an
+    /// event: for a build that decided to drag (a run's `update` asking for it). Returns false (and
+    /// starts nothing) when no press of the node's window runs or a drag already runs.
+    pub fn start_drag(&mut self, start: crate::DragStart) -> bool {
+        let node = self.node;
+        self.rt.start_drag(node, start)
+    }
+
     /// Ends `window`'s open press as the host did (`PressCancel::Host`): its owner gets the cancel.
     pub fn cancel_press(&mut self, reason: craft_behavior::PressCancel) {
         let window = self.window;
