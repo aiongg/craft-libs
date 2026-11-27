@@ -57,6 +57,7 @@ pub(crate) fn editor_input(input: &[NodeInput], intents: &mut Intents, keep: Kee
     for (place, i) in input.iter().enumerate() {
         match i {
             NodeInput::Ime(e) => out.push(e.clone()),
+            NodeInput::Paste(text) => out.push(EditorInput::Text(std::sync::Arc::clone(text))),
             NodeInput::Intent { .. } => out.extend(intents.take_editor_at(place, keep)),
             _ => {}
         }

@@ -307,6 +307,12 @@ impl Context {
         self.platform(PlatformRequest::CopyText(text));
     }
 
+    /// Asks the platform for the clipboard's text from inside a build (an editor's Paste); it reaches the window's
+    /// focused node as pasted text.
+    pub(crate) fn request_paste(&self) {
+        log_build_read(|cx| cx.request_paste());
+    }
+
     /// The node `id` names builds: inside a build, in a later round of this frame; outside one, in the next frame (the
     /// host builds the window root, which hands the request on through the window's `Id` map).
     pub(crate) fn request_build_of(&self, id: Id) {
