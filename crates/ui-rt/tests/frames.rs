@@ -258,3 +258,56 @@ fn a_blinking_caret_wakes_the_loop_only_at_its_blink_edges() {
         wake = next;
     }
 }
+
+/// A label that lays out its text each time a cell it reads changes.
+struct Label {
+    text: State<&'static str>,
+    tick: State<u32>,
+    shaped: Rc<RefCell<Vec<craft_ui_rt::TextLayout>>>,
+}
+
+impl Element for Label {
+    type Output = ();
+    type Local = ();
+
+    fn props_key(&self) -> u64 {
+        0
+    }
+
+    fn init(&self, _: &mut BuildCx<'_>) {}
+
+    fn layout(&self, _: &mut (), cx: &mut LayoutCx<'_>, c: Constraints) -> Vec2 {
+        let _ = self.tick.get(cx);
+        let spec = craft_ui_rt::TextSpec {
+            text: self.text.get(cx).into(),
+            font: craft_ui_rt::FontSpec { slot: craft_theme::FontSlot::Ui, size: 12.0 },
+            line_height: None,
+            color: Rgba([255, 255, 255, 255]),
+            max_width: None,
+            overflow: craft_ui_rt::Overflow::Wrap,
+        };
+        let layout = cx.text_layout(&spec);
+        let size = c.constrain(layout.size);
+        self.shaped.borrow_mut().push(layout);
+        size
+    }
+}
+
+#[test]
+fn a_relayout_shapes_its_text_again_only_when_the_text_changed() {
+    let mut rt = Runtime::new(tokens());
+    let text = rt.store_mut().create("Layer 1");
+    let tick = rt.store_mut().create(0u32);
+    let shaped = Rc::new(RefCell::new(Vec::new()));
+    rt.set_root(MAIN, Label { text, tick, shaped: shaped.clone() });
+    let mut driver = Driver::new(rt, TestPlatform::new(Vec2::new(200.0, 32.0), 1.0), RecordingRenderer::default());
+    driver.step(0.0);
+    tick.set(&mut driver.runtime, 1);
+    assert_eq!(driver.step(1.0).frame.laid_out, 1);
+    text.set(&mut driver.runtime, "Layer 2");
+    assert_eq!(driver.step(2.0).frame.laid_out, 1);
+    let shaped = shaped.borrow();
+    assert_eq!(shaped.len(), 3);
+    assert!(shaped[0].handle.ptr_eq(&shaped[1].handle), "the same text at the same scale is not shaped again");
+    assert!(!shaped[1].handle.ptr_eq(&shaped[2].handle), "a changed text is");
+}

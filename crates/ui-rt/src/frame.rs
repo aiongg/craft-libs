@@ -264,7 +264,8 @@ pub(crate) fn parent_space(tree: &Tree, id: NodeId, viewport: Vec2) -> (Vec2, Re
 /// pixel under it.
 pub(crate) fn node_damage(tree: &mut Tree, id: NodeId, viewport: Vec2, deep: bool, damage: &mut Vec<Rect>) {
     let (origin, clip) = parent_space(tree, id, viewport);
-    let mut stack = vec![(id, origin, clip)];
+    let mut stack: SmallVec<[(NodeId, Vec2, Rect); 16]> = SmallVec::new();
+    stack.push((id, origin, clip));
     while let Some((id, parent_origin, parent_clip)) = stack.pop() {
         let Some(node) = tree.nodes.get_mut(&id) else {
             continue;

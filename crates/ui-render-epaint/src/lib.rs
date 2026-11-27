@@ -41,7 +41,7 @@ use emath::{Rect as ERect, Vec2};
 use epaint::textures::{TextureFilter, TextureOptions};
 use epaint::{ClippedPrimitive, ColorImage, ImageDelta, PaintCallback, Primitive, TessellationOptions, Tessellator};
 
-use crate::paint::{Env, Piece, Prim, mask_texture};
+use crate::paint::{Env, Piece, Prim, Scratch, mask_texture};
 use crate::readback::PendingRead;
 use crate::timer::Timer;
 
@@ -153,6 +153,9 @@ pub struct EpaintRenderer {
     synced: SyncReport,
     reads: HashMap<ReadBackId, PendingRead>,
     next_read: u64,
+    scratch: Scratch,
+    /// The primitives the last frame drew, to size the next frame's list.
+    prim_hint: usize,
 }
 
 impl EpaintRenderer {
@@ -195,6 +198,8 @@ impl EpaintRenderer {
             synced: SyncReport::default(),
             reads: HashMap::new(),
             next_read: 0,
+            scratch: Scratch::default(),
+            prim_hint: 0,
         })
     }
 
@@ -389,7 +394,7 @@ impl EpaintRenderer {
             state.kept.remove(&(*id, Part::Content));
             state.kept.remove(&(*id, Part::Overlay));
         }
-        let mut out = Vec::new();
+        let mut out = Vec::with_capacity(self.prim_hint);
         if damage.is_empty() {
             return out;
         }
@@ -398,6 +403,7 @@ impl EpaintRenderer {
         let scale = f64::from(state.scale);
         let WindowState { kept, tessellator, .. } = state;
         let text = &mut self.text;
+        let scratch = &mut self.scratch;
         let hooks = &self.hooks;
         frame.walk(|draw| {
             stats.draws += 1;
@@ -414,7 +420,7 @@ impl EpaintRenderer {
             if fresh {
                 stats.reused += 1;
             } else {
-                let done = paint::tessellate(draw.list, shift, &mut Env { tessellator, text, scale: scale as f32 });
+                let done = paint::tessellate(draw.list, shift, &mut Env { tessellator, text, scale: scale as f32, scratch });
                 kept.insert(key, Kept { version: draw.version, shift, prims: done.prims, masks: done.masks });
                 stats.prepared += 1;
             }
@@ -472,6 +478,7 @@ impl EpaintRenderer {
                 }
             }
         });
+        self.prim_hint = out.len();
         out
     }
 

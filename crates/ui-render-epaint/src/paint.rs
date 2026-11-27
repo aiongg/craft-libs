@@ -143,6 +143,14 @@ pub(crate) struct Env<'a> {
     pub tessellator: &'a mut Tessellator,
     pub text: &'a mut EpaintText,
     pub scale: f32,
+    /// Buffers every list uses and leaves empty, so a list allocates none of its own.
+    pub scratch: &'a mut Scratch,
+}
+
+#[derive(Default)]
+pub(crate) struct Scratch {
+    raw: Vec<ClippedPrimitive>,
+    shapes: Vec<Shape>,
 }
 
 /// The clip state while walking a list: the rect scissor, and the rounded outlines inside it.
@@ -186,8 +194,8 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
     // Meshes tessellated since the last flush: epaint joins consecutive shapes with the same clip
     // rect and texture into one mesh, so `raw` keeps its pieces between shapes. Where the rounded
     // outlines change (a clip pushed or popped) or a surface comes, it is flushed first.
-    let mut raw: Vec<ClippedPrimitive> = Vec::new();
-    let mut shapes: Vec<Shape> = Vec::new();
+    let mut raw = std::mem::take(&mut env.scratch.raw);
+    let mut shapes = std::mem::take(&mut env.scratch.shapes);
     for item in &list.items {
         shapes.clear();
         match item {
@@ -328,6 +336,8 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
         }
     }
     flush(&mut raw, &clips.outlines, &mut out.prims);
+    env.scratch.raw = raw;
+    env.scratch.shapes = shapes;
     out.masks.sort_unstable();
     out.masks.dedup();
     out
