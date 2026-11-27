@@ -2,6 +2,7 @@
 
 use super::canvas::Canvas;
 use super::content::{DocRun, DocText, FaceRun};
+use super::items;
 use super::record::PaintRecord;
 use super::rule::{RectSide, RuleKind};
 use super::surface::Surface;
@@ -10,9 +11,8 @@ use crate::fonts::{FaceBytes, FaceState, FontRef};
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, SurfaceStyle, TypeRole, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use craft_theme::Srgba;
-use craft_ui_rt::ImageKey;
-use egui::epaint::{CircleShape, RectShape};
-use egui::{Color32, CornerRadius, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2};
+use craft_ui_rt::{ImageKey, Item, Mesh, StrokeAlign};
+use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 
 /// The "no colour" diagonal of a well stops this share of the well's height short of its edges.
@@ -237,13 +237,15 @@ impl DataMode {
         self.map(crate::style::rgba_color(tokens.color.state.disabled_fill), color)
     }
 
-    /// Maps every colour of `shape` (fills, strokes, mesh vertices, glyphs) as [`Self::color`] maps one.
-    pub(crate) fn shape(self, tokens: &UiTokens, shape: &mut Shape) {
+    /// Maps every colour of `items` (fills, strokes, mesh vertices, tints) as [`Self::color`] maps one.
+    pub(crate) fn items(self, tokens: &UiTokens, items: &mut [Item]) {
         if self == DataMode::Full {
             return;
         }
         let inactive = crate::style::rgba_color(tokens.color.state.disabled_fill);
-        egui::epaint::shape_transform::adjust_colors(shape, move |color| *color = self.map(inactive, *color));
+        for item in items {
+            items::map_colors(item, |c| items::rgba(self.map(inactive, Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]))));
+        }
     }
 
     /// The one mapping, with `inactive` the theme's disabled fill. `Color32::PLACEHOLDER` passes through, so a
@@ -442,7 +444,7 @@ impl<'a> Draw<'a> {
         if layout.ink() == Rect::NOTHING {
             return;
         }
-        self.canvas.text(layout.rt(), pos);
+        self.canvas.text_turned(layout.rt(), pos, layout.rotation);
     }
 
     /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
@@ -455,7 +457,7 @@ impl<'a> Draw<'a> {
             super::IconSource::Swatch(swatch) => {
                 // The icon's `None` is its own empty swatch (a mixed or theme-decided colour), so it keeps the dash.
                 self.swatch_well(square, CornerRadius::ZERO, swatch.map_or(WellFill::Mixed, WellFill::Color));
-                self.paint(&PaintShape::Rect(square, CornerRadius::ZERO), None, Some(Stroke::new(self.width(StrokeWidth::Thin), color)));
+                self.paint(&PaintShape::Rect(square, CornerRadius::ZERO), None, Some(Line::new(self.width(StrokeWidth::Thin), color)));
                 return;
             }
             super::IconSource::Initial(letter) => {
@@ -481,7 +483,7 @@ impl<'a> Draw<'a> {
                 } else {
                     square.right_bottom() - Vec2::splat(radius)
                 };
-                let ring = Stroke::new(self.width(StrokeWidth::Thin), color);
+                let ring = Line::new(self.width(StrokeWidth::Thin), color);
                 self.paint(&PaintShape::Circle(centre, radius), Some(self.data_color(badge)), Some(ring));
             }
             Some(super::IconMark::Bar { color: bar, weight }) => {
@@ -506,7 +508,7 @@ impl<'a> Draw<'a> {
         let square = Rect::from_center_size(rect.center(), Vec2::splat(side));
         let radius = UiTokens::corner(self.env.tokens.shape.radius.sm);
         let width = self.width(StrokeWidth::Thin);
-        self.paint(&PaintShape::Rect(square.shrink(width / 2.0), radius), None, Some(Stroke::new(width, color.egui())));
+        self.paint(&PaintShape::Rect(square.shrink(width / 2.0), radius), None, Some(Line::new(width, color.egui())));
         let run = TextRun::new(letter.to_string()).role(TypeRole::Caption).color(color);
         let layout = self.layout(&run, f32::INFINITY);
         self.galley(square.center() - layout.size() / 2.0, &layout);
@@ -514,12 +516,12 @@ impl<'a> Draw<'a> {
 
     /// Paints the auto-scroll mark of `look` at `anchor`.
     pub fn auto_scroll_mark(&self, look: &crate::style::AutoScrollMarkLook, anchor: Pos2) {
-        self.canvas.extend(super::AutoScrollMark::shapes(look, anchor));
+        self.canvas.extend(super::AutoScrollMark::items(look, anchor));
     }
 
     /// Paints the reset mark of `look` centred on `center`: the dot while the value `differs`, else the ring.
     pub fn reset_mark(&self, look: &crate::style::ResetMarkLook, center: Pos2, differs: bool) {
-        self.canvas.extend(super::ResetMark::shapes(look, center, differs));
+        self.canvas.extend(super::ResetMark::items(look, center, differs));
     }
 
     /// Paints `marker` in `look`. A filled marker's fill is a data colour, painted as `data_fill` paints it.
@@ -528,13 +530,13 @@ impl<'a> Draw<'a> {
             Some(color) => marker.with_fill(self.data_color(DataColor::new(color))),
             None => *marker,
         };
-        self.canvas.extend(marker.shapes(look));
+        self.canvas.extend(marker.items(look));
     }
 
     /// Paints the line of `kind` from `from` to `to`.
     pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2) {
         let look = rule_look(self.env.tokens, kind);
-        self.canvas.extend(super::rule::Rule::shapes(&look, from, to, self.canvas.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::items(&look, from, to, self.canvas.pixels_per_point()));
     }
 
     /// Paints the line of `kind` along the `side` edge of `rect`, on the physical pixels just inside it
@@ -555,7 +557,7 @@ impl<'a> Draw<'a> {
         span: &craft_behavior::ScrollSpan,
         state: &crate::style::StateSet,
     ) {
-        self.canvas.extend(super::ScrollBar::shapes(look, track, axis, rtl, span, state));
+        self.canvas.extend(super::ScrollBar::items(look, track, axis, rtl, span, state));
     }
 
     /// The width in points of the line `rule` paints for `kind`.
@@ -566,7 +568,7 @@ impl<'a> Draw<'a> {
     /// Paints the line `look` from `from` to `to`, snapped to physical pixels as `rule` is: a rule in a component's own
     /// colour or width.
     pub fn rule_with(&self, look: &crate::style::RuleLook, from: Pos2, to: Pos2) {
-        self.canvas.extend(super::rule::Rule::shapes(look, from, to, self.canvas.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::items(look, from, to, self.canvas.pixels_per_point()));
     }
 
     /// Paints the line `look` from `from` to `to` as dots `gap` points apart (`Rule::dotted`): a dotted line.
@@ -595,7 +597,7 @@ impl<'a> Draw<'a> {
     /// Paints a surface of `kind` (tracks, plot wells).
     pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
         let style = surface_style(self.env.tokens, kind);
-        self.canvas.extend(Surface::shapes(&style, None, rect, corners, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(&style, None, rect, corners, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints the edge alone of a surface of `kind` over `rect`, with no shadow or fill: a floating window draws its
@@ -604,18 +606,18 @@ impl<'a> Draw<'a> {
         let mut style = surface_style(self.env.tokens, kind);
         style.shadow = None;
         style.fill = egui::Color32::TRANSPARENT;
-        self.canvas.extend(Surface::shapes(&style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(&style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints a surface of an already resolved `style` (a kind's look with one field changed, as a knob's round radius).
     pub fn surface_styled(&self, rect: Rect, style: &SurfaceStyle) {
-        self.canvas.extend(Surface::shapes(style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints `look` over `rect` in `state`, as the paint step paints a component's surface: a part's own surface (an
     /// indicator's well) keeps the kind's edge and bevel.
     pub fn surface_look(&self, rect: Rect, look: &crate::style::SurfaceLook, state: &crate::style::StateSet) {
-        self.canvas.extend(surface_look_shapes(self.env.tokens, look, state, rect, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(surface_look_items(self.env.tokens, look, state, rect, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Fills `shape`.
@@ -650,13 +652,11 @@ impl<'a> Draw<'a> {
     /// with no gap and no overlap.
     pub fn data_fill_tiled(&self, pieces: &[Vec<Pos2>], color: DataColor) {
         let fill = self.data_color(color);
-        let mut mesh = egui::Mesh::default();
+        let mut mesh = Mesh::default();
         for piece in pieces {
             mesh.append(super::kit::fill_polygon(piece, fill, 0.0));
         }
-        if !mesh.is_empty() {
-            self.canvas.add(Shape::mesh(mesh));
-        }
+        self.canvas.extend(items::mesh(mesh));
     }
 
     /// Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. The picture
@@ -724,7 +724,7 @@ impl<'a> Draw<'a> {
             }
             WellFill::Mixed => {
                 self.paint(shape, sunken, None);
-                let dash = Stroke::new(self.width(StrokeWidth::Medium), crate::style::rgba_color(colors.text.muted));
+                let dash = Line::new(self.width(StrokeWidth::Medium), crate::style::rgba_color(colors.text.muted));
                 self.paint(&super::glyph::dash(bounds), None, Some(dash));
             }
             WellFill::None => {
@@ -735,7 +735,7 @@ impl<'a> Draw<'a> {
                 } else {
                     (inner.left_bottom(), inner.right_top())
                 };
-                let mark = Stroke::new(self.width(StrokeWidth::Medium), crate::style::rgba_color(colors.status.bad.solid));
+                let mark = Line::new(self.width(StrokeWidth::Medium), crate::style::rgba_color(colors.status.bad.solid));
                 self.paint(&PaintShape::Path(vec![from, to]), None, Some(mark));
             }
             WellFill::Empty => self.paint(shape, sunken, None),
@@ -761,7 +761,7 @@ impl<'a> Draw<'a> {
     }
 
     /// The width in points and colour a stroke of `width` and `color` paints with.
-    fn line(&self, width: DataStrokeWidth, color: StrokeColor) -> Stroke {
+    fn line(&self, width: DataStrokeWidth, color: StrokeColor) -> Line {
         let points = match width {
             DataStrokeWidth::Named(width) => self.width(width),
             DataStrokeWidth::Data(DataWidth(points)) => points,
@@ -770,7 +770,7 @@ impl<'a> Draw<'a> {
             StrokeColor::Theme(color) => color.egui(),
             StrokeColor::Data(color) => self.data_color(color),
         };
-        Stroke::new(points, color)
+        Line::new(points, color)
     }
 
     /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
@@ -788,54 +788,71 @@ impl<'a> Draw<'a> {
     }
 
     /// Paints `shape` with its stroke where [`stroke`](Self::stroke) puts it.
-    fn paint(&self, shape: &PaintShape, fill: Option<Color32>, stroke: Option<Stroke>) {
-        self.paint_placed(shape, fill, stroke, shape.stroke_place());
+    fn paint(&self, shape: &PaintShape, fill: Option<Color32>, line: Option<Line>) {
+        self.paint_placed(shape, fill, line, shape.stroke_place());
     }
 
-    fn paint_placed(&self, shape: &PaintShape, fill: Option<Color32>, stroke: Option<Stroke>, place: StrokePlace) {
+    fn paint_placed(&self, shape: &PaintShape, fill: Option<Color32>, line: Option<Line>, place: StrokePlace) {
         let fill_color = fill.unwrap_or(Color32::TRANSPARENT);
-        let stroke = stroke.unwrap_or(Stroke::NONE);
-        let kind = match place {
-            StrokePlace::Inside => StrokeKind::Inside,
-            StrokePlace::Centre => StrokeKind::Middle,
-            StrokePlace::Outside => StrokeKind::Outside,
+        let align = match place {
+            StrokePlace::Inside => StrokeAlign::Inside,
+            StrokePlace::Centre => StrokeAlign::Middle,
+            StrokePlace::Outside => StrokeAlign::Outside,
         };
-        let shape = match shape {
-            PaintShape::Rect(rect, radius) => Shape::Rect(RectShape::new(*rect, *radius, fill_color, stroke, kind)),
+        let line = line.unwrap_or(Line::NONE);
+        match shape {
+            PaintShape::Rect(rect, radius) => self.canvas.add(items::rect(*rect, *radius, fill_color, items::stroke(line.width, line.color, align))),
             PaintShape::Circle(center, radius) => {
-                // egui strokes a circle outside its radius, so the fill and the stroke paint as two circles when the
-                // stroke moves in.
+                // A circle strokes outside its radius, so the fill and the stroke paint as two circles when the stroke
+                // moves in.
                 let offset = match place {
-                    StrokePlace::Inside => -stroke.width,
-                    StrokePlace::Centre => -stroke.width / 2.0,
+                    StrokePlace::Inside => -line.width,
+                    StrokePlace::Centre => -line.width / 2.0,
                     StrokePlace::Outside => 0.0,
                 };
                 if offset != 0.0 && fill.is_some() {
-                    self.canvas.add(Shape::Circle(CircleShape { center: *center, radius: *radius, fill: fill_color, stroke: Stroke::NONE }));
+                    self.canvas.add(items::circle_filled(*center, *radius, fill_color));
                 }
                 let fill_color = if offset == 0.0 { fill_color } else { Color32::TRANSPARENT };
                 let radius = (*radius + offset).max(0.0);
-                Shape::Circle(CircleShape { center: *center, radius, fill: fill_color, stroke })
+                let stroke = items::stroke(line.width, line.color, StrokeAlign::Outside);
+                self.canvas.add(Item::Circle { center: *center, radius, fill: items::rgba(fill_color), stroke });
             }
             PaintShape::Polygon(points) => {
                 if fill.is_some() {
-                    // egui's default feathering: one physical pixel.
+                    // One physical pixel of feathering, as egui's tessellator fades a convex fill.
                     let feather = 1.0 / self.canvas.pixels_per_point();
-                    let mesh = super::kit::fill_polygon(points, fill_color, feather);
-                    if !mesh.is_empty() {
-                        self.canvas.add(Shape::mesh(mesh));
-                    }
+                    self.canvas.extend(items::mesh(super::kit::fill_polygon(points, fill_color, feather)));
                 }
-                if stroke.is_empty() {
-                    return;
-                }
-                let mut line = egui::epaint::PathStroke::from(stroke);
-                line.kind = kind;
-                Shape::closed_line(points.clone(), line)
+                // A path's stroke is centred on it: an inside or outside stroke strokes the outline moved by half
+                // its width.
+                let shift = match place {
+                    StrokePlace::Inside => -line.width / 2.0,
+                    StrokePlace::Centre => 0.0,
+                    StrokePlace::Outside => line.width / 2.0,
+                };
+                let outline = if shift == 0.0 { points.clone() } else { super::focus_ring::grow_polygon(points, shift) };
+                self.canvas.extend(items::polyline(&outline, true, items::stroke(line.width, line.color, StrokeAlign::Middle)));
             }
-            PaintShape::Path(points) => Shape::line(points.clone(), stroke),
-        };
-        self.canvas.add(shape);
+            PaintShape::Path(points) => {
+                self.canvas.extend(items::polyline(points, false, items::stroke(line.width, line.color, StrokeAlign::Middle)));
+            }
+        }
+    }
+}
+
+/// A stroke's width in points and its colour, before it is placed against a shape's edge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Line {
+    width: f32,
+    color: Color32,
+}
+
+impl Line {
+    const NONE: Line = Line { width: 0.0, color: Color32::TRANSPARENT };
+
+    const fn new(width: f32, color: Color32) -> Line {
+        Line { width, color }
     }
 }
 
@@ -857,17 +874,17 @@ pub(super) fn data_picture(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMod
 fn data_quad(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, texture: ImageKey, corners: [Pos2; 4], uv: Rect) {
     if mode == DataMode::Inactive {
         let fill = mode.color(tokens, Color32::TRANSPARENT);
-        canvas.add(Shape::convex_polygon(corners.to_vec(), fill, Stroke::NONE));
+        canvas.extend(items::convex_polygon(&corners, fill, None));
     } else {
-        let tint = mode.color(tokens, super::textures::UNTINTED);
-        let mut mesh = egui::Mesh::with_texture(egui::TextureId::User(texture.0));
+        let tint = items::rgba(mode.color(tokens, super::textures::UNTINTED));
+        let mut mesh = Mesh::with_texture(texture);
         let uvs = [uv.left_top(), uv.right_top(), uv.right_bottom(), uv.left_bottom()];
         for (pos, uv) in corners.into_iter().zip(uvs) {
-            mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: tint });
+            mesh.vertices.push(craft_ui_rt::Vertex { pos, uv, color: tint });
         }
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(0, 2, 3);
-        canvas.add(Shape::mesh(mesh));
+        canvas.extend(items::mesh(mesh));
     }
 }
 
@@ -878,9 +895,9 @@ pub(super) fn data_checker(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMod
     if mode == DataMode::Inactive {
         canvas.rect_filled(rect, radius, mode.color(tokens, Color32::TRANSPARENT));
     } else {
-        let mut shape = checker.shape(canvas, tokens, super::CheckerArea::Rect(rect, radius), rect.min);
-        mode.shape(tokens, &mut shape);
-        canvas.add(shape);
+        let mut items = checker.items(canvas, tokens, super::CheckerArea::Rect(rect, radius), rect.min);
+        mode.items(tokens, &mut items);
+        canvas.extend(items);
     }
 }
 
@@ -888,25 +905,24 @@ pub(super) fn data_checker(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMod
 /// polygon in the theme's disabled fill.
 fn data_polygon_checker(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, checker: &super::Checker, corners: &[Pos2], origin: Pos2) {
     if mode == DataMode::Inactive {
-        canvas.add(Shape::convex_polygon(corners.to_vec(), mode.color(tokens, Color32::TRANSPARENT), Stroke::NONE));
+        canvas.extend(items::convex_polygon(corners, mode.color(tokens, Color32::TRANSPARENT), None));
     } else {
-        let mut shape = checker.polygon_shape(canvas, tokens, corners, origin);
-        mode.shape(tokens, &mut shape);
-        canvas.add(shape);
+        let mut items = checker.polygon_items(canvas, tokens, corners, origin);
+        mode.items(tokens, &mut items);
+        canvas.extend(items);
     }
 }
 
-/// `painter` with its opacity multiplied by `share`: the one fade `Draw::faded` and `ContentPainterCx::faded` share.
-/// The shapes of `look` over `rect` in `state`: the kind's surface (its edge and bevel) with the state fill, or the
+/// The items of `look` over `rect` in `state`: the kind's surface (its edge and bevel) with the state fill, or the
 /// fill alone without a kind, then the state border.
-pub(crate) fn surface_look_shapes(
+pub(crate) fn surface_look_items(
     tokens: &UiTokens,
     look: &crate::style::SurfaceLook,
     state: &crate::style::StateSet,
     rect: Rect,
     direction: Direction,
     ppp: f32,
-) -> Vec<egui::Shape> {
+) -> Vec<Item> {
     let fill = state.resolve(&look.fill);
     let radius = look.corners.apply(look.radius, direction);
     let mut shapes = match look.kind_in(state) {
@@ -919,18 +935,18 @@ pub(crate) fn surface_look_shapes(
             if look.border_replaces_edge && matches!(style.edge, crate::style::SurfaceEdge::Border(_)) {
                 style.edge = crate::style::SurfaceEdge::None;
             }
-            Surface::shapes(&style, Some(fill.egui()), rect, look.corners, direction, ppp)
+            Surface::items(&style, Some(fill.egui()), rect, look.corners, direction, ppp)
         }
-        None => super::StateLayer::shapes(super::StateLayerKind::Fill, fill, rect, radius, 0.0),
+        None => super::StateLayer::items(super::StateLayerKind::Fill, fill, rect, radius, 0.0),
     };
     if let Some(border) = &look.border {
-        shapes.extend(super::StateLayer::shapes(super::StateLayerKind::Outline, state.resolve(border), rect, radius, look.border_width));
+        shapes.extend(super::StateLayer::items(super::StateLayerKind::Outline, state.resolve(border), rect, radius, look.border_width));
     }
     if let Some(inner) = look.inner.as_ref().map(|inner| state.resolve(inner)).filter(|inner| inner.egui().a() > 0) {
         let inset = look.border_width;
         let shrink = |r: u8| (f32::from(r) - inset).max(0.0).round() as u8;
         let radius = CornerRadius { nw: shrink(radius.nw), ne: shrink(radius.ne), sw: shrink(radius.sw), se: shrink(radius.se) };
-        shapes.extend(super::StateLayer::shapes(super::StateLayerKind::Outline, inner, rect.shrink(inset), radius, look.border_width));
+        shapes.extend(super::StateLayer::items(super::StateLayerKind::Outline, inner, rect.shrink(inset), radius, look.border_width));
     }
     shapes
 }

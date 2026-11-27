@@ -153,7 +153,16 @@ impl Recorder<'_> {
             Item::Image { key, rect, uv, tint } => self.image(*key, *rect, *uv, *tint, false),
             Item::ImageMask { key, rect, uv, color } => self.image(*key, *rect, *uv, *color, true),
             Item::VGradient { rect, top, bottom } => self.gradient(*rect, *top, *bottom),
-            Item::Text { layout, origin, color, highlight, .. } => self.text(layout, *origin, *color, highlight.as_ref()),
+            Item::Text { layout, origin, color, highlight, angle, .. } => {
+                if *angle == 0.0 {
+                    self.text(layout, *origin, *color, highlight.as_ref());
+                } else {
+                    self.canvas.save();
+                    self.canvas.rotate(angle.to_degrees(), Some(point(*origin)));
+                    self.text(layout, *origin, *color, highlight.as_ref());
+                    self.canvas.restore();
+                }
+            }
             Item::Surface { key, rect } => self.surface(*key, *rect),
             Item::PushClip(clip) => self.push_clip(*clip),
             Item::PopClip | Item::PopOpacity => self.pop(),
@@ -331,6 +340,15 @@ impl Recorder<'_> {
             paint.set_alpha_f(f32::from(tint.0[3]) / 255.0 * self.opacity);
         } else {
             paint.set_color_filter(color_filters::blend(color(tint, self.opacity).to_color(), BlendMode::Modulate));
+        }
+        if options.wrap == craft_ui_rt::Wrap::Repeat {
+            // The image tiled from its uv origin: a shader carries the repeat past the image's edge.
+            let (sx, sy) = (r.width() / src.width(), r.height() / src.height());
+            let mut local = skia_safe::Matrix::scale((sx, sy));
+            local.post_translate((r.min.x - src.left * sx, r.min.y - src.top * sy));
+            paint.set_shader(image.to_shader((TileMode::Repeat, TileMode::Repeat), sampling, Some(&local)));
+            self.canvas.draw_rect(rect(r), &paint);
+            return;
         }
         self.canvas.draw_image_rect_with_sampling_options(&image, Some((&src, SrcRectConstraint::Fast)), rect(r), sampling, &paint);
     }

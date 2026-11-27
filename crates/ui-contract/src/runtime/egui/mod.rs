@@ -17,6 +17,7 @@ pub mod ime;
 pub mod input;
 pub mod memory;
 pub mod output;
+pub mod paint_slot;
 pub(crate) mod painted;
 pub mod panels;
 pub mod pass;
@@ -29,6 +30,7 @@ pub mod stack;
 pub mod style;
 #[cfg(feature = "testing")]
 pub(crate) mod surface;
+pub(crate) mod surface_slot;
 pub mod text_edit;
 pub mod text_layout;
 pub mod textures;

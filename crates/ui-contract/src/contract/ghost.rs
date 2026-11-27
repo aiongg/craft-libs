@@ -175,7 +175,7 @@ fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, session: &drag:
         }
         DragPreview::Frame { size, label } => {
             let frame = Rect::from_center_size(at, *size);
-            painter.extend(outline(&env.tokens, &PaintShape::Rect(frame, CornerRadius::ZERO)));
+            canvas.extend(outline(&env.tokens, &PaintShape::Rect(frame, CornerRadius::ZERO)));
             if let Some(label) = label {
                 let label = env.view().resolve(label);
                 // The label starts at the reading start of the frame's padded rect and wraps inside it.

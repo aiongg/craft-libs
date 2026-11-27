@@ -1,17 +1,18 @@
 //! The content-paint kit (5.4): the recurring shapes of document and plot painting, read from tokens, so an
-//! allowlisted content painter draws them through one implementation. The shape functions are pure; the
-//! `ContentPainterCx` methods add their shapes to its painter.
+//! allowlisted content painter draws them through one implementation. The item functions are pure (display items in
+//! window coordinates); the `ContentPainterCx` methods record their items on its canvas.
 
 use super::canvas::Canvas;
 use super::content::ContentPainterCx;
 use super::draw::{Dashes, PaintShape, StrokeWidth};
+use super::items;
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
 use super::textures::UNTINTED;
 use crate::style::{Corners, DataColor, RuleLook, RuleWidth, SurfaceKind, UiTokens, ink_color, rgba_color, rule_look, surface_style};
 use craft_behavior::{Axis, CanvasView, kurbo};
-use egui::epaint::{RectShape, Vertex};
-use egui::{Color32, ColorImage, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, TextureId, Vec2, pos2};
+use craft_ui_rt::{Clip, Dash, ImageKey, Item, Mesh, Stroke, StrokeAlign, Vertex};
+use egui::{Color32, CornerRadius, Pos2, Rect, Vec2, pos2};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
 /// Which edge of a rect a tick row sits on, and so which way its marks point.
@@ -175,7 +176,7 @@ impl Checker {
     }
 
     /// The texture of the two colours and the side of a cell.
-    fn texture(&self, canvas: &Canvas<'_>, tokens: &UiTokens) -> (TextureId, f32) {
+    fn texture(&self, canvas: &Canvas<'_>, tokens: &UiTokens) -> (ImageKey, f32) {
         let side = self.size.unwrap_or(tokens.size.checker).max(f32::EPSILON);
         let light = self.light.map_or_else(|| rgba_color(tokens.color.overlay.checker_light), |color| color.0);
         let dark = self.dark.map_or_else(|| rgba_color(tokens.color.overlay.checker_dark), |color| color.0);
@@ -184,33 +185,23 @@ impl Checker {
 
     /// The checkerboard over the convex polygon `corners` as one textured mesh, a light cell with its top-left corner at
     /// `origin`: the cells follow the polygon's edge, which a rect's clip cannot.
-    pub fn polygon_shape(&self, canvas: &Canvas<'_>, tokens: &UiTokens, corners: &[Pos2], origin: Pos2) -> Shape {
+    pub fn polygon_items(&self, canvas: &Canvas<'_>, tokens: &UiTokens, corners: &[Pos2], origin: Pos2) -> Vec<Item> {
         let (texture, side) = self.texture(canvas, tokens);
         let mut mesh = fill_polygon(corners, UNTINTED, 0.0);
-        mesh.texture_id = texture;
+        mesh.texture = Some(texture);
         for vertex in &mut mesh.vertices {
             vertex.uv = ((vertex.pos - origin) / (2.0 * side)).to_pos2();
         }
-        Shape::mesh(mesh)
+        items::mesh(mesh).into_iter().collect()
     }
 
     /// The checkerboard over `area` as one textured shape: square cells of the light and dark colours, a light cell
     /// with its top-left corner at `origin`. A painter's clip cuts it.
-    pub fn shape(&self, canvas: &Canvas<'_>, tokens: &UiTokens, area: CheckerArea, origin: Pos2) -> Shape {
+    pub fn items(&self, canvas: &Canvas<'_>, tokens: &UiTokens, area: CheckerArea, origin: Pos2) -> Vec<Item> {
         let (texture, side) = self.texture(canvas, tokens);
         // One texel per cell; the texture repeats every two cells.
         let uv = |p: Pos2| ((p - origin) / (2.0 * side)).to_pos2();
-        match area {
-            CheckerArea::Rect(rect, radius) => {
-                Shape::Rect(RectShape::filled(rect, radius, UNTINTED).with_texture(texture, Rect::from_min_max(uv(rect.min), uv(rect.max))))
-            }
-            CheckerArea::Quad(corners) => {
-                let mut mesh = Mesh::with_texture(texture);
-                mesh.vertices.extend(corners.iter().map(|&pos| Vertex { pos, uv: uv(pos), color: UNTINTED }));
-                mesh.indices.extend([0, 1, 2, 0, 2, 3]);
-                Shape::mesh(mesh)
-            }
-        }
+        tiled(texture, area, uv)
     }
 }
 
@@ -224,13 +215,43 @@ pub enum CheckerArea {
     Quad([Pos2; 4]),
 }
 
-/// The 2 x 2 texture of the checkerboard's two colours (light at the top left and bottom right), repeating, sampled
+/// The repeating image `texture` over `area`, untinted, `uv` giving each point's place in it: one image item for a rect
+/// (cut to its rounded corners), a textured mesh for a quad.
+pub(crate) fn tiled(texture: ImageKey, area: CheckerArea, uv: impl Fn(Pos2) -> Pos2) -> Vec<Item> {
+    let untinted = items::rgba(UNTINTED);
+    match area {
+        CheckerArea::Rect(rect, radius) => {
+            let image = Item::Image { key: texture, rect, uv: Rect::from_min_max(uv(rect.min), uv(rect.max)), tint: untinted };
+            if radius == CornerRadius::ZERO {
+                vec![image]
+            } else {
+                vec![Item::PushClip(Clip { rect, radii: items::radii(radius) }), image, Item::PopClip]
+            }
+        }
+        CheckerArea::Quad(corners) => {
+            let mut mesh = Mesh::with_texture(texture);
+            mesh.vertices.extend(corners.iter().map(|&pos| Vertex { pos, uv: uv(pos), color: untinted }));
+            mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+            vec![Item::Mesh(std::sync::Arc::new(mesh))]
+        }
+    }
+}
+
+/// The 2 x 2 image of the checkerboard's two colours (light at the top left and bottom right), repeating, sampled
 /// without blending so each texel stays one sharp cell.
-fn checker_texture(canvas: &Canvas<'_>, light: Color32, dark: Color32) -> TextureId {
-    let options = craft_ui_rt::ImageOptions { magnify: craft_ui_rt::Filter::Nearest, minify: craft_ui_rt::Filter::Nearest, mipmaps: false };
+fn checker_texture(canvas: &Canvas<'_>, light: Color32, dark: Color32) -> ImageKey {
+    let options = craft_ui_rt::ImageOptions {
+        magnify: craft_ui_rt::Filter::Nearest,
+        minify: craft_ui_rt::Filter::Nearest,
+        mipmaps: false,
+        wrap: craft_ui_rt::Wrap::Repeat,
+    };
     let key = super::canvas::image_key(&("craft-ui-checker", light, dark));
-    canvas.services().image(key, options, &mut || super::canvas::rgba_image(&ColorImage::new([2, 2], vec![light, dark, dark, light])));
-    TextureId::User(key.0)
+    canvas.services().image(key, options, &mut || {
+        let pixels = [light, dark, dark, light].iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
+        std::sync::Arc::new(craft_ui_rt::RgbaImage { size: craft_ui_rt::SizeU::new(2, 2), pixels })
+    });
+    key
 }
 
 /// A turn whose cross product is at most this (in square points) is straight: its vertex is cut away without a
@@ -243,6 +264,7 @@ const FLAT_TURN: f32 = 1e-4;
 /// equal to the first is dropped. The one polygon fill: `Draw` fills every `PaintShape::Polygon` with it.
 pub fn fill_polygon(points: &[Pos2], color: Color32, feather: f32) -> Mesh {
     let mut mesh = Mesh::default();
+    let (opaque, clear) = (items::rgba(color), items::rgba(Color32::TRANSPARENT));
     let mut ring = points.to_vec();
     ring.dedup();
     if ring.len() > 1 && ring.first() == ring.last() {
@@ -267,8 +289,8 @@ pub fn fill_polygon(points: &[Pos2], color: Color32, feather: f32) -> Mesh {
             let normal = (before + after) * 0.5;
             let length_sq = normal.length_sq();
             let normal = if length_sq > f32::EPSILON { normal / length_sq } else { after };
-            mesh.colored_vertex(point - normal * (0.5 * feather), color);
-            mesh.colored_vertex(point + normal * (0.5 * feather), Color32::TRANSPARENT);
+            mesh.colored_vertex(point - normal * (0.5 * feather), opaque);
+            mesh.colored_vertex(point + normal * (0.5 * feather), clear);
         }
         for i in 0..n as u32 {
             let before = (i + n as u32 - 1) % n as u32;
@@ -280,7 +302,7 @@ pub fn fill_polygon(points: &[Pos2], color: Color32, feather: f32) -> Mesh {
         }
     } else {
         for &point in &ring {
-            mesh.colored_vertex(point, color);
+            mesh.colored_vertex(point, opaque);
         }
         for [a, b, c] in triangles {
             mesh.add_triangle(a, b, c);
@@ -342,7 +364,7 @@ const ARC_STEPS: usize = 8;
 /// clamped, and a ramp whose first stop is after 0 or whose last is before 1 holds that colour out to the edge. The
 /// colours blend as the renderer blends mesh vertices, in sRGB. A rounded ramp keeps inside the rounded outline, as a
 /// rounded rect of the same radius draws it.
-pub fn ramp(rect: Rect, radius: CornerRadius, stops: &[(f32, DataColor)], axis: Axis) -> Vec<Shape> {
+pub fn ramp(rect: Rect, radius: CornerRadius, stops: &[(f32, DataColor)], axis: Axis) -> Vec<Item> {
     if !(rect.width() > 0.0 && rect.height() > 0.0) {
         return Vec::new();
     }
@@ -375,19 +397,19 @@ pub fn ramp(rect: Rect, radius: CornerRadius, stops: &[(f32, DataColor)], axis: 
         let lo = c0 + inset(start_lo, from_start).max(inset(end_lo, from_end));
         let hi = c1 - inset(start_hi, from_start).max(inset(end_hi, from_end));
         let point = |c: f32| if vertical { pos2(c, s) } else { pos2(s, c) };
-        mesh.colored_vertex(point(lo), *color);
-        mesh.colored_vertex(point(hi), *color);
+        mesh.colored_vertex(point(lo), items::rgba(*color));
+        mesh.colored_vertex(point(hi), items::rgba(*color));
         if let Some(base) = (index as u32).checked_sub(1).map(|previous| previous * 2) {
             mesh.add_triangle(base, base + 1, base + 2);
             mesh.add_triangle(base + 1, base + 3, base + 2);
         }
     }
-    vec![Shape::mesh(mesh)]
+    items::mesh(mesh).into_iter().collect()
 }
 
 /// `mesh` with every vertex that lies outside a rounded corner of `rect` moved onto the arc, towards the corner's
 /// centre, keeping its colour. A square corner moves nothing.
-fn rounded_mesh(mut mesh: Mesh, rect: Rect, radius: CornerRadius) -> Vec<Shape> {
+fn rounded_mesh(mut mesh: Mesh, rect: Rect, radius: CornerRadius) -> Vec<Item> {
     let most = rect.width().min(rect.height()) / 2.0;
     let r = |corner: u8| f32::from(corner).min(most);
     let corners = [
@@ -408,7 +430,7 @@ fn rounded_mesh(mut mesh: Mesh, rect: Rect, radius: CornerRadius) -> Vec<Shape> 
             }
         }
     }
-    vec![Shape::mesh(mesh)]
+    items::mesh(mesh).into_iter().collect()
 }
 
 /// The columns of a rounded ramp: the places of `marks` (sorted) and of samples along each corner of `corners` (its
@@ -664,12 +686,12 @@ impl GridLook {
 
 /// The lines of `grid` as `ink` draws them: minor lines first, then the major ones, each running across
 /// the grid's extent and mapped through its view.
-pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
+pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Item> {
     grid_lines_with(&GridLook::of(tokens), grid, ink, pixels_per_point)
 }
 
 /// [`grid_lines`] from a look read earlier.
-pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
+pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Item> {
     let Some(extent) = grid.extent else { return Vec::new() };
     let major = ink.major.map_or(look.color, |color| color.0);
     let minor = ink.minor.map_or_else(|| major.gamma_multiply(MINOR_SHARE), |color| color.0);
@@ -683,7 +705,7 @@ pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_
             xs.iter().map(|&x| (screen(x, extent.y0), screen(x, extent.y1))).chain(ys.iter().map(|&y| (screen(extent.x0, y), screen(extent.x1, y))));
         for (a, b) in ends {
             match ink.stroke {
-                GridStroke::Solid => shapes.extend(Rule::shapes(&RuleLook { color, width: look.width }, a, b, pixels_per_point)),
+                GridStroke::Solid => shapes.extend(Rule::items(&RuleLook { color, width: look.width }, a, b, pixels_per_point)),
                 GridStroke::Dashed => shapes.extend(dashed(&[a, b], Dashes::new(look.dash, look.gap), look.width.points(pixels_per_point), color)),
                 GridStroke::Dots => shapes.extend(Rule::dotted(&RuleLook { color, width: look.width }, a, b, look.gap, pixels_per_point)),
             }
@@ -695,7 +717,7 @@ pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_
 /// The tick marks of `ticks` along `edge` of `rect` that `clip` shows, `stroke.thin` lines of `text.faint`: minor ones
 /// `TICK_MINOR` long, mid ones `TICK_MID`, major ones across the whole depth of `rect`. The edge
 /// face hangs them from `edge`; the centred face centres them on `rect`'s middle line (`rect` is then the face's bar).
-pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, face: RulerFace, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
+pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, face: RulerFace, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Item> {
     let look = RuleLook { color: rgba_color(tokens.color.text.faint), width: RuleWidth::Points(tokens.stroke.thin) };
     let depth = match edge {
         TickEdge::Bottom | TickEdge::Top => rect.height(),
@@ -725,26 +747,27 @@ pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, face: RulerFace, tic
                     (pos2(x - length / 2.0, y), pos2(x + length / 2.0, y))
                 }
             };
-            clip.intersects(Rect::from_two_pos(from, to)).then(|| Rule::shapes(&look, from, to, pixels_per_point))
+            clip.intersects(Rect::from_two_pos(from, to)).then(|| Rule::items(&look, from, to, pixels_per_point))
         })
         .flatten()
         .collect()
 }
 
 /// The line that marks a shape on any image: a `thick` halo under a `medium` line, in the overlay colours.
-pub fn outline(tokens: &UiTokens, shape: &PaintShape) -> Vec<Shape> {
+pub fn outline(tokens: &UiTokens, shape: &PaintShape) -> Vec<Item> {
     outline_in(tokens, std::slice::from_ref(shape), rgba_color(tokens.color.overlay.line))
 }
 
 /// The outline of [`outline`] with the line in `line`, a colour the user picked (a Navigator proxy colour), over the
 /// overlay halo. Every halo is drawn under every line, so the edges of one mark that meet or cross stay unbroken.
-pub fn outline_in(tokens: &UiTokens, shapes: &[PaintShape], line: Color32) -> Vec<Shape> {
-    outline_with(Stroke::new(tokens.stroke.thick, rgba_color(tokens.color.overlay.halo)), Stroke::new(tokens.stroke.medium, line), shapes)
+pub fn outline_in(tokens: &UiTokens, shapes: &[PaintShape], line: Color32) -> Vec<Item> {
+    let halo = Stroke::new(tokens.stroke.thick, items::rgba(rgba_color(tokens.color.overlay.halo)));
+    outline_with(halo, Stroke::new(tokens.stroke.medium, items::rgba(line)), shapes)
 }
 
 /// The outline of `shapes` with the strokes given: the halo under the line. For a component that keeps shapes built in
 /// `update`, where only `style` has read the tokens.
-pub fn outline_with(halo: Stroke, line: Stroke, shapes: &[PaintShape]) -> Vec<Shape> {
+pub fn outline_with(halo: Stroke, line: Stroke, shapes: &[PaintShape]) -> Vec<Item> {
     let halos = shapes.iter().flat_map(|shape| stroked(shape, halo));
     halos.chain(shapes.iter().flat_map(|shape| stroked(shape, line))).collect()
 }
@@ -752,8 +775,9 @@ pub fn outline_with(halo: Stroke, line: Stroke, shapes: &[PaintShape]) -> Vec<Sh
 /// A dashed line along `points` in `color`, `width` thick, with the lengths and phase of `pattern`. The pattern
 /// continues across the segments; the corners are not closed. The one dashed-line implementation: `Draw::dashed` and
 /// the painter's `dashed` call it.
-pub fn dashed(points: &[Pos2], pattern: Dashes, width: f32, color: Color32) -> Vec<Shape> {
-    Shape::dashed_line_with_offset(points, Stroke::new(width, color), &[pattern.dash], &[pattern.gap], pattern.phase)
+pub fn dashed(points: &[Pos2], pattern: Dashes, width: f32, color: Color32) -> Vec<Item> {
+    let dash = Dash { on: pattern.dash, off: pattern.gap, offset: pattern.phase };
+    items::dashed(points, dash, width, color).into_iter().collect()
 }
 
 /// Longer than any line that fits the view: only its part in view is dashed.
@@ -800,16 +824,16 @@ impl Ants {
 /// the halo colour, shifted by `phase` points along the path. The pattern is fixed to the screen's device pixels, so
 /// each horizontal or vertical edge is a band of whole pixels (one at 100 percent, two up to 200 percent) at any
 /// fractional scale and one mesh of pixel-aligned quads; a slanted edge stays a line shape.
-pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32, clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
+pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32, clip: Rect, pixels_per_point: f32) -> Vec<Item> {
     let (light, dark) = (rgba_color(tokens.color.overlay.marquee), rgba_color(tokens.color.overlay.halo));
     let ants = Ants::new(tokens, pixels_per_point, phase);
     let Ants { ppp, width: w, dash, .. } = ants;
-    let mut mesh = egui::Mesh::default();
+    let mut mesh = Mesh::default();
     let mut slanted = Vec::new();
     // Device pixels to a rectangle in points.
     let mut quad = |x0: i64, y0: i64, x1: i64, y1: i64, color: Color32| {
         let rect = Rect::from_min_max(pos2(x0 as f32 / ppp, y0 as f32 / ppp), pos2(x1 as f32 / ppp, y1 as f32 / ppp));
-        mesh.add_colored_rect(rect, color);
+        mesh.add_colored_rect(rect, items::rgba(color));
     };
     // The view in device pixels, a dash period wider: a band is cut to it so a long edge costs what its visible part
     // does, and the pattern is fixed to the screen so the cut does not move it.
@@ -863,23 +887,21 @@ pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f3
         } else {
             let len = da.distance(db);
             let dir = (db - da) / len;
-            let stroke = |color| Stroke::new(w as f32 / ppp, color);
-            slanted.push(Shape::line_segment([da / ppp, db / ppp], stroke(light)));
+            let width = w as f32 / ppp;
+            slanted.extend(items::segment(da / ppp, db / ppp, width, light));
             // Phased by screen position, like the straight edges, so dashes line up across joins.
             let period = (2 * dash) as f32;
             let mut t = -(da.x.floor() + da.y.floor() + ants.phase as f32).rem_euclid(period);
             while t < len {
                 let (s0, s1) = (t.max(0.0), (t + dash as f32).min(len));
                 if s1 > s0 {
-                    slanted.push(Shape::line_segment([(da + dir * s0) / ppp, (da + dir * s1) / ppp], stroke(dark)));
+                    slanted.extend(items::segment((da + dir * s0) / ppp, (da + dir * s1) / ppp, width, dark));
                 }
                 t += period;
             }
         }
     }
-    if !mesh.is_empty() {
-        slanted.push(Shape::mesh(mesh));
-    }
+    slanted.extend(items::mesh(mesh));
     slanted
 }
 
@@ -905,8 +927,8 @@ fn clip_line(r: Rect, a: Pos2, b: Pos2) -> Option<(Pos2, Pos2)> {
 }
 
 /// The insertion mark of a drop from `from` to `to`.
-pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Shape> {
-    Rule::shapes(&rule_look(tokens, RuleKind::DropMark), from, to, pixels_per_point)
+pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Item> {
+    Rule::items(&rule_look(tokens, RuleKind::DropMark), from, to, pixels_per_point)
 }
 
 /// The points of the ellipse with centre `center` and conjugate half-axes `axes` (a rotated or skewed circle is
@@ -933,20 +955,26 @@ pub fn ellipse(center: Pos2, axes: [Vec2; 2]) -> Vec<Pos2> {
 
 /// A line `width` points wide along `points`, with round dots at every point, in the theme's text-selection fill
 /// (translucent, so the content under it shows): the swath a rubbing tool leaves.
-pub fn swath(tokens: &UiTokens, points: &[Pos2], width: f32) -> Vec<Shape> {
+pub fn swath(tokens: &UiTokens, points: &[Pos2], width: f32) -> Vec<Item> {
     let color = rgba_color(tokens.color.state.text_selection);
-    let mut shapes = vec![Shape::line(points.to_vec(), Stroke::new(width, color))];
+    let mut shapes: Vec<Item> = items::polyline(points, false, items::stroke(width, color, StrokeAlign::Middle)).into_iter().collect();
     // A line has butt ends and no joins: a dot at each point keeps the swath's width at the ends and corners.
-    shapes.extend(points.iter().map(|&p| Shape::circle_filled(p, width / 2.0, color)));
+    shapes.extend(points.iter().map(|&p| items::circle_filled(p, width / 2.0, color)));
     shapes
 }
 
-fn stroked(shape: &PaintShape, stroke: Stroke) -> Vec<Shape> {
+/// `shape`'s outline in `stroke`: centred on a rect's edge and on a path, outside a circle.
+fn stroked(shape: &PaintShape, stroke: Stroke) -> Option<Item> {
+    let transparent = items::rgba(Color32::TRANSPARENT);
     match shape {
-        PaintShape::Rect(rect, radius) => vec![Shape::rect_stroke(*rect, *radius, stroke, egui::StrokeKind::Middle)],
-        PaintShape::Circle(center, radius) => vec![Shape::circle_stroke(*center, *radius, stroke)],
-        PaintShape::Polygon(points) => vec![Shape::closed_line(points.clone(), stroke)],
-        PaintShape::Path(points) => vec![Shape::line(points.clone(), stroke)],
+        PaintShape::Rect(rect, radius) => {
+            Some(Item::Rect { rect: *rect, radii: items::radii(*radius), fill: transparent, stroke: Some(stroke.aligned(StrokeAlign::Middle)) })
+        }
+        PaintShape::Circle(center, radius) => {
+            Some(Item::Circle { center: *center, radius: *radius, fill: transparent, stroke: Some(stroke.aligned(StrokeAlign::Outside)) })
+        }
+        PaintShape::Polygon(points) => items::polyline(points, true, Some(stroke.aligned(StrokeAlign::Middle))),
+        PaintShape::Path(points) => items::polyline(points, false, Some(stroke.aligned(StrokeAlign::Middle))),
     }
 }
 
@@ -958,11 +986,10 @@ impl ContentPainterCx<'_> {
     /// Paints shapes whose colours are data (a colour mesh, a plot's series, document text laid out by `layout`): as
     /// they are, at `Opacity::DISABLED` while the component paints its Disabled state (each colour keeps its hue), and
     /// in the theme's disabled fill for an inactive part, as `Draw::data_fill` paints a data colour.
-    pub fn data_shapes(&self, shapes: impl IntoIterator<Item = Shape>) {
-        self.painter.extend(shapes.into_iter().map(|mut shape| {
-            self.data.shape(self.tokens, &mut shape);
-            shape
-        }));
+    pub fn data_items(&self, items: impl IntoIterator<Item = Item>) {
+        let mut items: Vec<Item> = items.into_iter().collect();
+        self.data.items(self.tokens, &mut items);
+        self.painter.extend(items);
     }
 
     /// Paints the part `uv` of `texture` into `rect`, untinted, with corners of `radius` points (zero for square ones).
@@ -978,26 +1005,26 @@ impl ContentPainterCx<'_> {
 
     /// Paints a colour ramp over `rect` with corners of `radius` along `axis`, as data; see [`ramp`].
     pub fn ramp(&self, rect: Rect, radius: CornerRadius, stops: &[(f32, DataColor)], axis: Axis) {
-        self.data_shapes(ramp(rect, radius, stops, axis));
+        self.data_items(ramp(rect, radius, stops, axis));
     }
 
     /// Paints a colour `mesh` laid over `rect`, as data, with its vertices pulled inside the outline of corners of
     /// `radius`, so a gradient keeps inside the rounded ring of the well it fills.
     pub fn mesh_in(&self, rect: Rect, radius: CornerRadius, mesh: Mesh) {
-        self.data_shapes(rounded_mesh(mesh, rect, radius));
+        self.data_items(rounded_mesh(mesh, rect, radius));
     }
 
     /// Paints the well of a plot over `rect` and returns the rect inside its edge, where the plot draws.
     pub fn plot_frame(&self, rect: Rect) -> Rect {
         let style = surface_style(self.tokens, SurfaceKind::Well);
-        self.painter.extend(Surface::shapes(&style, None, rect, Corners::None, self.direction, self.ppp()));
+        self.painter.extend(Surface::items(&style, None, rect, Corners::None, self.direction, self.ppp()));
         rect.shrink(self.tokens.stroke.thin)
     }
 
     /// Paints a surface of `kind` over `rect`; [`Self::ink_on`] is the ink text and glyphs read on it.
     pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
         let style = surface_style(self.tokens, kind);
-        self.painter.extend(Surface::shapes(&style, None, rect, corners, self.direction, self.ppp()));
+        self.painter.extend(Surface::items(&style, None, rect, corners, self.direction, self.ppp()));
     }
 
     /// Paints `icon` centred in `rect`, as `Draw::icon` does: a glyph on a tile the content draws itself.

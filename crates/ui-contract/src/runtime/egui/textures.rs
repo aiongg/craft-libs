@@ -1,6 +1,6 @@
 //! Texture uploads and painting: the one place egui's texture calls are made.
 
-use egui::{Color32, ColorImage, Context, CornerRadius, Painter, Pos2, Rect, TextureHandle, TextureId, TextureOptions};
+use egui::{Color32, ColorImage, Context, CornerRadius, Painter, Rect, TextureHandle, TextureId, TextureOptions};
 
 /// Uploads `image` as a texture called `name`, sampled with `filter`. The texture lives as long as the handle.
 pub(crate) fn load(ctx: &Context, name: String, image: ColorImage, filter: TextureOptions) -> TextureHandle {

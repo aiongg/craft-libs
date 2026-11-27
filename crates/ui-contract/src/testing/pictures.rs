@@ -12,7 +12,7 @@
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use craft_behavior::PixelSize;
-use egui::{Color32, ColorImage, Context, Pos2, Rect, Shape, Stroke, pos2, vec2};
+use egui::{Color32, ColorImage, Context, Pos2, Rect, pos2, vec2};
 
 use crate::primitives::textures::{FakeThumbSource, Priority, ThumbFit, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, fake_thumb_image};
 use crate::primitives::{ContentPainterCx, StrokeWidth};
@@ -76,14 +76,15 @@ pub fn paint_tip(cx: &ContentPainterCx, rect: Rect, tip: SampleTip, color: Color
             }
         }
         SampleTip::Star => {
-            let points = (0..10)
+            let points: Vec<Pos2> = (0..10)
                 .map(|i| {
                     let angle = TAU * i as f32 / 10.0 - FRAC_PI_2;
                     let r = if i % 2 == 0 { radius } else { radius * 0.45 };
                     centre + vec2(angle.cos(), angle.sin()) * r
                 })
                 .collect();
-            painter.add(Shape::closed_line(points, Stroke::new((radius * 0.15).max(1.0), color)));
+            let line = crate::primitives::items::stroke((radius * 0.15).max(1.0), color, craft_ui_rt::StrokeAlign::Middle);
+            painter.extend(crate::primitives::items::polyline(&points, true, line));
         }
         SampleTip::Sampled => {
             for (x, y) in [(-1.0, -1.0), (1.0, -0.5), (0.0, 0.0), (-0.6, 0.9), (0.8, 1.0)] {
@@ -103,7 +104,11 @@ pub fn paint_wave(cx: &ContentPainterCx, rect: Rect, width: f32, color: Color32)
             Pos2::new(rect.left() + rect.width() * t, rect.center().y - amp * (t * TAU).sin())
         })
         .collect();
-    cx.painter.add(Shape::line(points, Stroke::new(width, color)));
+    cx.painter.extend(crate::primitives::items::polyline(
+        &points,
+        false,
+        crate::primitives::items::stroke(width, color, craft_ui_rt::StrokeAlign::Middle),
+    ));
 }
 
 /// A stroke `size` pixels wide and high: round dabs of `diameter` pixels times the pressure stamped along
@@ -149,7 +154,8 @@ pub fn paint_contour(cx: &ContentPainterCx, rect: Rect, n: u32) {
             pos2(area.left() + t * area.width(), area.bottom() - y * area.height())
         })
         .collect();
-    cx.painter.add(Shape::line(points, Stroke::new(cx.stroke_width(StrokeWidth::Thin), cx.ink())));
+    let line = crate::primitives::items::stroke(cx.stroke_width(StrokeWidth::Thin), cx.ink(), craft_ui_rt::StrokeAlign::Middle);
+    cx.painter.extend(crate::primitives::items::polyline(&points, false, line));
 }
 
 /// The size of [`test_card`] in pixels: 4:3.

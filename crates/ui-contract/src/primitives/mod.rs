@@ -14,9 +14,9 @@ mod handle;
 mod host;
 mod icon;
 mod ime_surface;
+pub mod items;
 mod kit;
 mod marker;
-mod paint_slot;
 pub(crate) mod pointer_art;
 mod record;
 mod reset_mark;
@@ -26,7 +26,7 @@ pub(crate) mod sensing;
 mod state_layer;
 mod surface;
 mod surround;
-mod svg_set;
+pub(crate) mod svg_set;
 #[doc(hidden)]
 pub mod svg_tree;
 pub(crate) mod text;
@@ -35,6 +35,9 @@ mod text_input;
 pub mod textures;
 mod tool;
 
+pub use crate::runtime::egui::paint_slot::PaintSlot;
+pub use crate::runtime::egui::surface_slot::frame_surfaces;
+pub(crate) use crate::runtime::egui::surface_slot::{Frames as SurfaceFrames, SurfaceSlot, fit_to_frame};
 pub use auto_scroll_mark::AutoScrollMark;
 pub use canvas::{Canvas, FaceJob, FrameServices, Services, image_key, rgba_image};
 pub use content::{ContentPainterCx, DocRun, DocText, FaceRun};
@@ -52,15 +55,13 @@ pub use kit::{
     drop_mark, ellipse, fill_polygon, grid_lines, grid_lines_with, marching_ants, outline, outline_with, ramp, swath, ticks,
 };
 pub use marker::{Marker, MarkerSize};
-pub use paint_slot::PaintSlot;
 pub use pointer_art::painted_image;
 pub use reset_mark::ResetMark;
 pub use rule::{RectSide, Rule, RuleKind};
 pub use scroll_bar::{HiddenContent, ScrollBar};
 pub use sensing::{PartResult, TextOutcome, cancel_press_of, member_gesture_running};
 pub use state_layer::{StateLayer, StateLayerKind};
-pub(crate) use surface::{Frames as SurfaceFrames, SurfaceSlot, fit_to_frame};
-pub use surface::{Surface, frame_surfaces};
+pub use surface::Surface;
 pub use surround::paint_surround;
 #[cfg(feature = "suite")]
 pub use svg_set::{AppIcons, register_app_icons};
@@ -83,7 +84,7 @@ pub use textures::{
 pub(crate) use draw::DataMode;
 #[doc(hidden)]
 pub use draw::DrawEnv;
-pub(crate) use draw::surface_look_shapes;
+pub(crate) use draw::surface_look_items;
 #[doc(hidden)]
 pub use record::PaintRecord;
 pub(crate) use record::{Adopted, FaceRecord, face_id};

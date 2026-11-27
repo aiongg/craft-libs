@@ -1,7 +1,9 @@
 //! `Marker`: the mark that shows where a colour sits on a colour field, wheel, disc or gradient line.
 
+use super::items;
 use crate::style::MarkerLook;
-use egui::{Color32, Pos2, Shape, Stroke};
+use craft_ui_rt::Item;
+use egui::{Color32, Pos2};
 
 /// How large a marker is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -80,20 +82,20 @@ impl Marker {
     }
 
     /// The shapes, bottom first.
-    pub fn shapes(&self, look: &MarkerLook) -> Vec<Shape> {
+    pub fn items(&self, look: &MarkerLook) -> Vec<Item> {
         let radius = self.radius.unwrap_or_else(|| Self::size_radius(look, self.size));
         let mut shapes = Vec::with_capacity(4);
         if let Some(color) = self.fill {
             if !color.is_opaque() {
-                shapes.push(Shape::circle_filled(self.at, radius, look.backing.egui()));
+                shapes.push(items::circle_filled(self.at, radius, look.backing.egui()));
             }
-            shapes.push(Shape::circle_filled(self.at, radius, color));
+            shapes.push(items::circle_filled(self.at, radius, color));
         }
         let ring = if self.selected { look.selected } else { look.ring };
-        shapes.push(Shape::circle_stroke(self.at, radius, Stroke::new(look.ring_width, ring.egui())));
+        shapes.push(items::circle_stroke(self.at, radius, look.ring_width, ring.egui()));
         // A circle strokes outside its radius: the halo starts where the ring ends.
         let halo = radius + look.ring_width;
-        shapes.push(Shape::circle_stroke(self.at, halo, Stroke::new(look.halo_width, look.halo.egui())));
+        shapes.push(items::circle_stroke(self.at, halo, look.halo_width, look.halo.egui()));
         shapes
     }
 }

@@ -1459,7 +1459,7 @@ fn draw_bar_rule(ui: &Ui, rule: &LineItem) {
         _ => (rect.center_top(), rect.center_bottom()),
     };
     let painter = ui.painter().with_clip_rect(clip.rect());
-    painter.extend(crate::primitives::Rule::shapes(look, from, to, painter.pixels_per_point()));
+    crate::runtime::egui::text_layout::paint_items(&painter, &crate::primitives::Rule::items(look, from, to, painter.pixels_per_point()));
 }
 
 /// Whether `rect`, in the scrolling body of a bar, lies partly outside the body's view along x. A member wider than the

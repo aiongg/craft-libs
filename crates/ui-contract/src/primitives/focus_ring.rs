@@ -1,10 +1,12 @@
 //! `FocusRing`: rings and halos around a rect, circle, polygon or path.
 
 use super::draw::PaintShape;
+use super::items;
 use crate::runtime::focus::FocusShape;
 use crate::style::{Flags, FocusLook};
+use craft_ui_rt::{Item, StrokeAlign};
 use egui::emath::GuiRounding as _;
-use egui::{CornerRadius, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
 
 /// How a focus indication is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -39,17 +41,17 @@ impl FocusRing {
 
     /// The shapes of the ring around `shape`, grown by `look.offset`. A halo adds a stroke twice as wide at a
     /// third of the opacity beneath the ring.
-    pub fn shapes(look: &FocusLook, kind: FocusKind, shape: &PaintShape, pixels_per_point: f32) -> Vec<Shape> {
+    pub fn items(look: &FocusLook, kind: FocusKind, shape: &PaintShape, pixels_per_point: f32) -> Vec<Item> {
         let stroke = look.stroke;
         let mut out = Vec::new();
         if kind == FocusKind::Halo {
-            out.push(Self::one(shape, look.offset, Stroke::new(stroke.width * 2.0, stroke.color.gamma_multiply(1.0 / 3.0)), pixels_per_point));
+            out.extend(Self::one(shape, look.offset, stroke.width * 2.0, stroke.color.gamma_multiply(1.0 / 3.0), pixels_per_point));
         }
-        out.push(Self::one(shape, look.offset, stroke, pixels_per_point));
+        out.extend(Self::one(shape, look.offset, stroke.width, stroke.color, pixels_per_point));
         out
     }
 
-    fn one(shape: &PaintShape, offset: f32, stroke: Stroke, pixels_per_point: f32) -> Shape {
+    fn one(shape: &PaintShape, offset: f32, width: f32, color: Color32, pixels_per_point: f32) -> Option<Item> {
         match shape {
             PaintShape::Rect(rect, radius) => {
                 let rect = rect.round_to_pixels(pixels_per_point);
@@ -60,11 +62,11 @@ impl FocusRing {
                     sw: radius.sw.saturating_add(offset.max(0.0) as u8),
                     se: radius.se.saturating_add(offset.max(0.0) as u8),
                 };
-                Shape::rect_stroke(grown, radius, stroke, StrokeKind::Inside)
+                Some(items::rect_stroke(grown, radius, width, color, StrokeAlign::Inside))
             }
-            PaintShape::Circle(center, r) => Shape::circle_stroke(*center, r + offset, stroke),
-            PaintShape::Polygon(points) => Shape::closed_line(grow_polygon(points, offset), stroke),
-            PaintShape::Path(points) => Shape::line(points.clone(), stroke),
+            PaintShape::Circle(center, r) => Some(items::circle_stroke(*center, r + offset, width, color)),
+            PaintShape::Polygon(points) => items::polyline(&grow_polygon(points, offset), true, items::stroke(width, color, StrokeAlign::Middle)),
+            PaintShape::Path(points) => items::polyline(points, false, items::stroke(width, color, StrokeAlign::Middle)),
         }
     }
 }
@@ -72,7 +74,7 @@ impl FocusRing {
 /// `points` moved outward by `offset`: each vertex slides along the bisector of its two edge normals by
 /// `offset / cos(half angle)`, so every edge ends up `offset` from where it was (a mitred outline). Fewer than three
 /// points, or an offset of zero, leave the polygon as it is.
-fn grow_polygon(points: &[Pos2], offset: f32) -> Vec<Pos2> {
+pub(super) fn grow_polygon(points: &[Pos2], offset: f32) -> Vec<Pos2> {
     let count = points.len();
     if count < 3 || offset == 0.0 {
         return points.to_vec();

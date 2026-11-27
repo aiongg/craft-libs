@@ -1,8 +1,10 @@
 //! `AutoScrollMark`: the mark a latched middle-button auto-scroll shows at its anchor: a ring on the panel fill, a dot
 //! and two arrowheads in text ink.
 
+use super::items;
 use crate::style::AutoScrollMarkLook;
-use egui::{Pos2, Shape, Stroke, vec2};
+use craft_ui_rt::Item;
+use egui::{Pos2, vec2};
 
 /// The dot's radius, as a share of the mark's radius.
 const DOT: f32 = 2.0 / 13.0;
@@ -19,20 +21,20 @@ pub struct AutoScrollMark;
 impl AutoScrollMark {
     /// The mark centred on `anchor`: the ring, the dot, and an arrowhead above and below, all sized from the look's
     /// diameter.
-    pub fn shapes(look: &AutoScrollMarkLook, anchor: Pos2) -> Vec<Shape> {
+    pub fn items(look: &AutoScrollMarkLook, anchor: Pos2) -> Vec<Item> {
         let radius = look.diameter / 2.0;
         let ink = look.ink.egui();
         let mut shapes = vec![
-            Shape::circle_filled(anchor, radius, look.fill.egui()),
-            Shape::circle_stroke(anchor, radius - look.ring_width, Stroke::new(look.ring_width, look.ring.egui())),
-            Shape::circle_filled(anchor, radius * DOT, ink),
+            items::circle_filled(anchor, radius, look.fill.egui()),
+            items::circle_stroke(anchor, radius - look.ring_width, look.ring_width, look.ring.egui()),
+            items::circle_filled(anchor, radius * DOT, ink),
         ];
         let (half, base, tip) = (radius * ARROW_HALF_WIDTH, radius * ARROW_BASE, radius * ARROW_TIP);
         for direction in [-1.0, 1.0] {
-            shapes.push(Shape::convex_polygon(
-                vec![anchor + vec2(-half, direction * base), anchor + vec2(half, direction * base), anchor + vec2(0.0, direction * tip)],
+            shapes.extend(items::convex_polygon(
+                &[anchor + vec2(-half, direction * base), anchor + vec2(half, direction * base), anchor + vec2(0.0, direction * tip)],
                 ink,
-                Stroke::NONE,
+                None,
             ));
         }
         shapes

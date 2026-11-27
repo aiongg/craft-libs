@@ -64,7 +64,8 @@ fn a_concave_polygon_fills_its_area_once_in_either_winding() {
 fn a_rounded_ramp_keeps_inside_its_corners_and_a_square_one_fills_its_rect() {
     use craft_behavior::Axis;
     use craft_ui::style::DataColor;
-    use egui::{Color32, CornerRadius, Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::{Color32, CornerRadius, Rect};
 
     let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(60.0, 20.0));
     let stops = [(0.0, DataColor::new(Color32::RED)), (0.5, DataColor::new(Color32::GREEN)), (1.0, DataColor::new(Color32::BLUE))];
@@ -72,7 +73,7 @@ fn a_rounded_ramp_keeps_inside_its_corners_and_a_square_one_fills_its_rect() {
         craft_ui::primitives::ramp(rect, radius, &stops, axis)
             .into_iter()
             .flat_map(|shape| match shape {
-                Shape::Mesh(mesh) => mesh.vertices.iter().map(|v| v.pos).collect::<Vec<_>>(),
+                Item::Mesh(mesh) => mesh.vertices.iter().map(|v| v.pos).collect::<Vec<_>>(),
                 _ => Vec::new(),
             })
             .collect()
@@ -101,7 +102,8 @@ fn a_rounded_ramp_keeps_inside_its_corners_and_a_square_one_fills_its_rect() {
 fn an_edge_rule_lies_on_the_pixels_just_inside_its_side_at_any_scale() {
     use craft_ui::primitives::{RectSide, Rule};
     use craft_ui::style::{RuleLook, RuleWidth};
-    use egui::{Color32, Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::{Color32, Rect};
 
     for ppp in [1.0, 1.5, 2.0] {
         // Edges on physical pixel boundaries, as laid-out rows and cells have them.
@@ -110,7 +112,7 @@ fn an_edge_rule_lies_on_the_pixels_just_inside_its_side_at_any_scale() {
             let look = RuleLook { color: Color32::WHITE, width };
             for side in [RectSide::Top, RectSide::Bottom, RectSide::Left, RectSide::Right] {
                 let shapes = Rule::edge(&look, rect, side, ppp);
-                let [Shape::LineSegment { points: [from, to], stroke }] = shapes.as_slice() else {
+                let [Item::Line { from, to, stroke }] = shapes.as_slice() else {
                     panic!("one line segment for {side:?}");
                 };
                 let half = stroke.width / 2.0;
@@ -134,16 +136,16 @@ fn an_edge_rule_lies_on_the_pixels_just_inside_its_side_at_any_scale() {
 #[trial]
 fn a_swath_takes_the_text_selection_fill() {
     use craft_theme::{Contrast, Mode};
-    use egui::Shape;
+    use craft_ui_rt::Item;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
-    let want = craft_ui::style::rgba_color(tokens.color.state.text_selection);
+    let want = craft_ui::primitives::items::rgba(craft_ui::style::rgba_color(tokens.color.state.text_selection));
     let shapes = craft_ui::primitives::swath(&tokens, &[pos2(10.0, 10.0), pos2(50.0, 20.0)], 8.0);
     assert_eq!(shapes.len(), 3, "a line and a dot at each of its two points: {shapes:?}");
     for shape in &shapes {
         match shape {
-            Shape::Path(path) => assert_eq!(path.stroke.color, egui::epaint::ColorMode::Solid(want)),
-            Shape::Circle(dot) => assert_eq!(dot.fill, want),
+            Item::Path { stroke: Some(stroke), .. } => assert_eq!(stroke.color, want),
+            Item::Circle { fill, .. } => assert_eq!(*fill, want),
             other => panic!("unexpected shape {other:?}"),
         }
     }
@@ -153,7 +155,8 @@ fn a_swath_takes_the_text_selection_fill() {
 fn a_dotted_rule_is_whole_pixel_dots_at_one_pitch_between_its_ends() {
     use craft_ui::primitives::Rule;
     use craft_ui::style::{RuleLook, RuleWidth};
-    use egui::{Color32, Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::{Color32, Rect};
 
     let whole = |v: f32| (v - v.round()).abs() < EPS;
     for ppp in [1.0, 1.5, 2.0] {
@@ -162,7 +165,7 @@ fn a_dotted_rule_is_whole_pixel_dots_at_one_pitch_between_its_ends() {
             // Ends off the pixel grid, level and upright.
             for (from, to) in [(pos2(10.3, 20.6), pos2(41.1, 20.6)), (pos2(7.7, 3.2), pos2(7.7, 29.9))] {
                 let shapes = Rule::dotted(&look, from, to, 3.0, ppp);
-                let [Shape::Mesh(mesh)] = shapes.as_slice() else { panic!("the dots are one mesh") };
+                let [Item::Mesh(mesh)] = shapes.as_slice() else { panic!("the dots are one mesh") };
                 let dots: Vec<Rect> =
                     mesh.vertices.chunks(4).map(|quad| Rect::from_points(&quad.iter().map(|v| v.pos).collect::<Vec<_>>())).collect();
                 assert!(dots.len() > 2, "{width:?} at {ppp}x: several dots");
@@ -192,7 +195,8 @@ fn a_dotted_rule_is_whole_pixel_dots_at_one_pitch_between_its_ends() {
 fn ticks_stand_across_a_level_rule_and_lie_across_an_upright_one() {
     use craft_ui::primitives::Rule;
     use craft_ui::style::{RuleLook, RuleWidth};
-    use egui::{Color32, Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::{Color32, Rect};
 
     let whole = |v: f32| (v - v.round()).abs() < EPS;
     for ppp in [1.0, 1.25, 1.5, 2.0] {
@@ -201,7 +205,7 @@ fn ticks_stand_across_a_level_rule_and_lie_across_an_upright_one() {
         let long = (4.0 * ppp).round() / ppp;
         for (from, to) in [(pos2(10.3, 20.6), pos2(31.1, 20.6)), (pos2(7.7, 3.2), pos2(7.7, 24.9))] {
             let shapes = Rule::ticks(&look, from, to, 1.0, 4.0, ppp);
-            let [Shape::Mesh(mesh)] = shapes.as_slice() else { panic!("the ticks are one mesh") };
+            let [Item::Mesh(mesh)] = shapes.as_slice() else { panic!("the ticks are one mesh") };
             let ticks: Vec<Rect> = mesh.vertices.chunks(4).map(|quad| Rect::from_points(&quad.iter().map(|v| v.pos).collect::<Vec<_>>())).collect();
             assert!(ticks.len() > 2, "at {ppp}x: several ticks");
             let level = from.y == to.y;
@@ -227,14 +231,16 @@ fn a_dotted_rule_is_the_ticks_as_long_as_the_line_is_wide() {
         let look = RuleLook { color: Color32::WHITE, width: RuleWidth::Points(1.0) };
         let (from, to) = (pos2(10.3, 20.6), pos2(41.1, 20.6));
         let across = look.width.points(ppp);
-        assert_eq!(Rule::dotted(&look, from, to, 2.0, ppp), Rule::ticks(&look, from, to, 2.0, across, ppp), "at {ppp}x");
+        let (dotted, ticks) = (Rule::dotted(&look, from, to, 2.0, ppp), Rule::ticks(&look, from, to, 2.0, across, ppp));
+        assert_eq!(format!("{dotted:?}"), format!("{ticks:?}"), "at {ppp}x");
     }
 }
 
 #[trial]
 fn ant_edges_are_whole_device_pixels_at_a_fractional_scale() {
     use craft_theme::{Contrast, Mode};
-    use egui::{Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::Rect;
     use std::collections::BTreeSet;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
@@ -243,9 +249,9 @@ fn ant_edges_are_whole_device_pixels_at_a_fractional_scale() {
     let corners = [pos2(10.3, 10.7), pos2(60.2, 10.7), pos2(60.2, 40.1), pos2(10.3, 40.1)];
     let clip = Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 100.0));
     let shapes = craft_ui::primitives::marching_ants(&tokens, &corners, true, 0.0, clip, ppp);
-    let [Shape::Mesh(mesh)] = shapes.as_slice() else { panic!("an axis-aligned outline is one mesh, got {shapes:?}") };
+    let [Item::Mesh(mesh)] = shapes.as_slice() else { panic!("an axis-aligned outline is one mesh, got {shapes:?}") };
     // Every quad in device pixels: (x0, y0, x1, y1) and its colour; the first quad of each edge is its light band.
-    let quads: Vec<([f32; 4], egui::Color32)> = mesh
+    let quads: Vec<([f32; 4], craft_theme::Rgba)> = mesh
         .vertices
         .chunks(4)
         .map(|quad| {
@@ -294,7 +300,8 @@ fn a_docked_scroll_bar_keeps_its_width_at_rest_and_under_the_pointer() {
     use craft_theme::{Contrast, ControlSize, Mode, Variant};
     use craft_ui::primitives::ScrollBar;
     use craft_ui::style::{Flags, ScrollBarKind, State, StateMix, StateSet};
-    use egui::{Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::Rect;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
     let look = craft_ui::testing::style::with_cx(&egui::Context::default(), &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
@@ -307,9 +314,9 @@ fn a_docked_scroll_bar_keeps_its_width_at_rest_and_under_the_pointer() {
             _ => Rect::from_min_max(pos2(100.0, 0.0), pos2(100.0 + look.thickness, 200.0)),
         };
         let thumb = |state: State, mix: StateMix| {
-            let shapes = ScrollBar::shapes(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix));
+            let shapes = ScrollBar::items(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix));
             match shapes.last() {
-                Some(Shape::Rect(shape)) => shape.rect,
+                Some(Item::Rect { rect, .. }) => *rect,
                 other => panic!("the thumb is a rect: {other:?}"),
             }
         };
@@ -317,10 +324,10 @@ fn a_docked_scroll_bar_keeps_its_width_at_rest_and_under_the_pointer() {
         assert_eq!(rest, hover, "{axis:?} rtl {rtl}: the thumb is the same at rest and under the pointer");
         let across = |rect: Rect| if axis == Axis::X { rect.height() } else { rect.width() };
         assert!((across(rest) - across(track)).abs() < EPS, "{axis:?}: the thumb fills the track");
-        let fill = |state: State, mix: StateMix| match ScrollBar::shapes(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix))
+        let fill = |state: State, mix: StateMix| match ScrollBar::items(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix))
             .as_slice()
         {
-            [Shape::Rect(track), Shape::Rect(thumb)] => (track.fill, thumb.fill),
+            [Item::Rect { fill: track, .. }, Item::Rect { fill: thumb, .. }] => (*track, *thumb),
             other => panic!("a track and a thumb: {other:?}"),
         };
         let (track_fill, thumb_fill) = fill(State::Rest, StateMix::REST);
@@ -338,7 +345,8 @@ fn a_resting_scroll_bar_is_a_thin_line_at_its_outer_edge_that_widens_under_the_p
     use craft_theme::{Contrast, ControlSize, Mode, Variant};
     use craft_ui::primitives::ScrollBar;
     use craft_ui::style::{Flags, State, StateMix, StateSet};
-    use egui::{Rect, Shape};
+    use craft_ui_rt::Item;
+    use egui::Rect;
 
     let tokens = craft_ui::testing::style::tokens(Mode::Dark, Contrast::Standard);
     let look = craft_ui::testing::style::with_cx(&egui::Context::default(), &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.scroll_bar());
@@ -349,9 +357,9 @@ fn a_resting_scroll_bar_is_a_thin_line_at_its_outer_edge_that_widens_under_the_p
             _ => Rect::from_min_max(pos2(100.0, 0.0), pos2(100.0 + look.thickness, 200.0)),
         };
         let thumb = |state: State, mix: StateMix| {
-            let shapes = ScrollBar::shapes(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix));
+            let shapes = ScrollBar::items(&look, track, axis, rtl, &span, &StateSet::new(state, Flags::empty(), mix));
             match shapes.last() {
-                Some(Shape::Rect(shape)) => shape.rect,
+                Some(Item::Rect { rect, .. }) => *rect,
                 other => panic!("the thumb is a rect: {other:?}"),
             }
         };

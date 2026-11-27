@@ -2,8 +2,9 @@
 
 use crate::contract::Pointer as _;
 use crate::contract::cx::CxCore;
-use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, surface_look_shapes};
+use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, surface_look_items};
 use crate::runtime::egui::areas::Layer;
+use crate::runtime::egui::text_layout::{paint_items, shapes_of};
 use crate::runtime::env::{Env, EnvValue};
 use crate::style::{Ink, StateSet, StyleView, surface_style};
 use craft_theme::Opacity;
@@ -84,13 +85,11 @@ pub(crate) fn paint_surface(ui: &Ui, env: &Env, core: &CxCore<'_>, style: &dyn S
     if core.faded {
         core.paint.borrow_mut().surface_radius = look.radius;
     }
-    let mut shapes = surface_look_shapes(&env.tokens, look, &core.state, core.rect, env.direction, ui.ctx().pixels_per_point());
-    crate::primitives::fit_to_frame(ui.ctx(), ui.layer_id(), &mut shapes);
+    let mut items = surface_look_items(&env.tokens, look, &core.state, core.rect, env.direction, ui.ctx().pixels_per_point());
+    crate::primitives::fit_to_frame(ui.ctx(), ui.layer_id(), &mut items);
     match core.surface_slot {
-        Some(slot) => ui.painter().set(slot, egui::Shape::Vec(shapes)),
-        None => {
-            ui.painter().extend(shapes);
-        }
+        Some(slot) => ui.painter().set(slot, egui::Shape::Vec(shapes_of(&items))),
+        None => paint_items(ui.painter(), &items),
     }
 }
 
@@ -106,7 +105,7 @@ pub(crate) fn paint_part_layers(ui: &Ui, env: &Env, core: &CxCore<'_>) {
         let part = craft_behavior::PartRef { key, index };
         let fill = core.part_state(part).resolve(&look);
         if fill.egui().a() > 0 {
-            ui.painter().extend(StateLayer::shapes(StateLayerKind::Fill, fill, core.part(part).rect, radius, 0.0));
+            paint_items(ui.painter(), &StateLayer::items(StateLayerKind::Fill, fill, core.part(part).rect, radius, 0.0));
         }
     }
 }
@@ -124,12 +123,12 @@ pub(crate) fn paint_focus(ui: &Ui, core: &CxCore<'_>, style: &dyn StyleView, who
         let rect = core.part(part).rect;
         let declared = core.focus_shapes.iter().find(|((key, index), _)| craft_behavior::PartRef { key: *key, index: *index } == part);
         let outline = declared.map_or(PaintShape::Rect(rect, egui::CornerRadius::ZERO), |(_, shape)| FocusRing::outline(shape, rect));
-        ui.painter().extend(FocusRing::shapes(look, FocusKind::Ring, &outline, ppp));
+        paint_items(ui.painter(), &FocusRing::items(look, FocusKind::Ring, &outline, ppp));
     } else if whole && FocusRing::visible(flags) && !well {
         let outline = match &core.focus_shape {
             Some(shape) => FocusRing::outline(shape, core.rect),
             None => PaintShape::Rect(core.rect, style.surface().map_or(egui::CornerRadius::ZERO, |surface| surface.radius)),
         };
-        ui.painter().extend(FocusRing::shapes(look, FocusKind::Ring, &outline, ppp));
+        paint_items(ui.painter(), &FocusRing::items(look, FocusKind::Ring, &outline, ppp));
     }
 }

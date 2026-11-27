@@ -192,6 +192,7 @@ No frozen trait changes. Additions:
 | `EventCx::hit(pos, accept)`, `tag_of(node)`, `request_build_of(node)`: a press owner hit-tests along its drag and marks what it crosses (toggle sweeps) | `event.rs` | ~20 |
 | build wakes: `BuildCx::request_build_at`, `EventCx::request_build_at` (a tooltip's delay, a toast's timeout) and an untracked `BuildCx::now` | `build.rs`, `event.rs`, `runtime.rs` | ~40 |
 | `Event::Hover(bool)` for nodes that ask (`BuildCx::hover_events`); `EventCx::request_owner_build` (a layer child tells its owner it was dismissed) | `event.rs`, `input.rs` | ~30 |
+| `Item::Text.angle` (turned text), `ImageOptions.wrap` (`Wrap::{Clamp, Repeat}`: repeating images), `Mesh` builders, `TextEngine::{install_face, has_face}` with `FaceInstall` (document faces installed while the app runs); each renderer supports them | `display.rs`, `text.rs` | ~95 |
 | `LayerSpec::{escape, focus_left, app_modal}`, `DismissReason::{Escape, FocusLeft}`: an unhandled Escape dismisses the topmost layer child that asks, focus leaving one dismisses it, an app-modal child blocks the other windows' input (`Runtime::blocked_by`); `LayerSpec::place` and `constraints` public so a build places its layer child as the runtime will | `layer.rs`, `input.rs` | ~110 |
 
 ## 10. Services
