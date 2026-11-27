@@ -11,9 +11,9 @@ use crate::layout_components::{Grid, Row};
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::sections::{DialogRole, FooterButton};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// What the story dialogs hold: two check boxes whose values the story keeps between passes.
 #[doc(hidden)]
@@ -86,7 +86,7 @@ pub(super) fn opener<'d>(ui: &mut Ui, data: &'d mut StoryData, label: &'static s
 /// The drive of the shells with a close action: the opener's click where there is one, then a click on the close
 /// action.
 #[doc(hidden)]
-pub fn close_box(fixture: &mut Fixture) {
+pub fn close_box(fixture: &mut Harness) {
     if let Some(open) = fixture.by_label(GRID_OPTIONS) {
         fixture.click(&open);
         fixture.settle();
@@ -273,7 +273,7 @@ fn dialog_frame_with_footer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// The drive of the overlay story: the opener's click.
 #[doc(hidden)]
-pub fn open_export(fixture: &mut Fixture) {
+pub fn open_export(fixture: &mut Harness) {
     if let Some(open) = fixture.by_label(EXPORT) {
         fixture.click(&open);
     }

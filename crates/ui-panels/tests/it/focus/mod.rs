@@ -11,7 +11,9 @@ use craft_behavior::Input;
 use craft_ui::runtime::focus::{FocusTarget, KeyUse, request};
 use craft_ui::testing::Frames;
 use craft_ui::testing::focus::{Stop, register_stop, widget};
-use egui::{Context, Event, Id, Key, Modifiers, Ui};
+use egui::Event;
+use craft_ui::{Context, Id, Ui};
+use craft_ui::input::{Key, Mods};
 
 fn id(name: &str) -> Id {
     craft_ui::testing::focus::named_id(name)
@@ -34,7 +36,7 @@ fn focus(frames: &mut Frames, name: &str, show: &mut impl FnMut(&mut Ui)) {
 }
 
 /// A key press and its release, in two frames, as a keyboard sends them.
-fn tap(frames: &mut Frames, key: Key, modifiers: Modifiers, show: &mut impl FnMut(&mut Ui)) {
+fn tap(frames: &mut Frames, key: Key, modifiers: Mods, show: &mut impl FnMut(&mut Ui)) {
     frames.frame(vec![craft_ui::testing::input::key_press(key, modifiers)], &mut *show);
     frames.frame(vec![craft_ui::testing::focus::key_release(key, modifiers)], show);
 }

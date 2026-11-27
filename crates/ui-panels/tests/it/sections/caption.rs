@@ -3,14 +3,15 @@
 
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::sections::{HeaderStrength, Section};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Shape, Vec2};
+use craft_ui::testing::{Harness, trial};
+use egui::Shape;
+use craft_ui::geom::Vec2;
 
 const ROOM: Vec2 = Vec2::new(400.0, 300.0);
 
 /// The section titled `title` at `strength`, and the horizontal lines across most of its width that a frame paints.
-fn rules(title: &'static str, strength: HeaderStrength) -> (Fixture, usize) {
-    let mut fixture = Fixture::new(move |ui| {
+fn rules(title: &'static str, strength: HeaderStrength) -> (Harness, usize) {
+    let mut fixture = Harness::new_ui(move |ui| {
         Section::fixed(title).strength(strength).show(ui, |ui, _| {
             ui.label("body");
         });
@@ -45,7 +46,7 @@ fn an_overline_section_shows_its_title_in_capitals_with_no_rule() {
 
 /// The height of a sub-heading's title row under `row`.
 fn subheading_height(row: craft_ui::sections::QuietTitleRow) -> f32 {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Section::fixed("Ellipse Properties").strength(HeaderStrength::Subheading).show(ui, |ui, _| {
             ui.label("body");
         });

@@ -18,11 +18,13 @@ use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton};
 use crate::testing::input::key_press;
 use crate::testing::relations::{aligned_left, apart_above, grows_with, inside, off_foot, same_column};
-use crate::testing::{Fixture, Frames, trial};
+use crate::testing::{Harness, Frames, trial};
 use crate::text::TextField;
 use craft_behavior::{ColumnWidth, keyed};
 use craft_quit::{CloseAnswer, CloseScope};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use craft_ui::input::{Key, Mods};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::Ui;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
@@ -48,7 +50,7 @@ fn a_footer_button_closes_the_dialog_by_its_role() {
     let run = |label: &str| {
         let seen = std::rc::Rc::new(Cell::new((None, None)));
         let sink = seen.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (mut open, mut name) = (true, String::new());
             let shown = Dialog::new("Options")
                 .opened(Bind::bound(&mut open))
@@ -77,7 +79,7 @@ fn a_dialog_with_unchanged_fields_shows_close_in_place_of_ok_and_cancel() {
     let run = |changed: bool| {
         let seen = Rc::new(Cell::new((None, None)));
         let sink = seen.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut open = true;
             let shown = Dialog::new("Properties")
                 .opened(Bind::bound(&mut open))
@@ -104,7 +106,7 @@ fn a_dialog_with_unchanged_fields_shows_close_in_place_of_ok_and_cancel() {
 
 #[trial]
 fn a_blocking_overlays_buttons_keep_their_place_after_it_settled() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut open = true;
         BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
     });
@@ -267,7 +269,7 @@ fn side_buttons_stand_in_one_column_beside_the_body() {
 #[trial]
 fn a_dialog_opens_on_its_first_field_else_its_default_button() {
     let focus_on_open = |field: bool, buttons: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (mut open, mut name, mut on) = (true, String::new(), false);
             let mut dialog = Dialog::new("Options").opened(Bind::bound(&mut open));
             if buttons {
@@ -295,9 +297,9 @@ fn a_dialog_opens_on_its_first_field_else_its_default_button() {
 fn a_dialog_with_no_field_or_default_takes_the_focus_and_escape_returns_it_to_the_opener() {
     const ROWS: [&str; 2] = ["First", "Second"];
     let open = Rc::new(Cell::new(false));
-    let opener = Rc::new(Cell::new(egui::Id::NULL));
+    let opener = Rc::new(Cell::new(craft_ui::Id::NULL));
     let (seen, shown) = (Rc::clone(&open), Rc::clone(&opener));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         shown.set(Button::new("Open Presets").show(ui).response.id);
         let mut now = seen.get();
         Dialog::new("Presets").opened(Bind::bound(&mut now)).show(ui, |ui, _| {
@@ -319,16 +321,16 @@ fn a_dialog_with_no_field_or_default_takes_the_focus_and_escape_returns_it_to_th
     let inside = ["Presets list", "First", "Second", "New", "Delete"];
     let on = inside.into_iter().find(|label| fixture.by_label(label).is_some_and(|target| target.node == focused));
     assert!(on.is_some(), "a control inside the dialog has the focus");
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(!open.get(), "Escape closed the dialog");
     assert!(crate::testing::focus::is_focused(fixture.ctx(), opener.get()), "the focus is back on the opener");
 }
 
 /// A dialog host showing `dialog` in a fixture, once the dialog settled.
-fn hosted<D: StackDialog>(dialog: D) -> (Rc<RefCell<DialogHost>>, Fixture) {
+fn hosted<D: StackDialog>(dialog: D) -> (Rc<RefCell<DialogHost>>, Harness) {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let shown = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+    let mut fixture = Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
     host.borrow_mut().open(dialog);
     fixture.idle(30);
     (host, fixture)
@@ -337,7 +339,7 @@ fn hosted<D: StackDialog>(dialog: D) -> (Rc<RefCell<DialogHost>>, Fixture) {
 /// The choice a hosted `prompt` answers to `key`; Cancel when the host reports the dialog cancelled.
 fn prompt_answer_to(prompt: StandardPrompt, key: Key) -> Option<PromptChoice> {
     let (host, mut fixture) = hosted(prompt);
-    fixture.key(key, Modifiers::NONE).idle(2);
+    fixture.key(key, Mods::NONE).idle(2);
     let result = host.borrow_mut().take::<StandardPrompt>();
     result.map(|result| match result {
         DialogResult::Ok(answer) => answer.choice,
@@ -406,7 +408,7 @@ fn apply_to_all_shows_only_with_several_documents_and_rides_the_answer() {
 fn a_progress_overlay_shows_a_spinner_and_its_message_and_escape_cancels_it() {
     let open = std::rc::Rc::new(Cell::new(true));
     let seen = std::rc::Rc::clone(&open);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = seen.get();
         BlockingOverlay::new("Working").opened(Bind::bound(&mut now)).message("Exporting 24 pages").cancel("Stop").show(ui, |_, _| {});
         seen.set(now);
@@ -416,7 +418,7 @@ fn a_progress_overlay_shows_a_spinner_and_its_message_and_escape_cancels_it() {
     assert!(!fixture.styles_of(spinner).is_empty(), "the card shows a spinner");
     assert!(fixture.texts().iter().any(|run| run.text == "Exporting 24 pages"), "the card shows the message");
     assert!(fixture.by_label("Exporting 24 pages").is_some(), "the message names the overlay");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     assert!(!open.get(), "Escape closed the overlay that has a Cancel button");
 }
@@ -429,7 +431,7 @@ fn body_buttons_stand_in_the_slot_the_body_keeps_and_keep_their_keys() {
     let run = |key: Option<Key>| {
         let seen = std::rc::Rc::new(Cell::new((None, None)));
         let sink = seen.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (mut open, mut snap, mut rulers) = (true, false, true);
             let shown = Dialog::new("Options")
                 .opened(Bind::bound(&mut open))
@@ -455,7 +457,7 @@ fn body_buttons_stand_in_the_slot_the_body_keeps_and_keep_their_keys() {
         });
         fixture.idle(30);
         if let Some(key) = key {
-            fixture.key(key, Modifiers::NONE);
+            fixture.key(key, Mods::NONE);
             fixture.settle();
         }
         (fixture, seen.get())
@@ -478,9 +480,9 @@ fn body_buttons_stand_in_the_slot_the_body_keeps_and_keep_their_keys() {
 }
 
 /// A fixture that shows a dialog "Options" while `open` is set, with `body` inside it.
-fn dialog_fixture(open: &std::rc::Rc<Cell<bool>>, make: impl Fn(Dialog<'_>) -> Dialog<'_> + 'static, body: impl Fn(&mut Ui) + 'static) -> Fixture {
+fn dialog_fixture(open: &std::rc::Rc<Cell<bool>>, make: impl Fn(Dialog<'_>) -> Dialog<'_> + 'static, body: impl Fn(&mut Ui) + 'static) -> Harness {
     let shown = std::rc::Rc::clone(open);
-    Fixture::new(move |ui| {
+    Harness::new_ui(move |ui| {
         let mut now = shown.get();
         if now {
             make(Dialog::new("Options").opened(Bind::bound(&mut now))).show(ui, |ui, _| body(ui));
@@ -490,7 +492,7 @@ fn dialog_fixture(open: &std::rc::Rc<Cell<bool>>, make: impl Fn(Dialog<'_>) -> D
 }
 
 /// Closes the dialog of `fixture` for a pass and opens it again.
-fn reopen(fixture: &mut Fixture, open: &std::rc::Rc<Cell<bool>>) {
+fn reopen(fixture: &mut Harness, open: &std::rc::Rc<Cell<bool>>) {
     open.set(false);
     fixture.idle(3);
     open.set(true);
@@ -510,7 +512,7 @@ fn a_reopened_dialog_focuses_its_first_enabled_field_again() {
         },
     );
     fixture.settle();
-    let on_second = |fixture: &Fixture| {
+    let on_second = |fixture: &Harness| {
         let second = fixture.by_label("Second").expect("the second field is shown");
         crate::testing::access::focused_key(fixture.tree()) == second.node
     };
@@ -546,8 +548,8 @@ fn a_dialog_moves_by_its_title_band_stays_on_screen_and_reopens_where_left() {
     );
     fixture.room(BAND_ROOM);
     fixture.settle();
-    let dialog = |fixture: &Fixture| fixture.by_role(Role::DIALOG).into_iter().next().expect("the dialog is shown").rect;
-    let band = |fixture: &Fixture| {
+    let dialog = |fixture: &Harness| fixture.by_role(Role::DIALOG).into_iter().next().expect("the dialog is shown").rect;
+    let band = |fixture: &Harness| {
         fixture.by_role(Role::HEADING).into_iter().find(|target| fixture.tree().name_of(target.node) == Some("Options")).expect("the title band")
     };
     let start = dialog(&fixture);
@@ -567,7 +569,7 @@ fn a_dialog_moves_by_its_title_band_stays_on_screen_and_reopens_where_left() {
     assert!(screen.contains_rect(dialog(&fixture)), "a drag past the edge stops at it: {:?} in {screen:?}", dialog(&fixture));
 
     for _ in 0..8 {
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
     }
     let band_node = band(&fixture).node;
     assert_ne!(crate::testing::access::focused_key(fixture.tree()), band_node, "the title band is no Tab stop");
@@ -591,8 +593,8 @@ fn a_dialog_moves_by_the_padding_around_its_title() {
     );
     fixture.room(BAND_ROOM);
     fixture.settle();
-    let dialog = |fixture: &Fixture| fixture.by_role(Role::DIALOG).into_iter().next().expect("the dialog is shown").rect;
-    let title = |fixture: &Fixture| {
+    let dialog = |fixture: &Harness| fixture.by_role(Role::DIALOG).into_iter().next().expect("the dialog is shown").rect;
+    let title = |fixture: &Harness| {
         let band = fixture.by_role(Role::HEADING).into_iter().find(|target| fixture.tree().name_of(target.node) == Some("Options"));
         band.expect("the title band").rect
     };
@@ -629,7 +631,7 @@ fn a_tall_body_scrolls_under_a_footer_that_stays_in_view() {
     );
     fixture.room(SHORT_ROOM);
     fixture.settle();
-    let first = |fixture: &Fixture| fixture.by_label("Line 0").map(|target| target.rect);
+    let first = |fixture: &Harness| fixture.by_label("Line 0").map(|target| target.rect);
     let at_top = first(&fixture).expect("the first line is shown");
     let screen = fixture.ctx().content_rect();
     let ok = fixture.by_label("OK").expect("the footer is shown").rect;
@@ -641,7 +643,7 @@ fn a_tall_body_scrolls_under_a_footer_that_stays_in_view() {
         unit: egui::MouseWheelUnit::Point,
         delta: WHEEL_DOWN,
         phase: egui::TouchPhase::Move,
-        modifiers: Modifiers::NONE,
+        modifiers: Mods::NONE,
         source: egui::MouseWheelSource::Wheel,
     };
     fixture.frame(vec![egui::Event::PointerMoved(over), wheel]).settle();
@@ -657,7 +659,7 @@ fn an_armed_answer_waits_until_its_prompt_was_seen() {
     let open = std::rc::Rc::new(Cell::new(true));
     let closed = std::rc::Rc::new(Cell::new(None));
     let (shown, seen) = (std::rc::Rc::clone(&open), std::rc::Rc::clone(&closed));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = shown.get();
         if now {
             let out = Dialog::new("Options")
@@ -671,15 +673,15 @@ fn an_armed_answer_waits_until_its_prompt_was_seen() {
         shown.set(now);
     });
     // The wait counts while the window has the focus, which the fixture's window has once it reports it.
-    fixture.frame(vec![egui::Event::WindowFocused(true)]);
+    fixture.send(egui::Event::WindowFocused(true));
     fixture.settle();
-    let press = |fixture: &mut Fixture| {
+    let press = |fixture: &mut Harness| {
         let delete = fixture.by_label("Delete").expect("the armed button is shown");
         fixture.click(&delete).idle(2);
     };
     press(&mut fixture);
     assert_eq!(closed.get(), None, "a click before the delay does nothing");
-    fixture.key(Key::Enter, Modifiers::NONE).idle(2);
+    fixture.key(Key::Enter, Mods::NONE).idle(2);
     assert_eq!(closed.get(), None, "nor does Enter");
 
     open.set(false);

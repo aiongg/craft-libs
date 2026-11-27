@@ -4,7 +4,7 @@ use crate::contract::SizeLimits;
 use crate::docking::{DockGrid, DockHeights, DockSizes, PanelSpec};
 use craft_behavior::Flow;
 use craft_behavior::dock::{Column, DockEdge};
-use egui::{Pos2, Rect};
+use craft_ui::geom::{Pos2, Rect};
 
 /// The width bounds of an expanded column: no narrower than `least` or the widest minimum of its panels, no wider
 /// than the narrowest maximum.

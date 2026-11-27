@@ -8,7 +8,7 @@ use crate::contract::{
 };
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

@@ -3,7 +3,8 @@
 //! element id per source) and reads which one holds key focus by the source's node id.
 
 use crate::runtime::windows::ResizeEdge;
-use egui::{Id, Rect, ViewportId};
+use craft_ui::{Id, WindowId};
+use craft_ui::geom::Rect;
 
 /// A place in a dock area where a press starts a dock gesture, as the area drew it this pass.
 #[derive(Clone, Debug, PartialEq)]
@@ -14,7 +15,7 @@ pub struct DockSource<P> {
     /// Where it was drawn: in the area's layer space, or in the OS window's own for a floating window in one.
     pub rect: Rect,
     /// The OS window it is in: `ViewportId::ROOT` unless it is in a floating window's own OS window.
-    pub viewport: ViewportId,
+    pub viewport: WindowId,
     /// The id of its accessibility node, which [`focused_node`](crate::runtime::access::focused_node) reports while
     /// it holds key focus.
     pub id: Id,
@@ -35,7 +36,7 @@ impl<P: Clone> crate::runtime::Shift for DockSource<P> {
 impl<P> DockSource<P> {
     /// `kind` drawn at `rect` in the app window, with the node `id`.
     pub fn new(kind: SourceKind<P>, rect: Rect, id: Id) -> Self {
-        DockSource { kind, rect, viewport: ViewportId::ROOT, id }
+        DockSource { kind, rect, viewport: WindowId::ROOT, id }
     }
 }
 

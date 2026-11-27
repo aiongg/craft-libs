@@ -7,7 +7,7 @@
 use std::any::{Any, TypeId};
 use std::fmt;
 
-use egui::{Context, Ui};
+use craft_ui::{Context, Ui};
 use serde_json::Value;
 
 use super::held::HeldOk;
@@ -97,7 +97,7 @@ pub trait StackDialog: Any + Send {
 
     /// The canvas the dialog shows the document on, which takes the app's tool input in document points while the
     /// dialog is open: a full-window workspace's. `None` (the default) for a dialog without one.
-    fn canvas(&self) -> Option<egui::Id> {
+    fn canvas(&self) -> Option<craft_ui::Id> {
         None
     }
 
@@ -259,7 +259,7 @@ trait AnyStackDialog: Send {
     fn instance(&self) -> Option<DialogId>;
     fn confirm_erased(&mut self, ctx: &Context) -> Option<Box<dyn Any + Send>>;
     fn held_state(&self) -> Option<HeldOk>;
-    fn canvas(&self) -> Option<egui::Id>;
+    fn canvas(&self) -> Option<craft_ui::Id>;
     fn json_fields(&self) -> Option<Value>;
     fn set_json_field(&mut self, ctx: &Context, field: &str, value: Value) -> Result<(), String>;
     fn show_erased(&mut self, ui: &mut Ui, stack: &DialogStack) -> Option<Box<dyn Any + Send>>;
@@ -308,7 +308,7 @@ impl<D: StackDialog> AnyStackDialog for D {
         StackDialog::held_state(self)
     }
 
-    fn canvas(&self) -> Option<egui::Id> {
+    fn canvas(&self) -> Option<craft_ui::Id> {
         StackDialog::canvas(self)
     }
 
@@ -547,7 +547,7 @@ impl DialogHost {
             self.cancel_orphans(Some(&ctx));
         }
         if self.open_next_queued() {
-            crate::runtime::frame::request_repaint(&ctx);
+            ctx.request_repaint();
         }
     }
 
@@ -611,7 +611,7 @@ impl DialogHost {
 
     /// The canvas of the most recently opened dialog that shows the document on one ([`StackDialog::canvas`]): where
     /// the app's tool input in document points goes while it is open. `None` when no open dialog has one.
-    pub fn canvas(&self) -> Option<egui::Id> {
+    pub fn canvas(&self) -> Option<craft_ui::Id> {
         self.open.iter().rev().find_map(|dialog| dialog.canvas())
     }
 

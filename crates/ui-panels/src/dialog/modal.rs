@@ -22,7 +22,9 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{CancelRule, Metrics, Sense};
 use craft_host::target::WindowState;
 use craft_theme::variant::Tone;
-use egui::{Align2, Context, Id, Pos2, Rangef, Rect, Response, Ui, ViewportId};
+use egui::Align2;
+use craft_ui::{Context, Id, Response, Ui, WindowId};
+use craft_ui::geom::{Pos2, Rangef, Rect};
 
 /// The style of a dialog: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -406,7 +408,7 @@ fn on_top(ctx: &Context, id: Id) -> bool {
 /// of the window's last complete pass that one of its own covers hides whole (the modal's cover), less the caption
 /// buttons and the dialog, so a dialog moved into the title bar stays in front. A drag area that lies inside another
 /// adds no strip. The strips themselves are drag areas no hit covers, so they never count.
-fn covered_strips(ctx: &Context, viewport: ViewportId, dialog: Rect) -> Vec<Rect> {
+fn covered_strips(ctx: &Context, viewport: WindowId, dialog: Rect) -> Vec<Rect> {
     let Some(regions) = WindowHost::of(ctx).caption_regions(viewport) else { return Vec::new() };
     let covered: Vec<Rect> = regions
         .moves

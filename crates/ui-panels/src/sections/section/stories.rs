@@ -7,10 +7,10 @@ use crate::layout_components::Stack;
 use crate::runtime::env::with_env;
 use crate::sections::sample::body;
 use crate::sections::{HeaderAction, HeaderStrength, QuietTitleRow};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::Ui;
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use craft_ui::Ui;
 
-fn toggle_disclosure(fixture: &mut Fixture) {
+fn toggle_disclosure(fixture: &mut Harness) {
     let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some("Layers"));
     if let Some(lead) = lead {
         fixture.click(&lead);

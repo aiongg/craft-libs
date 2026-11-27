@@ -3,13 +3,13 @@
 
 use craft_ui::contract::{Role, ShowContainer as _};
 use craft_ui::sections::Panel;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 
 #[trial]
 fn title_note_remains_accessible_when_the_row_is_narrow() {
     use craft_ui::contract::Show as _;
     use craft_ui::sections::TitleRow;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         ui.set_max_width(100.0);
         TitleRow::new("Properties").note("A long description of the selection").show(ui);
     });
@@ -19,8 +19,8 @@ fn title_note_remains_accessible_when_the_row_is_narrow() {
     assert!(fixture.texts().iter().any(|run| run.text.contains('·')), "the note is painted even when it is cut");
 }
 
-fn panel(titled: bool) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn panel(titled: bool) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let panel = Panel::new("Brush settings");
         let panel = if titled { panel.titled() } else { panel };
         panel.show(ui, |ui, _| {
@@ -48,14 +48,15 @@ fn panel_routes_unused_arrow_from_button_to_its_collection() {
     use craft_ui::contract::{CollectionEvent, Props as _, Show as _, ShowCollection as _};
     use craft_ui::list::{List, ListRow};
     use craft_ui::runtime::focus::{FocusTarget, request};
-    use egui::{Id, Key, Modifiers};
+    use craft_ui::Id;
+    use craft_ui::input::{Key, Mods};
     use std::cell::RefCell;
     use std::rc::Rc;
     let events = Rc::new(RefCell::new(Vec::new()));
     let seen = Rc::clone(&events);
     let list_id = Id::unique("panel fallback list");
     let button_id = Id::unique("panel button");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Panel::new("Region").fallback_collection(list_id).show(ui, |ui, _| {
             Button::new("Action").id(button_id).show(ui);
             let keys = [0_usize, 1, 2];
@@ -67,7 +68,7 @@ fn panel_routes_unused_arrow_from_button_to_its_collection() {
     fixture.settle();
     request(fixture.ctx(), FocusTarget::Id(button_id));
     fixture.settle();
-    fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
+    fixture.key(Key::ArrowDown, Mods::NONE).settle();
     assert!(events.borrow().iter().any(|event| matches!(event, CollectionEvent::LeadMoved { .. })), "the list receives the move");
 }
 
@@ -80,7 +81,7 @@ fn the_first_section_under_a_heading_quiet_title_draws_no_rule() {
     use craft_ui::sections::{HeaderStrength, Section};
     use egui::Shape;
     let rules = |sections: &'static [&'static str], quiet: QuietHeader| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             Panel::new("Properties").titled().strength(HeaderStrength::Quiet).show(ui, |ui, _| {
                 for title in sections {
                     Section::fixed(*title).show(ui, |ui, _| {
@@ -89,7 +90,7 @@ fn the_first_section_under_a_heading_quiet_title_draws_no_rule() {
                 }
             });
         });
-        fixture.root_value(quiet).room(egui::Vec2::new(400.0, 300.0)).settle();
+        fixture.root_value(quiet).room(craft_ui::geom::Vec2::new(400.0, 300.0)).settle();
         fixture
             .frame_shapes()
             .iter()

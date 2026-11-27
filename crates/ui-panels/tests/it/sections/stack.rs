@@ -5,15 +5,16 @@ use craft_ui::contract::{Props as _, Role, Show as _, ShowContainer as _, Sizing
 use craft_ui::display::Text;
 use craft_ui::menu::MenuItem;
 use craft_ui::sections::{DropAction, Section, SectionStack};
-use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Ui, vec2};
+use craft_ui::testing::{Harness, Target, trial};
+use craft_ui::Ui;
+use craft_ui::geom::vec2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const TITLES: [&str; 3] = ["Layers", "Effects", "Paths"];
 
 /// The title row of the section titled `title`.
-fn title_row(fixture: &Fixture, title: &str) -> Target {
+fn title_row(fixture: &Harness, title: &str) -> Target {
     let tree = fixture.tree();
     fixture.by_role(Role::HEADING).into_iter().find(|row| tree.name_of(row.node) == Some(title)).expect("the section's title row")
 }
@@ -24,7 +25,7 @@ fn title_row(fixture: &Fixture, title: &str) -> Target {
 fn a_drag_from_a_collapsible_section_title_moves_the_section() {
     let order = Rc::new(RefCell::new(vec![0_u8, 1, 2]));
     let held = Rc::clone(&order);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let shown = held.borrow().clone();
         let stack = SectionStack::new(&shown);
         let rows = stack.rows();

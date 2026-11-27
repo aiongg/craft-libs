@@ -13,7 +13,8 @@ use crate::runtime::env::{AppValues, EnvValue, EnvView, Label};
 use crate::runtime::pointer;
 use craft_behavior::dock::{Action, DockEdge, DockPlacement, Layout, Node, Permissions, Target};
 use craft_behavior::{CancelReason, DockSide};
-use egui::{Context, Id, Pos2, Rect, Vec2};
+use craft_ui::{Context, Id};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::hash::Hash;
 
 /// What a dock drag moves: one panel, or the whole group, floating window or column of a panel.
@@ -346,7 +347,7 @@ impl<P: Clone + Eq + Hash + Send + 'static> DockDropTarget<'_, P> {
         }
         let unit = drag.unit(self.layout)?;
         let window = matches!(unit, DragUnit::Window(_));
-        if pointer::mods(self.ctx).cmd {
+        if self.ctx.modifiers().cmd {
             return if window { None } else { self.float(&unit, at, drag.source(), drag.strip(), drag.press()) };
         }
         if window && drag.title_row() && !self.title_bar_docks {

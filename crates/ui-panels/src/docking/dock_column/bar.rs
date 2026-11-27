@@ -13,7 +13,8 @@ use craft_behavior::PartKey;
 use craft_behavior::dock::{Column, DockEdge};
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, CustomVariant, Emphasis, States, Tokens, Variant, VariantLook};
-use egui::{Rect, Ui, UiBuilder, Vec2};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::{Ui, UiBuilder};
 use std::hash::Hash;
 
 /// The chevron of a column's bar: a click collapses an expanded column to icons and expands an iconic one.

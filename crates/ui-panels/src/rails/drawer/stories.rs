@@ -7,8 +7,8 @@ use crate::menu::PanelRow;
 use crate::rails::tool::stories::{BRUSH, StoryTools, tools};
 use crate::rails::tool::{LastUsed, ToolRail, ToolSlot};
 use crate::runtime::commands::CommandRef;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::Ui;
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use craft_ui::Ui;
 
 /// The drawer closed beside the tool rail until the rail's Edit Toolbar button opens it, `tune`d by the story. `tune`
 /// also learns whether this pass opened the drawer, for a request that is sent once.
@@ -122,7 +122,7 @@ fn toolbar_drawer_with_grouped_tools_dragging(ui: &mut Ui, data: &mut StoryData)
 }
 
 /// Types a query into the drawer's search field.
-fn type_query(fixture: &mut Fixture) {
+fn type_query(fixture: &mut Harness) {
     let Some(field) = fixture.by_label("Search Tools") else { return };
     fixture.click(&field).type_text("eraser").idle(3);
 }

@@ -2,7 +2,7 @@
 
 use craft_ui::testing::internals::pointer_heads_toward;
 use craft_ui::testing::trial;
-use egui::{Rect, pos2};
+use craft_ui::geom::{Rect, pos2};
 
 #[trial]
 fn the_pointer_heads_for_the_submenu_inside_the_triangle_to_its_near_edge() {

@@ -6,7 +6,8 @@ use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::{Env, RootEnv};
 use craft_ui::sections::Section;
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::Ui;
 
 /// What a stack of a row and a fixed section shows under `rhythm`: the room from the row to the section's rule, the room
 /// from the rule to the section's body, and `space.gap.section`.

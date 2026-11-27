@@ -5,8 +5,8 @@ use crate::contract::overlay::HOLD;
 use crate::contract::{Props as _, Role, Show as _};
 use crate::rails::tool::stories::{BRUSH, tools};
 use crate::style::GlyphRole;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::Ui;
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use craft_ui::Ui;
 
 #[story(FlyoutButton<'static, u8>, covers = [Default], drive = Drive::Activate)]
 fn flyout_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -16,7 +16,7 @@ fn flyout_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// Holds the press on the button, which opens the flyout.
-fn hold_button(fixture: &mut Fixture) {
+fn hold_button(fixture: &mut Harness) {
     if let Some(button) = fixture.by_role(Role::BUTTON).first().copied() {
         fixture.press(&button);
         fixture.advance(HOLD * 2.0);

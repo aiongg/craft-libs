@@ -3,7 +3,7 @@
 use crate::runtime::commands::CommandState;
 use craft_behavior::dock::{Arrangement, DocumentWindows};
 use craft_behavior::placement::cascade_rects;
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::hash::Hash;
 
 /// The Window › Arrange commands.

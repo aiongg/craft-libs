@@ -5,8 +5,8 @@ use craft_ui::contract::Tracked;
 use craft_ui::rails::{DropAt, RailTool, ToolSlot, ToolbarEdit, apply_toolbar_edit};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::drag;
-use craft_ui::testing::{Fixture, Registry, trial};
-use egui::Vec2;
+use craft_ui::testing::{Harness, Registry, trial};
+use craft_ui::geom::Vec2;
 
 const UNDO: u8 = 1;
 const REDO: u8 = 2;
@@ -42,8 +42,8 @@ fn a_tool_moved_down_its_own_slot_lands_at_the_index_after_it_leaves() {
 #[trial]
 fn closing_the_drawer_returns_the_focus_to_the_rails_edit_toolbar_button() {
     use craft_ui::rails::{DrawerGroup, LastUsed, ToolRail, ToolbarDrawer};
-    use craft_ui::testing::Fixture;
-    use egui::{Key, Modifiers};
+    use craft_ui::testing::Harness;
+    use craft_ui::input::{Key, Mods};
     use std::cell::Cell;
     use std::rc::Rc;
 
@@ -51,7 +51,7 @@ fn closing_the_drawer_returns_the_focus_to_the_rails_edit_toolbar_button() {
     let shown = open.clone();
     let slots = Tracked::new(vec![slot(0, &[UNDO]), slot(1, &[REDO])]);
     let last = Tracked::new(LastUsed::default());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let groups = [DrawerGroup::new("Edit", vec![tool(UNDO), tool(REDO), tool(CUT)])];
         let rail = ToolRail::new("Tools", &slots, &UNDO, &last).edit_toolbar("Customize").show_rail(ui, |_, _| {});
         let opener = rail.edit_toolbar.expect("the rail shows its Edit Toolbar button");
@@ -66,7 +66,7 @@ fn closing_the_drawer_returns_the_focus_to_the_rails_edit_toolbar_button() {
     let customize = fixture.by_label("Customize").expect("the rail shows its Edit Toolbar button");
     fixture.click(&customize).idle(6);
     assert!(open.get(), "the button opened the drawer");
-    fixture.key(Key::Escape, Modifiers::NONE).idle(6);
+    fixture.key(Key::Escape, Mods::NONE).idle(6);
     assert!(!open.get(), "Escape closed the drawer");
     let focused = craft_ui::testing::access::focused_key(fixture.tree());
     assert!(fixture.by_label("Customize").is_some_and(|button| button.node == focused), "the focus is back on Edit Toolbar");
@@ -76,11 +76,11 @@ fn closing_the_drawer_returns_the_focus_to_the_rails_edit_toolbar_button() {
 fn drawer_drags(story: &str, labels: &[&str]) -> Vec<bool> {
     let registry = Registry::of(&[craft_ui::testing::register]);
     let entry = registry.stories().iter().find(|entry| entry.story.name == story).expect("the drawer story");
-    let mut fixture = Fixture::story(&entry.story);
+    let mut fixture = Harness::story(&entry.story);
     fixture.settle();
     let opener = fixture.by_label("Edit Toolbar").expect("the rail's Edit Toolbar button");
     fixture.click(&opener).settle();
-    let drags = |fixture: &mut Fixture, label: &str| {
+    let drags = |fixture: &mut Harness, label: &str| {
         let row = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} row"));
         let before = drag::started(fixture.ctx());
         fixture.drag_hold_at(row.center(), Vec2::new(0.0, 30.0));
@@ -133,7 +133,7 @@ fn a_click_on_a_tool_selects_it_and_no_row_stays_selected() {
     use std::rc::Rc;
     let picked = Rc::new(Cell::new(None::<u8>));
     let seen = picked.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let groups = [DrawerGroup::new("Edit", vec![tool(UNDO), tool(CUT), tool(4)])];
         let toolbar = [slot(0, &[UNDO])];
         let out = ToolbarDrawer::new(ui.max_rect(), &groups, &toolbar, None).show(ui);
@@ -155,7 +155,7 @@ fn a_slot_that_ends_a_group_leaves_a_wider_gap_than_slots_within_a_group() {
     use craft_ui::rails::{LastUsed, ToolRail};
     let slots = Tracked::new(vec![slot(0, &[UNDO]), ToolSlot::ending_group(1, vec![tool(REDO)]), slot(2, &[CUT])]);
     let last = Tracked::new(LastUsed::default());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ToolRail::new("Tools", &slots, &UNDO, &last).show_rail(ui, |_, _| {});
     });
     fixture.room(Vec2::new(60.0, 300.0)).settle();
@@ -170,12 +170,12 @@ fn a_slot_that_ends_a_group_leaves_a_wider_gap_than_slots_within_a_group() {
 fn the_drawer_opens_on_the_side_it_is_given() {
     use craft_behavior::overlay::Side;
     use craft_ui::rails::{DrawerGroup, ToolbarDrawer};
-    use egui::{Pos2, Rect};
+    use craft_ui::geom::{Pos2, Rect};
     const ROOM: Vec2 = Vec2::new(480.0, 320.0);
     for opens in [Side::End, Side::Start] {
         let x = if opens == Side::Start { ROOM.x - 48.0 } else { 0.0 };
         let rail = Rect::from_min_size(Pos2::new(x, 0.0), Vec2::new(48.0, ROOM.y));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let toolbar = [slot(0, &[UNDO])];
             let groups = [DrawerGroup::new("Edit", vec![tool(UNDO), tool(REDO), tool(CUT)])];
             ToolbarDrawer::new(rail, &groups, &toolbar, None).opens(opens).show(ui);
@@ -194,13 +194,13 @@ fn a_revealed_tool_scrolls_into_view_and_wears_the_mark() {
     use craft_ui::contract::Role;
     use craft_ui::display::TargetMark;
     use craft_ui::rails::{DrawerGroup, ToolbarDrawer};
-    use egui::{Pos2, Rect};
+    use craft_ui::geom::{Pos2, Rect};
     use std::cell::Cell;
     use std::rc::Rc;
     const ROOM: Vec2 = Vec2::new(480.0, 240.0);
     let shown = |marked: bool| {
         let pending = Rc::new(Cell::new(true));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let ids = |from: u8, to: u8| (from..to).map(tool).collect::<Vec<_>>();
             let mut second = ids(30, 49);
             second.push(tool(CUT));
@@ -237,7 +237,7 @@ fn the_edit_toolbar_button_takes_the_apps_icon() {
     use craft_ui::rails::{LastUsed, ToolRail};
     let slots = Tracked::new(vec![slot(0, &[UNDO])]);
     let last = Tracked::new(LastUsed::default());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let _ = ToolRail::new("Tools", &slots, &UNDO, &last)
             .edit_toolbar("Customize")
             .edit_icon(craft_behavior::IconId::new("settings"))

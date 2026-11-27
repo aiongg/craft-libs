@@ -4,7 +4,7 @@ use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::value_drag::Slider;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// A check box and a slider of fixed values.
 pub(super) fn body(ui: &mut Ui) {

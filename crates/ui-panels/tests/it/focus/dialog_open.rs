@@ -5,12 +5,12 @@ use craft_behavior::{Input, NavShape, Roving};
 use craft_ui::runtime::focus::{FocusPolicy, KeyUse};
 use craft_ui::testing::focus::{Group, Stop, begin_body, end_body, pop_scope, push_scope, register_group, register_stop, widget};
 use craft_ui::testing::{Frames, trial};
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The stop a dialog with no field and no default stop focuses when it opens: `body` names its body's stops, `end`
 /// the stops after its body (an end region's and a footer's buttons). A name starting with "text" is read-only text
 /// that only a press focuses, and one starting with "row" is a child of a collection's row.
-fn opens_on(body: &[&str], end: &[&str]) -> Option<egui::Id> {
+fn opens_on(body: &[&str], end: &[&str]) -> Option<craft_ui::Id> {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         push_scope(ui.ctx(), id("dialog"), FocusPolicy::DIALOG, None);

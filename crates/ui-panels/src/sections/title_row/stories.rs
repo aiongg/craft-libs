@@ -10,7 +10,7 @@ use crate::sections::Panel;
 use crate::style::SurfaceKind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(TitleRow<'static>, covers = [], drive = Drive::Never)]
 fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

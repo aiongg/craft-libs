@@ -3,8 +3,8 @@
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::docking::{DockGroup, DragUnit, GroupGrip, PanelKey, PanelTitle, Titles};
-use craft_ui::testing::{Fixture, Frames, pointer, trial};
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::testing::{Harness, Frames, pointer, trial};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -16,7 +16,7 @@ fn a_minimized_group_runs_no_body() {
         let runs = Rc::new(Cell::new(0));
         let counted = Rc::clone(&runs);
         let panels = vec![PanelTitle::new(PanelKey::new(1), "Color")];
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key);
             let group = if minimized { group.minimized() } else { group };
             let counted = Rc::clone(&counted);
@@ -44,7 +44,7 @@ fn the_shown_panels_caption_sits_under_the_tabs_and_its_count_names_its_tab() {
         PanelTitle::new(PanelKey::new(1), "Comments").count(Some(3)).caption(Some("2 replies".into())),
         PanelTitle::new(PanelKey::new(2), "Pages").count(Some(9)),
     ];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[picked.get()].key);
         let out = group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)), |ui, _| {
             Button::new("Body button").show(ui);
@@ -73,7 +73,7 @@ fn the_panel_menu_button_stands_level_with_pill_and_block_tabs() {
     use craft_ui::tabs::PanelTabLook;
     let middles = |look: PanelTabLook| {
         let panels = vec![PanelTitle::new(PanelKey::new(1), "Layers"), PanelTitle::new(PanelKey::new(2), "Pages")];
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key).menu(Vec::<PanelRow>::new).tab_look(look);
             let _ = group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)), |_, _| ());
         });
@@ -97,7 +97,7 @@ fn a_titled_group_shows_the_panel_title_and_a_close_button_instead_of_tabs() {
     let closed = Rc::new(Cell::new(false));
     let seen = Rc::clone(&closed);
     let panels = vec![PanelTitle::new(PanelKey::new(1), "Accessibility Checker").closable(true), PanelTitle::new(PanelKey::new(2), "Pages")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key).titled().closable().show_at(
             ui,
             Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)),
@@ -124,7 +124,7 @@ fn a_grip_window_shows_a_grip_and_no_title_actions() {
     use craft_ui::docking::{FloatingGroup, WindowColumn};
     let grip = Rc::new(Cell::new(false));
     let seen = Rc::clone(&grip);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = FloatingGroup::new("Quick tools", Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(60.0, 200.0)))
             .column(WindowColumn::expanded(craft_behavior::dock::DockEdge::Start))
             .grip(seen.get());
@@ -133,7 +133,7 @@ fn a_grip_window_shows_a_grip_and_no_title_actions() {
         });
     });
     fixture.settle();
-    let actions = |fixture: &Fixture| ["Close", "Panel Menu", "Float"].iter().filter(|name| fixture.by_label(name).is_some()).count();
+    let actions = |fixture: &Harness| ["Close", "Panel Menu", "Float"].iter().filter(|name| fixture.by_label(name).is_some()).count();
     assert!(actions(&fixture) > 0, "an ordinary floating window shows its title actions");
     grip.set(true);
     fixture.settle();
@@ -147,7 +147,7 @@ fn a_grip_window_shows_a_grip_and_no_title_actions() {
 fn a_grip_window_keeps_no_band_for_a_title_rule() {
     use craft_ui::docking::{FloatingGroup, WindowColumn};
     let body_top = |grip: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let group = FloatingGroup::new("Quick tools", Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(120.0, 200.0)))
                 .column(WindowColumn::expanded(craft_behavior::dock::DockEdge::Start))
                 .grip(grip);
@@ -168,7 +168,7 @@ fn a_grip_window_keeps_no_band_for_a_title_rule() {
 fn a_floating_window_names_each_resize_grip() {
     use craft_ui::contract::Role;
     use craft_ui::docking::FloatingGroup;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = FloatingGroup::new("Quick tools", Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(120.0, 200.0)));
         let _ = group.show_group(ui, |ui, _| {
             Button::new("Select").show(ui);
@@ -189,16 +189,16 @@ fn a_marked_grip_shows_the_grab_cursor() {
     let strip = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(60.0, 16.0));
     for (ticks, movable) in [(true, true), (false, true), (true, false)] {
         let mut frames = Frames::new();
-        let mut show = |ui: &mut egui::Ui| {
+        let mut show = |ui: &mut craft_ui::Ui| {
             GroupGrip::new(DragUnit::Group(1usize), PanelKey::new(1)).ticks(ticks).movable(movable).show_at(ui, strip);
         };
         frames.frame(vec![], &mut show);
         frames.frame(vec![pointer::moved(strip.center())], &mut show);
         frames.frame(vec![], &mut show);
         let (over, held) = if ticks && movable {
-            (egui::CursorIcon::Grab, egui::CursorIcon::Grabbing)
+            (craft_ui::input::CursorIcon::Grab, craft_ui::input::CursorIcon::Grabbing)
         } else {
-            (egui::CursorIcon::Default, egui::CursorIcon::Default)
+            (craft_ui::input::CursorIcon::Default, craft_ui::input::CursorIcon::Default)
         };
         assert_eq!(frames.cursor_icon(), over, "over the grip (ticks {ticks}, movable {movable})");
         frames.frame(vec![pointer::press(strip.center())], &mut show);
@@ -214,11 +214,11 @@ fn a_tab_mark_change_repaints_the_tab_row() {
     use craft_ui::runtime::commands::{CommandRef, CommandState, EditCommands};
     let command: CommandRef = EditCommands::Undo.into();
     let panels = vec![PanelTitle::new(PanelKey::new(1), "Brushes").command(Some(command.clone())), PanelTitle::new(PanelKey::new(2), "Swatches")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[1].key);
         group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(400.0, 200.0)), |_, _| {});
     });
-    let width = |fixture: &mut Fixture| fixture.by_label("Brushes").map_or(0.0, |tab| tab.rect.width());
+    let width = |fixture: &mut Harness| fixture.by_label("Brushes").map_or(0.0, |tab| tab.rect.width());
     fixture.settle();
     let plain = width(&mut fixture);
     fixture.command_state(command.clone(), CommandState::new().checked(false).marked(true)).settle();
@@ -236,11 +236,11 @@ fn a_tab_mark_change_repaints_the_tab_row() {
 fn a_click_on_an_app_field_in_the_body_keeps_its_focus() {
     use std::cell::RefCell;
     let text = Rc::new(RefCell::new(String::new()));
-    let field = Rc::new(Cell::new(None::<(egui::Id, Rect)>));
+    let field = Rc::new(Cell::new(None::<(craft_ui::Id, Rect)>));
     let surface = Rc::new(Cell::new(false));
     let (typed, shown, pressed) = (Rc::clone(&text), Rc::clone(&field), Rc::clone(&surface));
     let panels = vec![PanelTitle::new(PanelKey::new(1), "Color")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key);
         let (typed, shown, pressed) = (Rc::clone(&typed), Rc::clone(&shown), Rc::clone(&pressed));
         group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)), move |ui, cx| {
@@ -279,7 +279,7 @@ fn a_press_on_an_app_drag_widget_in_the_body_is_no_surface_press() {
     let canvas = Rc::new(Cell::new(None::<Rect>));
     let (pressed, shown) = (Rc::clone(&surface), Rc::clone(&canvas));
     let panels = vec![PanelTitle::new(PanelKey::new(1), "Navigator")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key);
         let (pressed, shown) = (Rc::clone(&pressed), Rc::clone(&shown));
         group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)), move |ui, cx| {
@@ -307,7 +307,7 @@ fn a_narrow_groups_drag_band_narrows_before_the_shown_tab() {
         let group_rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(width, 200.0));
         let grip = Rc::new(Cell::new(None::<Rect>));
         let seen = Rc::clone(&grip);
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let out = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key).show_at(ui, group_rect, |_, _| ());
             seen.set(out.output.grip.map(|(rect, _)| rect));
         });
@@ -356,7 +356,7 @@ fn closable_panel_tabs_shrink_and_close_on_a_middle_click() {
     let panels: Vec<PanelTitle> = (0..3).map(|at| PanelTitle::new(PanelKey::new(at as u64 + 1), names[at]).closable(true)).collect();
     let keys: Vec<PanelKey> = panels.iter().map(|panel| panel.key).collect();
     let group_rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 200.0));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key).closable().show_at(ui, group_rect, |_, _| ());
         if let Some(key) = out.output.picked {
             picks.set(Some(key));
@@ -375,9 +375,9 @@ fn closable_panel_tabs_shrink_and_close_on_a_middle_click() {
     assert!(tabs[1].rect.width() < tabs[0].rect.width() - 0.5, "the other tabs shrink and the shown tab keeps its whole name");
     assert!(fixture.by_label("More tabs").is_none(), "no tab goes to the overflow menu while its first letters fit");
     let at = tabs[2].center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::middle(at, true)]);
-    fixture.frame(vec![pointer::middle(at, false)]).settle();
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::middle(at, true));
+    fixture.send(pointer::middle(at, false)).settle();
     assert_eq!(closed.get(), Some(keys[2]), "the middle click closes the tab");
     assert_eq!(picked.get(), None, "the middle click does not show the tab first");
 }
@@ -391,7 +391,7 @@ fn an_access_click_on_a_settled_tabs_close_button_closes_it() {
     let closes = Rc::clone(&closed);
     let panels = vec![PanelTitle::new(PanelKey::new(1), "Color").closable(true), PanelTitle::new(PanelKey::new(2), "Swatches").closable(true)];
     let key = panels[1].key;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let group = DockGroup::new(1usize, Titles::from_content(panels.clone()), panels[0].key).closable();
         let out = group.show_at(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 240.0)), |_, _| ());
         if let Some(key) = out.output.closed.first() {

@@ -5,7 +5,7 @@ use crate::sections::sample::body;
 use crate::sections::{SectionKey, SectionLayout};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// Each section's key, title and row count.
 const IDS: [(&str, &str, usize); 4] = [("albums", "Albums", 2), ("folders", "Folders", 4), ("keywords", "Keywords", 0), ("map", "Map", 3)];

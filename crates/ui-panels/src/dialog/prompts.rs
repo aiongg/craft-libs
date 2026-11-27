@@ -15,7 +15,7 @@ use craft_behavior::{IconId, Mixed};
 use craft_host::Host;
 use craft_i18n::{Count, Digits, Format, Region, Words};
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 use serde_json::{Value, json};
 use std::any::Any;
 use std::fmt;

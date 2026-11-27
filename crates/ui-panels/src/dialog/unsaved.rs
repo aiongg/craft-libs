@@ -15,7 +15,7 @@ use craft_host::target::Os;
 use craft_keymap::{Chord, Key, Mods};
 use craft_quit::{CloseAnswer, CloseScope};
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 use serde_json::{Value, json};
 
 /// The answer for one document, with whether it applies to the rest.

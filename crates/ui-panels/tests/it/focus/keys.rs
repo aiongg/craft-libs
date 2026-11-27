@@ -9,7 +9,8 @@ use craft_ui::runtime::keys::{claim_alt_tap, escape_mods, take_alt_tap};
 use craft_ui::testing::focus::{intents_of, take_claimed};
 use craft_ui::testing::input::{key_press, key_repeat};
 use craft_ui::testing::{Frames, trial};
-use egui::{Event, Key, Modifiers};
+use egui::Event;
+use craft_ui::input::{Key, Mods};
 use std::cell::{Cell, RefCell};
 
 /// Spec test row "the first arrow and Escape after a focus change act as intents, never as egui focus moves".
@@ -18,7 +19,7 @@ fn the_first_arrow_and_escape_after_a_focus_change_act_as_intents() {
     let mut frames = Frames::new();
     let moves = RefCell::new(Vec::new());
     let cancels = Cell::new(0);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         control(ui, "a");
         control(ui, "b");
         let mut intents = intents_of(ui.ctx(), Some(id("a")), false);
@@ -43,7 +44,7 @@ fn a_held_escape_cancels_once() {
     for target in [Some(id("a")), None] {
         let mut frames = Frames::new();
         let cancels = Cell::new(0);
-        let mut show = |ui: &mut egui::Ui| {
+        let mut show = |ui: &mut craft_ui::Ui| {
             control(ui, "a");
             cancels.set(cancels.get() + usize::from(intents_of(ui.ctx(), target, false).take(Intent::Cancel)));
         };
@@ -70,7 +71,7 @@ fn claimed_chords_hold_after_focus_arrives_and_a_claimed_escape_is_no_cancel() {
     const CLAIMS: &[Chord] = &[Chord::plain(craft_keymap::Key::Up), Chord::plain(craft_keymap::Key::Escape)];
     let mut frames = Frames::new();
     let reads = RefCell::new((Vec::new(), 0, true));
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         stop_with(ui, "canvas", KeyUse::CANVAS.with_chrome_key(false).with_claims(CLAIMS));
         let ctx = ui.ctx();
         let mut reads = reads.borrow_mut();
@@ -94,7 +95,7 @@ fn claimed_chords_hold_after_focus_arrives_and_a_claimed_escape_is_no_cancel() {
     assert_eq!(reads.borrow().0.last(), Some(&(false, false)), "a claim is read once");
 }
 
-fn request_and_press(frames: &mut Frames, show: &mut impl FnMut(&mut egui::Ui)) {
+fn request_and_press(frames: &mut Frames, show: &mut impl FnMut(&mut craft_ui::Ui)) {
     craft_ui::runtime::focus::request(&frames.ctx, craft_ui::runtime::focus::FocusTarget::Id(id("canvas")));
     frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowUp, Modifiers::NONE)], show);
 }
@@ -105,7 +106,7 @@ fn request_and_press(frames: &mut Frames, show: &mut impl FnMut(&mut egui::Ui)) 
 fn the_raw_chord_of_a_listed_edit_command_does_not_reach_egui() {
     let mut frames = Frames::new();
     let reads = RefCell::new((0, 0));
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         stop_with(ui, "field", KeyUse::of(Input::Text).with_edits(EditSet::NONE.with(EditCommand::Undo)));
         let mut reads = reads.borrow_mut();
         reads.0 += usize::from(intents_of(ui.ctx(), Some(id("field")), false).take(Intent::Edit(EditCommand::Undo)));
@@ -130,7 +131,7 @@ fn accesskit_requests_reach_the_owner_of_their_node() {
     let mut frames = Frames::new();
     let other = PartKey::new("other");
     let log = RefCell::new((false, None, None));
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         control(ui, "focused");
         control(ui, "target");
         register_node(ui.ctx(), id("target"), id("target"), None, true);
@@ -159,13 +160,13 @@ fn accesskit_requests_reach_the_owner_of_their_node() {
 fn escape_mods_says_whether_shift_or_alt_was_held() {
     let mut frames = Frames::new();
     let seen = Cell::new(None);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         control(ui, "a");
         seen.set(escape_mods(ui.ctx()).map(|mods| (mods.shift, mods.alt)));
     };
     frames.idle(2, &mut show);
     focus(&mut frames, "a", &mut show);
-    for (mods, expected) in [(Modifiers::SHIFT, (true, false)), (Modifiers::ALT, (false, true)), (Modifiers::NONE, (false, false))] {
+    for (mods, expected) in [(Mods::SHIFT, (true, false)), (Mods::ALT, (false, true)), (Mods::NONE, (false, false))] {
         frames.frame(vec![key_press(Key::Escape, mods)], &mut show);
         assert_eq!(seen.get(), Some(expected), "Escape with {mods:?}");
         frames.frame(vec![craft_ui::testing::focus::key_release(Key::Escape, mods)], &mut show);
@@ -178,11 +179,11 @@ fn escape_mods_says_whether_shift_or_alt_was_held() {
 fn a_claimed_lone_alt_tap_goes_to_the_claimer_and_any_other_input_spoils_it() {
     let mut frames = Frames::new();
     let taps = Cell::new(0);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         taps.set(taps.get() + usize::from(take_alt_tap(ui.ctx(), id("tool"))));
         claim_alt_tap(ui.ctx(), id("tool"));
     };
-    let alt = |down: bool| Event::ModifiersChanged(if down { Modifiers::ALT } else { Modifiers::NONE });
+    let alt = |down: bool| Event::ModifiersChanged(if down { Mods::ALT } else { Mods::NONE });
     frames.idle(2, &mut show);
     frames.frame(vec![alt(true)], &mut show);
     frames.frame(vec![alt(false)], &mut show);
@@ -193,7 +194,7 @@ fn a_claimed_lone_alt_tap_goes_to_the_claimer_and_any_other_input_spoils_it() {
     frames.frame(vec![key_press(Key::A, Modifiers::ALT)], &mut show);
     frames.frame(vec![craft_ui::testing::focus::key_release(Key::A, Modifiers::ALT), alt(false)], &mut show);
     assert_eq!(taps.get(), 2, "a key between spoils the tap");
-    let alt_shift = Event::ModifiersChanged(Modifiers { alt: true, shift: true, ..Modifiers::NONE });
+    let alt_shift = Event::ModifiersChanged(Mods { alt: true, shift: true, ..Mods::NONE });
     frames.frame(vec![alt(true), alt_shift, alt(false)], &mut show);
     assert_eq!(taps.get(), 2, "Alt with Shift spoils the tap");
     frames.idle(2, &mut show);
@@ -210,7 +211,7 @@ fn a_key_held_when_a_modal_opens_or_closes_reaches_neither_layer() {
     let mut frames = Frames::new();
     let open = Cell::new(false);
     let cancels = Cell::new(0);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         stop_with(ui, "field", KeyUse::of(Input::Text));
         let mut intents = intents_of(ui.ctx(), Some(id("field")), false);
         cancels.set(cancels.get() + usize::from(intents.take(Intent::Cancel)));
@@ -226,7 +227,7 @@ fn a_key_held_when_a_modal_opens_or_closes_reaches_neither_layer() {
     frames.idle(2, &mut show);
     focus(&mut frames, "field", &mut show);
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
-    let repeat = || key_repeat(Key::Enter, Modifiers::NONE);
+    let repeat = || key_repeat(Key::Enter, Mods::NONE);
     for _ in 0..4 {
         frames.idle(3, &mut show);
         frames.frame(vec![repeat()], &mut show);
@@ -286,14 +287,14 @@ fn a_key_held_when_a_modal_opens_or_closes_reaches_neither_layer() {
 }
 
 /// A search field over a list it drives, inline or in a dialog, and the keys of the rows the list activated.
-fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<RefCell<Vec<usize>>>) {
+fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Harness, std::rc::Rc<RefCell<Vec<usize>>>) {
     use craft_behavior::{DisplayOrder, ItemSource};
     use craft_ui::contract::{Bind, CollectionEvent, Props as _, SelectMode, ShowCollection as _, ShowContainer as _};
     use craft_ui::dialog::Dialog;
     use craft_ui::list::{List, ListRow};
     use craft_ui::runtime::env::Label;
     use craft_ui::sections::{DialogRole, FooterButton};
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::text::TextField;
 
     const NAMES: [&str; 4] = ["Normal", "Burn", "Blur", "Screen"];
@@ -311,9 +312,9 @@ fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<Ref
     let activated = std::rc::Rc::new(RefCell::new(Vec::new()));
     let sink = activated.clone();
     let query = std::rc::Rc::new(RefCell::new(String::new()));
-    let fixture = Fixture::new(move |ui| {
+    let fixture = Harness::new_ui(move |ui| {
         let list_id = ui.scope_id().with("names");
-        let body = |ui: &mut egui::Ui| {
+        let body = |ui: &mut craft_ui::Ui| {
             let mut text = query.borrow().clone();
             TextField::search("Search", Bind::bound(&mut text)).drives(list_id).show(ui);
             let out = List::new("Names")
@@ -353,12 +354,12 @@ fn a_field_that_drives_a_list_hands_it_its_list_keys_inline_and_in_a_modal() {
         fixture.type_text("b");
         fixture.idle(2);
         for _ in 0..2 {
-            fixture.key(Key::ArrowDown, Modifiers::NONE);
+            fixture.key(Key::ArrowDown, Mods::NONE);
             fixture.idle(2);
         }
         let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
         assert_eq!(typed.as_deref(), Some("b"), "the arrows left the typed text in the field (modal: {in_modal})");
-        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.key(Key::Enter, Mods::NONE);
         fixture.idle(4);
         assert_eq!(*activated.borrow(), [2], "Enter picks the second match (modal: {in_modal})");
     }

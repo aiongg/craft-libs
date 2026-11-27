@@ -4,17 +4,18 @@ use super::SectionStack;
 use crate::contract::{Role, ShowContainer as _};
 use crate::sections::Section;
 use crate::sections::sample::body;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Key, Modifiers, Ui};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use craft_ui::input::{Key, Mods};
+use craft_ui::Ui;
 
 const TITLES: [&str; 3] = ["Layers", "Effects", "Paths"];
 
 /// Focuses the first section's disclosure and moves its section down with Cmd+[.
-fn move_first_down(fixture: &mut Fixture) {
+fn move_first_down(fixture: &mut Harness) {
     let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some(TITLES[0]));
     if let Some(lead) = lead {
         fixture.click(&lead);
-        fixture.key(Key::OpenBracket, Modifiers::COMMAND);
+        fixture.key(Key::OpenBracket, Mods::COMMAND);
     }
 }
 

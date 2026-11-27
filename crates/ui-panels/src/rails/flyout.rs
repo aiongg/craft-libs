@@ -17,7 +17,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, GlyphRole, StyleColor, StyleCx};
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, IconId, Metrics, PartKey, PointerButton, PressPhase, Sense, Value};
-use egui::{Pos2, Rect, Response, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::Response;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -300,7 +301,7 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
             let side = cx.style.mark;
             let inner = rect.shrink(side);
             let mark = if cx.flow.is_rtl() {
-                Rect::from_min_size(egui::pos2(inner.left(), inner.bottom() - side), Vec2::splat(side))
+                Rect::from_min_size(craft_ui::geom::pos2(inner.left(), inner.bottom() - side), Vec2::splat(side))
             } else {
                 Rect::from_min_size(inner.max - Vec2::splat(side), Vec2::splat(side))
             };

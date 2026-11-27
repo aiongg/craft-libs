@@ -8,7 +8,7 @@ use crate::runtime::env::Env;
 use crate::style::TypeRole;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Flow;
-use egui::{Ui, UiBuilder};
+use craft_ui::{Ui, UiBuilder};
 
 /// The tools of the stories.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]

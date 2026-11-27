@@ -6,7 +6,7 @@ use crate::contract::{BodyCx, PlainData, Revision, Tracked};
 use crate::menu::PanelRow;
 use crate::runtime::memory;
 use craft_behavior::dock::{Action, Permissions};
-use egui::{Context, Id, Ui};
+use craft_ui::{Context, Id, Ui};
 
 /// What a dock reads of the host's panels: each panel's spec and permissions. The host keeps an implementation in a
 /// [`Tracked`] and gives the dock a reference to it; the dock reads it only when the `Tracked`'s revision or the

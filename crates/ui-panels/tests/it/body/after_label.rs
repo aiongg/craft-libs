@@ -5,12 +5,12 @@ use craft_ui::contract::{Bind, FieldLayout, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::form::Field;
 use craft_ui::testing::snapshot::layer_rects;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Vec2, vec2};
+use craft_ui::testing::{Harness, trial};
+use craft_ui::geom::{Vec2, vec2};
 
 /// The width of a content-sized dialog holding one checkbox field laid out as `layout`, in a window of `room`.
 fn dialog_width(layout: FieldLayout, room: Vec2) -> f32 {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Dialog::new("Grid").show(ui, |ui, _| {
             Field::new("Snap to grid").layout(layout).show(ui, |ui, _| {
                 Checkbox::new(Bind::given(true)).show(ui);

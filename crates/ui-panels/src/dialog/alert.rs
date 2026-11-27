@@ -9,7 +9,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::DialogRole;
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 use serde_json::{Value, json};
 
 /// What an alert reports: its response and how it closed in this pass.

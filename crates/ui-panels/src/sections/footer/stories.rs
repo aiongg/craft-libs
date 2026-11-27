@@ -8,7 +8,7 @@ use crate::story_kit::sample::words;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(FooterBar, covers = [Default])]
 fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

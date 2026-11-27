@@ -8,7 +8,7 @@ use crate::contract::{Access, Component, Cx, Focus as _, Name, Numeric, PartBuil
 use craft_behavior::dock::DockEdge;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Axis, CursorIcon, Flow, HitLevel, HitPriority, NavMove, PartKey, PressPhase, Sense};
-use egui::{Pos2, Rect};
+use craft_ui::geom::{Pos2, Rect};
 
 /// A divider as its container lays it out, in reading order.
 #[derive(Clone, Copy, Debug, PartialEq)]

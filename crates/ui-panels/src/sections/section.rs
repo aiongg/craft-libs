@@ -13,7 +13,7 @@ use crate::contract::{
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, PointerButton, PressPhase, Sense};
-use egui::{Id, Response, Ui};
+use craft_ui::{Id, Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

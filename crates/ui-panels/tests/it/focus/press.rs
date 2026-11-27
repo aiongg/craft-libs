@@ -6,7 +6,9 @@ use craft_behavior::Sense;
 use craft_ui::runtime::focus::{FocusPolicy, KeyUse};
 use craft_ui::testing::focus::{Stop, commit_now, pop_scope, press_shape, primary_button, push_scope, register_stop, widget};
 use craft_ui::testing::{Frames, trial};
-use egui::{Event, Pos2, Rect, Ui};
+use egui::Event;
+use craft_ui::geom::{Pos2, Rect};
+use craft_ui::Ui;
 use std::cell::{Cell, RefCell};
 
 struct Rects {
@@ -17,7 +19,7 @@ struct Rects {
 
 /// A text field that takes focus on a press, a palette that keeps it, a control that does neither and the pane
 /// the field's focus moves to.
-fn layout(ui: &mut Ui, rects: &Cell<Option<(Rect, Rect, Rect)>>, commits: &RefCell<Vec<Option<egui::Id>>>) {
+fn layout(ui: &mut Ui, rects: &Cell<Option<(Rect, Rect, Rect)>>, commits: &RefCell<Vec<Option<craft_ui::Id>>>) {
     widget(ui, id("pane"));
     push_scope(ui.ctx(), id("pane"), FocusPolicy::PANE, None);
     let field = widget(ui, id("field"));

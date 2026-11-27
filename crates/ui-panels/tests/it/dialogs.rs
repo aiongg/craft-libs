@@ -18,9 +18,11 @@ use craft_ui::runtime::frame::take_output;
 use craft_ui::runtime::windows::{WindowHit, WindowHost};
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, pointer, trial};
+use craft_ui::testing::{Harness, Frames, Story, StoryData, StoryOutput, pointer, trial};
 use craft_ui::text::TextField;
-use egui::{Modifiers, Pos2, Rect, Response, Ui, Vec2, ViewportId, vec2};
+use craft_ui::input::Mods;
+use craft_ui::geom::{Pos2, Rect, Vec2, vec2};
+use craft_ui::{Response, Ui, WindowId};
 use serde_json::json;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -56,7 +58,7 @@ impl<const N: usize> StackDialog for Probe<N> {
         self.finish.take()
     }
 
-    fn confirm(&mut self, _: &egui::Context) -> Option<u32> {
+    fn confirm(&mut self, _: &craft_ui::Context) -> Option<u32> {
         Some(N as u32)
     }
 }
@@ -66,9 +68,9 @@ fn run(host: &mut DialogHost, frames: &mut Frames) {
 }
 
 /// A fixture that runs `host` each pass.
-fn running(host: &Rc<RefCell<DialogHost>>) -> Fixture {
+fn running(host: &Rc<RefCell<DialogHost>>) -> Harness {
     let shown = Rc::clone(host);
-    Fixture::new(move |ui| shown.borrow_mut().run(ui))
+    Harness::new_ui(move |ui| shown.borrow_mut().run(ui))
 }
 
 #[trial]
@@ -169,7 +171,7 @@ fn titled_alert(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[trial]
 fn a_story_knob_reaches_its_open_hosted_dialog() {
-    let mut fixture = Fixture::story(&Story::new("titled_alert", titled_alert));
+    let mut fixture = Harness::story(&Story::new("titled_alert", titled_alert));
     fixture.idle(6);
     assert!(fixture.by_label("Could not open").is_some(), "the story opens its dialog");
     assert!(fixture.take_outputs().last().is_some_and(|output| output.id.is_some()), "the story reports the open dialog's facts");
@@ -183,12 +185,12 @@ fn a_story_knob_reaches_its_open_hosted_dialog() {
 fn a_hosted_alert_answers_ok_however_it_closes_and_opens_again() {
     let host = std::rc::Rc::new(std::cell::RefCell::new(DialogHost::new()));
     let shown = std::rc::Rc::clone(&host);
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| shown.borrow_mut().run(ui));
-    for key in [egui::Key::Enter, egui::Key::Escape] {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
+    for key in [craft_ui::input::Key::Enter, craft_ui::input::Key::Escape] {
         host.borrow_mut().open(HostedAlert::new(Alert::new("Could not open", "The file is damaged.")));
         fixture.idle(6);
         assert!(fixture.by_label("Could not open").is_some(), "the alert shows on the host before {key:?}");
-        fixture.key(key, egui::Modifiers::NONE).idle(4);
+        fixture.key(key, craft_ui::input::Mods::NONE).idle(4);
         assert!(host.borrow().is_empty(), "{key:?} closes the alert");
         assert_eq!(host.borrow_mut().take::<HostedAlert>(), Some(DialogResult::Ok(())), "{key:?} answers OK");
     }
@@ -232,7 +234,7 @@ fn a_dialog_that_closed_itself_shows_when_opened_again() {
 /// the document is blocked, and a value that is no answer is refused.
 #[trial]
 fn automation_answers_a_recovery_prompt_with_discard() {
-    let ctx = egui::Context::default();
+    let ctx = craft_ui::Context::default();
     let mut host = DialogHost::new();
     let age = Duration::from_secs(300);
 
@@ -262,7 +264,7 @@ fn a_job_window_shows_again_for_the_next_job_after_cancel() {
     let drawing = Rc::new(Cell::new(true));
     let answered = Rc::new(Cell::new(None));
     let (on, got) = (Rc::clone(&drawing), Rc::clone(&answered));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         if on.get()
             && let Some(answer) = JobProgress::new("Exporting", "Page 1 of 3").show(ui).answer
         {
@@ -289,7 +291,7 @@ fn a_job_window_shows_again_for_the_next_job_after_cancel() {
 fn a_prompt_without_a_default_answer_opens_with_no_button_focused() {
     let answered = Rc::new(Cell::new(None));
     let got = Rc::clone(&answered);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         if let Some(answer) = JobProgress::new("Exporting", "Page 1 of 3").can_hide(true).show(ui).answer {
             got.set(Some(answer));
         }
@@ -297,9 +299,9 @@ fn a_prompt_without_a_default_answer_opens_with_no_button_focused() {
     fixture.idle(6);
     assert!(fixture.by_label("Continue in Background").is_some(), "the window has a second answer");
     assert_eq!(fixture.focused(), None, "no button has the focus");
-    fixture.key(egui::Key::Enter, Modifiers::NONE).idle(2);
+    fixture.key(craft_ui::input::Key::Enter, Mods::NONE).idle(2);
     assert_eq!(answered.get(), None, "Enter answers nothing");
-    fixture.key(egui::Key::Escape, Modifiers::NONE).idle(2);
+    fixture.key(craft_ui::input::Key::Escape, Mods::NONE).idle(2);
     assert_eq!(answered.get(), Some(JobAnswer::Cancel));
 }
 
@@ -309,7 +311,7 @@ fn a_prompt_without_a_default_answer_opens_with_no_button_focused() {
 fn a_job_window_is_a_modal_layer_that_asks_nothing() {
     let (passes, drawn) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
     let (all, shown) = (Rc::clone(&passes), Rc::clone(&drawn));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         all.set(all.get() + 1);
         if !any_open(ui.ctx(), OpenFilter::Asks) {
             JobProgress::new("Exporting", "Page 1 of 3").show(ui);
@@ -322,7 +324,7 @@ fn a_job_window_is_a_modal_layer_that_asks_nothing() {
     assert!(any_open(fixture.ctx(), OpenFilter::Modal), "the window is a modal layer");
     assert!(!any_open(fixture.ctx(), OpenFilter::Asks), "the window asks nothing");
 
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Prompt::new("Replace the file?", "A file with this name exists.").answers([FooterButton::new("Replace", DialogRole::Accept)]).show(ui);
     });
     fixture.idle(6);
@@ -374,7 +376,7 @@ impl Component for DragBar {
 fn a_hosted_modal_over_the_title_bar_shows_drag_strips() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let shown = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         DragBar { common: Common::new() }.id_salt("bar").show(ui);
         shown.borrow_mut().run(ui);
     });
@@ -382,7 +384,7 @@ fn a_hosted_modal_over_the_title_bar_shows_drag_strips() {
     host.borrow_mut().open(StandardPrompt::new(PromptKind::TrashMask));
     fixture.idle(6);
     let ctx = fixture.ctx().clone();
-    let moves = WindowHost::of(&ctx).caption_regions(ViewportId::ROOT).map_or(0, |regions| regions.moves.len());
+    let moves = WindowHost::of(&ctx).caption_regions(WindowId::ROOT).map_or(0, |regions| regions.moves.len());
     assert!(moves > 1, "the hosted modal shows a drag strip over the bar");
 }
 
@@ -393,7 +395,7 @@ fn the_run_shows_each_dialog_once_per_pass() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let rerun = Rc::new(Cell::new(false));
     let (shown, again) = (Rc::clone(&host), Rc::clone(&rerun));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         shown.borrow_mut().run(ui);
         if again.get() && ui.ctx().current_pass_index() == 0 {
             ui.ctx().request_discard("the frame runs twice");
@@ -404,7 +406,7 @@ fn the_run_shows_each_dialog_once_per_pass() {
     let mut passes = 0;
     for frame in 0..5 {
         rerun.set(frame % 2 == 1);
-        passes += fixture.frame(Vec::new()).passes();
+        passes += fixture.step().passes();
     }
     assert!(passes > 5, "some frames ran a second pass");
     let host = host.borrow();
@@ -458,16 +460,16 @@ fn a_startup_modal_waits_for_the_open_dialogs_and_opens_in_stage_order() {
 #[trial]
 fn the_platform_chords_answer_dont_save() {
     let cases = [
-        (Os::Mac, egui::Key::D, Modifiers::COMMAND, true),
-        (Os::Linux, egui::Key::D, Modifiers::COMMAND, true),
-        (Os::Linux, egui::Key::N, Modifiers::ALT, true),
-        (Os::Mac, egui::Key::D, Modifiers::ALT, false),
+        (Os::Mac, craft_ui::input::Key::D, Mods::COMMAND, true),
+        (Os::Linux, craft_ui::input::Key::D, Mods::COMMAND, true),
+        (Os::Linux, craft_ui::input::Key::N, Mods::ALT, true),
+        (Os::Mac, craft_ui::input::Key::D, Mods::ALT, false),
     ];
     for (os, key, mods, answers) in cases {
         let host = Rc::new(RefCell::new(DialogHost::new()));
         let app_saw_key = Rc::new(Cell::new(false));
         let (shown, saw) = (Rc::clone(&host), Rc::clone(&app_saw_key));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let pressed =
                 ui.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Key { key: k, pressed: true, .. } if *k == key)));
             saw.set(saw.get() || pressed);
@@ -515,7 +517,7 @@ fn the_unsaved_question_orders_its_buttons_by_platform_and_answers_by_role() {
     let order = |os: Os, names: [&str; 3]| {
         let host = Rc::new(RefCell::new(DialogHost::new()));
         let shown = Rc::clone(&host);
-        let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+        let mut fixture = Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
         fixture.os(os);
         host.borrow_mut().open(UnsavedChangesDialog::new(CloseScope::Close, "poster.psd"));
         fixture.idle(6);
@@ -525,14 +527,14 @@ fn the_unsaved_question_orders_its_buttons_by_platform_and_answers_by_role() {
     order(Os::Windows, ["Yes", "No", "Cancel"]);
     order(Os::Mac, ["Don't Save", "Cancel", "Save"]);
 
-    for (key, expected) in [(egui::Key::Escape, CloseAnswer::Cancel), (egui::Key::Y, CloseAnswer::Save), (egui::Key::N, CloseAnswer::DontSave)] {
+    for (key, expected) in [(craft_ui::input::Key::Escape, CloseAnswer::Cancel), (craft_ui::input::Key::Y, CloseAnswer::Save), (craft_ui::input::Key::N, CloseAnswer::DontSave)] {
         let host = Rc::new(RefCell::new(DialogHost::new()));
         let shown = Rc::clone(&host);
-        let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+        let mut fixture = Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
         fixture.os(Os::Windows);
         host.borrow_mut().open(UnsavedChangesDialog::new(CloseScope::Close, "poster.psd"));
         fixture.idle(6);
-        fixture.key(key, Modifiers::NONE).idle(4);
+        fixture.key(key, Mods::NONE).idle(4);
         let answered = host.borrow_mut().take::<UnsavedChangesDialog>().and_then(DialogResult::ok).map(|answer| answer.answer);
         assert_eq!(answered, Some(expected), "{key:?} answers {expected:?}");
     }
@@ -544,7 +546,7 @@ fn the_unsaved_question_orders_its_buttons_by_platform_and_answers_by_role() {
 fn the_unsaved_dialog_exposes_alert_dialog_role_and_folds_reason_into_description() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let shown = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+    let mut fixture = Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
 
     // 1. Without reason: Role::ALERT_DIALOG, label is "Unsaved changes", description contains the closing question.
     host.borrow_mut().open(UnsavedChangesDialog::new(CloseScope::Close, "poster.psd"));
@@ -578,7 +580,7 @@ fn the_unsaved_dialog_exposes_alert_dialog_role_and_folds_reason_into_descriptio
 /// Apply, an auxiliary action, stands after Cancel on Windows; the Alternate role does not move it.
 #[trial]
 fn windows_puts_an_auxiliary_apply_after_cancel() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut open = true;
         Dialog::new("Options")
             .opened(Bind::bound(&mut open))
@@ -600,7 +602,7 @@ fn windows_puts_an_auxiliary_apply_after_cancel() {
 #[trial]
 fn a_delete_prompt_reads_delete_then_cancel_on_windows() {
     for os in [Os::Windows, Os::Mac] {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             let mut open = true;
             Dialog::new("Delete Layer")
                 .opened(Bind::bound(&mut open))
@@ -635,7 +637,7 @@ fn each_open_of_a_dialog_has_its_own_serial() {
 /// or in the window.
 fn undo_with_nothing_to_undo(modal: bool) -> Vec<String> {
     let mut name = String::new();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         if modal {
             Dialog::new("Rename").show(ui, |ui, _| {
                 TextField::new("Name", Bind::bound(&mut name)).show(ui);
@@ -650,7 +652,7 @@ fn undo_with_nothing_to_undo(modal: bool) -> Vec<String> {
         fixture.click(&field).settle();
     }
     take_output(fixture.ctx());
-    fixture.key(egui::Key::Z, Modifiers::COMMAND).settle();
+    fixture.key(craft_ui::input::Key::Z, Mods::COMMAND).settle();
     take_output(fixture.ctx()).fired.into_iter().map(|fired| fired.command.id).collect()
 }
 
@@ -666,7 +668,7 @@ fn an_undo_a_dialogs_field_leaves_runs_no_command_under_the_dialog() {
 /// note under it at the content's start.
 #[trial]
 fn a_prompt_shows_an_icon_beside_its_message_and_a_note_under_it() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let _ = StandardPrompt::custom("Open this link?")
             .icon(craft_behavior::IconId::new("info"))
             .note("Links can lead to unsafe sites.")
@@ -709,7 +711,7 @@ fn a_space_between_row_in_a_dialog_keeps_its_children_apart_at_both_edges() {
     use craft_ui::display::Text;
     use craft_ui::layout::RowAlign;
     use craft_ui::layout_components::Row;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut open = true;
         Dialog::new("Hidden").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
             Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
@@ -730,7 +732,7 @@ fn a_space_between_row_in_a_dialog_keeps_its_children_apart_at_both_edges() {
 
 /// The variants of the buttons a prompt's footer shows, with the app's `DialogButtonLook` when `look` names one.
 fn footer_variants(look: Option<craft_ui::sections::DialogButtonLook>) -> Vec<craft_theme::Variant> {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let _ = StandardPrompt::custom("Close?")
             .button(craft_ui::dialog::PromptChoice::Proceed, "Save")
             .button(craft_ui::dialog::PromptChoice::Alternate, "Don't Save")
@@ -779,7 +781,7 @@ fn a_footer_cancel_is_a_filled_button_beside_the_accent_answer() {
 /// The left edges of a Save anyway / Save as… / Cancel prompt's buttons on Linux, with the Alternate's role set to
 /// `role` when it names one.
 fn alternate_edges(role: Option<DialogRole>) -> (f32, f32, f32) {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let prompt = StandardPrompt::custom("Changed on disk")
             .button(craft_ui::dialog::PromptChoice::Proceed, "Save anyway")
             .button(craft_ui::dialog::PromptChoice::Alternate, "Save as…")
@@ -818,7 +820,7 @@ fn a_prompts_alternative_answer_stands_between_cancel_and_accept() {
 fn an_app_can_take_the_close_x_off_every_dialog() {
     let off = Rc::new(Cell::new(false));
     let flag = Rc::clone(&off);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         craft_ui::dialog::set_close_button(ui.ctx(), !flag.get());
         let _ = Dialog::new("Plain").buttons([FooterButton::new("OK", DialogRole::Accept)]).show(ui, |_, _| {});
     });
@@ -880,14 +882,14 @@ fn kept_popover(ui: &mut Ui, label: &'static str, open: &mut bool, text: &'stati
 }
 
 /// The rect of the open dialog in the latest frame; `None` while none shows.
-fn dialog_rect(fixture: &Fixture) -> Option<Rect> {
+fn dialog_rect(fixture: &Harness) -> Option<Rect> {
     fixture.by_role(Role::DIALOG).first().map(|dialog| dialog.rect)
 }
 
 /// A pointer move to `at`, a press there and its release, each in a frame of its own; `during` runs after each frame.
-fn press_at(fixture: &mut Fixture, at: Pos2, mut during: impl FnMut(&Fixture)) {
+fn press_at(fixture: &mut Harness, at: Pos2, mut during: impl FnMut(&Harness)) {
     for event in [pointer::moved(at), pointer::press(at), pointer::release(at)] {
-        fixture.frame(vec![event]);
+        fixture.send(event);
         during(fixture);
     }
 }
@@ -912,7 +914,7 @@ fn a_press_beside_a_modal_dialog_nudges_it_once_and_it_comes_to_rest() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let rerun = Rc::new(Cell::new(false));
     let (shown, again) = (Rc::clone(&host), Rc::clone(&rerun));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         shown.borrow_mut().run(ui);
         if again.get() && ui.ctx().current_pass_index() == 0 {
             ui.ctx().request_discard("the press frame runs twice");
@@ -930,25 +932,25 @@ fn a_press_beside_a_modal_dialog_nudges_it_once_and_it_comes_to_rest() {
     let mut moved = false;
     press_at(&mut fixture, inside, |fixture| moved |= dialog_rect(fixture) != Some(rest));
     for _ in 0..12 {
-        fixture.frame(Vec::new());
+        fixture.step();
         moved |= dialog_rect(&fixture) != Some(rest);
     }
     assert!(!moved, "a press inside the dialog does not nudge it");
     assert!(host.borrow().is_open::<Nudged>(), "the press inside left the dialog open");
 
     // The nudge starts in the press frame, which runs two passes; the press reaches only the first.
-    fixture.frame(vec![pointer::moved(beside)]);
+    fixture.send(pointer::moved(beside));
     rerun.set(true);
-    fixture.frame(vec![pointer::press(beside)]);
+    fixture.send(pointer::press(beside));
     rerun.set(false);
     assert!(fixture.passes() > 1, "the press frame ran a second pass");
-    fixture.frame(vec![pointer::release(beside)]);
+    fixture.send(pointer::release(beside));
     moved |= dialog_rect(&fixture) != Some(rest);
     // Frames two to four after the first press: a second press while the shake runs.
     press_at(&mut fixture, beside, |fixture| moved |= dialog_rect(fixture) != Some(rest));
     // Frames five to ten: the open motion's duration is nine frames, so the first shake is over by the tenth.
     for _ in 0..6 {
-        fixture.frame(Vec::new());
+        fixture.step();
         moved |= dialog_rect(&fixture) != Some(rest);
     }
     assert!(moved, "a press beside the dialog moves it");
@@ -957,16 +959,16 @@ fn a_press_beside_a_modal_dialog_nudges_it_once_and_it_comes_to_rest() {
     assert!(host.borrow().is_open::<Nudged>(), "the presses beside left the dialog open");
 
     // A dialog closed in the middle of a nudge opens again as one that never was nudged.
-    let reopened = |fixture: &mut Fixture, nudge: bool| -> Vec<Option<Rect>> {
+    let reopened = |fixture: &mut Harness, nudge: bool| -> Vec<Option<Rect>> {
         if nudge {
             press_at(fixture, beside, |_| {});
         } else {
             fixture.idle(3);
         }
         assert!(host.borrow_mut().cancel::<Nudged>(fixture.ctx()), "the open dialog cancels");
-        fixture.frame(Vec::new());
+        fixture.step();
         host.borrow_mut().open(Nudged::new());
-        (0..10).map(|_| dialog_rect(fixture.frame(Vec::new()))).collect()
+        (0..10).map(|_| dialog_rect(fixture.step())).collect()
     };
     let calm = reopened(&mut fixture, false);
     fixture.settle().idle(12);
@@ -976,7 +978,7 @@ fn a_press_beside_a_modal_dialog_nudges_it_once_and_it_comes_to_rest() {
     // Reduced motion: two edge flashes over the dialog, which stays where it is.
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let shown = Rc::clone(&host);
-    let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+    let mut fixture = Harness::new_ui(move |ui| shown.borrow_mut().run(ui));
     fixture.motion(MotionMode::Reduced);
     host.borrow_mut().open(Nudged::new());
     fixture.settle().idle(12);
@@ -1004,7 +1006,7 @@ fn a_new_modal_closes_the_popups_beneath_it() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let beneath = Rc::new(Cell::new(true));
     let (shown, below) = (Rc::clone(&host), Rc::clone(&beneath));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut open = below.get();
         kept_popover(ui, "Beneath options", &mut open, BENEATH);
         below.set(open);
@@ -1017,7 +1019,7 @@ fn a_new_modal_closes_the_popups_beneath_it() {
     let above = Arc::clone(&dialog.above);
     host.borrow_mut().open(dialog);
     // The modal's first pass queues the close; the popup's owner takes it in the pass after.
-    fixture.frame(Vec::new());
+    fixture.step();
     assert!(fixture.by_label(NUDGED_BODY).is_some(), "the modal shows in its first pass");
     fixture.idle(2);
     assert!(!beneath.get(), "the popup beneath the new modal closed");
@@ -1072,9 +1074,9 @@ fn shows_modal_follows_the_open_dialogs_modality() {
 }
 
 /// A dialog with a text field and a number field before any other control, holding `name` and `radius`.
-fn first_field_dialog(name: Rc<RefCell<String>>, radius: Rc<Cell<Option<f64>>>, number_first: bool) -> Fixture {
+fn first_field_dialog(name: Rc<RefCell<String>>, radius: Rc<Cell<Option<f64>>>, number_first: bool) -> Harness {
     use craft_ui::text::{NumberField, TextField};
-    Fixture::new(move |ui| {
+    Harness::new_ui(move |ui| {
         let mut open = true;
         Dialog::new("New Layer")
             .opened(Bind::bound(&mut open))
@@ -1120,7 +1122,7 @@ fn a_prompts_readers_give_what_it_shows() {
     let host = Arc::new(craft_host::Host::builder(craft_host::AppInfo { id: "trial", name: "Trial", version: "0" }).build());
     let dialogs = Rc::new(RefCell::new(DialogHost::new()));
     let shown = Rc::clone(&dialogs);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         shown.borrow_mut().run(ui);
     });
     fixture.host(Arc::clone(&host));
@@ -1169,12 +1171,12 @@ fn a_new_question_in_place_of_another_waits_again_for_its_armed_answer() {
     let host = Rc::new(RefCell::new(DialogHost::new()));
     let mut fixture = running(&host);
     let first = host.borrow_mut().open(Approval { key: "a" });
-    fixture.frame(vec![egui::Event::WindowFocused(true)]);
+    fixture.send(egui::Event::WindowFocused(true));
     fixture.idle(60);
     let ctx = fixture.ctx().clone();
     assert!(host.borrow_mut().cancel_by_id(&ctx, first), "the first question goes");
     host.borrow_mut().open(Approval { key: "b" });
-    let click_ok = |fixture: &mut Fixture| {
+    let click_ok = |fixture: &mut Harness| {
         let ok = fixture.by_label("OK").expect("the OK button is shown");
         fixture.click(&ok).idle(2);
     };
@@ -1196,7 +1198,7 @@ fn a_dialog_takes_its_padding_and_footer_button_height_from_the_dialog_sizes() {
         }
         let mut root = craft_ui::runtime::env::RootEnv::default();
         root.sizes = Arc::new(sizes);
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             let mut open = true;
             Dialog::new("Options").opened(Bind::bound(&mut open)).buttons([FooterButton::new("OK", DialogRole::Accept)]).show(ui, |ui, _| {
                 Text::new("Body text").show(ui);

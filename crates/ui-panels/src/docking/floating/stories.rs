@@ -7,7 +7,8 @@ use crate::docking::IconicSizes;
 use crate::menu::MenuItem;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::dock::DockEdge;
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::Ui;
 
 const START: Rect = Rect { min: Pos2::new(40.0, 40.0), max: Pos2::new(280.0, 220.0) };
 

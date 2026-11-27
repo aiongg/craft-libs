@@ -1,6 +1,6 @@
 //! [`DialogStack`]: which open modal dialog takes the input.
 
-use egui::Id;
+use craft_ui::Id;
 
 /// The id a [`DialogStack`] knows a dialog by: a dialog's own key through [`dialog_id`].
 pub type DialogId = Id;

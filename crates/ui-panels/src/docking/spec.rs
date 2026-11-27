@@ -8,7 +8,7 @@ use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use craft_host::target::WindowKind;
 use craft_theme::Srgba;
-use egui::Vec2;
+use craft_ui::geom::Vec2;
 
 /// Body heights a panel asks for in a dock column while the user has not resized its group. Like [`SizeLimits`]
 /// they exclude the tab strip, and a group takes the largest of each among its panels. The dock picks the group that

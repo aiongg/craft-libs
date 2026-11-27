@@ -8,7 +8,8 @@ use crate::contract::{
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::overlay::Side;
 use craft_behavior::{Metrics, Sense};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Response, Ui};
 
 /// Where a group view puts the group it is given: measured at a width, or shown in a rect.
 #[derive(Clone, Copy, Debug, PartialEq)]

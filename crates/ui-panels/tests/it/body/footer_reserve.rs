@@ -8,8 +8,8 @@ use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow};
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::{Fixture, trial};
-use egui::Rect;
+use craft_ui::testing::{Harness, trial};
+use craft_ui::geom::Rect;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -33,7 +33,7 @@ impl ItemSource<usize> for Rows {}
 fn a_dialog_with_a_filling_body_keeps_its_footer_below_the_body_and_inside_the_screen() {
     let body = Rc::new(Cell::new(Rect::NOTHING));
     let seen = body.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut open = true;
         Dialog::new("Pick")
             .collection_body()
@@ -61,7 +61,7 @@ fn a_dialog_with_a_filling_body_keeps_its_footer_below_the_body_and_inside_the_s
 /// the whole room and pushing the footer past it.
 #[trial]
 fn a_dialog_with_a_filling_scroll_body_keeps_to_its_room_with_the_footer_last() {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut open = true;
         Dialog::new("Pick").opened(Bind::bound(&mut open)).buttons([FooterButton::new("OK", DialogRole::Accept)]).show(ui, |ui, _| {
             Text::new("Pick a row").show(ui);
@@ -72,7 +72,7 @@ fn a_dialog_with_a_filling_scroll_body_keeps_to_its_room_with_the_footer_last() 
             });
         });
     });
-    fixture.room(egui::Vec2::new(1200.0, 700.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(1200.0, 700.0)).settle();
     let screen = fixture.ctx().content_rect();
     let dialog = fixture.by_role(craft_ui::contract::Role::DIALOG).first().expect("the dialog shows").rect;
     let ok = fixture.by_label("OK").expect("the footer's OK").rect;

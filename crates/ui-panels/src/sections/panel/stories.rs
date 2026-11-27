@@ -9,7 +9,7 @@ use crate::sections::sample::body;
 use crate::sections::{HeaderAction, HeaderCommand};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The header commands of the stories.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
