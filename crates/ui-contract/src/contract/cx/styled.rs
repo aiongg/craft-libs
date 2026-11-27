@@ -112,7 +112,7 @@ impl Styled for CxCore<'_> {
         };
         StateSet::new(
             state,
-            self.state.flags,
+            self.state.flags_unread(),
             craft_theme::StateMix::new(f32::from(u8::from(hovered)), f32::from(u8::from(pressed)), self.state.t.on),
         )
     }

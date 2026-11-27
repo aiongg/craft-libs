@@ -907,9 +907,8 @@ impl<'u, 'c> Ui<'u, 'c> {
 
     /// The menu layer this cursor builds in, if it builds in one.
     pub fn running_menu(&mut self) -> Option<Id> {
-        let open = self.open_layers();
-        let child = super::layers::layer_child_of(self.cx.runtime(), self.cx.node())?;
-        open.iter().find(|o| o.node == child && o.entry.keys == craft_behavior::OwnerClass::Menu).map(|o| o.entry.id)
+        let of = self.cx.provided::<super::layers::LayerChildOf>()?;
+        (of.1 == Some(craft_behavior::OwnerClass::Menu)).then_some(of.0)
     }
 
     // Window services (section 15.9).

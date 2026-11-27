@@ -76,8 +76,8 @@ impl Component for MenuButton {
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let menu = cx.popup("menu");
         let shown = ui.show(menu, Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
-            let cut = IconButton::new(IconId::new("cut"), "Cut").show(ui);
-            let copy = IconButton::new(IconId::new("copy"), "Copy").show(ui);
+            let cut = IconButton::new(IconId::new("cut"), "Cut").focusable().show(ui);
+            let copy = IconButton::new(IconId::new("copy"), "Copy").focusable().show(ui);
             (vec![cut.rect, copy.rect], cut.clicked() || copy.clicked())
         });
         if let Some((rows, picked)) = shown {
@@ -152,7 +152,7 @@ impl Default for App {
 }
 
 fn button(ui: &mut Ui, label: &str) -> Response {
-    IconButton::new(IconId::new("icon"), label).show(ui)
+    IconButton::new(IconId::new("icon"), label).focusable().show(ui)
 }
 
 fn app_ui(ui: &mut Ui, app: &mut App) {

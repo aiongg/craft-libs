@@ -815,11 +815,11 @@ mod focus_into {
     fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
         rig.step_with(&mut |_, cx| {
             window_root(cx, |ui| {
-                let _ = IconButton::new(IconId::new("minus"), "Outside").show(ui);
+                let _ = IconButton::new(IconId::new("minus"), "Outside").focusable().show(ui);
                 let row = Id::new("focus-into-row");
                 Stack::new().id(row).show(ui, |ui| {
-                    app.first = IconButton::new(IconId::new("plus"), "First").show(ui).has_focus();
-                    app.second = IconButton::new(IconId::new("cross"), "Second").show(ui).has_focus();
+                    app.first = IconButton::new(IconId::new("plus"), "First").focusable().show(ui).has_focus();
+                    app.second = IconButton::new(IconId::new("cross"), "Second").focusable().show(ui).has_focus();
                 });
                 if std::mem::take(&mut app.ask) {
                     app.asked = ui.request_focus(FocusTarget::Id(row));
@@ -836,7 +836,10 @@ mod focus_into {
             step(&mut rig, &mut app);
         }
         assert!(!app.first && !app.second);
+        // The app's state changed outside the build: the host marks the window's root.
         app.ask = true;
+        let main = rig.main;
+        rig.driver.runtime.mark_root(main);
         step(&mut rig, &mut app);
         assert!(app.asked, "the row's node answers to its id");
         for _ in 0..3 {
@@ -1446,7 +1449,10 @@ mod modal_files_and_taps {
         assert_eq!(DROPPED.with(|d| d.borrow().clone()), Vec::<&str>::new(), "the modal refuses the files over the plain target");
         drop_files(&mut rig, &mut app, flagged);
         assert_eq!(DROPPED.with(|d| d.borrow().clone()), vec!["flagged"], "the flagged target takes them under the modal");
+        // The app's state changed outside the build: the host marks the window's root.
         app.modal = false;
+        let main = rig.main;
+        rig.driver.runtime.mark_root(main);
         step(&mut rig, &mut app);
         drop_files(&mut rig, &mut app, plain);
         assert_eq!(DROPPED.with(|d| d.borrow().clone()), vec!["flagged", "plain"], "without the modal the plain target takes them");

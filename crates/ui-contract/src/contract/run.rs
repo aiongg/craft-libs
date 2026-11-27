@@ -299,7 +299,7 @@ pub(crate) fn paint_ui<'a>(
     style: &'a dyn StyleView,
     pointer: Pointer,
 ) -> PaintUi<'a> {
-    let focus = core.active.map(|part| (part, core.state.flags.contains(crate::style::Flags::FOCUS_VISIBLE)));
+    let focus = core.active.map(|part| (part, core.state.has(crate::style::Flags::FOCUS_VISIBLE)));
     PaintUi {
         env,
         ink: core.ink,
@@ -308,11 +308,11 @@ pub(crate) fn paint_ui<'a>(
         rect: core.rect,
         record: &core.paint,
         results: &core.results,
-        active: focus.filter(|_| core.state.flags.contains(crate::style::Flags::FOCUSED)),
+        active: focus.filter(|_| core.state.has(crate::style::Flags::FOCUSED)),
         // Only a composite with parts paints faces, so the others skip the look list.
         text: if core.results.is_empty() { None } else { style.texts().first().map(|text| &text.color) },
         muted: if core.results.is_empty() { None } else { style.texts().get(1).map(|text| &text.color) },
-        flags: core.state.flags & HOST_FLAGS,
+        flags: core.state.flags_unread() & HOST_FLAGS,
         enabled: core.resolved.enabled,
         size: core.resolved.size,
         selections: &core.selections,
@@ -488,7 +488,7 @@ pub(crate) fn paint_face<C: Show>(
         validity: Validity::Ok,
     };
     // A face shows its own inputs as the state step reads them for a component.
-    let flags = part_state.flags | source.flags | steps::value_flags(&face, &cx);
+    let flags = part_state.flags_unread() | source.flags | steps::value_flags(&face, &cx);
     let on = f32::from(u8::from(flags.intersects(crate::style::Flags::ON)));
     let state = StateSet::new(part_state.state, flags, crate::style::StateMix::new(part_state.t.hover, part_state.t.press, on));
     cx.core.state = state;

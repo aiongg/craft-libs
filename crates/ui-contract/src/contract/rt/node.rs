@@ -721,9 +721,6 @@ pub(crate) struct ComponentNode {
     pub(crate) key: u64,
     /// The toggle sweep group of a sweeping toggle (its flow's id), 0 otherwise.
     pub(crate) tag: u64,
-    /// The component is a Tab stop (`Component::keys`): ui-rt focuses it on a press and falls back
-    /// to it when focus inside it goes.
-    pub(crate) stop: bool,
     /// The component takes text input while focused (`Component::text_input`): ui-rt runs a
     /// platform IME session for it.
     pub(crate) text: Option<ImePurpose>,
@@ -755,8 +752,10 @@ impl Element for ComponentNode {
         self.tag
     }
 
-    fn focusable(&self) -> bool {
-        self.stop
+    /// The node is a stop as its last run left it (`FocusKept::stop`): its own Tab stop, or a press-only stop while it
+    /// shows selection parts. ui-rt focuses it on a press and falls back to it when focus inside it goes.
+    fn focusable(&self, kept: &Kept) -> bool {
+        kept.focus.stop.is_some()
     }
 
     /// The stop's keys as its last run left them hold drafts (`KeyUse::holds_drafts`): ui-rt keeps its focus on a
@@ -858,7 +857,7 @@ impl Element for ComponentNode {
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
             Event::Focus { gained: on, cause } => {
-                if self.stop {
+                if kept.focus.stop.is_some() {
                     kept.queue.push(NodeInput::Focus { gained: *on, cause: *cause });
                 }
                 if *on {

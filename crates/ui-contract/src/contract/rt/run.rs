@@ -9,7 +9,7 @@
 //! whose type, component key and room are unchanged and that carries no mark runs none of them:
 //! `finish` gets a settled `Cx` built from what the node kept.
 
-use std::cell::{RefCell, RefMut};
+use std::cell::{Cell, RefCell, RefMut};
 use std::sync::Arc;
 
 use craft_behavior::{Flow as Geometry, Intent, PartRef, PressPhase, PressState, Proposal};
@@ -232,7 +232,7 @@ pub(crate) fn show_shaped<C: Component>(
     }
     let context = ui.ctx.clone();
     let Ui { cx, flow, .. } = ui;
-    let node = ComponentNode { key: key.map_or(0, fold), tag, stop: own_stop(&component, &begun.resolved(id)), text: component.text_input() };
+    let node = ComponentNode { key: key.map_or(0, fold), tag, text: component.text_input() };
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
@@ -491,15 +491,17 @@ pub(crate) fn run_shaped<C: Component>(
     // A row's facts from its collection, read so that a change runs the row (15.5).
     let row = super::items::row_facts(cx, id);
     let stop = own_stop(&component, &resolved);
-    // Only a stop can hold focus. The fact is taken without a read: what in the run uses it logs the read
-    // (`CxCore::read_focused`), so a focus move reruns only the stops whose run used it.
-    let focused = stop && interact.focused;
+    // Only a stop can hold focus: the node's own, or a press-only one its last run kept for its selection parts. The
+    // fact is taken without a read: what in the run uses it logs the read (`CxCore::read_focused`), so a focus move
+    // reruns only the stops whose run used it.
+    let focused = kept.focus.stop.is_some() && interact.focused;
     let swept = match (component.sweep_value(), sweep) {
         (Some(_), Some(cell)) => sweep::take(cx, cell, node),
         _ => None,
     };
     // The text engine `update` borrows for `Cx::layout_doc`, lent from the build for that call alone.
     let update_text = crate::contract::cx::UpdateText::new();
+    let context_watch = Cell::new(false);
     let mut core = core_for(
         &begun.env,
         &resolved,
@@ -513,6 +515,7 @@ pub(crate) fn run_shaped<C: Component>(
             ime_body: kept.ime.body.clone().into(),
             hover_point: cx.hover_point(node),
             drag_over: kept.drag_over.clone(),
+            context_watch: Some(&context_watch),
             ..RunIo::new(&input, context.clone())
         },
     );
@@ -621,8 +624,16 @@ pub(crate) fn run_shaped<C: Component>(
         kept.cursor = Some(cursor);
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
-    kept.focus.stop = stop.then(|| text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()));
-    kept.focus.press_only = facts.text() && resolved.read_only;
+    // A node whose only stops are selection parts is a stop too, focused by a press on a part and out of Tab order.
+    let selection_only = !stop && resolved.enabled && !parts.text.selections.is_empty();
+    kept.focus.stop = if stop {
+        Some(text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()))
+    } else if selection_only {
+        Some(text_keys.unwrap_or_else(|| parts.text.selections[0].keys()))
+    } else {
+        None
+    };
+    kept.focus.press_only = (facts.text() && resolved.read_only) || selection_only;
     kept.focus.text = text_keys.is_some() || cxx.core.editor.is_some();
     kept.focus.role = hooks.key_role(&component);
     kept.focus.scope = component.focus_scope();
@@ -777,7 +788,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
     // The run's context facts, taken before `finish` consumes the core's borrow.
-    let (late, made, watch) = (cxx.core.run.context_asks.take(), cxx.core.run.context_made.get(), cxx.core.run.context_watch.get());
+    let (late, made) = (cxx.core.run.context_asks.take(), cxx.core.run.context_made.get());
     let out = component.finish(cxx);
     for target in focus_moves {
         super::ids::request_focus(cx, target);
@@ -790,7 +801,7 @@ pub(crate) fn run_shaped<C: Component>(
     }
     let requests: Vec<(Id, Rect)> = made.into_iter().chain(late).map(|rect| (id, rect)).collect();
     super::node::DescendantWatch::note_context(cx, &requests);
-    kept.context_watch = watch;
+    kept.context_watch = context_watch.get();
     super::node::DescendantWatch::after_build(kept, cx);
     if let Some(rect) = reveal
         && flow_reveal.is_none()
@@ -1093,13 +1104,20 @@ pub(crate) fn own_stop<C: Component>(component: &C, resolved: &Resolved<'_>) -> 
 /// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop
 /// and senses nothing else; one bound to an edit command keeps the focus where it is on a press.
 fn own_sense<C: Component>(component: &C, resolved: &Resolved<'_>) -> Sense {
-    let sense = component.sense();
+    let sense = with_context_click(component.sense());
     match resolved.enabled {
         true if resolved.command.is_some_and(|command| command.edit) => sense.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS),
         true => sense,
         false if steps::takes_focus(resolved) => Sense::HOVER | sense.intersection(Sense::FOCUS),
         false => Sense::HOVER,
     }
+}
+
+/// A component's own shape that clicks and does not drag takes its secondary click too (`Sense::CONTEXT_CLICK`), so a
+/// right click on it is its context request (production: a secondary release over the component); a shape that drags
+/// leaves the secondary press to the context target under it, as production's press arena does.
+fn with_context_click(sense: Sense) -> Sense {
+    if sense.contains(Sense::CLICK) && !sense.contains(Sense::DRAG) { sense | Sense::CONTEXT_CLICK } else { sense }
 }
 
 /// The activation of a run: a key or AccessKit activation, or a primary click; none for a component
@@ -1167,7 +1185,7 @@ fn report<C: Component>(
     if access.value.is_none() {
         access.value = fold::offered(ctx, cx.core.id).and_then(|folded| folded.value);
     }
-    let mut flags = cx.core.state.flags;
+    let mut flags = cx.core.state.flags_unread();
     flags.set(craft_theme::Flags::SELECTED, resolved.selected.unwrap_or(flags.contains(craft_theme::Flags::SELECTED)));
     let pressable: SmallVec<[PartRef; 4]> = parts.iter().filter(|p| p.sense.takes_press()).map(|p| p.part).collect();
     let facts = super::access::NodeFacts {

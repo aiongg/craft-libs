@@ -129,7 +129,7 @@ impl Element for Stop {
         Some(accesskit::Node::new(accesskit::Role::Button))
     }
 
-    fn focusable(&self) -> bool {
+    fn focusable(&self, _: &Self::Local) -> bool {
         true
     }
 }

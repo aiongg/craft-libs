@@ -10,9 +10,10 @@ use crate::primitives::Id;
 use crate::runtime::overlay::{LayerRole, OpenEntry, OpenFilter};
 
 /// The craft `Id` of the layer child whose build provides it, found by every scope under it: the env's
-/// `layer_child`, where a hook stands for the modal rule (`Context::modal_at`).
+/// `layer_child`, where a hook stands for the modal rule (`Context::modal_at`), and the owner class of its entry, which
+/// `Ui::running_menu` reads (the layer's kept entry is out of reach while its body builds).
 #[derive(Clone, Copy)]
-pub(crate) struct LayerChildOf(pub(crate) Id);
+pub(crate) struct LayerChildOf(pub(crate) Id, pub(crate) Option<craft_behavior::OwnerClass>);
 
 /// One open layer child: its node and its entry.
 pub(crate) struct Open {

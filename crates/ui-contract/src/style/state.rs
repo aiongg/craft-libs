@@ -9,8 +9,9 @@ use craft_theme::{Flags, Mix, Resolve, State, StateMix, Stateful};
 pub struct StateSet {
     /// Disabled, pressed, hover or rest; `Flags::OPEN` counts as pressed.
     pub state: State,
-    /// The merged value flags.
-    pub flags: Flags,
+    /// The merged value flags, read through [`StateSet::flags`] or [`StateSet::has`] so that a look branching on
+    /// `FOCUSED` or `FOCUS_VISIBLE` notes the focus read.
+    flags: Flags,
     /// The animated hover, press and on values.
     pub t: StateMix,
 }
@@ -19,6 +20,26 @@ impl StateSet {
     /// A state set.
     pub const fn new(state: State, flags: Flags, t: StateMix) -> Self {
         StateSet { state, flags, t }
+    }
+
+    /// The merged value flags. Any of them may be a focus flag, so the read notes a read of the focus facts by the
+    /// look being recorded (contract-rt 15.6 rule 4): a focus move reruns the node. [`StateSet::has`] reads one flag.
+    pub fn flags(&self) -> Flags {
+        note_focus_read();
+        self.flags
+    }
+
+    /// Whether every flag in `flag` is set. Only a read of `FOCUSED` or `FOCUS_VISIBLE` notes the focus read.
+    pub fn has(&self, flag: Flags) -> bool {
+        if flag.intersects(Flags::FOCUSED | Flags::FOCUS_VISIBLE) {
+            note_focus_read();
+        }
+        self.flags.contains(flag)
+    }
+
+    /// The flags without a read, for the framework code that builds a state set from another or reads no focus flag.
+    pub(crate) fn flags_unread(&self) -> Flags {
+        self.flags
     }
 
     /// The component is disabled.

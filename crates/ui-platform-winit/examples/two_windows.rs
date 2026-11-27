@@ -67,7 +67,7 @@ impl Element for Button {
         }
     }
 
-    fn focusable(&self) -> bool {
+    fn focusable(&self, _: &Self::Local) -> bool {
         true
     }
 }
@@ -130,7 +130,7 @@ impl Element for Field {
         Some(node)
     }
 
-    fn focusable(&self) -> bool {
+    fn focusable(&self, _: &Self::Local) -> bool {
         true
     }
 
