@@ -42,7 +42,9 @@ pub fn readout(ctx: &Context, env: &EnvView<'_>, at: Pos2, rows: &[(Label, Strin
     let direction = env.direction();
     let painter = painter(ctx);
     let record = RefCell::new(PaintRecord::default());
-    let draw = Draw::new(&painter, &record, DrawEnv { tokens, direction, ink: Ink::OnPanel });
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
+    let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction, ink: Ink::OnPanel });
     let runs: Vec<(String, String)> = rows.iter().map(|(label, value)| (env.resolve(label).as_str().to_owned(), value.clone())).collect();
     let layouts: Vec<_> = runs
         .iter()
@@ -118,7 +120,7 @@ fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
         let art = pointer_art(env, &cursor.clone().marked(false, None), closed, false);
         match confined {
             Some(region) => paint_in_region(ctx, region, &art, at),
-            None => art.paint(painter, at),
+            None => crate::runtime::egui::text_layout::on_painter(painter, |c| art.paint(c, at)),
         }
     };
     let target = cursor::image_target(ctx).filter(|_| !matches!(cursor, PaintedCursor::Badged { .. }));
@@ -134,9 +136,9 @@ fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
     match confined {
         Some(_) => {
             ring(painter);
-            pointer_art(env, &cursor, closed, true).paint(painter, at);
+            crate::runtime::egui::text_layout::on_painter(painter, |c| pointer_art(env, &cursor, closed, true).paint(c, at));
         }
-        None => whole.paint(painter, at),
+        None => crate::runtime::egui::text_layout::on_painter(painter, |c| whole.paint(c, at)),
     }
 }
 
@@ -150,7 +152,7 @@ fn shows_whole(ctx: &Context, region: &cursor::CursorRegion, art: &Art, at: Pos2
 fn paint_in_region(ctx: &Context, region: cursor::CursorRegion, art: &Art, at: Pos2) {
     let to_layer = areas::layer_to_screen(ctx, region.layer).inverse();
     let painter = egui::Painter::new(ctx.clone(), region.layer, to_layer * region.clip);
-    art.paint(&painter, to_layer * at);
+    crate::runtime::egui::text_layout::on_painter(&painter, |c| art.paint(c, to_layer * at));
 }
 
 /// The drag preview, in `env`, the source's, and the drop mark of the running drag, with the payload's name in it.
@@ -162,7 +164,9 @@ fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, session: &drag:
         }
     }
     let record = RefCell::new(PaintRecord::default());
-    let draw = &Draw::new(painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
+    let draw = &Draw::new(&canvas, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
     let Some(at) = pointer::frame_raw(ctx).pos else { return };
     match &session.preview {
         DragPreview::Badge(label) => {
@@ -195,7 +199,9 @@ fn paint_region_name(painter: &egui::Painter, tokens: &UiTokens, env: &Env, area
         return;
     }
     let record = RefCell::new(PaintRecord::default());
-    let draw = Draw::new(painter, &record, DrawEnv { tokens, direction: env.direction, ink: Ink::OnPanel });
+    let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
+    let _flush = crate::runtime::egui::text_layout::FlushOnDrop(&painter, &canvas);
+    let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction: env.direction, ink: Ink::OnPanel });
     let layout = draw.layout(&TextRun::new(name.as_str()).elide(), inner.width());
     if layout.size().y > inner.height() {
         return;

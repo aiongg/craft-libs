@@ -134,7 +134,10 @@ pub fn paint_frame(
 ) -> (Vec<Shape>, Recorded) {
     let record = RefCell::new(PaintRecord::default());
     let shapes = frames.frame_shapes(|ui| {
-        let draw = Draw::new(ui.painter(), &record, DrawEnv { tokens, direction, ink });
+        let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+        let painter = ui.painter();
+        let _flush = crate::runtime::egui::text_layout::FlushOnDrop(painter, &canvas);
+        let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction, ink });
         paint(&draw);
     });
     let record = record.into_inner();

@@ -752,6 +752,7 @@ pub(crate) fn paint_face<C: Show>(
     steps::paint_surface(ui, env, cx.core, &*style);
     {
         let results = HashMap::new();
+        let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
         let mut pui = PaintUi {
             ui: &mut *ui,
             env,
@@ -773,6 +774,7 @@ pub(crate) fn paint_face<C: Show>(
             fade: None,
             node: false,
             kids: None,
+            canvas,
         };
         face.paint(&mut pui, &cx);
     }

@@ -2,6 +2,7 @@
 //! each node's layouts and hands them back to the renderer by handle.
 
 use std::any::Any;
+use std::ops::Range;
 use std::sync::Arc;
 
 use craft_theme::{FontSlot, Rgba};
@@ -106,6 +107,135 @@ pub struct TextLayout {
     pub lines: usize,
 }
 
+/// The face of a text section: a slot of the theme's font stack, or a family the app installed by
+/// name (a weight or optical size of the interface face, a document face).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FontFace {
+    Slot(FontSlot),
+    Family(Arc<str>),
+}
+
+/// An underline or strike-through line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextLine {
+    pub width: f32,
+    pub color: Rgba,
+}
+
+/// How one section of a [`RichText`] is set.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextFormat {
+    pub face: FontFace,
+    /// Size in logical points.
+    pub size: f32,
+    /// Line height in logical points; the face's row height rounded up to whole points when `None`.
+    pub line_height: Option<f32>,
+    pub color: Rgba,
+    /// Filled behind the section's glyphs; nothing when fully transparent.
+    pub background: Rgba,
+    pub italic: bool,
+    pub underline: Option<TextLine>,
+    pub strikethrough: Option<TextLine>,
+    /// Extra space after each character, in logical points.
+    pub letter_spacing: f32,
+    /// OpenType features and their values (`tnum` = 1).
+    pub features: Vec<([u8; 4], u32)>,
+    /// Variation axis coordinates (`opsz`).
+    pub axes: Vec<([u8; 4], f32)>,
+}
+
+impl TextFormat {
+    pub fn new(face: FontFace, size: f32, color: Rgba) -> TextFormat {
+        TextFormat {
+            face,
+            size,
+            line_height: None,
+            color,
+            background: Rgba([0; 4]),
+            italic: false,
+            underline: None,
+            strikethrough: None,
+            letter_spacing: 0.0,
+            features: Vec::new(),
+            axes: Vec::new(),
+        }
+    }
+}
+
+/// A byte range of a [`RichText`] and its format.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextSection {
+    pub bytes: Range<usize>,
+    pub format: TextFormat,
+    /// Space in logical points before the section (a first-line indent).
+    pub indent: f32,
+}
+
+/// Where a [`RichText`] breaks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextWrap {
+    /// The width rows wrap at; `f32::INFINITY` for none.
+    pub max_width: f32,
+    /// Rows past this many are cut, the last one ending in `overflow`.
+    pub max_rows: usize,
+    /// Rows may break inside a word.
+    pub break_anywhere: bool,
+    /// Ends a row cut by `max_rows` or `max_width`; `None` cuts without a mark.
+    pub overflow: Option<char>,
+}
+
+impl Default for TextWrap {
+    fn default() -> TextWrap {
+        TextWrap { max_width: f32::INFINITY, max_rows: usize::MAX, break_anywhere: false, overflow: Some('\u{2026}') }
+    }
+}
+
+/// A paragraph of sections with their own faces, sizes and colours: what a UI toolkit's text
+/// runs lay out (mixed weights, links, highlights, mnemonic underlines, document faces).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RichText {
+    pub text: Arc<str>,
+    /// Cover `text` in order, without gaps.
+    pub sections: Vec<TextSection>,
+    pub wrap: TextWrap,
+    /// The paragraph runs right to left.
+    pub rtl: bool,
+    /// The share of a row's free room (the widest row's width less its own) placed before it: 0
+    /// keeps every row at the left edge, 0.5 centres, 1 right-aligns. The shift is rounded to whole
+    /// pixels at the layout's scale.
+    pub row_align: f32,
+}
+
+/// One glyph of a laid-out row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GlyphPlace {
+    pub chr: char,
+    /// From the row's left edge.
+    pub x: f32,
+    pub advance: f32,
+    pub rtl: bool,
+}
+
+/// One row of a laid-out text, in layout coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextRow {
+    pub rect: Rect,
+    pub glyphs: Vec<GlyphPlace>,
+}
+
+/// The geometry of a laid-out text a toolkit reads after layout: rows and glyphs (bidi runs, row
+/// hits, caret positions), the ink bounds and whether the engine cut the text.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextMetrics {
+    /// The text as laid out: the source text, or what the engine kept of it.
+    pub text: Arc<str>,
+    pub rows: Vec<TextRow>,
+    /// The union of the glyphs' ink; `Rect::NOTHING` when there are none.
+    pub ink: Rect,
+    /// The engine cut the text (`max_rows`, a cut row).
+    pub elided: bool,
+}
+
 /// Text shaping and metrics, supplied by the renderer's backend (epaint `Fonts`, skparagraph), so
 /// that a layout measured in the layout phase is the one the renderer draws. One engine serves
 /// every window; layouts are shaped per scale, so windows at different scales shape their own.
@@ -116,4 +246,35 @@ pub trait TextEngine {
     fn hit_index(&mut self, layout: &TextLayout, pos: Pos2) -> usize;
     /// The caret rect before byte `index`, in layout coordinates.
     fn caret_rect(&mut self, layout: &TextLayout, index: usize) -> Rect;
+
+    /// Shapes a paragraph of sections. An engine without rich text sets the whole text in the
+    /// first section's slot, size and colour.
+    fn layout_rich(&mut self, text: &RichText, scale: f32) -> TextLayout {
+        let format = text.sections.first().map(|s| &s.format);
+        let slot = match format.map(|f| &f.face) {
+            Some(FontFace::Slot(slot)) => *slot,
+            _ => FontSlot::Ui,
+        };
+        let overflow = if text.wrap.max_rows == 1 && text.wrap.max_width.is_finite() {
+            if text.wrap.overflow.is_some() { Overflow::Ellipsis } else { Overflow::Clip }
+        } else {
+            Overflow::Wrap
+        };
+        let spec = TextSpec {
+            text: text.text.clone(),
+            font: FontSpec { slot, size: format.map_or(13.0, |f| f.size) },
+            line_height: format.and_then(|f| f.line_height),
+            color: format.map_or(Rgba([0, 0, 0, 255]), |f| f.color),
+            max_width: text.wrap.max_width.is_finite().then_some(text.wrap.max_width),
+            overflow,
+        };
+        self.layout(&spec, scale)
+    }
+
+    /// The rows, glyphs and ink of `layout`. An engine without glyph metrics gives one row of the
+    /// layout's size and no glyphs.
+    fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {
+        let rect = Rect::from_min_size(Pos2::ZERO, layout.size);
+        TextMetrics { text: Arc::from(""), rows: vec![TextRow { rect, glyphs: Vec::new() }], ink: rect, elided: false }
+    }
 }

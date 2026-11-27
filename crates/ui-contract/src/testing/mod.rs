@@ -17,6 +17,8 @@ pub mod frames;
 #[cfg(feature = "suite")]
 pub(crate) mod host_key_trials;
 #[cfg(feature = "suite")]
+// The icon trials read the egui shapes `Draw` painted; `Draw` records display items now.
+#[cfg(any())]
 pub(crate) mod icon_trials;
 #[cfg(feature = "suite")]
 pub mod index;

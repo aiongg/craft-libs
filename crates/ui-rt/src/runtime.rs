@@ -597,7 +597,7 @@ impl Runtime {
             }
             report.rounds += 1;
             let t = Instant::now();
-            self.build_pass(&mut roots, &mut held);
+            self.build_pass(&mut roots, &mut held, text);
             report.build_ms += ms(t);
             self.apply_marks();
             let t = Instant::now();
@@ -697,7 +697,7 @@ impl Runtime {
 
     /// Builds the queued nodes, owners first. An inline root runs `roots` (or waits in `held`
     /// without it); other inline nodes are reached by their owners' builds.
-    fn build_pass(&mut self, roots: &mut Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>, held: &mut Vec<NodeId>) {
+    fn build_pass(&mut self, roots: &mut Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>, held: &mut Vec<NodeId>, text: &mut dyn TextEngine) {
         use crate::tree::Dirty;
         let queue = std::mem::take(&mut self.tree.build_q);
         let queue = self.tree.by_depth(queue);
@@ -706,7 +706,7 @@ impl Runtime {
             if n.inline {
                 if n.owner.is_none() && (n.dirty.has(Dirty::BUILD) || n.dirty.has(Dirty::PATH)) {
                     match roots {
-                        Some(roots) => build_inline_root(self, id, &mut **roots),
+                        Some(roots) => build_inline_root(self, id, &mut **roots, &mut *text),
                         None => held.push(id),
                     }
                 }

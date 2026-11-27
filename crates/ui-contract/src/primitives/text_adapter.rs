@@ -666,7 +666,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     }
     state.focused = shown.focused || input.held;
     let full = display;
-    let layout = TextLayout::new(shown.galley, false, full);
+    let layout = TextLayout::from_galley(shown.galley, false, full);
     let baseline = (!layout.full().is_empty()).then_some(shown.galley_pos.y + layout.first_baseline);
     AdapterOut { layout, focused: shown.focused, tab, clicked: shown.clicked, baseline }
 }
@@ -708,7 +708,7 @@ pub(crate) fn show_selectable(ui: &mut Ui, text: Selectable<'_>) {
         &env,
         text_edit::Edit {
             id: widget,
-            rect: layout.galley.rect.translate(at.to_vec2()),
+            rect: egui::Rect::from_min_size(at, layout.size()),
             text: &mut shown,
             read_only: true,
             enabled,
@@ -729,7 +729,7 @@ pub(crate) fn show_selectable(ui: &mut Ui, text: Selectable<'_>) {
             end_aligned: false,
             caret_visible: false,
             underline: 0.0,
-            galley: Some(layout.galley.clone()),
+            galley: layout.egui_galley(),
             baseline: None,
             scroll: 0.0,
             line_break: line_break(SubmitKey::default()),

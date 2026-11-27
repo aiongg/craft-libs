@@ -34,7 +34,8 @@ const LINE_PROBE_SIZE: f32 = 100.0;
 /// What text layout and control sizing read of the font definitions a context was given last ([`crate::fonts::load`],
 /// which a stack's install calls), read once per layout or pass.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct StackFacts {
+#[doc(hidden)]
+pub struct StackFacts {
     /// Whether the OS's interface face draws in the proportional family ([`craft_theme::InterfaceFont::System`], once
     /// the face resolved).
     pub system_ui: bool,

@@ -6,7 +6,7 @@ use super::loader::{LoadFailure, LoadedPicture, LoaderOptions, Priority, Texture
 use super::store::{CachedTexture, Revision, TextureKey, TextureState, TextureStoreOptions};
 use super::words::TextureWords;
 use crate::primitives::{ContentPainterCx, HAlign, IconSpec, Surface, TextRun, Wrap};
-use crate::runtime::egui::{memory, pass, repaint, textures};
+use crate::runtime::egui::{memory, pass, repaint};
 use crate::style::{Corners, DataColor, SurfaceKind, TypeRole, surface_style};
 use craft_behavior::{IconId, PixelSize};
 use craft_host::Jobs;
@@ -499,7 +499,7 @@ fn paint_picture(cx: &ContentPainterCx<'_>, cell: Rect, texture: &CachedTexture,
     } else if paint.checker {
         cx.checker(target);
     }
-    textures::paint(&cx.painter, texture.id, target, within(texture.uv(), fit), paint.tint.0, egui::CornerRadius::ZERO);
+    cx.painter.add(egui::Shape::image(texture.id, target, within(texture.uv(), fit), paint.tint.0));
 }
 
 /// The part `fit` (fractions of `outer`, 0 to 1) of the uv rect `outer`.
@@ -535,7 +535,9 @@ fn paint_waiting(cx: &ContentPainterCx<'_>, rect: Rect, waited: Option<f64>) {
     let text = match waited {
         Some(waited) if waited >= STILL_RENDERING => &words.still_rendering,
         Some(waited) => {
-            crate::runtime::frame::request_repaint_after(cx.painter.ctx(), STILL_RENDERING - waited);
+            if let Some(ctx) = cx.painter.services().egui() {
+                crate::runtime::frame::request_repaint_after(ctx, STILL_RENDERING - waited);
+            }
             &words.rendering
         }
         None => &words.rendering,

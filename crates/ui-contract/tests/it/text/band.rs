@@ -39,7 +39,7 @@ impl Component for OwnWidth {
                 let whole = cx.layout_at(&run, f32::INFINITY);
                 let width = whole.size().x;
                 let fitted = cx.layout_at(&run, width);
-                assert_eq!(fitted.galley.rows.len(), 1, "{word:?} {wrap:?}");
+                assert_eq!(fitted.rows(), 1, "{word:?} {wrap:?}");
                 assert!(!fitted.elided, "{word:?} {wrap:?}");
                 assert_eq!(fitted.size().x, width, "{word:?} {wrap:?}: room equal to its width keeps its width");
             }

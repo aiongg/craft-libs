@@ -33,7 +33,7 @@ impl StoryPictures {
     pub fn thumb(&self, key: u64) -> impl FnOnce(&ContentPainterCx, Rect) + 'static {
         let thumbs = self.thumbs.clone();
         move |cx, rect| {
-            let ctx = cx.painter.ctx().clone();
+            let ctx = cx.painter.services().egui().expect("thumbnails load through the egui context").clone();
             let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ctx.pixels_per_point());
             let state = thumbs.state(&ctx, &FakeThumbSource::<u64>::new().opaque(true), &key, &request, Priority::VISIBLE);
             thumbs.paint(cx, rect, &state, &ThumbPaint::default().fit(ThumbFit::Cover).checker(false));

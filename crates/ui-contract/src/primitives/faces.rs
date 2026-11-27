@@ -1,7 +1,6 @@
 //! Document faces: the chapter trait and its content-painter context.
 
 use super::content::ContentPainterCx;
-use crate::fonts::document::DocumentFaces;
 use crate::fonts::{FaceBytes, FaceState};
 
 /// Where a document face is asked for: a component's context, its measure or a content painter.
@@ -24,10 +23,11 @@ impl FacesCx for ContentPainterCx<'_> {
     where
         L: FnOnce() -> Option<FaceBytes> + Send + 'static,
     {
-        DocumentFaces::face(self.painter.ctx(), key, job)
+        let job: super::canvas::FaceJob<'_> = Box::new(move || Box::new(job()));
+        self.painter.services().face(key, job)
     }
 
     fn document_face_bytes(&self, key: &str) -> Option<FaceBytes> {
-        DocumentFaces::bytes(self.painter.ctx(), key)
+        self.painter.services().face_bytes(key)
     }
 }
