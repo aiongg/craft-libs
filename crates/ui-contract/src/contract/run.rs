@@ -14,13 +14,121 @@ use crate::runtime::env::Env;
 use crate::runtime::memory::MemoryStage;
 use crate::style::{Ink, StateSet, StyleView};
 use craft_behavior::{Flow, Input, PartRef, PressState, Proposal};
-use craft_ui_rt::{Rect, Vec2};
+use craft_ui_rt::{Rect, Sense, Vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub(crate) use crate::contract::rt::container::{measure_container, show_container, show_container_taking};
 pub(crate) use crate::contract::rt::show_leaf;
+
+/// What a shape adds to a leaf's run at the driver's steps (contract-rt 15.4, 15.5): a collection's
+/// rows. Each hook defaults to the leaf's behaviour; `content` runs whenever the build reaches the
+/// node (its own hooks kept or not), as a container's body does.
+pub(crate) trait ShapeHooks<C: Component> {
+    /// The shape adds steps: its step 5 and `content` run whenever the build reaches it. Only the
+    /// leaf's `NoShape` says no.
+    fn shaped(&self) -> bool {
+        true
+    }
+
+    /// Step 8: the sense of the node's own shape, from the component's.
+    fn sense(&self, _comp: &C, own: Sense) -> Sense {
+        own
+    }
+
+    /// The key role the focused node's key stage reads, where the component's `KeyUse` does not
+    /// say it all.
+    fn key_role(&self, _comp: &C) -> Option<craft_behavior::KeyRole> {
+        None
+    }
+
+    /// Step 4: the shape's part of the value step (selection snapshot, scroll offset).
+    fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id, _env: &Env) {}
+
+    /// Step 5: what the shape's content adds to the component's measured content.
+    fn pass_extent(&mut self, _comp: &mut C, _at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<crate::contract::ValueOf<C>>>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    /// What the shape lays out before `parts`, from the rect and the content rect: a collection's rows
+    /// for `PartsCx::rect_of`.
+    fn geometry(
+        &mut self,
+        _comp: &C,
+        _cx: &crate::contract::MeasureCx<'_, C>,
+        _rects: (Rect, Rect),
+        _rtl: bool,
+    ) -> Option<std::rc::Rc<dyn std::any::Any>> {
+        None
+    }
+
+    /// Step 7, after the component's own `parts`.
+    fn parts(&mut self, _comp: &mut C, _rect: Rect, _pcx: &mut crate::contract::PartsCx<'_, C>) {}
+
+    /// Step 8, after the sense step.
+    fn sensed(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+
+    /// Step 9, after the component's `update`.
+    fn updated(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+
+    /// Step 11, after the value step's apply.
+    fn apply(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+
+    /// Step 13, after the paint: the shape's children, on a `Ui` over the node's build. On a kept
+    /// node it gets the settled `Cx`.
+    fn content(&mut self, _comp: &mut C, _ui: &mut super::Ui, _env: &Env, _cx: &mut super::Cx<'_, C>, _values: &crate::runtime::env::AppValues) {}
+
+    /// Step 15, after the settle step.
+    fn settle(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+}
+
+/// A leaf adds nothing to its run.
+pub(crate) struct NoShape;
+
+impl<C: Component> ShapeHooks<C> for NoShape {
+    fn shaped(&self) -> bool {
+        false
+    }
+}
+
+/// What a shape's step 5 reads: the run's build (children measure through it), the room, the env
+/// the parent places the node in and its own, its style context and resolved props.
+pub(crate) struct Measuring<'a, 's> {
+    /// The run's `Ui`, lent per call.
+    pub ui: &'a RefCell<&'s mut (dyn super::paint_ui::UiHost + 's)>,
+    /// Where the node is placed.
+    pub at: ShowAt,
+    /// The node's room.
+    pub room: Vec2,
+    /// The env the parent installed, under which the node's children are placed.
+    pub place: &'a Env,
+    pub env: &'a Env,
+    pub scx: &'a crate::style::StyleCx<'s>,
+    pub resolved: &'a Resolved<'s>,
+}
+
+impl Measuring<'_, '_> {
+    /// Runs `f` on the run's `Ui`.
+    pub(crate) fn with_ui<R>(&self, f: impl FnOnce(&mut super::Ui<'_, '_>) -> R) -> R {
+        super::paint_ui::host_ui(&mut **self.ui.borrow_mut(), f)
+    }
+}
+
+/// Shows a collection (15.5): its node runs the leaf steps with the item step's hooks, and its rows
+/// reconcile in `content` whenever the build reaches it. The item step reads the collection's view of
+/// `source` (`Collection::filtered`) itself, so the view keeps the row whose rename runs.
+pub(crate) fn show_items<'r, C: crate::contract::Collection>(
+    slot: &mut Option<C>,
+    ui: &mut super::Ui,
+    source: &dyn craft_behavior::ItemSource<C::Key>,
+    item: &mut super::ItemFn<'r, C>,
+) -> C::Output {
+    let component = slot.take().expect("a collection is shown once");
+    let mut hooks = crate::contract::items::ItemsHooks::<C>::new(source, item);
+    let place = Env::of(ui);
+    crate::contract::rt::run::show_shaped(component, ui, (ShowAt::Flow, place), None, &mut hooks)
+}
 
 /// Where a component is placed.
 #[derive(Clone, Copy)]
@@ -111,6 +219,7 @@ pub(crate) fn core_for<'a>(
         value_text: RefCell::new(None),
         submitted: false,
         escaped: false,
+        row: None,
         run,
     }
 }
@@ -196,7 +305,10 @@ impl TypeFacts {
 /// Measures `comp` as `show` would in `ui`'s room, without a node: steps 1, 2, 4 (read only) and 5
 /// (`Show::measure_in`, a composite's `MeasureCx::child` and `face`). `id` is the id the show would
 /// give it (`None`: one under `ui`'s scope); `under` is the composite's resolved `enabled`, `size`
-/// and inside label a child or face of it shows under.
+/// and inside label a child or face of it shows under. A child a measuring flow's node keeps with the
+/// same component key answers from its size cache for the room, so a composite measured again with
+/// unchanged inputs runs none of its children's `measure` (owner rules: a body reuses its last
+/// measurement while its inputs are unchanged).
 pub(crate) fn measure_under<C: Component>(
     comp: &mut C,
     ui: &mut crate::contract::Ui<'_, '_>,
@@ -210,16 +322,29 @@ pub(crate) fn measure_under<C: Component>(
         None => env,
     };
     let common = std::mem::take(comp.common_mut(Internal::new()));
+    let room = ui.flow.room();
+    if proposal == Proposal::Ideal
+        && let (Some(id), Some(Some(node))) = (id, ui.flow.measuring)
+        && let Some(kept) = ui.cx.peek::<crate::contract::rt::node::ComponentNode>(node, id.value())
+        && crate::contract::rt::run::holds(kept.local, crate::contract::rt::key::component_key(comp), kept.state)
+        && let Some(size) = kept.local.cached(room)
+    {
+        *comp.common_mut(Internal::new()) = common;
+        return size;
+    }
     let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
     let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), comp.style_key());
     let id = id.unwrap_or_else(|| ui.id().with("measure"));
     let resolved = steps::resolved(id, &step1, &common);
     let mut stage = MemoryStage::default();
     let value = steps::value(comp, &mut stage, id, step1.command.as_deref());
-    let room = ui.available_size().x;
-    let input = steps::MeasureIn { env: &env, proposal, room: Some(room), services: None };
-    let content = comp.measure(&steps::measure_cx::<C>(&input, &style, &resolved, value.value.as_deref()));
-    let size = steps::measure(&*style, &input, content, Vec2::ZERO, &resolved);
+    ui.build_cx().count_measure();
+    let size = {
+        let host: RefCell<&mut dyn super::paint_ui::UiHost> = RefCell::new(&mut *ui);
+        let input = steps::MeasureIn { env: &env, proposal, room: Some(room.x), host: &host };
+        let content = comp.measure(&steps::measure_cx::<C>(&input, &style, &resolved, value.value.as_deref()));
+        steps::measure(&*style, &input, content, Vec2::ZERO, &resolved)
+    };
     *comp.common_mut(Internal::new()) = common;
     size
 }
@@ -230,7 +355,6 @@ pub(crate) struct FaceSource<'a> {
     pub result: &'a PartResult,
     /// `Some(keyboard visible)` when the part is the active part of the focused composite.
     pub focus: Option<bool>,
-    pub response: &'a crate::contract::Response,
     /// The text colour of the host part, which a face reads through `StyleCx::host_ink`.
     pub ink: Option<&'a crate::style::Stateful<crate::style::StyleColor>>,
     /// The muted text colour of the host part, which a face reads through `StyleCx::host_muted_ink`.
@@ -256,13 +380,15 @@ fn face_id(owner: Id, part: PartRef) -> Id {
 /// part's result, so they count as the host paint's reads. Returns the face's first text baseline
 /// and, for a reported face, the record step 16 fills the part's sub-node from.
 pub(crate) fn paint_face<C: Show>(
+    ui: &mut (dyn super::paint_ui::UiHost + '_),
     env: &Env,
     host: &Canvas<'_>,
     source: &FaceSource<'_>,
     part: PartRef,
     mut face: C,
-    scale: f32,
 ) -> (Option<f32>, Option<FaceRecord>) {
+    let scale = host.pixels_per_point();
+    let context = super::paint_ui::host_ui(ui, |ui| ui.ctx().clone());
     let common = std::mem::take(face.common_mut(Internal::new()));
     debug_assert!(common.tooltip.is_none(), "a face instance carries no tooltip; use `PartBuilder::tooltip`");
     let step1 = steps::env(env, &common, steps::variants::<C>(common.variant, env), &mut |_| None);
@@ -276,7 +402,8 @@ pub(crate) fn paint_face<C: Show>(
     let value = steps::value(&mut face, &mut stage, id, step1.command.as_deref());
     let rect = source.result.rect;
     let part_state = steps::part_state(source.result, source.faded || (step1.enabled && source.enabled), source.focus);
-    let mut core = core_for(env, &resolved, &mut stage, source.response.clone(), step1.command.clone());
+    let response = crate::contract::Response::new(id, source.result.rect, None, Default::default(), false, Default::default());
+    let mut core = core_for(env, &resolved, &mut stage, response, step1.command.clone(), RunIo::settled(context));
     core.face_mode = true;
     core.faded = source.faded;
     let flow = Flow::new(rect, env.direction.is_rtl());
@@ -305,7 +432,7 @@ pub(crate) fn paint_face<C: Show>(
     }
     let no_parts = HashMap::new();
     {
-        let mut pui = paint_ui(host, env, cx.core, &*style, Pointer::Rest);
+        let mut pui = paint_ui(ui, host, env, cx.core, &*style, Pointer::Rest);
         // A face of an inactive part paints its data as `draw_part` does for the host.
         pui.data = if source.result.inactive { crate::primitives::DataMode::Inactive } else { crate::primitives::DataMode::of(&state) };
         pui.results = &no_parts;

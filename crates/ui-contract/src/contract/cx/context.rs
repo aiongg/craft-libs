@@ -231,6 +231,9 @@ pub struct CxCore<'a> {
     pub(crate) submitted: bool,
     /// Escape abandoned the text part's edit.
     pub(crate) escaped: bool,
+    /// The facts the collection gave this row (`rt::items::row_facts`, a tracked read); `None` outside a collection's
+    /// rows.
+    pub(crate) row: Option<Arc<crate::runtime::env::ItemFacts>>,
 }
 
 /// The node side of one run (or of a kept node's settled `Cx`): the input queued since the last run, and the outputs

@@ -463,6 +463,36 @@ impl Runtime {
         Some(cell)
     }
 
+    /// The cell of the part of `node` the pointer hovers: `Some(part)` while the hover hit is on one of
+    /// the node's shapes (0 for its own shape), `None` otherwise.
+    pub(crate) fn hovered_part_cell(&mut self, node: NodeId) -> Option<State<Option<u64>>> {
+        if let Some(cell) = self.hovered_parts.get(&node) {
+            return Some(*cell);
+        }
+        let value = self.windows.keys().find_map(|&w| self.input(w)?.hover_hit.filter(|(h, _)| h.node == node).map(|(h, _)| h.part));
+        let n = self.tree.nodes.get_mut(&node)?;
+        let cell = self.store.create(value);
+        n.owned.push(cell.slot_ref());
+        self.hovered_parts.insert(node, cell);
+        Some(cell)
+    }
+
+    /// Moves the hovered part from the node of `before` to the node of `now`: each node's cell flips
+    /// only when its own hovered part changes.
+    fn refresh_hovered_parts(&mut self, before: Option<Hit>, now: Option<Hit>) {
+        if let Some(b) = before
+            && now.is_none_or(|n| n.node != b.node)
+            && let Some(cell) = self.hovered_parts.get(&b.node).copied()
+        {
+            cell.set_if_changed(&mut self.store, None);
+        }
+        if let Some(n) = now
+            && let Some(cell) = self.hovered_parts.get(&n.node).copied()
+        {
+            cell.set_if_changed(&mut self.store, Some(n.part));
+        }
+    }
+
     fn show_focus(&mut self, window: WindowId, shown: bool) {
         let Some(input) = self.input_mut(window) else { return };
         if input.focus_shown != shown {
@@ -509,8 +539,9 @@ impl Runtime {
         let now = hit.map(|(h, _)| chain(&self.tree, h.node)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
         if input.hover_hit != hit {
-            input.hover_hit = hit;
+            let before = std::mem::replace(&mut input.hover_hit, hit);
             input.cursor_check = true;
+            self.refresh_hovered_parts(before.map(|(h, _)| h), hit.map(|(h, _)| h));
         }
         if now == input.hovered {
             return;
@@ -909,6 +940,7 @@ impl Runtime {
     pub(crate) fn forget_node(&mut self, window: WindowId, id: NodeId) {
         self.interact.remove(&id);
         self.interact_facts.remove(&id);
+        self.hovered_parts.remove(&id);
         self.forget_drag_node(id);
         self.forget_touch_node(window, id);
         if let Some(w) = self.windows.get_mut(&window) {
@@ -1043,6 +1075,17 @@ impl crate::paint::PaintCx<'_> {
     pub fn interaction_fact(&mut self, fact: InteractFact) -> bool {
         let node = self.node();
         self.read_interaction(node, fact)
+    }
+
+    /// The part of this node the pointer hovers: its ui-rt part id, 0 for the node's own shape, `None`
+    /// while the pointer is over none of the node's shapes. The read flips only when this node's
+    /// hovered part changes, so a pointer moving between other nodes' shapes repaints nothing here.
+    pub fn hovered_part(&mut self) -> Option<u64> {
+        let node = self.node();
+        match self.runtime_mut().hovered_part_cell(node) {
+            Some(cell) => cell.get(self),
+            None => None,
+        }
     }
 
     /// Another node's interaction state (a row painting its focus ring while its list has focus).

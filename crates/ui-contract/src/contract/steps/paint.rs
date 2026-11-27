@@ -69,7 +69,8 @@ pub(crate) fn surface_items(env: &Env, core: &CxCore<'_>, style: &dyn StyleView,
     }
     let mut items = surface_look_items(&env.tokens, look, &core.state, core.rect, env.direction, scale);
     if let Some(frame) = core.env.frame() {
-        crate::primitives::fit_to_layer_frame(&frame, &mut items);
+        // Surface items are in window coordinates.
+        frame.fit(craft_ui_rt::Pos2::ZERO, &mut items);
     }
     Some(items)
 }

@@ -104,7 +104,7 @@ pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
         return queue(Intent::Edit(edit), k);
     }
     let plain = k.mods.is_none();
-    match intent(cx.runtime().os(), k.key, k.mods, role_of(keys)) {
+    match intent(cx.runtime().os(), k.key, k.mods, focus.role.clone().unwrap_or_else(|| role_of(keys))) {
         Some(Intent::Move(mv, mods)) if keeps_move(mv, keys) => queue(Intent::Move(mv, mods), k),
         Some(Intent::Move(..)) => Taken::No,
         Some(Intent::Activate) if keys.activate.enter() || keys.activate.space() => queue(Intent::Activate, k),

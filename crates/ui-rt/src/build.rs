@@ -468,6 +468,16 @@ impl BuildCx<'_> {
         self.rt.counters.runs += 1;
     }
 
+    /// Counts a run of a contract component's `measure` hook in the frame's report.
+    pub fn count_measure(&mut self) {
+        self.rt.counters.measures += 1;
+    }
+
+    /// Counts an access node a contract run built in the frame's report.
+    pub fn count_access_build(&mut self) {
+        self.rt.counters.access_builds += 1;
+    }
+
     /// Counts a run of a scope's closure in the frame's report.
     pub fn count_scope(&mut self) {
         self.rt.counters.scopes += 1;

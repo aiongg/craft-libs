@@ -69,6 +69,9 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, hove
     if core.command.as_deref().and_then(|command| command.checked) == Some(true) {
         flags |= Flags::CHECKED;
     }
+    if let Some(row) = &core.row {
+        flags |= row.flags;
+    }
     if core.text_invalid {
         flags |= Flags::INVALID;
     }
