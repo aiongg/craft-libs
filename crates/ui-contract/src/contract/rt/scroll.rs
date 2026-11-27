@@ -300,7 +300,7 @@ impl Element for ScrollNode {
 
     /// Pays out an eased step and a glide, then places the children moved by the offset. Leaving
     /// the band writes the miss cell, so the body builds again in this frame.
-    fn layout(&self, sk: &mut ScrollKept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
+    fn layout(&self, sk: &mut ScrollKept, cx: &mut LayoutCx<'_>, constraints: Constraints) -> Vec2 {
         if let Some((dir, last)) = sk.strip {
             let now = cx.time_until(|now| Some(now + FRAME));
             let step = (now - last) as f32 * STRIP_ROWS_PER_SECOND * sk.look.line * dir;
@@ -341,7 +341,8 @@ impl Element for ScrollNode {
             misses.update(cx, |n| *n = n.wrapping_add(1));
         }
         sk.kept.place_children(cx, sk.offset);
-        sk.kept.size
+        // A collapsing container places its scroll body at the share of the view it shows; the clip in paint follows.
+        constraints.constrain(sk.kept.size)
     }
 
     fn relayout_boundary(&self) -> bool {

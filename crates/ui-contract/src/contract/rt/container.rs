@@ -1409,7 +1409,7 @@ fn region(
         return (None, ui.flow.content_size());
     }
     cx.keyed(region, |cx| {
-        cx.inline(ScopeNode { key: 0 }, |rk, state, cx| {
+        cx.inline(ScopeNode { key: 0, clip: false }, |rk, state, cx| {
             let room = rect.size();
             let ctx = &into.ctx;
             if !state.new && region_keeps(into, rk, state, room) {
@@ -1454,7 +1454,8 @@ fn plain_body(
         return (flow.content_size(), None, flow);
     }
     cx.keyed(Region::Body, |cx| {
-        cx.inline(ScopeNode { key: 0 }, |rk, state, cx| {
+        // While the collapse moves, the body node is as high as the share it shows and clips its children to it.
+        cx.inline(ScopeNode { key: 0, clip: shape.collapsing() }, |rk, state, cx| {
             let node = cx.node();
             let at = BodyAt { node: Some(node), own_kept: into.own_kept, marked: state.path || state.marked, sweep: into.sweep };
             let (mut flow, ran) = run_body(cx, shape, at, Some(&mut *rk), frame, id, region, rect.min, None, tokens, body);
@@ -1608,7 +1609,7 @@ fn scroll_body(
             let region = content(sk.offset);
             let marked = state.path || state.marked;
             let (mut flow, inner) = cx.keyed(Region::Body, |cx| {
-                cx.inline(ScopeNode { key: 0 }, |ck, cstate, cx| {
+                cx.inline(ScopeNode { key: 0, clip: false }, |ck, cstate, cx| {
                     let at =
                         BodyAt { node: Some(cx.node()), own_kept: into.own_kept, marked: marked || cstate.path || cstate.marked, sweep: into.sweep };
                     let (flow, ran) = run_body(cx, shape, at, Some(&mut *ck), frame, id, region, region.min, Some(overscan(view)), tokens, body);

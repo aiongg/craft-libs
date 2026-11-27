@@ -555,19 +555,28 @@ impl Container for Fold {
 }
 
 /// A folding section with a body of three chips, and a chip after it.
+#[derive(Default)]
 struct Folds {
     toggle: Rc<Cell<Rect>>,
     after: Rect,
     measures: Rc<Cell<u32>>,
+    /// The last body chip's rect and its clicks.
+    last: Rect,
+    last_clicks: u32,
 }
 
 fn folds_ui(ui: &mut Ui, folds: &mut Folds) {
     let measures = folds.measures.clone();
     let props = props(|p| p.collapse(Collapse::new()).header(HeaderRegion::new()));
     let fold = Fold { common: Common::new(), props, toggle: folds.toggle.clone(), measures: measures.clone() };
+    let (last, last_clicks) = (&mut folds.last, &mut folds.last_clicks);
     let _ = fold.show(ui, |ui, _| {
         for name in ["a", "b", "c"] {
-            chip(ui, name, ROW, &measures);
+            let shown = chip(ui, name, ROW, &measures);
+            if name == "c" {
+                *last = shown.rect;
+                *last_clicks += u32::from(shown.clicked());
+            }
         }
     });
     folds.after = chip(ui, "After", ROW, &measures).rect;
@@ -576,7 +585,7 @@ fn folds_ui(ui: &mut Ui, folds: &mut Folds) {
 #[test]
 fn a_collapse_builds_its_section_once_per_frame_while_it_moves_and_never_after() {
     const FRAME: f64 = 1.0 / 60.0;
-    let mut folds = Folds { toggle: Rc::default(), after: Rect::NOTHING, measures: Rc::default() };
+    let mut folds = Folds::default();
     let mut rig = rig();
     let step = |rig: &mut Rig<RecordingRenderer>, folds: &mut Folds| rig.step_with(&mut |_, cx| root(cx, |ui| folds_ui(ui, folds)));
     settle(&mut rig, &mut |rig| step(rig, &mut folds));
@@ -599,6 +608,41 @@ fn a_collapse_builds_its_section_once_per_frame_while_it_moves_and_never_after()
     assert!(folds.after.min.y < open_after.min.y, "After moved up under the closed section");
     let idle = step(&mut rig, &mut folds);
     assert!(!idle.ran, "nothing runs once the collapse has settled: {idle:?}");
+}
+
+#[test]
+fn a_collapsing_body_clips_its_children_to_the_share_it_shows() {
+    const FRAME: f64 = 1.0 / 60.0;
+    let mut folds = Folds::default();
+    let mut rig = rig();
+    let step = |rig: &mut Rig<RecordingRenderer>, folds: &mut Folds| rig.step_with(&mut |_, cx| root(cx, |ui| folds_ui(ui, folds)));
+    let run_out = |rig: &mut Rig<RecordingRenderer>, folds: &mut Folds, limit: usize| {
+        let mut moving = 0;
+        while moving < limit {
+            rig.driver.platform.advance(FRAME);
+            if !step(rig, folds).ran {
+                break;
+            }
+            moving += 1;
+        }
+        moving
+    };
+    settle(&mut rig, &mut |rig| step(rig, &mut folds));
+    let last = folds.last;
+    // One whole close and open to learn how many frames a collapse moves.
+    click(&mut rig, folds.toggle.get().center(), &mut |rig| step(rig, &mut folds));
+    let frames = run_out(&mut rig, &mut folds, 120);
+    click(&mut rig, folds.toggle.get().center(), &mut |rig| step(rig, &mut folds));
+    run_out(&mut rig, &mut folds, 120);
+    assert!(frames > 2, "the collapse takes several frames");
+
+    // Three quarters into a close, the body shows less than two of its three rows: the last row lies past the clip, so
+    // a click on it reaches no chip of the body.
+    click(&mut rig, folds.toggle.get().center(), &mut |rig| step(rig, &mut folds));
+    run_out(&mut rig, &mut folds, (frames * 3).div_ceil(4));
+    let clicks = folds.last_clicks;
+    click(&mut rig, last.center(), &mut |rig| step(rig, &mut folds));
+    assert_eq!(folds.last_clicks, clicks, "a row clipped by the moving collapse takes no click");
 }
 
 /// A chip before a dialog mounted on a layer (when `layered`) and a chip after it.

@@ -38,7 +38,7 @@ pub struct WindowEnv {
 /// command board. Public at `runtime::windows::window_root_with`.
 pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
     let window = cx.window();
-    cx.inline(ScopeNode { key: 0 }, |kept, state, cx| {
+    cx.inline(ScopeNode { key: 0, clip: false }, |kept, state, cx| {
         cx.count_scope();
         if state.new {
             cx.mark_changed();
@@ -167,7 +167,7 @@ pub(crate) fn show_scope<R: Clone + 'static>(
     let Ui { cx, flow, .. } = ui;
     let key = scope.memo.unwrap_or(0);
     cx.keyed(child, |cx| {
-        cx.inline(ScopeNode { key }, |kept, state, cx| {
+        cx.inline(ScopeNode { key, clip: false }, |kept, state, cx| {
             let shown = kept.id != Id::NULL;
             let extent = if shown { kept.size } else { estimate };
             if !in_view(extent, flow.view) {
