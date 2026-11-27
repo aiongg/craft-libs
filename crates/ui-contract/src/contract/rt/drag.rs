@@ -27,6 +27,12 @@ use crate::runtime::drag::DragPreview;
 pub(crate) struct Payload {
     value: Arc<dyn Any + Send + Sync>,
     also: Vec<Arc<dyn Any + Send + Sync>>,
+    preview: DragPreview,
+}
+
+/// The preview the source of the drag `data` named: a target's region mark shows a `Named` preview's name.
+pub(crate) fn preview_of(data: &DragData) -> DragPreview {
+    data.get::<Payload>().map(|carried| carried.preview.clone()).unwrap_or_default()
 }
 
 /// The value of type `payload` the drag `data` carries: its payload or one of the values beside it.
@@ -62,7 +68,7 @@ impl DragSource {
 
     /// Drags `payload` and the values `also` beside it, which targets of their types take as well.
     pub fn with_also<P: Send + Sync + 'static>(payload: P, also: Vec<Arc<dyn Any + Send + Sync>>, preview: DragPreview) -> DragSource {
-        DragSource { payload: DragData::new(Payload { value: Arc::new(payload), also }), preview }
+        DragSource { payload: DragData::new(Payload { value: Arc::new(payload), also, preview: preview.clone() }), preview }
     }
 
     /// The session ui-rt starts, with the preview recorded once against `tokens`.

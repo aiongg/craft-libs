@@ -318,6 +318,9 @@ pub(crate) struct RunIo<'a> {
     /// Where the context request the run's context step made opens (a secondary click, an untaken Menu key, an
     /// earlier ask); the driver queues it on the watches above.
     pub(crate) context_made: Cell<Option<Rect>>,
+    /// Where a drop of the drag over the node would land, as the run's drop target accepted it
+    /// (`Pointer::drop_target`, `window_drop_target`); the driver paints it over the node's content.
+    pub(crate) drop_mark: Cell<Option<crate::runtime::drag::DropMark>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -354,6 +357,7 @@ impl<'a> RunIo<'a> {
             context_watch: Cell::new(false),
             context_asks: RefCell::new(Vec::new()),
             context_made: Cell::new(None),
+            drop_mark: Cell::new(None),
         }
     }
 

@@ -1004,3 +1004,147 @@ mod context_requests {
         assert_eq!(REGION_RUNS.with(Cell::get), before, "a frame without requests runs no region");
     }
 }
+
+/// A run-time drop target (`Pointer::drop_target`) shows where a drop would land over its node while a drag is over it.
+mod drop_mark {
+    use craft_ui_contract::contract::*;
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Pos2, Rect, Sense, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    /// Drags a `u32`.
+    #[derive(Component)]
+    struct Source {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Source {
+        const ROLE: Role = Role::BUTTON;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: SourceStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::splat(24.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER | Sense::CLICK | Sense::DRAG
+        }
+
+        fn drag_source(&self) -> Option<DragSource> {
+            Some(DragSource::new(1_u32, DragPreview::None))
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    /// Takes a `u32` anywhere over it; a drop would land on a line across its top.
+    struct TopLine(Rect);
+
+    impl DropTarget<u32> for TopLine {
+        type Drop = ();
+
+        fn accept(&self, _: &u32, _: Pos2, _: DropOperation) -> Option<()> {
+            Some(())
+        }
+
+        fn mark(&self, _: &()) -> DropMark {
+            DropMark::line(Pos2::new(self.0.min.x, self.0.min.y + 10.0), Pos2::new(self.0.max.x, self.0.min.y + 10.0))
+        }
+    }
+
+    #[derive(Component)]
+    struct Target {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Target {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: TargetStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(120.0, 60.0)
+        }
+
+        fn update(&mut self, cx: &mut Cx<'_, Self>) {
+            let rect = cx.rect;
+            let _ = cx.drop_target::<u32, _>(&TopLine(rect));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[derive(Default)]
+    struct App {
+        source: Rect,
+        target: Rect,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                app.source = Show::show(Source { common: Common::new() }, ui).rect;
+                app.target = Show::show(Target { common: Common::new() }, ui).rect;
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig, app)
+    }
+
+    /// Whether the last frame paints a band as wide as the target's top line (the mark's band and its halo).
+    fn shows_line(rig: &Rig<RecordingRenderer>, target: Rect) -> bool {
+        let Some(frame) = rig.driver.renderer.last() else { return false };
+        frame.draws.iter().any(|draw| {
+            draw.list.items.iter().any(
+                |item| matches!(item, craft_ui_rt::Item::Rect { rect, .. } if rect.height() <= 10.0 && (rect.width() - target.width()).abs() <= 10.0),
+            )
+        })
+    }
+
+    #[test]
+    fn a_drop_mark_paints_over_a_run_time_target_while_a_drag_is_over_it() {
+        let mut app = App::default();
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig, &mut app).ran), "the rig did not settle");
+        assert!(!shows_line(&rig, app.target), "no mark without a drag");
+
+        let from = app.source.center();
+        input(&mut rig, &mut app, Input::mouse_move(from));
+        input(&mut rig, &mut app, Input::mouse_down(from));
+        for step in 1..=4 {
+            input(&mut rig, &mut app, Input::mouse_move(from + Vec2::new(0.0, 6.0 * step as f32)));
+        }
+        let over = app.target.center();
+        input(&mut rig, &mut app, Input::mouse_move(over));
+        input(&mut rig, &mut app, Input::mouse_move(over + Vec2::new(3.0, 0.0)));
+        assert!(rig.driver.runtime.drag().is_some(), "the drag runs");
+        assert!(shows_line(&rig, app.target), "the target paints the mark of the drop it would take");
+
+        input(&mut rig, &mut app, Input::mouse_move(Pos2::new(390.0, 290.0)));
+        assert!(!shows_line(&rig, app.target), "the mark goes when the drag leaves the target");
+        input(&mut rig, &mut app, Input::mouse_up(Pos2::new(390.0, 290.0)));
+    }
+}

@@ -1179,6 +1179,12 @@ fn record_variants<C: Component>(
             let mut pui = paint_ui(&mut lent, &canvas, &begun.env, cxx.core, &*begun.style, look);
             component.paint_over(&mut pui, cxx);
             children |= pui.showed_child.get();
+            // Where a drop of the drag over the node would land, over its content and children in every look.
+            if let Some(mark) = cxx.core.run.drop_mark.get() {
+                let preview = cxx.core.run.drag_over.as_ref().map(|(data, ..)| super::drag::preview_of(data)).unwrap_or_default();
+                let draw = pui.draw();
+                canvas.over(|| crate::contract::ghost::record_drop_mark(&draw, &canvas, &begun.env.tokens, &cxx.core.env, mark, &preview));
+            }
             drop(pui);
             steps::unfade(&canvas, cxx.core, fade);
             let (content, overlay) = canvas.finish();
