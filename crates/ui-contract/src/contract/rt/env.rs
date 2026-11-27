@@ -16,7 +16,6 @@ use craft_i18n::Direction;
 use craft_theme::{AppId, AppSizes, Appearance, Tokens};
 use craft_ui_rt::{BuildCx, CornerRadii, Rect, State, Store, Writes};
 
-use super::scope::MemoView;
 use super::ui::Ui;
 use crate::contract::{MemoKey, MemoProps};
 use crate::runtime::env::ThemeScope;
@@ -337,11 +336,11 @@ impl EnvScope {
         self
     }
 
-    /// Shows `content` under the scope. Like a [`MemoView`], its closure runs only when the scope
+    /// Shows `content` under the scope. Like a `MemoView`, its closure runs only when the scope
     /// moved, a value it read changed or a node under it was marked; nodes under it that read an
     /// overridden value are marked when the scope writes it.
     pub fn show<R: Clone + 'static>(self, ui: &mut Ui<'_, '_>, mut content: impl FnMut(&mut Ui<'_, '_>) -> R) -> R {
-        MemoView::new(self).show(ui, |ui, scope| {
+        super::scope::memo(ui, &self, |ui, scope| {
             scope.enter(ui);
             content(ui)
         })

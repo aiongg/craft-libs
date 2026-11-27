@@ -86,6 +86,8 @@ pub(crate) struct Flow {
     /// The intents the layer scope whose body this flow is took for it (an untaken Enter's Submit, a
     /// clearing Escape); empty in every other flow ([`super::intents`]).
     pub(crate) scope: super::intents::ScopeIntents,
+    /// What a container body's flow does beyond its `Dir` (right-to-left mirroring).
+    pub(crate) body: super::container::BodyFlow,
 }
 
 impl Flow {
@@ -114,6 +116,7 @@ impl Flow {
             fills: 0,
             sweep: None,
             scope: super::intents::ScopeIntents::default(),
+            body: super::container::BodyFlow::default(),
         }
     }
 
@@ -245,6 +248,7 @@ impl Flow {
         if filled {
             self.fills += 1;
         }
+        let rect = self.body.place(rect, self.region);
         self.extent = self.extent.union(rect);
         self.sizes.push((size, filled));
         if let Some(node) = node {

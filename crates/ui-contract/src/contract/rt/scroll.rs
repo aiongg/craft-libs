@@ -14,13 +14,19 @@
 //!   in view keeps its place when content before it changes extent.
 //! - Kinetic: line steps (mouse notches) gather in a `WheelEase` that layout pays out frame by
 //!   frame; point steps (touchpads, which bring their own momentum) apply at once.
+//! - Indicators: `ScrollIndicator::Bar` draws the bars always, `Overlay` only while the pointer is
+//!   over the view (or always with `at_rest`), `Strips` a strip at each end the view does not reach,
+//!   which scrolls while pressed. A thumb is drawn stronger while the pointer is over the view.
+//! - ScrollIntoView: an assistive technology's request on a node inside the body bubbles to the
+//!   nearest scroll body, which glides until the node is in view, and goes on to the bodies around
+//!   it.
 
 use craft_behavior::scroll::{drag, thumb};
 use craft_behavior::{ScrollSpan, WheelEase};
 use craft_theme::Tokens;
 use craft_ui_rt::{
-    AccessCx, BuildCx, Constraints, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx, NodeId, PaintCx, Pos2, Rect, Rgba, Sense, State,
-    Vec2, WheelUnit,
+    AccessCx, BuildCx, Constraints, Element, Event, EventCx, Gesture, Handled, HitShape, InteractFact, LayoutCx, NodeId, PaintCx, Pos2, Rect, Rgba,
+    Sense, State, Vec2, WheelUnit,
 };
 
 use super::node::{Kept, Placed};
@@ -33,6 +39,12 @@ const OVERSCAN_SHARE: f32 = 0.5;
 
 /// The part a bar thumb's hit shape names, per axis.
 const BAR_PARTS: [u64; 2] = [1, 2];
+
+/// The parts of the strips before and after the view (`ScrollIndicator::Strips`).
+const STRIP_PARTS: [u64; 2] = [3, 4];
+
+/// Rows per second a body scrolls at while one of its strips is pressed, in rows a control high.
+const STRIP_ROWS_PER_SECOND: f32 = 24.0;
 
 /// A glide's step per frame: the share of the way left it covers.
 const GLIDE_SHARE: f32 = 0.35;
@@ -72,6 +84,8 @@ pub(crate) struct ScrollKept {
     at_end: bool,
     /// The first child in view and its content position, kept in place across builds.
     anchor: Option<(NodeId, f32)>,
+    /// A pressed strip: the direction it scrolls (-1 back, 1 forward) and when layout last paid it out.
+    strip: Option<(f32, f64)>,
     look: Look,
 }
 
@@ -81,9 +95,13 @@ struct Look {
     thickness: f32,
     min_thumb: f32,
     thumb: Rgba,
+    /// The thumb while the pointer is over the view.
+    thumb_hover: Rgba,
     fade: Rgba,
     fade_extent: f32,
     line: f32,
+    /// The height of a scroll strip.
+    strip: f32,
 }
 
 impl Look {
@@ -92,9 +110,11 @@ impl Look {
             thickness: tokens.size.handle.sm,
             min_thumb: tokens.size.button,
             thumb: tokens.color.text.faint,
+            thumb_hover: tokens.color.text.muted,
             fade: tokens.color.surface.chrome,
             fade_extent: tokens.space.gap.section,
             line: tokens.size.button,
+            strip: tokens.size.control.sm,
         }
     }
 }
@@ -113,7 +133,17 @@ impl ScrollKept {
             grab: None,
             at_end: true,
             anchor: None,
-            look: Look { thickness: 0.0, min_thumb: 0.0, thumb: Rgba([0; 4]), fade: Rgba([0; 4]), fade_extent: 0.0, line: 0.0 },
+            strip: None,
+            look: Look {
+                thickness: 0.0,
+                min_thumb: 0.0,
+                thumb: Rgba([0; 4]),
+                thumb_hover: Rgba([0; 4]),
+                fade: Rgba([0; 4]),
+                fade_extent: 0.0,
+                line: 0.0,
+                strip: 0.0,
+            },
         }
     }
 
@@ -220,6 +250,14 @@ impl Element for ScrollNode {
     /// Pays out an eased step and a glide, then places the children moved by the offset. Leaving
     /// the band writes the miss cell, so the body builds again in this frame.
     fn layout(&self, sk: &mut ScrollKept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
+        if let Some((dir, last)) = sk.strip {
+            let now = cx.time_until(|now| Some(now + FRAME));
+            let step = (now - last) as f32 * STRIP_ROWS_PER_SECOND * sk.look.line * dir;
+            sk.strip = Some((dir, now));
+            if !sk.move_to(sk.offset + Vec2::new(0.0, step)) && step != 0.0 {
+                sk.strip = None;
+            }
+        }
         if sk.ease.owes() || sk.glide.is_some() {
             let now = cx.time_until(|now| Some(now + FRAME));
             let paid = sk.ease.step(now);
@@ -254,6 +292,10 @@ impl Element for ScrollNode {
         cx.hit(HitShape::Rect(bounds), Sense::WHEEL | Sense::WHEEL_X | Sense::WHEEL_Y, 0);
         let look = sk.look;
         let max = sk.max_offset();
+        // The pointer over the view shows overlay bars and the stronger thumb: a flip repaints this node only.
+        let hovered = cx.interaction_fact(InteractFact::Hovered);
+        let bars = !self.scroll.overlay_hides_at_rest() || hovered || sk.grab.is_some();
+        let thumb_color = if hovered || sk.grab.is_some() { look.thumb_hover } else { look.thumb };
         cx.over(|cx| {
             if self.scroll.vertical_on() {
                 let clear = look.fade.faded(0.0);
@@ -265,10 +307,21 @@ impl Element for ScrollNode {
                     cx.vgradient(Rect::from_min_max(Pos2::new(bounds.min.x, top), bounds.max), clear, look.fade);
                 }
             }
+            if self.scroll.has_strips() {
+                let back = Rect::from_min_size(bounds.min, Vec2::new(bounds.width(), look.strip));
+                let forward = Rect::from_min_max(Pos2::new(bounds.min.x, bounds.max.y - look.strip), bounds.max);
+                for (i, (rect, shows)) in [(back, sk.offset.y > 0.0), (forward, sk.offset.y < max.y)].into_iter().enumerate() {
+                    if shows {
+                        cx.fill_rect(rect, look.fade);
+                        cx.hit(HitShape::Rect(rect), Sense::DRAG | Sense::HOVER, STRIP_PARTS[i]);
+                    }
+                }
+                return;
+            }
             for axis in [0, 1] {
                 let on = if axis == 1 { self.scroll.vertical_on() } else { self.scroll.horizontal_on() };
-                if let Some((_, thumb)) = sk.bar(axis, bounds).filter(|_| on) {
-                    cx.rect(thumb, look.thickness / 2.0, look.thumb, None);
+                if let Some((_, thumb)) = sk.bar(axis, bounds).filter(|_| on && bars) {
+                    cx.rect(thumb, look.thickness / 2.0, thumb_color, None);
                     cx.hit(HitShape::Rect(thumb), Sense::DRAG | Sense::HOVER, BAR_PARTS[axis]);
                 }
             }
@@ -299,8 +352,19 @@ impl Element for ScrollNode {
             }
             Event::Pointer(p) => {
                 let axis = BAR_PARTS.iter().position(|part| p.hit.is_some_and(|h| h.part == *part));
+                let strip = STRIP_PARTS.iter().position(|part| p.hit.is_some_and(|h| h.part == *part));
                 let along = |axis: usize| cx.to_local(p.pos)[axis];
                 match p.gesture {
+                    Gesture::Down { .. } if strip.is_some() => {
+                        sk.glide = None;
+                        sk.strip = strip.map(|i| (if i == 0 { -1.0 } else { 1.0 }, cx.time()));
+                        cx.request_layout();
+                        return Handled::Yes;
+                    }
+                    Gesture::Up { .. } | Gesture::Cancel(_) if sk.strip.is_some() => {
+                        sk.strip = None;
+                        return Handled::Yes;
+                    }
                     Gesture::Down { .. } => {
                         if let Some(axis) = axis {
                             sk.glide = None;
@@ -325,6 +389,11 @@ impl Element for ScrollNode {
                         None => return Handled::No,
                     },
                 }
+            }
+            Event::Access(a) if a.action == accesskit::Action::ScrollIntoView => {
+                reveal(sk, cx, a.target);
+                // The scroll bodies around this one reveal the node too.
+                return Handled::No;
             }
             Event::Access(a) => {
                 let step = sk.view.y * OVERSCAN_SHARE;
@@ -362,6 +431,29 @@ impl Element for ScrollNode {
             node.set_scroll_x_max(f64::from(sk.max_offset().x));
         }
         Some(node)
+    }
+}
+
+/// Starts a glide that brings `target` (a node inside the body) into the view: the least move
+/// along each axis that shows its whole rect, or its start when it is larger than the view.
+fn reveal(sk: &mut ScrollKept, cx: &mut EventCx<'_>, target: NodeId) {
+    let Some(rect) = cx.window_rect(target) else { return };
+    let local = Rect::from_min_max(cx.to_local(rect.min), cx.to_local(rect.max));
+    let mut to = sk.glide.unwrap_or(sk.offset);
+    for axis in [0, 1] {
+        let (start, end, view) = (local.min[axis], local.max[axis], sk.view[axis]);
+        if start < 0.0 || end - start > view {
+            to[axis] += start;
+        } else if end > view {
+            to[axis] += end - view;
+        }
+    }
+    let to = sk.clamp(to);
+    if to != sk.offset {
+        // Layout pays the glide out; leaving the built band on the way builds the body again.
+        sk.glide = Some(to);
+        cx.request_layout();
+        cx.request_paint();
     }
 }
 

@@ -23,7 +23,6 @@ mod level_table;
 mod looks;
 mod memo;
 mod memo_view;
-mod mount;
 pub mod overlay;
 mod pages;
 mod paint_ui;
@@ -59,7 +58,6 @@ pub use body::grip_band;
 pub use body::keep_inside;
 pub use body::pad_of;
 #[doc(hidden)]
-pub use body::{STRIP_BACK, STRIP_FORWARD};
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnLayout, ColumnRemove,
     ColumnRequest, ColumnSort, ColumnSpec, ContextMenuRequest, DeleteTarget, DragPayload, DropAt, DropKind, DropPayload, DropPlace, EdgePress,

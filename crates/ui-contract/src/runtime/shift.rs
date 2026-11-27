@@ -1,10 +1,53 @@
-//! What a replay at another place moves (`Shift`): a settled region's record replays where its room is now, so every
-//! registration it journaled (`runtime::journal`) and what a memoized view returned move by the replay's one
-//! `RecordShift`, the same one egui's records move by.
+//! What a kept value moves by when its scope is kept at another place (`Shift`): a `MemoView` whose room is unchanged
+//! but whose position moved returns its kept value moved by the scope's one `RecordShift`.
 
-use egui::{Pos2, RecordShift, Rect};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use smallvec::SmallVec;
 use std::sync::Arc;
+
+/// How a kept scope's records move to its new place: by `offset`, with the clip the scope ran under (`ran_clip`)
+/// replaced by the clip it is kept under now (`clip`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecordShift {
+    /// How far the scope moved.
+    pub offset: Vec2,
+    /// The clip the scope ran under.
+    pub ran_clip: Rect,
+    /// The clip the scope is kept under now.
+    pub clip: Rect,
+}
+
+impl RecordShift {
+    /// Records kept where they were made, under `clip`.
+    pub fn none(clip: Rect) -> Self {
+        RecordShift { offset: Vec2::ZERO, ran_clip: clip, clip }
+    }
+
+    /// A move by `offset` under an unchanged clip.
+    pub fn by(offset: Vec2) -> Self {
+        RecordShift { offset, ran_clip: Rect::EVERYTHING, clip: Rect::EVERYTHING }
+    }
+
+    /// Whether the shift leaves every record as it is.
+    pub fn is_none(&self) -> bool {
+        self.offset == Vec2::ZERO && self.ran_clip == self.clip
+    }
+
+    /// `pos` moved with the records.
+    pub fn pos(&self, pos: Pos2) -> Pos2 {
+        pos + self.offset
+    }
+
+    /// `rect` moved with the records.
+    pub fn rect(&self, rect: Rect) -> Rect {
+        rect.translate(self.offset)
+    }
+
+    /// The clip rect `clip` of a record, at the new place.
+    pub fn clip(&self, clip: Rect) -> Rect {
+        if clip == self.ran_clip { self.clip } else { clip.translate(self.offset).intersect(self.clip) }
+    }
+}
 
 /// A value a record holds, at the place a replay adds the record (`RecordShift`): rects and points move with the record,
 /// clip rects (`Clip`) go through the replay's clip, and everything else stays. There is no default: a type states how
@@ -97,7 +140,7 @@ macro_rules! stays {
 // A scalar is a length, a fraction, a zoom, a time or a count, which a replay at another place never changes, so the
 // audit compares it exactly; a coordinate is a `Pos2` or a `Rect`.
 stays!(craft_behavior::PartRef, craft_behavior::Sense);
-stays!((), bool, f32, f64, u8, u16, u32, u64, usize, i32, i64, String, Arc<str>, &'static str, egui::Id, egui::LayerId, egui::TextureId);
+stays!((), bool, f32, f64, u8, u16, u32, u64, usize, i32, i64, String, Arc<str>, &'static str, crate::primitives::Id);
 
 impl<T: Shift> Shift for Option<T> {
     fn shifted(&self, by: &RecordShift) -> Self {

@@ -155,6 +155,8 @@ pub(crate) struct Kept {
     /// A container's last measurement of its body, reused while its key, room and content are
     /// unchanged.
     pub(crate) plan: Option<super::container::Plan>,
+    /// A container node's body state (open state of a collapsing body).
+    pub(crate) body: super::container::BodyKept,
     /// Whether the last real run of the body under this node met fill children; `None` before it.
     pub(crate) body_fills: Option<bool>,
     pub(crate) memory: Memory,
@@ -216,6 +218,7 @@ impl Kept {
             value: None,
             sizes: smallvec::SmallVec::new(),
             plan: None,
+            body: super::container::BodyKept::default(),
             body_fills: None,
             memory: Memory::default(),
             sweep: None,
