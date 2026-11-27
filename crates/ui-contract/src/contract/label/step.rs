@@ -5,19 +5,16 @@ use super::place::{Placed, decide, hidden_control, label_gap};
 use super::props::{FieldLayout, LabelKind, SideLabel};
 use crate::contract::Props;
 use crate::contract::Show;
+use crate::contract::Ui;
 use crate::contract::cx::Under;
 use crate::primitives::Id;
-use crate::runtime::access::{
-    self,
-    scope::{self, FieldLabel},
-};
-use crate::runtime::egui::{alloc, child};
+use crate::runtime::access::scope::{FieldLabel, ResetFact, ScopeFacts, scope_facts};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::keys;
+use crate::runtime::focus::FocusTarget;
 use crate::runtime::memory::sub;
 use craft_behavior::Flow;
-use craft_ui_rt::{Rect, Vec2};
-use egui::{Ui, UiBuilder};
+use craft_ui_rt::{Rect, State, Vec2};
+use std::sync::Arc;
 
 /// What the step needs of the row it runs for.
 pub(crate) struct LabelIn<'a> {
@@ -44,6 +41,8 @@ pub(crate) struct LabelIn<'a> {
     pub help: Option<&'a Label>,
     pub enabled: bool,
     pub size: craft_theme::ControlSize,
+    /// The control the label names: a click on the label moves focus to it.
+    pub control: Id,
     /// The narrowest the control can be; a row too narrow for the label column, the gap and this stacks the label above.
     /// In an egui grid's cell (`egui_cell`), the width the control takes there: a leaf's ideal width.
     pub control_min: f32,
@@ -106,31 +105,37 @@ pub(crate) fn leaf_under<C: Show>(env: &Env, side: &SideLabel, child: &C, (enabl
     Under { enabled, size, inside: super::props::inside(env.view(), side, enabled) }
 }
 
-/// A leaf child's label step that has run: the rect left for the child and the scope the caller closes.
+/// A leaf child's label step that has run: the rect left for the child and the label scope it shows under.
 pub(crate) struct LeafPlaced {
     pub control: Rect,
     /// The label's rect; `Rect::NOTHING` for a hidden label.
     pub label: Rect,
-    scope: Id,
+    /// The side label the child shows under (the label scope).
+    pub scope: FieldLabel,
 }
 
 impl LeafPlaced {
-    /// Closes the label scope after the child ran.
-    pub(crate) fn finish(self, ctx: &egui::Context) {
-        scope::finish(ctx, self.scope, None);
+    /// `env` with the label scope given to the control: only the control sees it, as with the inside label.
+    pub(crate) fn env_for(&self, env: &Env) -> Env {
+        under_label(env, self.scope.clone())
     }
+}
+
+/// `env` with `label` as the label scope of the control shown under it.
+pub(crate) fn under_label(env: &Env, label: FieldLabel) -> Env {
+    env.derive_local(|scoped| scoped.field_label = Some(Arc::new(label)))
 }
 
 /// The label step for one leaf child, decided: measures the child's narrowest width and decides where the label, with
 /// content of `trailing` size inside it, and the child sit in `at.row`. Nothing shows and no room is taken; `show_leaf`
 /// then shows the label where the row's place in flow puts it, and the caller shows the child at the control's rect
-/// and calls `LeafPlaced::finish`.
+/// under `LeafPlaced::env_for`.
 pub(crate) fn decide_leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &mut C, trailing: Vec2) -> Decided {
     // Read before the child measures: nothing it does there may count as a child placed in flow.
     let in_column = in_column(ui, env);
     // An egui grid's cell is as wide as the row takes, and the control shows at its ideal width there.
     let proposal = if at.egui_cell { craft_behavior::Proposal::Ideal } else { craft_behavior::Proposal::Min };
-    let control_min = crate::contract::run::measure_under(child, &*ui, Some(at.id), proposal, Some(at.under)).x;
+    let control_min = crate::contract::run::measure_under(child, ui, Some(at.id), proposal, Some(at.under)).x;
     let facts = LeafFacts { control_min, in_column, claims: C::LABELLED_AFTER };
     decide_step(ui, env, &leaf_input(env, at, at.row, facts, trailing))
 }
@@ -140,8 +145,8 @@ pub(crate) fn decide_leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, c
 pub(crate) fn show_leaf(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, decided: Decided, down: f32, trailing: Option<Trailing<'_>>) -> LeafPlaced {
     let size = trailing.as_ref().map_or(Vec2::ZERO, |trailing| trailing.size);
     let input = leaf_input(env, at, at.row.translate(Vec2::new(0.0, down)), decided.facts, size);
-    let placed = show(ui, env, &input, decided.moved(down), trailing);
-    LeafPlaced { control: placed.control, label: placed.label, scope: input.scope }
+    let (placed, scope) = show(ui, env, &input, decided.moved(down), trailing);
+    LeafPlaced { control: placed.control, label: placed.label, scope }
 }
 
 /// What a label step reads of its control before it decides.
@@ -167,6 +172,7 @@ fn leaf_input<'a>(env: &Env, at: &LeafLabel<'a>, row: Rect, facts: LeafFacts, tr
         help: None,
         enabled: at.under.enabled,
         size: at.under.size,
+        control: at.id,
         control_min: facts.control_min,
         leaf: true,
         in_column: facts.in_column,
@@ -177,35 +183,38 @@ fn leaf_input<'a>(env: &Env, at: &LeafLabel<'a>, row: Rect, facts: LeafFacts, tr
 }
 
 /// The label step for one leaf child in `at.row`, decided and shown where it was decided: returns the rect left for
-/// the child. The caller shows the child there and then calls `LeafPlaced::finish`.
+/// the child. The caller shows the child there, under `LeafPlaced::env_for`.
 pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &mut C, trailing: Option<Trailing<'_>>) -> LeafPlaced {
     let decided = decide_leaf(ui, env, at, child, trailing.as_ref().map_or(Vec2::ZERO, |trailing| trailing.size));
     show_leaf(ui, env, at, decided, 0.0, trailing)
 }
 
 /// Runs the label step in `ui`: shows the label and the `trailing` content inside it (`input.trailing` is its size),
-/// opens the label scope and returns where the label and the control sit. The caller closes the scope with
-/// `scope::finish` after the control ran.
-pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, trailing: Option<Trailing<'_>>) -> Placed {
+/// and returns where the label and the control sit and the label scope the control shows under (`under_label`).
+pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, trailing: Option<Trailing<'_>>) -> (Placed, FieldLabel) {
     let decided = decide_step(ui, env, input);
     show(ui, env, input, decided, trailing)
 }
 
 /// The label step decided for a row, before anything shows: where the label and the control sit, and the label leaf
-/// measured in the child `Ui` it shows in.
+/// measured under the env it shows in.
 pub(crate) struct Decided {
     placed: Placed,
     /// `None` for a label that shows no leaf.
     leaf: Option<DecidedLeaf>,
     /// What the step read of its control.
     facts: LeafFacts,
+    /// The label scope's facts cell, which the control writes.
+    cell: State<ScopeFacts>,
+    /// The child of the control a click on the label focuses, when the control named one.
+    target: Option<Id>,
 }
 
 struct DecidedLeaf {
     leaf: LabelLeaf,
-    kids: Ui,
-    installed: crate::runtime::env::Installed,
-    reset: Option<scope::ResetFact>,
+    /// The env the label leaf measures and shows under.
+    env: Env,
+    reset: Option<ResetFact>,
 }
 
 impl Decided {
@@ -229,23 +238,31 @@ impl Decided {
     }
 }
 
-/// Decides the label step for `input`: measures the label in the child `Ui` it shows in and places it and the control
-/// in `input.row`. Nothing shows.
+/// Decides the label step for `input`: measures the label under the env it shows in and places it and the control in
+/// `input.row`. Nothing shows. What the control last told the scope (its reset, a scrub by the label) is a tracked read
+/// of the scope's facts cell, so a change shows the label again.
 fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
     let ctx = ui.ctx().clone();
     let rtl = env.direction.is_rtl();
     let (gap, slot_side) = (label_gap(env), env.tokens.size.handle.sm);
-    let reset = scope::last_reset(&ctx, input.scope);
+    let (cell, facts_read) = scope_facts(ui.build_cx(), input.scope);
+    let reset = facts_read.reset.clone();
     let flow = Flow::new(input.row, rtl);
     let content = input.trailing.x > 0.0;
     let facts = LeafFacts { control_min: input.control_min, in_column: input.in_column, claims: input.claims };
     if input.side.shows_no_leaf(content) {
         let control = hidden_control(&ctx, input, flow, gap);
-        return Decided { placed: Placed { label: Rect::NOTHING, control, trailing: Rect::NOTHING, caption: 0.0 }, leaf: None, facts };
+        return Decided {
+            placed: Placed { label: Rect::NOTHING, control, trailing: Rect::NOTHING, caption: 0.0 },
+            leaf: None,
+            facts,
+            cell,
+            target: facts_read.target,
+        };
     }
     let slot = if reset.is_some() && input.side.reset_dot { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.side.kind.shown(input.text).clone(), slot);
-    leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
+    leaf.scrub = input.enabled && (input.side.scrub || facts_read.scrub);
     leaf.resettable = reset.is_some();
     leaf.differs = reset.as_ref().is_some_and(|fact| fact.differs);
     leaf.default = reset.as_ref().and_then(|fact| fact.default.clone());
@@ -271,17 +288,10 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
             leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
         }
     }
-    let kids_scope = sub(input.scope, "label_ui");
-    let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(kids_scope);
-    let builder = match input.parent {
-        Some(parent) => access::with_parent(builder, parent),
-        None => builder,
-    };
-    let kids = alloc::child(ui, builder);
+    // The label's node is a child of the node that shows it, so its access node sits under that node's.
     let kid_env = crate::contract::cx::child_env(env, &Under::new(input.enabled, input.size));
-    let installed = Env::install_for(&kids, kid_env);
     let glyph = leaf.glyph.is_some();
-    let mut placed = decide(&ctx, env, input, &kids, &mut leaf, glyph, flow);
+    let mut placed = Env::run_in(ui, kid_env.clone(), |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow));
     if input.trailing.x > 0.0 {
         // The label without its reset dot, which keeps its own press; the content sits at its end, on the first line.
         let (_, unslotted) = Flow::new(placed.label, rtl).take_end(slot);
@@ -289,50 +299,72 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
         let middle = cell.top() + leaf.first_line.get() / 2.0;
         placed.trailing = Rect::from_min_size(craft_ui_rt::pos2(cell.min.x, middle - input.trailing.y / 2.0), input.trailing);
     }
-    Decided { placed, leaf: Some(DecidedLeaf { leaf, kids, installed, reset }), facts }
+    Decided { placed, leaf: Some(DecidedLeaf { leaf, env: kid_env, reset }), facts, cell, target: facts_read.target }
 }
 
-/// Shows the label step `decided` for `input`: the label and the `trailing` content inside it, and opens the label
-/// scope. Returns where the label and the control sit.
-fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing: Option<Trailing<'_>>) -> Placed {
-    let ctx = ui.ctx().clone();
+/// Shows the label step `decided` for `input`: the label and the `trailing` content inside it. Returns where the label
+/// and the control sit, and the label scope the control shows under: the label's press, hover and activation, the
+/// rect it offers a control that claims it, and the facts cell the control writes.
+fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing: Option<Trailing<'_>>) -> (Placed, FieldLabel) {
     let rtl = env.direction.is_rtl();
     let label_id = sub(input.scope, "label");
-    let Decided { placed, leaf, .. } = decided;
-    let Some(DecidedLeaf { leaf, mut kids, installed, reset }) = leaf else {
-        scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING).shown(false)));
-        scope::place_controls(&ctx, input.scope, placed.control.top());
-        return placed;
+    let Decided { placed, leaf, cell, target, .. } = decided;
+    let Some(DecidedLeaf { leaf, env: kid_env, reset }) = leaf else {
+        let mut label = field_label(env, input, label_id, Rect::NOTHING).shown(false);
+        label.facts = Some(cell);
+        return (placed, label);
     };
     let slot = if reset.is_some() && input.side.reset_dot { env.tokens.size.handle.sm } else { 0.0 };
     // The label without its reset dot, which keeps its own press.
     let (_, unslotted) = Flow::new(placed.label, rtl).take_end(slot);
     // A label shows with the control it names: where a bar's view shows the two only in part, neither shows.
-    if crate::contract::run::cut_by_bar_view(env, placed.label.union(placed.control)) {
-        kids.set_clip_rect(Rect::NOTHING);
-    }
-    let shown = Props::id(leaf, label_id).show_at(&mut kids, placed.label);
-    Env::restore(&ctx, installed);
-    if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
-        keys::route_whole_reset(&ctx, fact.control);
-    }
-    // The content belongs to the label, not to the controls it names, so it shows before the scope opens. It also
-    // shows before the control, so a control that claims the label lies over it and takes its presses.
+    let cut = cut_by_bar_view(env, placed.label.union(placed.control));
+    let shown = Env::run_in(ui, kid_env, |kids| {
+        let clip = kids.clip_rect();
+        if cut {
+            kids.set_clip_rect(Rect::NOTHING);
+        }
+        let shown = Props::id(leaf, label_id).show_at(kids, placed.label);
+        kids.set_clip_rect(clip);
+        shown
+    });
+    // The content belongs to the label, not to the controls it names, so it shows before the control: a control that
+    // claims the label lies over it and takes its presses.
     if let Some(trailing) = trailing {
         (trailing.show)(ui, placed.trailing);
     }
     let linked = input.side.press == super::props::LabelPress::Link;
-    let label = field_label(env, input, label_id, placed.label)
+    let activated = shown.activated && !linked;
+    // A click on the label moves focus to the control it names; a control that claims the label takes the press
+    // itself.
+    if activated && !input.claims {
+        ui.request_focus(FocusTarget::Id(target.unwrap_or_else(|| control_of(input))));
+    }
+    let mut label = field_label(env, input, label_id, placed.label)
         .with_press(shown.press)
         .with_hover(shown.hovered)
-        .activated(shown.activated && !linked)
+        .activated(activated)
         .linked(shown.activated && linked);
-    scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
-    scope::place_controls(&ctx, input.scope, placed.control.top());
-    if input.claims {
-        scope::offer_claim(&ctx, unslotted.rect());
+    // A double click on the name or a click on the reset dot resets the control that registered the reset.
+    label.reset = reset.is_some() && (shown.double_click || shown.dot_click);
+    label.claim = input.claims.then(|| unslotted.rect());
+    label.facts = Some(cell);
+    (placed, label)
+}
+
+/// The control a label step names.
+fn control_of(input: &LabelIn<'_>) -> Id {
+    input.control
+}
+
+/// Whether `rect`, in the scrolling body of a bar, lies partly outside the body's view along x: a label and the control
+/// it names show whole or not at all there.
+fn cut_by_bar_view(env: &Env, rect: Rect) -> bool {
+    if !env.values.get::<crate::contract::InBar>().0 {
+        return false;
     }
-    placed
+    let _ = rect;
+    todo!("the bar body's view rect on rt (scroll view of a bar) and the bar line's member notes, INT-2c")
 }
 
 /// Whether a row shown in `flow` is a row of a vertical flow, not a member of a row's line. The first child of an
@@ -340,21 +372,12 @@ fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing:
 /// so it counts as one of them: a check box that starts a row of a form lines up with the form's controls. `env` is the
 /// env `flow`'s children are placed under.
 pub(crate) fn in_column(flow: &Ui, env: &Env) -> bool {
-    if !flow.layout().is_horizontal() {
-        return true;
-    }
-    env.column_row && crate::layout::at_flow_start(flow.ctx(), env)
+    !is_row(flow) || env.column_row
 }
 
-/// A control with its label after it that the label step moved into the control column (its `control` starts past
-/// its `row`'s start) reaches past that column by the gap, the control, the gap and the label: a sizing pass reports
-/// that reach, so a content-sized group measures the row whole. `extent` is the row's width from its start edge.
-pub(crate) fn report_after_reach(ctx: &egui::Context, env: &Env, side: &SideLabel, (row, control): (Rect, Rect), extent: f32) {
-    let indent = if env.direction.is_rtl() { row.max.x - control.max.x } else { control.min.x - row.min.x };
-    if side.layout == FieldLayout::After && indent > 0.0 {
-        let column = indent - label_gap(env);
-        crate::layout::report_beyond(ctx, std::slice::from_ref(&crate::layout::LABELS), extent - column);
-    }
+/// The flow of `ui` places its children side by side: a `Row`'s line.
+fn is_row(ui: &Ui) -> bool {
+    matches!(ui.flow.dir_ref(), crate::contract::rt::ui::Dir::Row { .. })
 }
 
 /// Runs the label step for one leaf child in the flow of `ui`: `label` sits beside the child or above it, with the
@@ -374,8 +397,8 @@ pub(crate) fn flow_leaf<C: Show>(
     // In a grid the row is the grid's next cell, read under its column's group, as `run` shows any other cell: the
     // room before the row is the whole grid's, and a row placed there would stand under the one before it.
     let ctx = ui.ctx().clone();
-    match crate::layout::grid_cell(&ctx, &env) {
-        Some((grid, column, sized)) => crate::layout::ColumnGroup::cell(&ctx, grid, column, sized, || {
+    match crate::layout::grid_cell(ui) {
+        Some((grid, column)) => crate::layout::ColumnGroup::cell(&ctx, grid, column, || {
             flow_leaf_row((ui, env), (id, owner), under, label, side, child, (trailing, true))
         }),
         None => flow_leaf_row((ui, env), (id, owner), under, label, side, child, (trailing, false)),
@@ -395,15 +418,15 @@ fn flow_leaf_row<C: Show>(
 ) -> C::Output {
     let mut child = child;
     let under = leaf_under(&env, &side, &child, under);
-    let ideal = crate::contract::run::measure_under(&mut child, &*ui, Some(id), craft_behavior::Proposal::Ideal, Some(&under));
+    let ideal = crate::contract::run::measure_under(&mut child, ui, Some(id), craft_behavior::Proposal::Ideal, Some(&under));
     if !in_cell {
         wrap_before(ui, &env, (&label, &side), ideal.x);
     }
     // A grid's cell; a probe offers it unbounded room, and the row then spans the grid's flow so it has an end edge.
     let flow = ui.available_rect_before_wrap();
-    let avail = match crate::layout::flow_region(ui, &env) {
-        region if in_cell && region.width().is_finite() => region,
-        region if in_cell => Rect::from_min_size(region.min, Vec2::new(flow.width(), region.height())),
+    let avail = match crate::layout::flow_room(ui) {
+        room if in_cell && room.x.is_finite() => Rect::from_min_size(flow.min, room),
+        room if in_cell => Rect::from_min_size(flow.min, Vec2::new(flow.width(), room.y)),
         _ => flow,
     };
     // The label step decides where the label and the control sit at the flow's top, and the row then takes its place
@@ -421,7 +444,7 @@ fn flow_leaf_row<C: Show>(
     // So is a grid's cell: the room before it is the whole grid's, and a row spanning it measures its column as wide
     // as the grid, so the grid could never set two such cells beside each other (two columns of check boxes). An egui
     // grid's cell is too, also inside a scope of its own there.
-    let content = env.content.0 || ui.layout().is_horizontal() || in_cell || egui_cell;
+    let content = env.content.0 || is_row(ui) || in_cell || egui_cell;
     let control_width = if content { decided.control().width().min(ideal.x) } else { decided.control().width() };
     let rtl = env.direction.is_rtl();
     let span = |cell: Rect| Flow::new(Rect::from_min_size(cell.min, Vec2::new(cell.width(), ideal.y)), rtl).span(0.0, control_width);
@@ -437,31 +460,22 @@ fn flow_leaf_row<C: Show>(
     // The child's own height: a stacked label pushes the control down, and a label taller than the control reaches
     // below it.
     let height = (decided_control.bottom().max(decided_label.bottom()) - row.top()).max(ideal.y);
-    let first = decided_control.top() - row.top() + ideal.y / 2.0;
-    let took =
-        crate::layout::place_in_cell(ui, &env, Vec2::new(extent, height), crate::layout::InFlow { fill: false, first: Some(first), line: true });
+    let took = crate::layout::place_in_flow(ui, Vec2::new(extent, height));
     let placed = show_leaf(ui, &env, &at, decided, took.top() - row.top(), trailing);
     let control = span(placed.control);
-    // A control beside its label in a content-sized column reports how far it reaches past the label column, so
-    // the column's container measures its rows at the widest label.
-    if content && ui.is_sizing_pass() && side.layout == FieldLayout::Beside && placed.label.bottom() > placed.control.top() {
-        let column = if matches!(side.kind, LabelKind::Glyph(_)) { crate::layout::GLYPHS } else { crate::layout::LABELS };
-        crate::layout::report_beyond(ui.ctx(), std::slice::from_ref(&column), label_gap(&env) + control_width);
-    }
-    if content && ui.is_sizing_pass() {
-        report_after_reach(ui.ctx(), &env, &side, (avail, control), extent);
-    }
-    // The child runs under the inside label its measures saw.
-    let inside = under.inside.clone().map(|inside| env.derive_local(|scoped| scoped.inside_label = Some(inside as crate::runtime::env::Held)));
-    let installed = inside.clone().map(|inside| Env::install_for(ui, inside));
+    // The child runs under the inside label its measures saw and under its label scope.
+    let place = placed.env_for(&env);
+    let place = match under.inside.clone() {
+        Some(inside) => place.derive_local(|scoped| scoped.inside_label = Some(inside as crate::runtime::env::Held)),
+        None => place,
+    };
     // The control and its label are one member of a bar's line: judged together, and hidden together, as the label
     // step hid the label.
     let shown_clip = ui.clip_rect();
-    let cut = !ui.is_sizing_pass() && crate::contract::run::bar_member(ui.ctx(), &env, placed.label.union(placed.control), false);
+    let cut = !ui.is_measuring() && cut_by_bar_view(&env, placed.label.union(placed.control));
     if cut {
         ui.set_clip_rect(Rect::NOTHING);
     }
-    let place = inside.unwrap_or_else(|| env.clone());
     let output = crate::contract::run::show_leaf(
         &mut Some(crate::contract::Props::id(child, id)),
         ui,
@@ -471,10 +485,6 @@ fn flow_leaf_row<C: Show>(
     if cut {
         ui.set_clip_rect(shown_clip);
     }
-    if let Some(installed) = installed {
-        Env::restore(ui.ctx(), installed);
-    }
-    placed.finish(ui.ctx());
     output
 }
 
@@ -485,13 +495,12 @@ fn flow_leaf_row<C: Show>(
 /// Setup's "Text snaps to characters"). A leaf at the line's start stays, however wide. `control` is the control's
 /// ideal width.
 fn wrap_before(ui: &mut Ui, env: &Env, (label, side): (&Label, &SideLabel), control: f32) {
-    let layout = *ui.layout();
-    if !layout.is_horizontal() || !layout.main_wrap {
+    if !matches!(ui.flow.dir_ref(), crate::contract::rt::ui::Dir::Row { wrap: true, .. }) {
         return;
     }
     let line = ui.max_rect();
     let rest = ui.available_rect_before_wrap();
-    let used = if layout.main_dir == egui::Direction::RightToLeft { line.max.x - rest.max.x } else { rest.min.x - line.min.x };
+    let used = if env.direction.is_rtl() { line.max.x - rest.max.x } else { rest.min.x - line.min.x };
     if used <= 0.5 || !rest.width().is_finite() {
         return;
     }
@@ -516,14 +525,15 @@ fn wrap_before(ui: &mut Ui, env: &Env, (label, side): (&Label, &SideLabel), cont
 /// that scope's label is the visible text, so the control's own is not shown twice. Every other leaf shows as it is.
 pub(crate) fn show_leaf_in_flow<C: Show>(mut child: C, ui: &mut Ui) -> C::Output {
     let env = Env::of(ui);
-    let named_by_scope = env.arena.is_none() && scope::in_label(ui.ctx());
+    let named_by_scope = env.arena.is_none() && env.view().field_label().is_some();
     let shows = C::LABELLED_AFTER && child.shows_label() && child.common(crate::contract::Internal::new()).label != Label::Empty && !named_by_scope;
     if !shows {
-        return crate::contract::run::show_leaf(child, ui, crate::contract::run::ShowAt::Flow, None);
+        return crate::contract::run::show_leaf(&mut Some(child), ui, (crate::contract::run::ShowAt::Flow, env), None);
     }
     let label = std::mem::take(&mut child.common_mut(crate::contract::Internal::new()).label);
-    let facts = crate::contract::run::TypeFacts::of::<C>();
-    let id = crate::contract::steps::id(ui, &child.common(crate::contract::Internal::new()).id, false, true, facts.style_key, facts.name);
+    // The id the leaf would take shown on its own; the label step shows it under that id.
+    let source = child.common(crate::contract::Internal::new()).id.clone();
+    let id = ui.flow.child(crate::contract::rt::key::type_key::<C>(), source).0;
     let side = SideLabel::new().layout(FieldLayout::After);
     let side = match child.label_detail() {
         Some(detail) => side.detail(detail),

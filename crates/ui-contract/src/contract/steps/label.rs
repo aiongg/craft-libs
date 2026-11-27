@@ -74,6 +74,9 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     }
     let (label_on, field_on) = scrub_sources(cx);
     let by_label = scrub.by_label && label_on;
+    if by_label {
+        crate::runtime::access::scope::note_scrub(cx.core);
+    }
     let label = by_label.then(|| side_label(cx.core)).flatten();
     // A scrub's source shows the horizontal resize cursor under the pointer.
     let part_hovered = scrub.parts.iter().any(|(part, _)| cx.core.results.get(&(part.key, part.index)).is_some_and(|result| result.hovered));

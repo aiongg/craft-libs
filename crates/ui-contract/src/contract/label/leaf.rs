@@ -152,13 +152,13 @@ impl LabelLeaf {
 }
 
 impl Component for LabelLeaf {
-    const ROLE: crate::contract::Role = crate::contract::Role::LABEL;
+    const ROLE: crate::contract::Role = crate::contract::Role::Node(accesskit::Role::Label);
     // A link label is a link to assistive technology too, not a second name of its control.
-    const ALT_ROLES: &'static [crate::contract::Role] = &[crate::contract::Role::LINK];
+    const ALT_ROLES: &'static [crate::contract::Role] = &[crate::contract::Role::Node(accesskit::Role::Link)];
     const OVERLAYS: bool = false;
     // The label is no key target: Enter and Space go to its control, which a click on the label focuses.
     const KEYS: crate::runtime::focus::KeyUse =
-        crate::runtime::focus::KeyUse::of(Self::INPUT).with_activate(crate::runtime::focus::ActivateKeys::Neither);
+        crate::runtime::focus::KeyUse { activate: crate::runtime::focus::ActivateKeys::Neither, ..crate::runtime::focus::KeyUse::of(Self::INPUT) };
     type Style = LabelStyle;
     type Output = LabelOutput;
 
@@ -280,7 +280,7 @@ impl Component for LabelLeaf {
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
         if self.link {
-            access.role(crate::contract::Role::LINK);
+            access.role(crate::contract::Role::Node(accesskit::Role::Link));
         }
         if let Some(words) = &self.words {
             access.name(Name::Text(words.clone()));

@@ -661,10 +661,7 @@ impl<'u, 'c> Ui<'u, 'c> {
         if self.is_measuring() {
             return;
         }
-        self.ctx.memory().with(|memory| {
-            memory.edits.cancel_serial += 1;
-            memory.edits.cancel_reason = Some(reason);
-        });
+        crate::runtime::edit::cancel_edits(self.cx, &self.ctx, reason);
     }
 
     /// Runs `body` and says whether a gesture of a component shown inside it was running after the

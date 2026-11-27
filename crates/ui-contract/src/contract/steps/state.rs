@@ -6,24 +6,17 @@ use crate::style::{Flags, StateSet, StyleView};
 use craft_behavior::Input;
 use craft_theme::{State, StateMix};
 
-/// Whether a control's value differs from its reset value, and the reset value as the control words
-/// it (10.2): what its label scope shows. Kept in the node's memory, where the label reads it.
-#[derive(Clone, Default, Debug, PartialEq)]
-pub(crate) struct ResetFacts {
-    pub differs: bool,
-    pub default: Option<String>,
-}
-
-/// Step 12: a control with a reset value records whether its value differs from it.
+/// Step 12: a control with a reset value tells the label that names it whether its value differs from it, and the reset
+/// value as it words it (10.2); a control with none tells it it has none.
 pub(crate) fn register_reset<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
-    if matches!(C::INPUT, Input::Editor) {
-        return;
-    }
-    let Some(reset) = comp.bind().and_then(|bind| bind.reset_value().cloned()) else { return };
-    let differs = cx.mixed || cx.shown.as_deref() != Some(&reset);
-    let default = comp.word_value(&reset, cx);
-    let id = crate::runtime::memory::sub(cx.core.id, "reset");
-    *cx.core.memory.shown::<ResetFacts>(id) = ResetFacts { differs, default };
+    use crate::runtime::access::scope::{ResetFact, note_reset};
+    let reset = comp.bind().and_then(|bind| bind.reset_value().cloned()).filter(|_| !matches!(C::INPUT, Input::Editor));
+    let fact = reset.map(|reset| ResetFact {
+        control: cx.core.id,
+        differs: cx.mixed || cx.shown.as_deref() != Some(&reset),
+        default: comp.word_value(&reset, cx),
+    });
+    note_reset(cx.core, fact);
 }
 
 /// The component's shown value when it is a `bool`: a two-state value, on or off.

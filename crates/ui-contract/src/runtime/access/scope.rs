@@ -1,7 +1,7 @@
 use crate::primitives::Id;
 use craft_behavior::PressState;
 use craft_theme::Flags;
-use craft_ui_rt::Rect;
+use craft_ui_rt::{BuildCx, Rect, State};
 
 /// Whether a field label names its control or describes it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
@@ -41,6 +41,13 @@ pub struct FieldLabel {
     /// The label shows as a node of its own. A hidden label and one drawn inside its control have none: they name
     /// their control by their text alone.
     pub shown: bool,
+    /// The rect the label offers its control as part of the control's hit target: the label (without its reset dot)
+    /// of a leaf label step whose child draws only its mark (`Component::LABELLED_AFTER`).
+    pub(crate) claim: Option<Rect>,
+    /// A double click on the label's name or a click on its reset dot asked the control to reset this pass.
+    pub(crate) reset: bool,
+    /// The cell the control writes what its label shows of it (`ScopeFacts`).
+    pub(crate) facts: Option<State<ScopeFacts>>,
 }
 
 impl FieldLabel {
@@ -58,6 +65,9 @@ impl FieldLabel {
             link: false,
             status: false,
             shown: true,
+            claim: None,
+            reset: false,
+            facts: None,
         }
     }
 
@@ -96,6 +106,20 @@ impl FieldLabel {
         self
     }
 
+    /// Whether a press on the label follows its link (`LabelPress::Link`) this pass.
+    #[must_use]
+    pub fn linked(mut self, link: bool) -> Self {
+        self.link = link;
+        self
+    }
+
+    /// The label's press this pass, which its control shows as its own.
+    #[must_use]
+    pub fn with_press(mut self, press: PressState) -> Self {
+        self.press = press;
+        self
+    }
+
     /// Whether the pointer is over the label this pass.
     #[must_use]
     pub fn with_hover(mut self, hovered: bool) -> Self {
@@ -115,4 +139,68 @@ pub(crate) struct Merged {
     pub description: Option<String>,
     pub flags: Flags,
     pub enabled: bool,
+}
+
+/// What a control tells the label that names it: its reset (10.2) and whether it scrubs by the label. The control's run
+/// writes it, through the cell its `FieldLabel` carries, when its build ends; the label, shown before the control,
+/// reads the cell tracked, so it shows again in the same frame when a fact changes and never when none does.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ScopeFacts {
+    pub reset: Option<ResetFact>,
+    pub scrub: bool,
+    /// The child of the control whose stop a click on the label focuses, in place of the control's own
+    /// (`PaintUi::label_target`).
+    pub target: Option<Id>,
+}
+
+/// What a control tells its label scope about its reset (10.2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ResetFact {
+    /// The control that takes `Intent::Reset`.
+    pub control: Id,
+    /// The value differs from the reset value.
+    pub differs: bool,
+    /// The reset value as the control words it (`Component::word_value`); `None` names no default.
+    pub default: Option<String>,
+}
+
+/// The facts cell of the label scope `scope`, kept by the node whose build shows the label, and its facts, read
+/// tracked for that node.
+pub(crate) fn scope_facts(cx: &mut BuildCx<'_>, scope: Id) -> (State<ScopeFacts>, ScopeFacts) {
+    let cell = cx.slot(("label_scope", scope.value()), ScopeFacts::default);
+    (cell, cell.get(cx))
+}
+
+/// Writes `change` into the facts of the label scope that names the running control, when its build ends and only
+/// when it changes them. A control no label names writes nothing.
+fn note(core: &crate::contract::CxCore<'_>, change: impl FnOnce(&mut ScopeFacts) + 'static) {
+    if !core.run.measuring {
+        note_in(core.env.field_label(), change);
+    }
+}
+
+fn note_in(label: Option<&FieldLabel>, change: impl FnOnce(&mut ScopeFacts) + 'static) {
+    let Some(cell) = label.and_then(|label| label.facts) else { return };
+    crate::contract::context::log_build_read(move |cx| {
+        use craft_ui_rt::Writes as _;
+        let mut facts = cell.with(cx.store_mut(), ScopeFacts::clone);
+        change(&mut facts);
+        cell.set_if_changed(cx, facts);
+    });
+}
+
+/// The running control's reset, for the label that names it: `None` when it has no reset value.
+pub(crate) fn note_reset(core: &crate::contract::CxCore<'_>, reset: Option<ResetFact>) {
+    note(core, move |facts| facts.reset = reset);
+}
+
+/// The running control scrubs by the label that names it (`Component::scrub` with a label source): the label senses
+/// the drag from its next run on.
+pub(crate) fn note_scrub(core: &crate::contract::CxCore<'_>) {
+    note(core, |facts| facts.scrub = true);
+}
+
+/// Names `target`, a child of the control the label `label` names, as the one a click on the label focuses.
+pub(crate) fn note_label_target(label: Option<&FieldLabel>, target: Id) {
+    note_in(label, move |facts| facts.target = Some(target));
 }

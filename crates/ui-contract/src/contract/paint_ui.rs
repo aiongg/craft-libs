@@ -105,12 +105,9 @@ impl Kids {
         let env = super::cx::child_env(&outer, &super::cx::Under { enabled: self.enabled, size: self.size, inside });
         // A child shown while the owner's fade runs lies under the owner's veil, so a faded child adds none of its own.
         let env = match self.veiled {
-            true => {
-                let layer = ui.layer();
-                env.derive_local(|scoped| {
-                    scoped.inherited_mut().values.set(super::steps::UnderVeil(Some(layer)));
-                })
-            }
+            true => env.derive_local(|scoped| {
+                scoped.inherited_mut().values.set(super::steps::UnderVeil(true));
+            }),
             false => env,
         };
         run::show_leaf(&mut Some(super::Props::id(child, id)), ui, (ShowAt::Rect(rect), env), tip)
@@ -198,8 +195,7 @@ impl PaintUi<'_> {
     /// first stop, such as the number field of a row whose slider comes first in Tab order. A child with no stop this
     /// pass leaves the first stop.
     pub fn label_target(&mut self, key: impl Hash + Debug) {
-        let (owner, target) = (self.id, self.id.with(key));
-        host_ui(self.host, |ui| access::scope::label_target(ui.ctx(), owner, target));
+        access::scope::note_label_target(self.env.view().field_label(), self.id.with(key));
     }
 
     /// Shows a child with rich tooltip content.
@@ -229,9 +225,8 @@ impl PaintUi<'_> {
                 let ideal = run::measure_under(&mut child, ui, Some(id), craft_behavior::Proposal::Ideal, Some(&under));
                 control.max.y = control.max.y.min(control.min.y + ideal.y);
             }
-            let output = kids.show(ui, id, control, child, None, under.inside.clone());
-            placed.finish(ui.ctx());
-            output
+            // The child shows under its label scope.
+            Env::run_in(ui, placed.env_for(&env), |ui| kids.show(ui, id, control, child, None, under.inside.clone()))
         })
     }
 

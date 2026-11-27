@@ -2,6 +2,7 @@
 
 use super::context::{Cx, CxCore};
 use crate::contract::Component;
+use crate::runtime::focus;
 use crate::runtime::keys::{Intents, MenuKey};
 use craft_behavior::{MoveMods, NavMove, PartRef};
 use craft_keymap::Chord;

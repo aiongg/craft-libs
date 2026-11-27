@@ -45,7 +45,7 @@ mod values;
 pub use crate::bind_tracked;
 pub use crate::layout::{BodyLayout, RowAlign};
 pub use crate::primitives::FacesCx;
-pub use crate::runtime::access::{Access, FieldLabel, GridPlace, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
+pub use crate::runtime::access::{Access, FieldLabel, GridPlace, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode};
 pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::keys::MenuKey;
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
@@ -118,9 +118,7 @@ pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, Patter
 pub use sampler::{CanvasGesture, Sampler};
 pub use settle::SettleCx;
 pub use text::EDIT_MENU;
-pub use values::{
-    Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Response, Shown, Validity, ValueOf, clicked, pressed, response_of,
-};
+pub use values::{Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Response, Shown, Validity, ValueOf, clicked, pressed};
 
 pub use crate::primitives::{Id, IdSalt};
 pub use craft_ui_rt::ImePurpose;
