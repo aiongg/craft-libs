@@ -22,7 +22,11 @@ mod painter;
 
 use std::rc::Rc;
 
-use craft_ui_rt::{BuildCx, Constraints, Driver, Element, LayoutCx, Rect, Runtime, State, Tokens, Vec2, Waker, WindowId, WindowSpec};
+use craft_ui_rt::{
+    BuildCx, Constraints, Cursor, CursorIcon, Driver, Element, ImePurpose, LayoutCx, PlatformEvent, Rect, Runtime, State, StepReport, Tokens, Vec2,
+    Waker, WindowEvent, WindowId, WindowSpec,
+};
+use web_time::Instant;
 
 pub use fonts::EguiFonts;
 
@@ -51,6 +55,20 @@ pub struct EmbedStats {
     /// Meshes added to egui's painter, and their vertices.
     pub meshes: u32,
     pub vertices: u32,
+}
+
+impl EmbedStats {
+    fn add(&mut self, report: &StepReport) {
+        if report.ran {
+            self.ran = true;
+            self.frames += 1;
+        }
+        self.built += report.frame.built;
+        self.laid_out += report.frame.laid_out;
+        self.painted += report.frame.painted;
+        self.prepared += report.render.prepared;
+        self.reused += report.render.reused;
+    }
 }
 
 /// What [`EmbeddedWindow::show`] returns.
@@ -103,8 +121,103 @@ impl EmbeddedWindow {
     /// Runs the window for this egui pass in `rect` (screen points) and adds its meshes to `ui`'s
     /// painter at the call position, clipped to `rect` and the ui's clip.
     pub fn show(&mut self, ui: &mut egui::Ui, rect: Rect) -> EmbedResponse {
-        let _ = (ui, rect);
-        todo!("T2: bridge body")
+        let ctx = ui.ctx().clone();
+        let response = ui.interact(rect, self.id, egui::Sense::click_and_drag());
+        let (window, id) = (self.window, self.id);
+        let mut stats = EmbedStats::default();
+
+        let (content, scale, time) = (ctx.content_rect(), ctx.pixels_per_point(), ui.input(|i| i.time));
+        // The window spans the screen from its origin to the content rect's far corner, so its
+        // coordinates are egui's.
+        let size = content.max.to_vec2();
+        let host = &mut self.driver.platform;
+        host.now = time;
+        if scale != host.scale {
+            host.scale = scale;
+            host.queue.push(PlatformEvent::Window(window, WindowEvent::Scale(scale)));
+        }
+        if size != host.size {
+            host.size = size;
+            host.queue.push(PlatformEvent::Window(window, WindowEvent::Resize(size)));
+        }
+        let runtime = &mut self.driver.runtime;
+        if *runtime.store().peek(self.rect) != rect {
+            self.rect.set(runtime.store_mut(), rect);
+        }
+
+        let focused = self.focus.before(&ctx, id, window, &mut self.driver.runtime, &mut self.driver.platform.queue);
+        let hovered = response.hovered();
+        let gate = input::Gate { window, hovered, focused, platform: craft_keymap::egui::platform(&ctx) };
+        let (pointer, queue, access) = (&mut self.pointer, &mut self.driver.platform.queue, &self.access);
+        let (sent, scrolling) = ui.input(|i| {
+            let mut sent = input::forward(i, &gate, pointer, queue);
+            for event in &i.events {
+                if let egui::Event::AccessKitActionRequest(request) = event
+                    && let Some(request) = access.action(request)
+                {
+                    queue.push(PlatformEvent::Window(window, WindowEvent::Access(request)));
+                    sent.events += 1;
+                }
+            }
+            (sent, i.smooth_scroll_delta != Vec2::ZERO)
+        });
+        stats.events = sent.events;
+        if hovered && scrolling {
+            // The panel takes the wheel: no parent scrolls by it.
+            ctx.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
+        }
+
+        let t = Instant::now();
+        let report = self.driver.step(time);
+        stats.add(&report);
+        if !self.driver.renderer.is_current() {
+            // egui's own text grew or cleared the glyph atlas since the meshes were made.
+            self.driver.runtime.invalidate_pixels();
+            let report = self.driver.step(time);
+            stats.add(&report);
+        }
+        stats.step_ms = t.elapsed().as_secs_f64() * 1000.0;
+
+        let unhandled = self.driver.runtime.take_unhandled_keys(window);
+        let claimed = input::claimed(&sent.keys, &unhandled);
+        if !claimed.is_empty() {
+            ctx.input_mut(|i| {
+                for &index in claimed.iter().rev() {
+                    i.events.remove(index);
+                }
+            });
+        }
+        self.focus.after(&ctx, id, window, &mut self.driver.runtime, &mut self.driver.platform, &unhandled);
+        self.apply_outputs(&ctx, rect, focused, hovered);
+
+        let t = Instant::now();
+        let (meshes, vertices) = self.driver.renderer.emit(&ui.painter().with_clip_rect(rect));
+        self.access.emit(&ctx, id);
+        stats.meshes = meshes;
+        stats.vertices = vertices;
+        stats.emit_ms = t.elapsed().as_secs_f64() * 1000.0;
+        EmbedResponse { response, stats }
+    }
+
+    /// The window's requests of this step, applied to egui: IME, cursor, clipboard, access.
+    fn apply_outputs(&mut self, ctx: &egui::Context, rect: Rect, focused: bool, hovered: bool) {
+        let host = &mut self.driver.platform;
+        if focused && let Some(session) = host.ime {
+            let purpose = match session.purpose {
+                ImePurpose::Normal => egui::IMEPurpose::Normal,
+                ImePurpose::Password => egui::IMEPurpose::Password,
+            };
+            ctx.output_mut(|o| o.ime = Some(egui::output::IMEOutput::new(self.id, session.generation, purpose, rect, session.cursor)));
+        }
+        if hovered || self.pointer.captured() {
+            ctx.set_cursor_icon(cursor_icon(host.cursor));
+        }
+        for text in host.clipboard.copies.drain(..) {
+            ctx.copy_text(text);
+        }
+        for update in host.access.drain(..) {
+            self.access.apply(update);
+        }
     }
 
     pub fn runtime(&self) -> &Runtime {
@@ -167,5 +280,51 @@ impl Element for Placed {
 
     fn relayout_boundary(&self) -> bool {
         true
+    }
+}
+
+/// The egui cursor for an rt cursor. An image cursor (an rt-drawn tool cursor) has no egui
+/// equivalent and shows the default.
+fn cursor_icon(cursor: Cursor) -> egui::CursorIcon {
+    use egui::CursorIcon as E;
+    let Cursor::Icon(icon) = cursor else {
+        return if cursor == Cursor::Hidden { E::None } else { E::Default };
+    };
+    match icon {
+        CursorIcon::Default => E::Default,
+        CursorIcon::None => E::None,
+        CursorIcon::ContextMenu => E::ContextMenu,
+        CursorIcon::Help => E::Help,
+        CursorIcon::PointingHand => E::PointingHand,
+        CursorIcon::Progress => E::Progress,
+        CursorIcon::Wait => E::Wait,
+        CursorIcon::Cell => E::Cell,
+        CursorIcon::Crosshair => E::Crosshair,
+        CursorIcon::Text => E::Text,
+        CursorIcon::VerticalText => E::VerticalText,
+        CursorIcon::Alias => E::Alias,
+        CursorIcon::Copy => E::Copy,
+        CursorIcon::Move => E::Move,
+        CursorIcon::NoDrop => E::NoDrop,
+        CursorIcon::NotAllowed => E::NotAllowed,
+        CursorIcon::Grab => E::Grab,
+        CursorIcon::Grabbing => E::Grabbing,
+        CursorIcon::AllScroll => E::AllScroll,
+        CursorIcon::ResizeHorizontal => E::ResizeHorizontal,
+        CursorIcon::ResizeNeSw => E::ResizeNeSw,
+        CursorIcon::ResizeNwSe => E::ResizeNwSe,
+        CursorIcon::ResizeVertical => E::ResizeVertical,
+        CursorIcon::ResizeColumn => E::ResizeColumn,
+        CursorIcon::ResizeEast => E::ResizeEast,
+        CursorIcon::ResizeSouthEast => E::ResizeSouthEast,
+        CursorIcon::ResizeSouth => E::ResizeSouth,
+        CursorIcon::ResizeSouthWest => E::ResizeSouthWest,
+        CursorIcon::ResizeWest => E::ResizeWest,
+        CursorIcon::ResizeNorthWest => E::ResizeNorthWest,
+        CursorIcon::ResizeNorth => E::ResizeNorth,
+        CursorIcon::ResizeNorthEast => E::ResizeNorthEast,
+        CursorIcon::ZoomIn => E::ZoomIn,
+        CursorIcon::ZoomOut => E::ZoomOut,
+        _ => E::Default,
     }
 }

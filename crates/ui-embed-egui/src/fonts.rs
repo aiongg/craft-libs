@@ -1,7 +1,13 @@
-//! egui's fonts and glyph atlas as render-epaint's [`FontsAccess`].
-use craft_ui_render_epaint::FontsAccess;
+//! egui's fonts and glyph atlas as render-epaint's [`FontsAccess`]: rt text is shaped by the
+//! app's own fonts, its glyphs land in egui's atlas (texture `TextureId::default()`, uploaded by
+//! egui at the end of the pass), and they look exactly like the app's other text.
 
-/// [`FontsAccess`] over an egui context's fonts: galleys come from the app's own fonts and atlas.
+use craft_ui_render_epaint::FontsAccess;
+use epaint::text::{FontDefinitions, FontsView};
+use epaint::{ImageDelta, TessellationOptions, Tessellator};
+
+/// [`FontsAccess`] over an egui context's fonts. They serve the context's own scale, which the
+/// bridge gives the rt window. Never called inside another `Context` lock.
 pub struct EguiFonts {
     ctx: egui::Context,
 }
@@ -13,12 +19,38 @@ impl EguiFonts {
 }
 
 impl FontsAccess for EguiFonts {
-    fn with_fonts<R>(&mut self, _scale: f32, f: impl FnOnce(&mut epaint::text::FontsView<'_>) -> R) -> R { let _ = (&self.ctx, f); todo!() }
-    fn with_definitions<R>(&self, f: impl FnOnce(&epaint::text::FontDefinitions) -> R) -> R { let _ = f; todo!() }
-    fn replace_definitions(&mut self, _: epaint::text::FontDefinitions) -> bool { false }
-    fn atlas_generation(&self) -> u64 { todo!() }
-    fn atlas_size(&self) -> [usize; 2] { todo!() }
-    fn tessellator(&self, _scale: f32, _options: epaint::TessellationOptions) -> epaint::Tessellator { todo!() }
-    fn take_atlas_delta(&mut self) -> Option<epaint::ImageDelta> { None }
+    fn with_fonts<R>(&mut self, _scale: f32, f: impl FnOnce(&mut FontsView<'_>) -> R) -> R {
+        self.ctx.fonts_mut(f)
+    }
+
+    fn with_definitions<R>(&self, f: impl FnOnce(&FontDefinitions) -> R) -> R {
+        self.ctx.fonts(|fonts| f(fonts.definitions()))
+    }
+
+    /// The app owns its font definitions.
+    fn replace_definitions(&mut self, _: FontDefinitions) -> bool {
+        false
+    }
+
+    fn atlas_generation(&self) -> u64 {
+        self.ctx.fonts(|fonts| fonts.atlas_generation())
+    }
+
+    fn atlas_size(&self) -> [usize; 2] {
+        self.ctx.fonts(|fonts| fonts.font_image_size())
+    }
+
+    /// Without the atlas' prepared discs, which egui does not expose: small circles are
+    /// tessellated as paths.
+    fn tessellator(&self, scale: f32, options: TessellationOptions) -> Tessellator {
+        Tessellator::new(scale, options, self.atlas_size(), Vec::new())
+    }
+
+    /// egui uploads its atlas.
+    fn take_atlas_delta(&mut self) -> Option<ImageDelta> {
+        None
+    }
+
+    /// egui's own pass flushes galleys and clears a full atlas.
     fn begin_pass(&mut self) {}
 }
