@@ -55,6 +55,17 @@ impl<C: Component> Begun<C> {
     pub(crate) fn resolved(&self, id: Id) -> Resolved<'_> {
         steps::resolved(id, &self.step1, &self.common)
     }
+
+    /// The node `id` is an instance of its `Common::command_scope`: its steps, and what it shows, run with the
+    /// instance on the env's command chain, so the scope's commands reach it while it holds key focus. Style
+    /// resolved before this, under the env its parent placed it in.
+    pub(crate) fn enter_instance(&mut self, id: Id) {
+        if let Some(scope) = self.common.command_scope
+            && self.env.view().command_chain().innermost(scope.name()) != Some(id)
+        {
+            self.env = self.env.derive_local(|scoped| scoped.inherited_mut().commands = scoped.commands.pushed(scope, id));
+        }
+    }
 }
 
 /// Steps 1 and 2 under the env the node's parent places it in. `Env::of` registers its reads for the
@@ -194,8 +205,9 @@ pub(crate) fn show_shaped<C: Component>(
     tip: Option<TipFn<'_>>,
     hooks: &mut dyn ShapeHooks<C>,
 ) -> C::Output {
-    let begun = begin_in(&mut component, ui, place);
+    let mut begun = begin_in(&mut component, ui, place);
     let (id, child) = ui.flow.child(type_key::<C>(), begun.common.id.clone());
+    begun.enter_instance(id);
     let key = component_key(&component);
     let room = ui.flow.room();
     let tag = sweep_tag(&component, &ui.flow);
@@ -621,7 +633,8 @@ pub(crate) fn run_shaped<C: Component>(
     kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
-    let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), cx)).flatten();
+    let mut built =
+        cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, cx)).flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
         (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, cx.node()),
         _ => Vec::new(),
@@ -820,6 +833,7 @@ fn report<C: Component>(
     sense: Sense,
     parts: &[KeptPart],
     row: Option<&crate::runtime::env::ItemFacts>,
+    fold_entry: &mut Option<fold::FoldEntry>,
     build: &mut BuildCx<'_>,
 ) -> Option<super::access::Built> {
     let Role::Node(role) = C::ROLE else { return None };
@@ -844,6 +858,7 @@ fn report<C: Component>(
     let ctx = cx.core.context();
     if let Some(owner) = fold::owner_of(ctx, cx.core.id) {
         fold::offer(ctx, owner, fold::Folded { inner: cx.core.id, value: access.value.take() });
+        fold_entry.get_or_insert_with(|| fold::entry(ctx, cx.core.id));
         return None;
     }
     if access.value.is_none() {

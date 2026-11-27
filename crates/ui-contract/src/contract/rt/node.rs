@@ -295,6 +295,8 @@ pub(crate) struct Kept {
     pub(crate) column_reports: Vec<crate::layout::Report>,
     /// A collection's watch over the presses its rows and their parts take ([`PressWatch`]).
     pub(crate) press_watch: Option<PressWatch>,
+    /// The node's control folds into its owner's access node: its entries leave the window's folds with the node.
+    pub(crate) fold: Option<crate::runtime::access::fold::FoldEntry>,
 }
 
 impl Kept {
@@ -344,6 +346,7 @@ impl Kept {
             members: Vec::new(),
             column_reports: Vec::new(),
             press_watch: None,
+            fold: None,
         }
     }
 
