@@ -12,6 +12,8 @@ use std::hash::Hash;
 use accesskit::{Action, ActionData, Node, Role as NodeRole};
 use craft_ui_rt::{Rect, Sense, hash_key};
 
+use crate::contract::Id;
+
 pub use crate::runtime::access::{GridPlace, Numeric, Politeness, PopupKind, SetPosition};
 
 /// What a component is to assistive technology.
@@ -35,6 +37,8 @@ pub enum Name {
     Text(String),
     /// These texts, joined with a comma.
     Joined(Vec<String>),
+    /// The text of the component with this `Id`.
+    LabelledBy(Id),
     /// No name: the node is hidden from assistive technology.
     Decorative,
 }
@@ -69,13 +73,48 @@ pub struct Access {
     scroll_into_view: bool,
     pans: (bool, bool),
     custom_actions: Vec<(i32, String)>,
+    relations: Relations,
     nodes: Vec<SubNode>,
+}
+
+/// The components a node relates to, by `Id`. The access node carries the ids as placeholders; the
+/// node's own phase resolves them to nodes ([`super::ids`]).
+#[derive(Clone, Debug, Default)]
+struct Relations {
+    labelled_by: Vec<Id>,
+    described_by: Vec<Id>,
+    controls: Vec<Id>,
+    flow_to: Vec<Id>,
 }
 
 impl Access {
     /// The role of this instance, over the component's `ROLE`.
     pub fn role(&mut self, role: Role) -> &mut Self {
         self.role = Some(role);
+        self
+    }
+
+    /// The component `id` names this one. The target may be a later sibling.
+    pub fn labelled_by(&mut self, id: Id) -> &mut Self {
+        self.relations.labelled_by.push(id);
+        self
+    }
+
+    /// The component `id` describes this one.
+    pub fn described_by(&mut self, id: Id) -> &mut Self {
+        self.relations.described_by.push(id);
+        self
+    }
+
+    /// This node controls the component `id` (the popup of an open combo box).
+    pub fn controls(&mut self, id: Id) -> &mut Self {
+        self.relations.controls.push(id);
+        self
+    }
+
+    /// Reading continues at the component `id`.
+    pub fn flow_to(&mut self, id: Id) -> &mut Self {
+        self.relations.flow_to.push(id);
         self
     }
 
@@ -275,7 +314,21 @@ impl Access {
             }
             Name::Text(text) => node.set_label(text.as_str()),
             Name::Joined(texts) => node.set_label(texts.join(", ")),
+            Name::LabelledBy(id) => node.push_labelled_by(accesskit::NodeId(id.value())),
             Name::Decorative => node.set_hidden(),
+        }
+        let r = &self.relations;
+        for id in &r.labelled_by {
+            node.push_labelled_by(accesskit::NodeId(id.value()));
+        }
+        for id in &r.described_by {
+            node.push_described_by(accesskit::NodeId(id.value()));
+        }
+        for id in &r.controls {
+            node.push_controlled(accesskit::NodeId(id.value()));
+        }
+        for id in &r.flow_to {
+            node.push_flow_to(accesskit::NodeId(id.value()));
         }
         if let Some(text) = &self.description {
             node.set_description(text.as_str());

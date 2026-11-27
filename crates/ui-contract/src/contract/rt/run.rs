@@ -376,6 +376,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
     let fires = std::mem::take(&mut cxx.core.run.fires);
     kept.id = id;
+    kept.note_id(cx, id);
     kept.key = if wrote { component_key(&component) } else { key };
     kept.place = place;
     kept.size = size;

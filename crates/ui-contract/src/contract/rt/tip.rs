@@ -9,18 +9,17 @@
 
 use std::sync::Arc;
 
+use crate::contract::Id;
 use craft_theme::Tokens;
 use craft_ui_rt::{Align, BuildCx, EventCx, Layer, LayerSpec, Placement, Rect, Side, Vec2};
-use egui::Id;
 
-use super::access::Access;
-use super::key::ComponentKey;
 use super::overlay::{LayerShow, Surface, show_layer};
-use super::run::{Component, Cx, MeasureCx, Paint, show_leaf};
 use super::ui::Ui;
-use crate::contract::Response;
+use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Response, Role, Show};
 use crate::contract::{MemoKey, MemoProps, POPUP_PAD};
 use crate::primitives::TextRun;
+use crate::style::{ComponentStyle, StyleCx};
+use craft_behavior::{Metrics, Sense};
 
 pub use crate::contract::tooltip::DELAY;
 
@@ -119,46 +118,65 @@ pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, c
     };
     let text = kept.text.clone();
     show_layer(cx, owner.with("craft-tip"), TIP_KEY, show, ran, &mut |ui| {
-        TipText { text: &text }.show(ui);
+        TipText::new(&text).show(ui);
     });
 }
 
-/// The text of a tooltip. Its size is estimated from the text until craft text runs on ui-rt.
+/// The look of TipText: its metrics only; the text takes the ink and the layer's frame paints the surface.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+struct TipTextStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// One line of text in a layer child, sized by the shaped text.
+#[derive(crate::contract::Component)]
 struct TipText<'a> {
+    #[common]
+    common: Common,
     text: &'a str,
 }
 
-impl TipText<'_> {
-    fn show(self, ui: &mut Ui<'_, '_>) {
-        show_leaf(self, ui);
+impl<'a> TipText<'a> {
+    fn new(text: &'a str) -> Self {
+        TipText { common: Common::new(), text }
     }
-}
 
-impl ComponentKey for TipText<'_> {
-    fn key(&self, key: &mut MemoKey) {
-        self.text.key(key);
+    fn show(self, ui: &mut Ui<'_, '_>) {
+        let _ = <Self as Show>::show(self, ui);
     }
 }
 
 impl Component for TipText<'_> {
-    const ROLE: accesskit::Role = accesskit::Role::Label;
+    const ROLE: Role = Role::Node(accesskit::Role::Label);
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    type Style = TipTextStyle;
     type Output = Response;
 
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
-        let size = cx.tokens.size.icon.md;
-        let chars = self.text.chars().count() as f32;
-        Vec2::new((chars * size * 0.55).min(cx.room.x), size * 1.3)
+    fn style(_: &StyleCx<'_>, _: TipTextStyleKey) -> TipTextStyle {
+        TipTextStyle { metrics: Metrics::new() }
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        paint.draw().text(paint.bounds(), &TextRun::new(self.text));
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    /// The shaped text, wrapped at the room: the size the layer child is placed by.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let text = cx.layout_at(&TextRun::new(self.text), cx.room.x).size();
+        Vec2::new(text.x.min(cx.room.x), text.y)
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        ui.draw().text(cx.rect, &TextRun::new(self.text));
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
         access.label(self.text);
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }

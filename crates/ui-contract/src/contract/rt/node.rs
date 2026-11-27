@@ -187,6 +187,10 @@ pub(crate) struct Kept {
     pub(crate) close_guard: bool,
     /// The env cells the node's window root provided (window root only).
     pub(crate) env: Option<super::env::EnvCells>,
+    /// The node's entry in its window's `Id -> NodeId` map ([`super::ids`]); it leaves the map with the node.
+    pub(crate) ids: Option<super::ids::IdEntry>,
+    /// The ui-rt part id of the part the open press went down on, 0 for the node's own shape.
+    pub(crate) press_part: u64,
     /// The node is a window root scope: it owns the window's Tab and F6 order.
     pub(crate) window_root: bool,
     /// The command board the host gave the window root (window root only).
@@ -210,6 +214,8 @@ impl Kept {
     pub(crate) fn new() -> Kept {
         Kept {
             id: Id::NULL,
+            ids: None,
+            press_part: 0,
             key: None,
             place: Place::default(),
             size: Vec2::ZERO,
@@ -432,7 +438,7 @@ impl Element for ComponentNode {
                 self.pointer(kept, cx, p);
                 Handled::Yes
             }
-            Event::Access(a) if a.target == cx.node() && a.action != accesskit::Action::Focus => {
+            Event::Access(a) if a.target == cx.node() && !matches!(a.action, accesskit::Action::Focus | accesskit::Action::ScrollIntoView) => {
                 if a.action == accesskit::Action::Click && !kept.takes_press() && a.sub.is_none() {
                     return Handled::No;
                 }
@@ -446,9 +452,13 @@ impl Element for ComponentNode {
 
     fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
         for s in &kept.access_subs {
-            cx.sub(s.key, s.parent, s.node.clone());
+            let mut sub = s.node.clone();
+            kept.resolve_relations(&mut sub);
+            cx.sub(s.key, s.parent, sub);
         }
-        kept.access.clone()
+        let mut node = kept.access.clone()?;
+        kept.resolve_relations(&mut node);
+        Some(node)
     }
 }
 
@@ -487,6 +497,7 @@ impl ComponentNode {
             Gesture::Down { clicks } => {
                 let start = PressStart::new(pos, p.button, cx.time(), clicks);
                 kept.press = Some(start);
+                kept.press_part = part;
                 start
             }
             _ => kept.press.unwrap_or_else(|| PressStart::new(pos, p.button, cx.time(), 1)),

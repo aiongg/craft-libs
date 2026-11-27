@@ -266,8 +266,17 @@ impl EnvSnapshot {
     }
 }
 
+/// What an [`EnvScope`] overrides, as the scope's settings cell holds it: every value a scope sets is derived from this
+/// cell and the parent's cells, so a change in either reaches the nodes that read it at the start of the pass.
+#[derive(Clone, PartialEq)]
+struct Settings {
+    theme: Option<ThemeScope>,
+    direction: Option<Direction>,
+    motion: Option<MotionMode>,
+    frame: Option<Option<LayerFrame>>,
+}
+
 /// The cells a [`ThemeScope`] derives from its parent's: the scoped base, the tokens resolved from it and its density.
-/// They are derived, so a write to the parent's base marks the nodes that read them at the start of the pass.
 #[derive(Clone, Copy)]
 struct ThemeCells {
     base: State<Option<Arc<ThemeBase>>>,
@@ -276,10 +285,14 @@ struct ThemeCells {
 }
 
 impl ThemeCells {
-    fn derive(cx: &mut BuildCx<'_>, parent: EnvCells, settings: State<ThemeScope>) -> ThemeCells {
+    fn derive(cx: &mut BuildCx<'_>, parent: EnvCells, settings: State<Settings>) -> ThemeCells {
         let base = cx.derived(move |c| {
-            let scope = settings.get(c);
-            parent.theme.get(c).map(|base| Arc::new(base.scoped(&scope)))
+            let theme = settings.get(c).theme;
+            let base = parent.theme.get(c);
+            match theme {
+                Some(scope) => base.map(|base| Arc::new(base.scoped(&scope))),
+                None => base,
+            }
         });
         let tokens = cx.derived(move |c| match base.get(c) {
             Some(base) => base.tokens(),
@@ -291,6 +304,16 @@ impl ThemeCells {
         });
         ThemeCells { base: base.state(), tokens: tokens.state(), density: density.state() }
     }
+}
+
+/// The derived cells a scope node has made so far: each exists once the scope has overridden its value, and follows the
+/// parent's cell while the settings leave it unset.
+#[derive(Clone, Copy, Default)]
+struct OwnCells {
+    theme: Option<ThemeCells>,
+    direction: Option<State<Direction>>,
+    motion: Option<State<MotionMode>>,
+    frame: Option<State<Option<LayerFrame>>>,
 }
 
 /// A scope that overrides env values for its subtree. A value left unset is inherited.
@@ -357,35 +380,42 @@ impl EnvScope {
             }
             return;
         }
+        let settings = Settings { theme: self.theme.clone(), direction: self.direction, motion: self.motion, frame: self.frame };
+        let cell = ui.cx.slot("env-settings", || settings.clone());
+        cell.set_if_changed(ui.cx, settings);
+        let kept = ui.cx.slot("env-derived", OwnCells::default);
+        let mut own = *ui.cx.peek_state(kept);
+        let before = (own.theme.is_some(), own.direction.is_some(), own.motion.is_some(), own.frame.is_some());
+        if self.theme.is_some() && own.theme.is_none() {
+            own.theme = Some(ThemeCells::derive(ui.cx, parent, cell));
+        }
+        if self.direction.is_some() && own.direction.is_none() {
+            own.direction = Some(ui.cx.derived(move |c| cell.get(c).direction.unwrap_or_else(|| parent.direction.get(c))).state());
+        }
+        if self.motion.is_some() && own.motion.is_none() {
+            own.motion = Some(
+                ui.cx
+                    .derived(move |c| {
+                        let above = parent.motion.get(c);
+                        cell.get(c).motion.map_or(above, |mode| above.lowered_by(mode))
+                    })
+                    .state(),
+            );
+        }
+        if self.frame.is_some() && own.frame.is_none() {
+            own.frame = Some(ui.cx.derived(move |c| cell.get(c).frame.unwrap_or_else(|| parent.frame.get(c))).state());
+        }
+        if before != (own.theme.is_some(), own.direction.is_some(), own.motion.is_some(), own.frame.is_some()) {
+            kept.set(ui.cx, own);
+        }
         let mut cells = parent;
-        if let Some(scope) = &self.theme {
-            let settings = ui.cx.slot("env-settings", || scope.clone());
-            settings.set_if_changed(ui.cx, scope.clone());
-            let kept = ui.cx.slot("env-derived", || None::<ThemeCells>);
-            let own = match *ui.cx.peek_state(kept) {
-                Some(own) => own,
-                None => {
-                    let own = ThemeCells::derive(ui.cx, parent, settings);
-                    kept.set(ui.cx, Some(own));
-                    own
-                }
-            };
-            (cells.theme, cells.tokens, cells.density) = (own.base, own.tokens, own.density);
+        if let Some(theme) = own.theme {
+            (cells.theme, cells.tokens, cells.density) = (theme.base, theme.tokens, theme.density);
             ui.flow.tokens = cells.tokens.get(ui.cx.store_mut());
         }
-        if let Some(direction) = self.direction {
-            cells.direction = ui.cx.slot("env-direction", || direction);
-            cells.direction.set_if_changed(ui.cx, direction);
-        }
-        if let Some(mode) = self.motion {
-            let lowered = parent.motion.get(ui.cx).lowered_by(mode);
-            cells.motion = ui.cx.slot("env-motion", || lowered);
-            cells.motion.set_if_changed(ui.cx, lowered);
-        }
-        if let Some(frame) = self.frame {
-            cells.frame = ui.cx.slot("env-frame", || frame);
-            cells.frame.set_if_changed(ui.cx, frame);
-        }
+        cells.direction = own.direction.unwrap_or(cells.direction);
+        cells.motion = own.motion.unwrap_or(cells.motion);
+        cells.frame = own.frame.unwrap_or(cells.frame);
         ui.cx.provide(cells);
         ui.refresh_env();
     }

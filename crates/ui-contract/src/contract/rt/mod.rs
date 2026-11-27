@@ -34,6 +34,7 @@ pub(crate) mod env;
 pub(crate) mod focus;
 #[cfg(feature = "testing")]
 pub(crate) mod harness;
+pub(crate) mod ids;
 pub(crate) mod ime;
 pub(crate) mod intents;
 pub(crate) mod items;

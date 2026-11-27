@@ -245,13 +245,26 @@ impl Runtime {
             time: self.shared.time,
             wakes: self.shared.wakes,
             drag: self.shared.drag,
+            modifiers: self.store.create(craft_keymap::chord::Mods::NONE),
+            caps_lock: self.store.create(false),
+            num_lock: self.store.create(false),
+            pointer: self.store.create(crate::window::PointerFacts::default()),
         };
         let w = Window::new(window, env, viewport);
         let mut root = Node::new(None, None, window, 0, None, 0);
         root.role = Role::WindowRoot;
         root.children = w.layers.to_vec();
         root.frame.size = viewport;
-        root.owned = vec![env.viewport.slot_ref(), env.scale.slot_ref(), env.safe_area.slot_ref(), env.window_focused.slot_ref()];
+        root.owned = vec![
+            env.viewport.slot_ref(),
+            env.scale.slot_ref(),
+            env.safe_area.slot_ref(),
+            env.window_focused.slot_ref(),
+            env.modifiers.slot_ref(),
+            env.caps_lock.slot_ref(),
+            env.num_lock.slot_ref(),
+            env.pointer.slot_ref(),
+        ];
         self.tree.nodes.insert(w.root, root);
         for (layer, id) in Layer::ALL.into_iter().zip(w.layers) {
             let mut node = Node::new(Some(w.root), None, window, 0, None, 0);
@@ -456,6 +469,10 @@ impl Runtime {
                 }
             }
             WindowEvent::SafeArea(margin) => env.safe_area.set_if_changed(&mut self.store, *margin),
+            WindowEvent::LockKeys { caps_lock, num_lock } => {
+                env.caps_lock.set_if_changed(&mut self.store, *caps_lock);
+                env.num_lock.set_if_changed(&mut self.store, *num_lock);
+            }
             WindowEvent::Focus(focused) => {
                 env.window_focused.set_if_changed(&mut self.store, *focused);
                 // The IME session follows the window with key focus.

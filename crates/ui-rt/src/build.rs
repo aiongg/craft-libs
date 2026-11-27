@@ -428,6 +428,17 @@ impl BuildCx<'_> {
         self.rt.access_enabled(self.window)
     }
 
+    /// `node`'s access node is rebuilt in this frame (a relation of it named a node that exists now).
+    pub fn request_access_of(&mut self, node: NodeId) {
+        self.rt.access_dirty(node);
+    }
+
+    /// Ends `window`'s open press as the host did (`PressCancel::Host`): its owner gets the cancel.
+    pub fn cancel_press(&mut self, reason: craft_behavior::PressCancel) {
+        let window = self.window;
+        self.rt.cancel_press(window, reason);
+    }
+
     /// Announces `text` to assistive technology in this node's window: the texts of one frame
     /// become one live status node. The same text made twice in a frame is kept once; nothing
     /// is kept while the access tree is off.

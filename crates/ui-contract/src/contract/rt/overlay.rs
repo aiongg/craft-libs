@@ -22,12 +22,13 @@ use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_i18n::Direction;
 use craft_theme::Tokens;
 use craft_ui_rt::{
-    AccessCx, BuildCx, Constraints, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer, LayerSpec, LayoutCx,
-    NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
+    AccessCx, BuildCx, Constraints, CornerRadii, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer,
+    LayerSpec, LayoutCx, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
 };
 use egui::Id;
 use smallvec::SmallVec;
 
+use super::env::{EnvCells, LayerFrame};
 use super::intents::ScopeStep;
 use super::node::Kept;
 use super::sweep::Sweep;
@@ -82,7 +83,10 @@ pub(crate) struct LayerKept {
     /// The frame under the content, in the node's coordinates, recorded in the build.
     pub(crate) frame: DisplayList,
     /// The size and tokens `frame` was recorded for.
-    frame_for: Option<(Vec2, usize)>,
+    frame_for: Option<(Vec2, usize, bool)>,
+    /// The cell the body's `Paint::frame` reads: the popup's own rounded frame in window
+    /// coordinates, written before the body runs.
+    frame_cell: Option<State<Option<LayerFrame>>>,
     /// The Enter and Escape its scope took for its body, and whether its body has content to clear.
     pub(crate) scope: super::intents::ScopeIntents,
 }
@@ -104,7 +108,15 @@ impl Element for LayerScope {
     }
 
     fn init(&self, _: &mut BuildCx<'_>) -> LayerKept {
-        LayerKept { kept: Kept::new(), dismissed: None, hovered: false, frame: DisplayList::default(), frame_for: None, scope: Default::default() }
+        LayerKept {
+            kept: Kept::new(),
+            dismissed: None,
+            hovered: false,
+            frame: DisplayList::default(),
+            frame_for: None,
+            frame_cell: None,
+            scope: Default::default(),
+        }
     }
 
     fn layout(&self, lk: &mut LayerKept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
@@ -326,6 +338,7 @@ pub(crate) fn show_layer<R: Clone + 'static>(
     body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
 ) -> R {
     let viewport = cx.env().viewport.get(cx);
+    let rtl = is_rtl(cx);
     let LayerShow { layer, spec, surface, pad, share, anchor, role, hover, sweep, focus } = show;
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
@@ -335,7 +348,7 @@ pub(crate) fn show_layer<R: Clone + 'static>(
             cx.keep_children();
             return value;
         }
-        let out = run_layer(lk, state, cx, LayerRun { id, spec, surface, pad, share, anchor, viewport, role, hover, sweep }, body);
+        let out = run_layer(lk, state, cx, LayerRun { id, spec, surface, pad, share, anchor, viewport, role, hover, sweep, rtl }, body);
         if state.new {
             super::focus::enter_layer(&lk.kept, cx);
         }
@@ -354,6 +367,8 @@ struct LayerRun {
     role: accesskit::Role,
     hover: bool,
     sweep: Option<State<Sweep>>,
+    /// The owner's flow direction: the popup frame mirrors with it.
+    rtl: bool,
 }
 
 fn run_layer<R: Clone + 'static>(
@@ -384,6 +399,14 @@ fn run_layer<R: Clone + 'static>(
     };
     let at = run.spec.place(size, run.viewport, run.anchor, Vec2::ZERO).to_pos2();
     let region = Rect::from_min_size(at + Vec2::splat(run.pad), room);
+    // The body's surfaces meet the popup's corners: its frame is known here, from the size it is placed by.
+    let frame_cell = *lk.frame_cell.get_or_insert_with(|| cx.state(None));
+    let layer_frame = (run.surface != Surface::Plain).then(|| LayerFrame { rect: Rect::from_min_size(at, size), radii: popup_radii(&tokens) });
+    frame_cell.set_if_changed(cx, layer_frame);
+    if let Some(mut cells) = EnvCells::of(cx) {
+        cells.frame = frame_cell;
+        cx.provide(cells);
+    }
     let mut ui = Ui::new(cx, Flow::new(run.id, at, region, gap, tokens.clone()).with_sweep(run.sweep));
     ui.flow.scope = lk.scope.take_for_body();
     let out = body(&mut ui);
@@ -393,9 +416,9 @@ fn run_layer<R: Clone + 'static>(
     if real != size && !state.new {
         cx.rebuild();
     }
-    let frame_for = Some((real, Arc::as_ptr(&tokens) as usize));
+    let frame_for = Some((real, Arc::as_ptr(&tokens) as usize, run.rtl));
     if lk.frame_for != frame_for {
-        lk.frame = record_frame(cx, run.surface, real, &tokens);
+        lk.frame = record_frame(cx, run.surface, real, &tokens, run.rtl);
         lk.frame_for = frame_for;
         cx.mark_changed();
     }
@@ -405,6 +428,7 @@ fn run_layer<R: Clone + 'static>(
         cx.request_layout();
     }
     lk.kept.id = run.id;
+    lk.kept.note_id(cx, run.id);
     if lk.kept.access.is_none() {
         lk.kept.access = Some(accesskit::Node::new(run.role));
     }
@@ -414,7 +438,7 @@ fn run_layer<R: Clone + 'static>(
 
 /// The frame of a layer child of `size` with `surface`, through the content-paint API. A tooltip
 /// takes the popup look, as the contract's tooltip does.
-fn record_frame(cx: &mut BuildCx<'_>, surface: Surface, size: Vec2, tokens: &Arc<Tokens>) -> DisplayList {
+fn record_frame(cx: &mut BuildCx<'_>, surface: Surface, size: Vec2, tokens: &Arc<Tokens>, rtl: bool) -> DisplayList {
     if surface == Surface::Plain {
         return DisplayList::default();
     }
@@ -424,9 +448,23 @@ fn record_frame(cx: &mut BuildCx<'_>, surface: Surface, size: Vec2, tokens: &Arc
     let ui_tokens = UiTokens::new(tokens.clone(), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
     let canvas = Canvas::new(&services, Pos2::ZERO, Rect::EVERYTHING);
     let record = RefCell::new(PaintRecord::default());
-    let draw = Draw::new(&canvas, &record, DrawEnv { tokens: &ui_tokens, direction: Direction::Ltr, ink: Ink::OnPanel });
+    let draw =
+        Draw::new(&canvas, &record, DrawEnv { tokens: &ui_tokens, direction: if rtl { Direction::Rtl } else { Direction::Ltr }, ink: Ink::OnPanel });
     draw.surface(Rect::from_min_size(Pos2::ZERO, size), SurfaceKind::Popup, Corners::All);
     canvas.finish().0
+}
+
+/// The corner radii of a popup surface under `tokens`, as the frame the body's surfaces meet.
+fn popup_radii(tokens: &Arc<Tokens>) -> CornerRadii {
+    let ui_tokens = UiTokens::new(tokens.clone(), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
+    let r = crate::style::surface_style(&ui_tokens, SurfaceKind::Popup).radius;
+    CornerRadii { top_left: f32::from(r.nw), top_right: f32::from(r.ne), bottom_right: f32::from(r.se), bottom_left: f32::from(r.sw) }
+}
+
+/// Whether the flow direction of the node `cx` builds is right to left. A tracked read: the node
+/// builds again when the direction changes.
+fn is_rtl(cx: &mut BuildCx<'_>) -> bool {
+    EnvCells::of(cx).is_some_and(|cells| cells.direction.get(cx) == Direction::Rtl)
 }
 
 /// What the `overlay` hook gets: the component's popups and their open state, shown as layer
@@ -461,7 +499,8 @@ impl<'u, 'c> OverlayUi<'u, 'c> {
         tokens: Arc<Tokens>,
         sweep: Option<State<Sweep>>,
     ) -> Self {
-        OverlayUi { cx, owner, anchor, popups, owner_ran, rtl: false, tokens, sweep, closed: SmallVec::new(), changed: false }
+        let rtl = is_rtl(cx);
+        OverlayUi { cx, owner, anchor, popups, owner_ran, rtl, tokens, sweep, closed: SmallVec::new(), changed: false }
     }
 
     /// Whether `popup` is open.

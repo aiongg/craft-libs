@@ -76,7 +76,7 @@ pub use text::{
     FaceInstall, FontFace, FontSpec, GlyphPlace, Overflow, RichText, TextEngine, TextFormat, TextHandle, TextLayout, TextLine, TextMetrics, TextRow,
     TextSection, TextSpec, TextWrap, overflow_text,
 };
-pub use window::{Env, WindowGeometry};
+pub use window::{Env, PointerFacts, WindowGeometry};
 
 pub use craft_behavior::{
     CopyKeys, CursorIcon, DropOperation, PointerButton, PointerKind, PointerSample, PressCancel, Sense, WheelPhase, WheelSource, WheelUnit,

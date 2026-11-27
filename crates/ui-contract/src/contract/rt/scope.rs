@@ -53,6 +53,9 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
         kept.env = Some(cells);
         kept.window_root = true;
         cx.provide(cells);
+        let ids = cx.slot("craft-node-ids", super::ids::NodeIds::default);
+        let ids = cx.peek_state(ids).clone();
+        cx.provide(ids);
         if let Some(jobs) = host.jobs {
             cx.provide(jobs);
         }
@@ -206,6 +209,7 @@ pub(crate) fn show_scope<R: Clone + 'static>(
                 cx.request_layout();
             }
             kept.id = id;
+            kept.note_id(cx, id);
             kept.place = place;
             if scope.memo.is_some() {
                 kept.key = Some(u128::from(key));

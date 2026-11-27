@@ -175,6 +175,13 @@ impl Services for NoServices {
     fn image(&self, _: ImageKey, _: ImageOptions, _: &mut dyn FnMut() -> Arc<RgbaImage>) {}
 }
 
+/// A place in a canvas's record ([`Canvas::mark`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CanvasMark {
+    over: bool,
+    at: usize,
+}
+
 /// One component's paint as display items: the list under its children and the one over them, in the node's
 /// coordinates (window coordinates less `origin`).
 pub struct Canvas<'a> {
@@ -241,6 +248,28 @@ impl<'a> Canvas<'a> {
     /// Takes what was recorded so far, leaving the canvas empty.
     pub fn take(&self) -> (DisplayList, DisplayList) {
         (std::mem::take(&mut *self.content.borrow_mut()), std::mem::take(&mut *self.overlay.borrow_mut()))
+    }
+
+    /// The place the next recorded item goes: [`take_since`](Self::take_since) takes what is recorded after it. A
+    /// painter that must put its own items under what a body paints after it (a picture under the controls) marks
+    /// first, lets the body paint, takes the body's items, records its own, and puts the body's back.
+    pub fn mark(&self) -> CanvasMark {
+        let over = self.over.get();
+        let at = if over { self.overlay.borrow().items.len() } else { self.content.borrow().items.len() };
+        CanvasMark { over, at }
+    }
+
+    /// Takes out the items recorded since `mark`, in window coordinates and the fade already applied: recording them
+    /// again with [`extend`](Self::extend) puts them back at the end, as drawn.
+    pub fn take_since(&self, mark: CanvasMark) -> Vec<Item> {
+        let list = if mark.over { &self.overlay } else { &self.content };
+        let mut list = list.borrow_mut();
+        let at = mark.at.min(list.items.len());
+        let mut taken = list.items.split_off(at);
+        for item in &mut taken {
+            super::items::translate(item, self.origin);
+        }
+        taken
     }
 
     /// Records `item` (local coordinates) at the current level.

@@ -38,6 +38,41 @@ pub struct Env {
     /// The running drag ([`DragInfo`]), the same cell in every window: a dock shows its drop
     /// zones while a panel drag runs.
     pub drag: State<Option<DragInfo>>,
+    /// The modifiers held at the window's last key, pointer or wheel event.
+    pub modifiers: State<craft_keymap::chord::Mods>,
+    /// The caps lock state as the platform last reported it ([`crate::WindowEvent::LockKeys`]).
+    pub caps_lock: State<bool>,
+    /// The num lock state as the platform last reported it.
+    pub num_lock: State<bool>,
+    /// Where the pointer is in the window and which buttons are down.
+    pub pointer: State<PointerFacts>,
+}
+
+/// The pointer as a window last saw it: written by the runtime's input handling, read through
+/// [`Env::pointer`]. A reader of it runs again at every move; hover and press facts of one node
+/// ([`crate::InteractFact`]) are the cheap reads.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PointerFacts {
+    /// The mouse or pen position, `None` while it is outside the window; the last touch contact's
+    /// while it is down.
+    pub pos: Option<Pos2>,
+    buttons: u8,
+}
+
+impl PointerFacts {
+    /// Whether `button` is down.
+    pub fn held(&self, button: craft_behavior::PointerButton) -> bool {
+        self.buttons & (1 << button as u8) != 0
+    }
+
+    pub(crate) fn set_held(&mut self, button: craft_behavior::PointerButton, down: bool) {
+        let bit = 1 << button as u8;
+        if down {
+            self.buttons |= bit;
+        } else {
+            self.buttons &= !bit;
+        }
+    }
 }
 
 /// Where a window is and how big, as the platform last reported.

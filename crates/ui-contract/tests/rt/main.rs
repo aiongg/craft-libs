@@ -8,6 +8,7 @@ mod focus;
 mod harness;
 mod id;
 mod input;
+mod int5b;
 mod items;
 mod layout;
 mod overlay;
