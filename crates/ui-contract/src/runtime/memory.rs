@@ -181,7 +181,8 @@ struct Staged {
 /// slots copied in on first use and back by [`MemoryStage::finish`]. It appears in the sealed `StageAccess`.
 #[doc(hidden)]
 pub struct MemoryStage {
-    ctx: Context,
+    /// The window's context: set when the stage is made for a run, or by [`MemoryStage::within`] for a node's kept stage.
+    ctx: Option<Context>,
     /// The component whose node the shown and press slots belong to.
     owner: Id,
     memory: Memory,
@@ -196,39 +197,59 @@ pub struct MemoryStage {
     pub(crate) motion: crate::runtime::motion::Motions,
 }
 
-impl MemoryStage {
-    /// The window's context.
-    #[doc(hidden)]
-    pub fn ctx(&self) -> &Context {
-        &self.ctx
-    }
-
-    /// Notes that the stage's component has a gesture running after its apply step, for `Ui::watch_gestures`. A
-    /// measuring run's stage notes nothing.
-    pub(crate) fn note_gesture_running(&self) {
-        if !self.peek_only {
-            self.ctx.memory().with(|memory| memory.edits.running += 1);
-        }
-    }
-
-    /// The serial and reason of the latest cancel of every running edit (`Ui::cancel_edits`); serial 0 before the
-    /// first. A gesture that began before the serial it last saw ends with the reason.
-    pub(crate) fn cancel_all(&self) -> (u64, Option<CancelReason>) {
-        self.ctx.memory().with(|memory| (memory.edits.cancel_serial, memory.edits.cancel_reason))
-    }
-
-    /// A stage over the node memory `memory` of the component `owner`; [`MemoryStage::finish`] hands it back.
-    pub(crate) fn on_node(ctx: &Context, owner: Id, memory: Memory) -> Self {
+/// A node's stage before its first run: [`MemoryStage::within`] gives it the window's context and its owner.
+impl Default for MemoryStage {
+    fn default() -> Self {
         MemoryStage {
-            ctx: ctx.clone(),
-            owner,
-            memory,
+            ctx: None,
+            owner: Id::NULL,
+            memory: Memory::default(),
             staged: Vec::new(),
             peek_only: false,
             appeared: false,
             face: false,
             motion: Default::default(),
         }
+    }
+}
+
+impl MemoryStage {
+    /// The window's context.
+    #[doc(hidden)]
+    pub fn ctx(&self) -> &Context {
+        self.ctx.as_ref().expect("a memory stage is used inside a run, which gives it the window's context (MemoryStage::within)")
+    }
+
+    /// The same stage for a run of `owner`'s node in the window of `ctx`: a node's kept stage gets both at the start of
+    /// every run.
+    pub(crate) fn within(mut self, ctx: &Context, owner: Id) -> Self {
+        self.ctx = Some(ctx.clone());
+        self.owner = owner;
+        self
+    }
+
+    /// A measuring run's stage over `base`, with no node behind it: nothing it changes is written back.
+    pub(crate) fn open_peek(ctx: &Context, base: Id) -> Self {
+        MemoryStage::open(ctx, base).peek_only()
+    }
+
+    /// Notes that the stage's component has a gesture running after its apply step, for `Ui::watch_gestures`. A
+    /// measuring run's stage notes nothing.
+    pub(crate) fn note_gesture_running(&self) {
+        if !self.peek_only {
+            self.ctx().memory().with(|memory| memory.edits.running += 1);
+        }
+    }
+
+    /// The serial and reason of the latest cancel of every running edit (`Ui::cancel_edits`); serial 0 before the
+    /// first. A gesture that began before the serial it last saw ends with the reason.
+    pub(crate) fn cancel_all(&self) -> (u64, Option<CancelReason>) {
+        self.ctx().memory().with(|memory| (memory.edits.cancel_serial, memory.edits.cancel_reason))
+    }
+
+    /// A stage over the node memory `memory` of the component `owner`; [`MemoryStage::finish`] hands it back.
+    pub(crate) fn on_node(ctx: &Context, owner: Id, memory: Memory) -> Self {
+        MemoryStage { memory, ..MemoryStage::default() }.within(ctx, owner)
     }
 
     /// A stage with no node behind it, for code that keeps session or saved slots only: its shown slots last for the
@@ -289,7 +310,7 @@ impl MemoryStage {
         let at = match self.staged.iter().position(|s| s.ty == ty && s.id == id && s.saved == saved) {
             Some(at) => at,
             None => {
-                let (value, persist) = load(&self.ctx);
+                let (value, persist) = load(self.ctx());
                 self.staged.push(Staged { ty, id, saved, value: Box::new(value), persist });
                 self.staged.len() - 1
             }
@@ -315,14 +336,16 @@ impl MemoryStage {
         })
     }
 
-    /// Writes the staged session and saved slots back to the window and the host (unless this is a measuring run's
-    /// stage) and hands back the node's memory.
-    pub(crate) fn finish(self) -> Memory {
-        if self.peek_only {
-            return self.memory;
+    /// Writes the staged session and saved slots back to the runtime's store and the host (unless this is a measuring
+    /// run's stage) and empties the stage of them; the node's memory stays. A node's kept stage is flushed at the end of
+    /// each run, so the next run (in this window or another) reads the store again.
+    pub(crate) fn flush(&mut self) {
+        let staged = std::mem::take(&mut self.staged);
+        if self.peek_only || staged.is_empty() {
+            return;
         }
         // The host's settings store takes its own locks: values persist before the window's memory is borrowed.
-        for staged in &self.staged {
+        for staged in &staged {
             let Some(p) = &staged.persist else { continue };
             let after = (p.form)(&*staged.value);
             if after == p.before {
@@ -333,14 +356,23 @@ impl MemoryStage {
                 None => forget_stored(&p.host, &p.key),
             }
         }
-        let staged = self.staged;
-        self.ctx.memory().with(|host| {
-            for staged in staged {
-                let map = if staged.saved { &mut host.saved } else { &mut host.session };
-                map.insert((staged.ty, staged.id), staged.value);
-            }
+        // Replaced values drop outside the borrow: a slot's drop may reach the runtime's memory.
+        let replaced: Vec<Box<dyn Any>> = self.ctx().memory().with(|host| {
+            staged
+                .into_iter()
+                .filter_map(|staged| {
+                    let map = if staged.saved { &mut host.saved } else { &mut host.session };
+                    map.insert((staged.ty, staged.id), staged.value)
+                })
+                .collect()
         });
-        self.memory
+        drop(replaced);
+    }
+
+    /// [`MemoryStage::flush`], then hands back the node's memory.
+    pub(crate) fn finish(mut self) -> Memory {
+        self.flush();
+        std::mem::take(&mut self.memory)
     }
 
     /// Writes the stage back, for a stage with no node: its shown slots go with it.

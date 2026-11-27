@@ -492,15 +492,23 @@ pub(crate) fn log_env_read(cells: EnvCells, scale: State<f32>, focused: State<bo
 }
 
 impl crate::contract::CxCore<'_> {
-    /// The state of `key`'s picture at `revision` in `store`, read from a hook: the read is tracked through the run's
-    /// read log, so this node runs again when a job answers for `key`, and a leaf reads its own thumbnail with no
-    /// prop. One read path with `TextureStore::state` underneath (the cache side: `TextureStore::state_logged`).
+    /// The state of `key`'s picture at `revision` in `store`, read from a hook. The answer is the cache's state now;
+    /// the tracked read ([`TextureStore::state`](crate::primitives::textures::TextureStore::state)) goes through the
+    /// run's read log and is made with the node's `BuildCx` when its build ends, so this node runs again when a job
+    /// answers for `key` (or in the next frame, while a picture waits for the image store), and a leaf reads its own
+    /// thumbnail with no prop.
     pub fn texture_state<K: crate::primitives::textures::TextureKey>(
         &self,
         store: &crate::primitives::textures::TextureStore<K>,
         key: &K,
         revision: crate::primitives::textures::Revision,
     ) -> crate::primitives::textures::TextureState {
-        store.state_logged(key, revision)
+        let now = self.memory.ctx().time();
+        let state = crate::primitives::textures::TextureState::of(store.cache().look(key, revision), store.cache().waited(key, now));
+        let (store, key) = (store.clone(), key.clone());
+        log_build_read(move |cx| {
+            store.state(cx, &key, revision);
+        });
+        state
     }
 }

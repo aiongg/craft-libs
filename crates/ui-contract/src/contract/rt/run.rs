@@ -202,7 +202,7 @@ pub(crate) fn show_shaped<C: Component>(
         let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child));
         let node = peeked.as_ref().map(|p| p.node);
         let cached = peeked.filter(|p| !shaped && holds(p.local, key, p.state)).and_then(|p| p.local.cached(room));
-        let mut stage = MemoryStage::default();
+        let mut stage = MemoryStage::open_peek(&ui.ctx, id);
         let value = steps::value(&mut component, &mut stage, id, command.as_deref());
         hooks.read(&mut component, &mut stage, id, &begun.env);
         let ctx = ui.ctx.clone();
@@ -217,8 +217,10 @@ pub(crate) fn show_shaped<C: Component>(
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
-            // The stage answers `appeared` for the run that created the node.
-            kept.memory = std::mem::take(&mut kept.memory).appearing(state.new);
+            // The kept stage runs in this window for this node, and answers `appeared` for the run that created the
+            // node; its session and saved slots go back to the runtime's store when the run ends.
+            kept.memory = std::mem::take(&mut kept.memory).within(&context, id).appearing(state.new);
+            let out = (|| {
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             hooks.read(&mut component, &mut kept.memory, id, &begun.env);
             // A shape's step 5 runs whenever the build reaches it: its content (a collection's rows)
@@ -268,6 +270,9 @@ pub(crate) fn show_shaped<C: Component>(
                 },
                 hooks,
             )
+            })();
+            kept.memory.flush();
+            out
         })
     })
 }
@@ -384,7 +389,7 @@ pub(crate) fn finish_measured<C: Component>(
 ) -> C::Output {
     let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
     let resolved = begun.resolved(id);
-    let mut stage = MemoryStage::default();
+    let mut stage = MemoryStage::open_peek(&context, id);
     let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;
