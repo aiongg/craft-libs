@@ -53,12 +53,17 @@ const ROLE: TypeRole = TypeRole::Body;
 
 /// The height the empty text of `props.empty` takes at `width`, padding included, in `tokens`: the collection's, which
 /// its own token scope sets.
-pub(in crate::contract) fn height(ui: &Ui, tokens: &UiTokens, text: &Label, width: f32) -> f32 {
+pub(in crate::contract) fn height(ui: &mut Ui, tokens: &UiTokens, text: &Label, width: f32) -> f32 {
     let env = Env::of(ui);
     let text = env.view().resolve(text);
-    let layout_env = TextEnv { tokens, direction: env.text_direction, ink: ink_color(tokens, env.ink), fonts: peek_stack_facts(ui.cx) };
     let pad = EmptyText::padding(tokens, control_metrics(tokens, env.size, env.line_ratio).pad_x);
-    EmptyText::run(text.as_str()).layout(ui.ctx(), &layout_env, (width - pad.start - pad.end).max(0.0)).size().y + pad.top + pad.bottom
+    let build = ui.build_cx();
+    let scale = build.scale();
+    let fonts = peek_stack_facts(build);
+    let (engine, images) = build.paint_services();
+    let services = crate::primitives::FrameServices::new(engine, images, scale, fonts);
+    let layout_env = TextEnv { tokens, direction: env.text_direction, ink: ink_color(tokens, env.ink), fonts };
+    EmptyText::run(text.as_str()).layout(&services, &layout_env, (width - pad.start - pad.end).max(0.0)).size().y + pad.top + pad.bottom
 }
 
 /// Shows the empty text of `props.empty` in `rect`.

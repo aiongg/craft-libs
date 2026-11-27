@@ -1,13 +1,11 @@
 //! The lead and the selection: picks, ranges, and where the lead starts and follows.
 
 use super::{ItemsHooks, Placement, members};
-use crate::contract::Context;
 use crate::contract::collection::{CollectionEvent, HoverLead, LeadOnOpen, LeadSource, ListDrag, SelectMode};
-use crate::contract::{Collection, Cx};
+use crate::contract::{Collection, Cx, Ui};
 use crate::primitives::Id;
 use crate::runtime::memory::sub;
-use crate::runtime::{drag, pointer};
-use craft_behavior::{Flow, ItemLayout, PointerEvent, SelectionChange, SelectionModel, Sense};
+use craft_behavior::{Flow, ItemLayout, SelectionChange, SelectionModel, Sense};
 use craft_keymap::Mods;
 use craft_ui_rt::Pos2;
 use craft_ui_rt::Rect;
@@ -197,15 +195,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
-    /// The row under the pointer while it is over the collection and the row can be picked and shows: the row whose
-    /// `ROW` part contains it.
-    fn hovered_row(&self, cx: &Cx<'_, C>, layout: &C::ItemLayout) -> Option<usize> {
-        if !cx.core.response.hovered() {
-            return None;
-        }
-        self.row_under_pointer(cx.context(), cx.core.id).filter(|&row| self.source.enabled(row) && !self.source.is_section(row) && layout.shown(row))
-    }
-
     /// The row under `pos` (screen space) in the rows' placement `at`: the drag-select step maps the drag session's
     /// pointer with it.
     pub(super) fn row_under(&self, layout: &C::ItemLayout, at: Placement, pos: Pos2) -> Option<usize> {
@@ -223,15 +212,18 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// The lead follows a moving pointer over the rows; with `HoverLead::LeadAndSelection` the selection follows the
-    /// lead the way it does for the arrow keys. A pass moves the pointer when it holds a move event: the pointer entering over a row moves the lead
-    /// with no movement to measure, and a modifier change under a resting pointer leaves the lead where the keys put it.
-    pub(super) fn hover_lead(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, hover: HoverLead) {
-        let moved =
-            crate::runtime::pointer::with_pass_raw(cx.context(), |pass| pass.events.iter().any(|event| matches!(event, PointerEvent::Moved { .. })));
-        if !moved {
+    /// lead the way it does for the arrow keys. The pointer moved when the tracked hover point (`Cx::hover_point`, which
+    /// runs the collection once per move) differs from the one the last run saw: the pointer entering over a row moves
+    /// the lead with no movement to measure, and a run under a resting pointer (a modifier change, rows scrolled under
+    /// it) leaves the lead where the keys put it.
+    pub(super) fn hover_lead(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, hover: HoverLead) {
+        let pos = cx.hover_point();
+        let slot = sub(cx.core.id, "hover lead point");
+        let before = std::mem::replace(cx.core.memory.shown::<Option<Pos2>>(slot), pos);
+        if pos == before {
             return;
         }
-        let Some(row) = self.hovered_row(cx, layout) else { return };
+        let Some(row) = pos.and_then(|pos| self.row_under(layout, at, pos)) else { return };
         if self.lead.key.as_ref() != Some(&self.source.key(row)) {
             self.move_lead(row, LeadSource::Pointer);
             if hover == HoverLead::LeadAndSelection {
@@ -241,12 +233,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// The pointer resting on the lead row for the tooltip delay reports `CollectionEvent::Rested`, once per lead
-    /// change. Motion inside the row does not restart the timer, as for a tooltip.
-    pub(super) fn rest_lead(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout) {
+    /// change. Motion inside the row does not restart the timer, as for a tooltip. The hover read is the lead row's
+    /// own (its node's `Hovered` fact, or a member row's part as the collection's hovered part), so the collection
+    /// runs when the pointer enters or leaves the lead row, not at every move.
+    pub(super) fn rest_lead(&mut self, ui: &mut Ui, cx: &mut Cx<'_, C>) {
         let lead = self.lead.key.clone();
-        let over = self.hovered_row(cx, layout);
-        let held = lead.is_some() && self.lead.rested != lead && over.is_some_and(|row| lead.as_ref() == Some(&self.source.key(row)));
-        let (ctx, id) = (cx.context().clone(), cx.core.id);
+        let id = cx.core.id;
+        let held = lead.is_some() && self.lead.rested != lead && lead.as_ref().is_some_and(|key| lead_hovered::<C>(ui, id, key));
         if crate::contract::overlay::dwell(&mut cx.core, id, "rest", held, crate::contract::tooltip::DELAY)
             && let Some(key) = lead
         {
@@ -261,16 +254,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// (a tab's close button) under the pointer. A row that comes under a still pointer because the rows scrolled
     /// starts no wait until the pointer moves.
     pub(super) fn drag_select(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {
-        let (ctx, id) = (cx.context().clone(), cx.core.id);
-        let foreign = drag::running(&ctx)
-            && drag::active_of(&ctx, TypeId::of::<ListDrag<C::Key>>()).is_none()
-            && !comp.drops().iter().any(|kind| drag::active_of(&ctx, kind.payload()).is_some());
-        let pos = drag::session_pointer(&ctx).filter(|_| foreign);
+        let id = cx.core.id;
+        let own = cx.core.dragging_of(TypeId::of::<ListDrag<C::Key>>()).is_some()
+            || comp.drops().iter().any(|kind| cx.core.dragging_of(kind.payload()).is_some());
+        let pos = if own { None } else { foreign_drag_pointer(&cx.core) };
         let slot = sub(id, "drag rest row");
         let before = *cx.core.memory.shown::<DragRest>(slot);
         let target = pos
             .and_then(|pos| self.row_under(layout, at, pos).map(|row| (pos, row)))
-            .filter(|&(pos, row)| !self.holds(row) && !self.over_pressing_part(&ctx, id, row, pos))
+            .filter(|&(pos, row)| !self.holds(row) && !over_pressing_part(&cx.core, pos))
             .map(|(_, row)| row)
             .filter(|row| before.pointer != pos || before.row == Some(*row));
         *cx.core.memory.shown::<DragRest>(slot) = DragRest { pointer: pos, row: target };
@@ -284,14 +276,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.move_lead(row, LeadSource::Pointer);
             self.pick(comp, row, false, false);
         }
-    }
-
-    /// Whether a part of the row `row` that presses (a tab's close button) lies under `pos`, in the collection `id`.
-    fn over_pressing_part(&self, ctx: &Context, id: Id, row: usize, pos: Pos2) -> bool {
-        let item = members::item_id(id, &self.source.key(row));
-        pointer::shapes_at(ctx, pos)
-            .into_iter()
-            .any(|(owner, part)| owner == item && part.is_some_and(|part| pointer::part_senses(ctx, owner, part, Sense::CLICK)))
     }
 
     /// A lead whose key left the source moves to the host's current item when the source holds it, with no report: the
@@ -315,4 +299,30 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.lead.at = at;
         }
     }
+}
+
+/// Whether the pointer is over the lead row `key` of the collection `id`: a band row's node `Hovered` fact, or for
+/// member rows the collection's hovered part being the row's. Both are tracked reads that flip only when the pointer
+/// enters or leaves that row.
+fn lead_hovered<C: Collection>(ui: &mut Ui, id: Id, key: &C::Key) -> bool {
+    if !C::MEMBERS {
+        return ui.hovers(members::item_id(id, key));
+    }
+    let hash = super::key_hash(key);
+    let cx = ui.build_cx();
+    let Some(node) = crate::contract::rt::ids::node_of(cx, id) else { return false };
+    let hovered = cx.read_hovered_part(node);
+    [super::ROW.at(hash), super::ITEM_NODE.at(hash)].into_iter().any(|part| hovered == Some(crate::contract::rt::node::part_id(part)))
+}
+
+/// Whether a part of a member row that presses (a tab's close button) lies under `pos`: the collection's declared
+/// parts other than the row areas.
+fn over_pressing_part(core: &crate::contract::CxCore<'_>, pos: Pos2) -> bool {
+    core.results.iter().any(|(&(key, _), result)| !super::row_area(key) && result.sense.contains(Sense::CLICK) && result.rect.contains(pos))
+}
+
+/// The pointer of a drag session running over the collection whatever its payload, in window coordinates.
+fn foreign_drag_pointer(core: &crate::contract::CxCore<'_>) -> Option<Pos2> {
+    let _ = core;
+    todo!("the running drag session's pointer over this node for any payload, tracked (the drag session read the driver hands the run), INT-1f")
 }

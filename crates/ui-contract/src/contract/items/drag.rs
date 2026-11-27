@@ -280,8 +280,9 @@ impl SweepApply {
 pub(super) struct Drags<K> {
     /// The row a row drag started on: it stays built while scrolled out of view.
     pub(super) grabbed: Option<K>,
-    /// When the run that last stepped the edge scroll ran; `None` while the pointer is in no edge band.
-    pub(super) edge_at: Option<f64>,
+    /// The rate (points per second, signed) the rows view glides at for a drag or marquee in an edge band; zero
+    /// while none is.
+    pub(super) edge_rate: f32,
     sweep: Option<Sweep<K>>,
     moving: Option<GestureId>,
     /// The drop a release would make this pass.
@@ -328,7 +329,7 @@ impl<K> Default for Drags<K> {
     fn default() -> Self {
         Drags {
             grabbed: None,
-            edge_at: None,
+            edge_rate: 0.0,
             sweep: None,
             moving: None,
             pending: None,
@@ -412,33 +413,27 @@ fn cancel_reason(cancel: PressCancel) -> CancelReason {
     }
 }
 
-/// How soon an edge scroll asks to run again while the pointer stays in an edge band.
-const EDGE_FRAME: std::time::Duration = std::time::Duration::from_millis(16);
-
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Scrolls the rows while the pointer, `y` below the rows' top edge, is within a row of an edge of the `view`,
     /// faster the further past it, up to `EDGE_ROWS_PER_SECOND` a full band in or beyond the edge: the rate of a row
-    /// drag or a marquee near the edge of a scroll region. It asks for the next frame only while the pointer is in or
-    /// past a band, so a drag held over the middle rests.
-    ///
-    /// The step is the time since the run that last stepped (none for the first): a run in the same frame steps by
-    /// nothing. The moved offset reaches the rows view through `jump_to` (`content`).
-    pub(super) fn edge_scroll(&mut self, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32, y: f32) {
+    /// drag or a marquee near the edge of a scroll region. The run notes the rate; `edge_glide` turns a change of it
+    /// into a glide of the rows view, which ui-rt pays out in layout with no run while the pointer rests in the band.
+    pub(super) fn edge_scroll(&mut self, layout: &C::ItemLayout, view: f32, y: f32) {
         if !self.scrolls || self.source.is_empty() {
             return;
         }
         let row = layout.rect(0, ScrollPos::default()).height();
-        // The step is linear in the time, so the rate for one second says whether the pointer is in a band.
-        let rate = reorder::edge_step(view, row, y, 1.0);
-        if rate == 0.0 {
-            self.drags.edge_at = None;
-            return;
+        // The step is linear in the time, so the step for one second is the rate.
+        self.edge_rate = reorder::edge_step(view, row, y, 1.0);
+    }
+
+    /// Starts, changes or stops the rows view's glide when this run's edge rate (`edge_scroll`; zero when no drag or
+    /// marquee sits in an edge band) differs from the one the glide runs at.
+    pub(super) fn edge_glide(&mut self) {
+        if self.edge_rate != self.drags.edge_rate {
+            self.drags.edge_rate = self.edge_rate;
+            self.glide = Some(Vec2::new(0.0, self.edge_rate));
         }
-        let now = cx.context().time();
-        let dt = self.drags.edge_at.map_or(0.0, |at| (now - at).clamp(0.0, 0.1)) as f32;
-        self.drags.edge_at = Some(now);
-        cx.context().request_repaint_after(EDGE_FRAME);
-        self.offset = (self.offset + f64::from(rate * dt)).clamp(0.0, self.max_offset(view));
     }
 
     /// `at` in the layout's logical coordinates, relative to the rows' rect.
@@ -722,7 +717,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 continue;
             };
             if !own {
-                self.edge_scroll(cx, layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
+                self.edge_scroll(layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
             }
             // The drag session routes the drag to the innermost target that takes it: this run sees it only then.
             match cx.core.drop_target_of(kind.payload(), &KindDrop { mark }) {
@@ -793,7 +788,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 // its full rate past an edge.
                 let point = layer(at);
                 if rect.x_range().contains(point.x) {
-                    self.edge_scroll(cx, layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
+                    self.edge_scroll(layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
                 }
                 let groups = rule.into_groups && matches!(layout.nav(), NavShape::Tree);
                 let step = groups.then(|| cx.env.control(cx.core.resolved.size).icon);
@@ -808,7 +803,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 if let Some(landed) = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy }) {
                     self.land(cx, &payload, landed, groups);
                 } else if let Some(spot) = spot {
-                    let op = craft_behavior::drop_operation(cx.context().os(), cx.context().modifiers(), copy.unwrap_or_default());
+                    let op = craft_behavior::keys::drop_operation(cx.context().os(), cx.context().modifiers(), copy.unwrap_or_default());
                     if copy.is_some() || !matches!(op, DropOperation::Copy) {
                         self.drags.pending = self.own_move(&payload, Landed { spot, op }, groups).map(|(_, after)| PendingDrop::Reorder(after));
                     }

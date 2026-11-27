@@ -4,6 +4,7 @@ use super::{ITEM_NODE, ItemsHooks, Placement, SECTION, TOGGLE_CELL, key_hash, se
 use crate::contract::Context;
 use crate::contract::collection::{ActivateOn, CollectionEvent, LeadSource, OpenChange};
 use crate::contract::cx::Pointer as _;
+use crate::contract::rt::items::RowsView;
 use crate::contract::{Collection, Cx};
 use crate::primitives::Id;
 use crate::runtime::access::{self, Role};
@@ -15,13 +16,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// The access sub-node of each toggle cell of row `(at, key)`, named by its cell, else by its column's header, and carrying its state,
     /// below the row's node for the cell, else the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
     pub(super) fn report_toggle_cells(
-        &self,
+        &mut self,
         ctx: &Context,
-        (id, item): (Id, Id),
+        item: Id,
         (at, key): (usize, &C::Key),
         (cells, enabled): (&[(ColumnKey, Rect)], bool),
         env: &crate::runtime::env::EnvView<'_>,
     ) {
+        let mut sub_nodes = std::mem::take(&mut self.sub_nodes);
         for (column, toggle) in self.header.toggle_columns() {
             let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
             let Some(cell) = self.header.toggle_cell(ctx, item, &column, env) else { continue };
@@ -34,49 +36,47 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             node.name = access::Name::Text(cell.name);
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             node.flags.set(crate::style::Flags::MIXED, cell.mixed);
+            node.disabled = !(enabled && self.source.enabled(at) && self.toggle_open(at, &column));
+            node.bounds(*rect);
             if let Some(chord) = toggle.key {
                 node.shortcut(chord.display(ctx.os()));
             }
-            let decl = access::SubDecl {
-                owner: id,
-                component: "",
-                node: &node,
-                rect: *rect,
-                enabled: enabled && self.source.enabled(at) && self.toggle_open(at, &column),
-                focusable: false,
-                clickable: true,
-                active: false,
-                face: None,
-                label: "",
-                parent: cell.cell,
-            };
-            access::report_sub(ctx, &decl);
+            // A member row is a sub-node of the collection, so its cells nest below it; a band row is a node of its
+            // own, which the collection's sub-nodes cannot nest under.
+            if C::MEMBERS {
+                node.under(ITEM_NODE.at(key_hash(key)));
+            }
+            sub_nodes.push(node);
         }
+        self.sub_nodes = sub_nodes;
     }
 
     /// The collection's node for the section row `at` that the component does not lay out itself: a heading named by
     /// the row's text, expandable when it has children, that serves Click, Expand and Collapse.
-    pub(super) fn report_section_node(&self, ctx: &Context, id: Id, at: usize, rect: Rect, enabled: bool) {
+    pub(super) fn report_section_node(&mut self, at: usize, rect: Rect, enabled: bool) {
         let mut node = access::SubNode::new(section_part(&self.source.key(at)), Role::HEADING);
         node.name = access::Name::Text(self.source.text(at).map(|text| text.into_owned()).unwrap_or_default());
         node.level(self.source.depth(at) + 1);
         if self.source.has_children(at) {
             node.expanded = Some(self.source.open(at));
         }
-        let decl = access::SubDecl {
-            owner: id,
-            component: "",
-            node: &node,
-            rect,
-            enabled: enabled && self.source.enabled(at),
-            focusable: false,
-            clickable: true,
-            active: false,
-            face: None,
-            label: "",
-            parent: id,
-        };
-        access::report_sub(ctx, &decl);
+        node.disabled = !(enabled && self.source.enabled(at));
+        node.bounds(rect);
+        self.sub_nodes.push(node);
+    }
+
+    /// The sub-nodes the rows declared this run (toggle cells, section rows the component does not lay out), for the
+    /// collection's access hook on the driver seam.
+    pub(super) fn access_nodes(&self, access: &mut access::Access) {
+        access.nodes.extend(self.sub_nodes.iter().cloned());
+    }
+
+    /// The rows the last build reached, as the rows view at the kept offset bands them, with the rows a gesture holds:
+    /// the rows whose nodes and sub-nodes AccessKit requests can name.
+    fn built_rows(&self, layout: &C::ItemLayout, place: Placement) -> Vec<usize> {
+        let mut band = Vec::new();
+        RowsView::new(place.rect, place.offset, self.scrolls).band_rows(layout, &mut band);
+        self.held_rows(layout, band).1
     }
 
     /// AccessKit requests on an item row's node or on a section row's collection node (`report_section_node`): Focus
@@ -91,8 +91,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         place: Placement,
     ) {
         use craft_behavior::AccessAction;
-        let (_, built) = self.built(layout, place.rect, place.offset);
-        let rows: Vec<(u64, usize)> = built
+        let rows: Vec<(u64, usize)> = self
+            .built_rows(layout, place)
             .into_iter()
             .filter(|&at| !self.source.section_stop(at) || cx.part_if_declared(section_part(&self.source.key(at))).is_none())
             .map(|at| (key_hash(&self.source.key(at)), at))
@@ -147,8 +147,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         };
         while let Some(request) = cx.core.intents.take_access_where(wanted) {
             let Some(part) = request.target else { continue };
-            let (_, built) = self.built(layout, place.rect, place.offset);
-            let found = built.into_iter().find_map(|at| {
+            let found = self.built_rows(layout, place).into_iter().find_map(|at| {
                 let key = self.source.key(at);
                 self.header
                     .toggle_columns()

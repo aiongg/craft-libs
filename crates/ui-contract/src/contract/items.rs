@@ -278,6 +278,12 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     row_parts: Vec<(u64, usize, Rect)>,
     /// The member rows' recorded looks this run (`MEMBERS`), which the driver keeps on the collection's node.
     member_looks: Vec<crate::contract::rt::items::MemberLooks>,
+    /// The edge scroll rate a drag or marquee in an edge band asked for this run (`edge_scroll`), zero for none.
+    edge_rate: f32,
+    /// The glide velocity of the rows view this run starts, changes or stops (`edge_glide`), applied in `content`.
+    glide: Option<Vec2>,
+    /// The access sub-nodes the rows declared this run (toggle cells, the collection's section headings).
+    sub_nodes: Vec<crate::runtime::access::SubNode>,
 }
 
 /// The primary-ness, click count, position in the layout's coordinates and scroll offset of a press on a row.
@@ -343,6 +349,9 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             edges: Vec::new(),
             row_parts: Vec::new(),
             member_looks: Vec::new(),
+            sub_nodes: Vec::new(),
+            edge_rate: 0.0,
+            glide: None,
         }
     }
 }

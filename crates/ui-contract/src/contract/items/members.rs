@@ -61,7 +61,7 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
                 cx.core.member_tip = ran.tip;
             }
             if let Some(shown) = shown_rows.get_mut(shown) {
-                shown.openers = self.item_openers(ui, ctx, id, enabled, openers);
+                shown.openers = self.item_openers(ui, cx.core.input(), enabled, openers);
             }
             let label = ran.output.label_rect().unwrap_or(row);
             self.report_item_output(ctx, id, &key, ran.output);

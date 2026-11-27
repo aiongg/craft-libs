@@ -810,7 +810,7 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall. The
     /// default is the height of `CollectionProps::empty` laid out at `width`; an override replaces the empty text, so
     /// it replaces `empty` as well.
-    fn empty_height(&self, width: f32, ui: &Ui, cx: &StyleCx<'_>) -> f32 {
+    fn empty_height(&self, width: f32, ui: &mut Ui, cx: &StyleCx<'_>) -> f32 {
         self.items().empty.as_ref().map_or(0.0, |text| items::empty_text::height(ui, cx.tokens, text, width))
     }
 

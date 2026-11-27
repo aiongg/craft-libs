@@ -2,10 +2,9 @@
 //! it touches become the selection the drag started from, changed the way the held modifiers say.
 
 use super::ItemsHooks;
-use crate::contract::Ui;
+use crate::contract::PaintUi;
 use crate::contract::collection::{CollectionProps, SelectMode};
 use crate::contract::{Collection, Cx};
-use crate::runtime::env::Env;
 use craft_behavior::{ItemLayout, MarqueeSelect, PointerButton, PressPhase, ScrollPos, SelectionChange};
 use craft_ui_rt::Pos2;
 use craft_ui_rt::Rect;
@@ -58,7 +57,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 if let Some(mut marquee) = self.drags.marquee.take() {
                     marquee.live = true;
                     let at = Self::logical(layout, rect, rtl, layer(pos));
-                    self.edge_scroll(cx, layout, rect.height(), at.y);
+                    self.edge_scroll(layout, rect.height(), at.y);
                     let now = ScrollPos { x: offset.x, y: self.offset };
                     marquee.select.update(content_point(at, now));
                     self.sweep_marquee(layout, &mut marquee);
@@ -97,16 +96,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
-    /// Paints the marquee rectangle over the rows with the overlay marquee look.
-    pub(super) fn paint_marquee(&self, ui: &Ui, env: &Env, layout: &C::ItemLayout, (rect, offset, rtl): (Rect, ScrollPos, bool)) {
+    /// Paints the marquee rectangle over the rows with the overlay marquee look: into the overlay list of the
+    /// collection's paint, above the row nodes, clipped to the rows.
+    pub(super) fn paint_marquee(&self, ui: &PaintUi<'_>, layout: &C::ItemLayout, (rect, offset, rtl): (Rect, ScrollPos, bool)) {
         let Some(marquee) = self.drags.marquee.as_ref().filter(|marquee| marquee.live) else { return };
         let swept = marquee.select.rect().translate(-Vec2::new(offset.x as f32, offset.y as f32));
         let shown = self.to_screen(layout, rect, swept, rtl);
         let corners = [shown.left_top(), shown.right_top(), shown.right_bottom(), shown.left_bottom()].map(|corner| self.on_screen(corner));
-        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
-        crate::runtime::egui::text_layout::paint_items(
-            &painter,
-            &crate::primitives::marching_ants(&env.tokens, &corners, true, 0.0, painter.clip_rect(), painter.pixels_per_point()),
-        );
+        let canvas = ui.canvas;
+        canvas.over(|| {
+            canvas.push_clip(rect);
+            let ants = crate::primitives::marching_ants(&ui.env.tokens, &corners, true, 0.0, canvas.clip_rect(), canvas.pixels_per_point());
+            canvas.extend(ants);
+            canvas.pop_clip();
+        });
     }
 }
