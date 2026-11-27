@@ -176,6 +176,7 @@ pub struct LutPicker<'a> {
     /// The app's LUT folder (Preferences › File Handling › LUT Folder).
     #[prop(into)]
     folder: Option<PathBuf>,
+    #[key(skip)] // the file the run loaded from the choice
     loaded: Option<Result<LutFile, LutError>>,
     load_asked: bool,
 }
@@ -374,3 +375,5 @@ fn builtin_name(words: &LutWords, id: &str) -> Label {
 fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
+
+debug_key!(LutChoice);

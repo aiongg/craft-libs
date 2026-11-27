@@ -10,11 +10,12 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, Outcome,
     PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
+use craft_ui::primitives::items::{self, Mesh};
 use craft_ui::primitives::{Marker, MarkerSize, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, MarkerLook, StyleColor, StyleCx};
-use egui::{Color32, Mesh, Pos2, Response, Vec2};
+use egui::{Color32, Pos2, Response, Vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -228,10 +229,13 @@ pub struct ColorDisc<'a> {
     /// The markers' accessible names, in order; a marker without one is "Color N".
     #[prop(into)]
     names: Vec<Label>,
+    #[key(skip)] // a closure the run only calls
     stored: Option<&'a dyn Fn(usize, Srgba) -> Srgba>,
     pressed: Option<usize>,
     grabbed: Option<usize>,
+    #[key(skip)] // the run's output
     clicked: Option<DiscHit>,
+    #[key(skip)] // the run's output
     context: Option<DiscHit>,
 }
 
@@ -530,11 +534,11 @@ impl Component for ColorDisc<'_> {
         let patches = match self.look {
             DiscLook::Segmented => {
                 let (mesh, edges) = patch_mesh(center, radius, level, self.radius);
-                painter.painter.add(mesh);
+                painter.painter.extend(items::mesh(mesh));
                 edges
             }
             _ => {
-                painter.painter.add(disc_mesh(center, radius, level, self.radius));
+                painter.painter.extend(items::mesh(disc_mesh(center, radius, level, self.radius)));
                 Vec::new()
             }
         };
@@ -635,7 +639,7 @@ fn patch_mesh(center: Pos2, radius: f32, level: f32, kind: DiscRadius) -> (Mesh,
                 .map(|(side, edge)| ColorDisc::marker_pos(center, radius, hue + side * SECTOR_DEGREES / 2.0, edge as f32 / PATCH_RINGS as f32));
             let first = mesh.vertices.len() as u32;
             for corner in corners {
-                mesh.colored_vertex(corner, color);
+                mesh.colored_vertex(corner, items::rgba(color));
             }
             mesh.add_triangle(first, first + 1, first + 2);
             mesh.add_triangle(first, first + 2, first + 3);
@@ -648,12 +652,12 @@ fn patch_mesh(center: Pos2, radius: f32, level: f32, kind: DiscRadius) -> (Mesh,
 /// The smooth disc at `level`: a centre vertex and rings out to the rim, hue around.
 fn disc_mesh(center: Pos2, radius: f32, level: f32, kind: DiscRadius) -> Mesh {
     let mut mesh = Mesh::default();
-    mesh.colored_vertex(center, disc_color(kind, 0.0, 0.0, level));
+    mesh.colored_vertex(center, items::rgba(disc_color(kind, 0.0, 0.0, level)));
     for ring in 1..=RINGS {
         let s = ring as f32 / RINGS as f32;
         for k in 0..SEGMENTS {
             let hue = k as f32 * 360.0 / SEGMENTS as f32;
-            mesh.colored_vertex(ColorDisc::marker_pos(center, radius, hue, s), disc_color(kind, hue, s, level));
+            mesh.colored_vertex(ColorDisc::marker_pos(center, radius, hue, s), items::rgba(disc_color(kind, hue, s, level)));
         }
     }
     let at = |ring: u32, k: u32| if ring == 0 { 0 } else { 1 + (ring - 1) * SEGMENTS + k % SEGMENTS };
@@ -674,3 +678,5 @@ fn disc_mesh(center: Pos2, radius: f32, level: f32, kind: DiscRadius) -> Mesh {
 fn marker_size(base: bool) -> MarkerSize {
     if base { MarkerSize::Large } else { MarkerSize::Regular }
 }
+
+debug_key!(DiscMove, DiscLook, DiscRadius);

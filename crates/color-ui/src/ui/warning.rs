@@ -167,3 +167,5 @@ impl Component for ColorWarningChip<'_> {
         ColorWarningChipOutput { response: cx.response.clone(), clicked: self.clicked }
     }
 }
+
+debug_key!(ColorWarning, ColorWarningArrangement);

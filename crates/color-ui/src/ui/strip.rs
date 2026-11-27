@@ -9,11 +9,12 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx,
     Props as _, Role,
 };
+use craft_ui::primitives::items::{self, Mesh};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
-use egui::{CornerRadius, Mesh, Pos2, Rect, Vec2, pos2};
+use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -210,9 +211,9 @@ impl Component for ColorStrip<'_> {
                     let t = (row as f32 + 0.5) / QUANTIZE_CELLS as f32;
                     let top = rect.top() + row as f32 * height;
                     let color = snapped(self.color_at(&base, egui::lerp(max..=min, t)), levels);
-                    mesh.add_colored_rect(Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + height)), color.into());
+                    mesh.add_colored_rect(Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + height)), items::rgba(color.into()));
                 }
-                painter.painter.add(mesh);
+                painter.painter.extend(items::mesh(mesh));
             }
             None => {
                 let stops: Vec<(f32, DataColor)> = (0..=RAMP_STEPS)

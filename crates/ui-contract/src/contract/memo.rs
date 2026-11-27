@@ -1223,7 +1223,7 @@ macro_rules! debug_key {
     };
 }
 
-debug_key!(craft_behavior::canvas::RulerUnits, craft_behavior::MoveMods);
+debug_key!(craft_behavior::canvas::RulerUnits, craft_behavior::MoveMods, craft_theme::ModelValues);
 
 /// A component value held by another component's props, keyed by its own `ComponentKey`.
 pub struct KeyOf<'a, C: ComponentKey>(pub &'a C);

@@ -8,12 +8,12 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DragPreview, DropMark, DropOperation, DropTarget, Edit as _, EditResponse, Focus as _, MeasureCx,
     Meta as _, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use craft_ui::primitives::{Glyph, IconSpec, PaintShape, StrokeWidth, WellFill};
+use craft_ui::primitives::{Canvas, Glyph, IconSpec, PaintShape, StrokeWidth, WellFill, items};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, GlyphRole, StyleColor, StyleCx, SurfaceEdge, SurfaceStyle, UiTokens};
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Response, Shape, Stroke, StrokeKind, Vec2, pos2, vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, StrokeKind, Vec2, pos2, vec2};
 
 use super::paint_chip::{WellLook, paint_well};
 use super::popover::compact_picker;
@@ -254,21 +254,30 @@ pub struct SwatchPair<'a, P: Clone + Send + Sync + 'static = ()> {
     sampled: Option<Srgba>,
     /// Sets up the popup's picker.
     #[prop(func = "Fn(ColorPicker<'a>) -> ColorPicker<'a>")]
+    #[key(skip)] // a closure the run only calls
     picker: Option<PickerSetup<'a>>,
     /// The payload each well drags past the slop (`None`: that well drags nothing).
     drags: Option<[Option<P>; 2]>,
     /// What each well accepts of a dragged payload: the well is a drop target for the payloads this allows.
     #[prop(func = "Fn(Well, &P) -> bool")]
+    #[key(skip)] // a closure the run only calls
     accepts: Option<DropAccepts<'a, P>>,
+    #[key(skip)] // the run's output
     dropped: Option<(Well, P)>,
+    #[key(skip)] // the run's output
     over: Option<Well>,
+    #[key(skip)] // the run's output
     clicked: Option<Well>,
+    #[key(skip)] // the run's output
     double_clicked: Option<Well>,
     activated: bool,
     swap: bool,
     defaults: bool,
+    #[key(skip)] // the run's output
     edit: EditEvents<PickedColor>,
+    #[key(skip)] // the run's output
     edited: Option<Well>,
+    #[key(skip)] // the run's output
     screen_pick: Option<ScreenPickGesture>,
 }
 
@@ -747,7 +756,7 @@ impl Glyph for PairGlyph {
         true
     }
 
-    fn paint(&self, painter: &Painter, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool) {
+    fn paint(&self, painter: &Canvas<'_>, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool) {
         // Whole pixels, so the squares' edges stay sharp.
         let rect = Rect::from_min_size(rect.min.round_to_pixels(painter.pixels_per_point()), rect.size());
         let unit = rect.width() / GRID;
@@ -756,7 +765,7 @@ impl Glyph for PairGlyph {
             PairGlyph::Defaults => {
                 let square = |from: f32, to: f32| Rect::from_two_pos(at(from, from), at(to, to));
                 let corner = CornerRadius::from(unit);
-                let edge = Stroke::new(tokens.stroke.thin, color);
+                let width = tokens.stroke.thin;
                 let black = square(BLACK_AT, BLACK_AT + SQUARE);
                 // The white square shows only outside the black one and a unit's gap round it: two strips, each
                 // painted through a clip, so its outline runs along its outer sides only.
@@ -764,10 +773,13 @@ impl Glyph for PairGlyph {
                 let white = square(WHITE_AT, WHITE_AT + SQUARE);
                 let strips = [Rect::from_two_pos(at(clear, 0.0), at(GRID, GRID)), Rect::from_two_pos(at(0.0, clear), at(clear, GRID))];
                 for strip in strips {
-                    let painter = painter.with_clip_rect(strip);
-                    painter.rect(white, corner, Color32::from(Srgba::WHITE), edge, StrokeKind::Inside);
+                    painter.clipped(strip, || {
+                        painter.rect_filled(white, corner, Color32::from(Srgba::WHITE));
+                        painter.rect_stroke(white, corner, width, color, StrokeKind::Inside);
+                    });
                 }
-                painter.rect(black, corner, Color32::from(Srgba::BLACK), edge, StrokeKind::Inside);
+                painter.rect_filled(black, corner, Color32::from(Srgba::BLACK));
+                painter.rect_stroke(black, corner, width, color, StrokeKind::Inside);
             }
             PairGlyph::Swap => {
                 let point = |(x, y): (f32, f32)| pos2(x, y);
@@ -780,7 +792,7 @@ impl Glyph for PairGlyph {
                         at(p.x, p.y)
                     })
                     .collect();
-                painter.add(Shape::line(shaft, Stroke::new(tokens.stroke.medium, color)));
+                painter.line(&shaft, tokens.stroke.medium, color);
                 for (tip, out) in [(start, -(control - start).normalized()), (end, (end - control).normalized())] {
                     let side = vec2(-out.y, out.x);
                     let head = [tip + out * HEAD_LENGTH, tip + side * HEAD_HALF, tip - side * HEAD_HALF];
@@ -788,9 +800,11 @@ impl Glyph for PairGlyph {
                     if mirrored {
                         head.reverse();
                     }
-                    painter.add(Shape::convex_polygon(head, color, Stroke::NONE));
+                    painter.extend(items::convex_polygon(&head, color, None));
                 }
             }
         }
     }
 }
+
+debug_key!(PairWell, Well);

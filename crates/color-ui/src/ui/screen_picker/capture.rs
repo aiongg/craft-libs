@@ -150,6 +150,7 @@ impl Outcome for CaptureViewOutput {
 pub(super) struct CaptureView<'a> {
     #[common]
     common: Common,
+    #[key(by = std::ptr::from_ref(self.snapshot) as usize as u64)] // the captured snapshot by identity
     snapshot: &'a Snapshot,
     /// The capture's key in the texture store.
     key: u64,
@@ -228,7 +229,7 @@ impl Component for CaptureView<'_> {
         let texture = store(ctx)
             .get_or_put(ctx, self.key, Revision::default(), || ColorImage::from_rgba_unmultiplied(image.size.map(|n| n as usize), &image.rgba));
         let whole = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
-        ui.draw().texture(cx.rect, texture.id, whole);
+        ui.draw().texture(cx.rect, texture.key(), whole);
         let Some(pointer) = craft_ui::runtime::pointer::hover_point_in(ctx, cx.rect) else { return };
         let Some((x, y)) = self.pixel(cx.rect, pointer) else { return };
         self.loupe(ui, cx, pointer, (x, y));

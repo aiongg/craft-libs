@@ -197,6 +197,7 @@ pub struct ColorSamplerMarks<'a> {
     samplers: &'a ColorSamplers,
     /// The point the tool carries: it draws at the pointer, or with no index the next number draws there.
     #[prop]
+    #[key(skip)] // the run's output
     carried: Option<SamplerCarry>,
 }
 
@@ -623,3 +624,5 @@ impl<'a, F: Fn([f64; 2]) -> Srgba> SamplerReadouts<'a, F> {
         readouts
     }
 }
+
+debug_key!(ColorSamplers);

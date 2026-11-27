@@ -8,6 +8,9 @@
 #![warn(missing_docs)]
 
 mod cmyk;
+#[cfg(feature = "ui")]
+#[macro_use]
+mod memo;
 pub mod display;
 pub mod gradient;
 mod gray;
