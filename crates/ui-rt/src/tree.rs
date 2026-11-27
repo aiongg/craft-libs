@@ -173,6 +173,13 @@ impl Tree {
         None
     }
 
+    /// The nearest value of type `T` provided by a node above `node` (its owner, else its parent, and on up),
+    /// passing over what `node` provides itself.
+    pub(crate) fn provided_above<T: Clone + 'static>(&self, node: NodeId) -> Option<T> {
+        let n = self.nodes.get(&node)?;
+        self.provided::<T>(n.owner.or(n.parent)?)
+    }
+
     pub(crate) fn has_work(&self) -> bool {
         !(self.build_q.is_empty() && self.layout_q.is_empty() && self.paint_q.is_empty())
     }

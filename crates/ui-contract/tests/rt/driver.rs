@@ -214,3 +214,245 @@ fn a_slot_fill_repaints_the_slot_node_and_runs_no_build_of_it() {
     assert_eq!(again.frame.runs, 1, "a second fill again runs only the filler: {again:?}");
     assert!(shows_mark(&rig), "the slot holds the new items in place of the old");
 }
+
+/// A press inside a collection nested in another reaches the outer one as a descendant press.
+mod nested {
+    use std::cell::Cell;
+
+    use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection, SpanLayout};
+    use craft_ui_contract::contract::{
+        Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, NoValue, Outcome,
+        Response, Role, SelectMode, Show, ShowCollection as _, Ui,
+    };
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Pos2, Rect, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    use crate::skeleton::IconButton;
+
+    const ROW_H: f32 = 20.0;
+
+    thread_local! {
+        /// Real runs of the outer collection (its `update`).
+        static OUTER_RUNS: Cell<u32> = const { Cell::new(0) };
+        static INNER_RECT: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
+    }
+
+    struct Count(usize);
+
+    impl DisplayOrder<usize> for Count {
+        fn len(&self) -> usize {
+            self.0
+        }
+
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+
+        fn index_of(&self, key: &usize) -> Option<usize> {
+            (*key < self.0).then_some(*key)
+        }
+    }
+
+    impl ItemSource<usize> for Count {}
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Never {}
+
+    struct RowOut {
+        response: Response,
+    }
+
+    impl Outcome for RowOut {
+        type Value = NoValue;
+
+        fn response(&self) -> &Response {
+            &self.response
+        }
+    }
+
+    impl ItemOutput<Never> for RowOut {
+        fn into_event(self) -> Option<Never> {
+            None
+        }
+    }
+
+    #[derive(Component)]
+    struct Row {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Row {
+        const ROLE: Role = Role::LIST_ITEM;
+        type Style = PlainStyle;
+        type Output = RowOut;
+
+        fn style(_: &StyleCx<'_>, _: RowStyleKey) -> PlainStyle {
+            PlainStyle::min(Vec2::new(10.0, ROW_H))
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> RowOut {
+            RowOut { response: cx.response.clone() }
+        }
+    }
+
+    /// The nested list: five selectable rows.
+    #[derive(Component)]
+    #[component(collection)]
+    struct Inner<'a> {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        items: CollectionProps,
+        selection: Option<Bind<'a, Selection<usize>>>,
+    }
+
+    impl Component for Inner<'_> {
+        const ROLE: Role = Role::LIST;
+        type Style = PlainStyle;
+        type Output = CollectionResponse<usize, Never>;
+
+        fn style(_: &StyleCx<'_>, _: InnerStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+            cx.collection_response()
+        }
+    }
+
+    impl Collection for Inner<'_> {
+        type Key = usize;
+        type ItemLayout = SpanLayout;
+        type Selection = Selection<usize>;
+        type Item<'r> = Row;
+        type ItemEvent = Never;
+
+        fn items(&self) -> &CollectionProps {
+            &self.items
+        }
+
+        fn selection(&mut self) -> Option<BindMut<'_, Selection<usize>>> {
+            self.selection.as_mut().map(Bind::reborrow)
+        }
+
+        fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+            SpanLayout::new(source, width, ROW_H)
+        }
+    }
+
+    /// The outer list: no rows of its own; its empty state shows the inner list.
+    #[derive(Component)]
+    #[component(collection)]
+    struct Outer<'a> {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        items: CollectionProps,
+        inner: Option<&'a mut Selection<usize>>,
+    }
+
+    impl Component for Outer<'_> {
+        const ROLE: Role = Role::LIST;
+        type Style = PlainStyle;
+        type Output = CollectionResponse<usize, Never>;
+
+        fn style(_: &StyleCx<'_>, _: OuterStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn update(&mut self, _: &mut Cx<'_, Self>) {
+            OUTER_RUNS.with(|runs| runs.set(runs.get() + 1));
+        }
+
+        fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+            cx.collection_response()
+        }
+    }
+
+    impl Collection for Outer<'_> {
+        type Key = usize;
+        type ItemLayout = SpanLayout;
+        type Selection = Selection<usize>;
+        type Item<'r> = Row;
+        type ItemEvent = Never;
+
+        fn items(&self) -> &CollectionProps {
+            &self.items
+        }
+
+        fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+            SpanLayout::new(source, width, ROW_H)
+        }
+
+        fn empty(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+            let inner = Inner {
+                common: Common::new(),
+                props: ContainerProps::new(),
+                items: CollectionProps::new().select(SelectMode::Single),
+                selection: self.inner.as_deref_mut().map(Bind::bound),
+            };
+            let out = inner.show_items(ui, &Count(5), &mut |_, _| Row { common: Common::new() });
+            INNER_RECT.with(|rect| rect.set(out.response.rect));
+        }
+    }
+
+    #[derive(Default)]
+    struct App {
+        selection: Selection<usize>,
+        button: Rect,
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                app.button = IconButton::new(IconId::new("plus"), "Other").show(ui).rect;
+                let outer =
+                    Outer { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new(), inner: Some(&mut app.selection) };
+                let _ = outer.show_items(ui, &Count(0), &mut |_, _| Row { common: Common::new() });
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig, app)
+    }
+
+    #[test]
+    fn a_press_in_a_nested_collection_reaches_the_outer_one() {
+        let mut app = App::default();
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        let mut settled = false;
+        for _ in 0..5 {
+            if !step(&mut rig, &mut app).ran {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "the rig did not settle");
+        let inner = INNER_RECT.with(Cell::get);
+        let row = Pos2::new(inner.center().x, inner.min.y + ROW_H * 1.5);
+
+        input(&mut rig, &mut app, Input::mouse_move(app.button.center()));
+        let before = OUTER_RUNS.with(Cell::get);
+        input(&mut rig, &mut app, Input::mouse_down(app.button.center()));
+        input(&mut rig, &mut app, Input::mouse_up(app.button.center()));
+        assert_eq!(OUTER_RUNS.with(Cell::get), before, "a press outside the outer collection does not run it");
+
+        input(&mut rig, &mut app, Input::mouse_move(row));
+        let before = OUTER_RUNS.with(Cell::get);
+        input(&mut rig, &mut app, Input::mouse_down(row));
+        assert!(OUTER_RUNS.with(Cell::get) > before, "the inner collection's press reaches the outer one");
+        input(&mut rig, &mut app, Input::mouse_up(row));
+        assert_eq!(app.selection.lead(), Some(&1), "the inner collection still takes the click");
+    }
+}

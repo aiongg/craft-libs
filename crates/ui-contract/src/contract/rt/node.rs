@@ -130,22 +130,34 @@ impl PressWatch {
         kept.press_watch.as_ref().map(|watch| std::mem::take(&mut *watch.queue.borrow_mut())).unwrap_or_default()
     }
 
-    /// Queues a press phase the node `cx` handles on the nearest collection above it.
+    /// Queues a press phase the node `cx` handles on every collection above it, nearest first, so a press inside a
+    /// nested collection (on its own shape or on one of its rows) still moves each outer collection's lead. A
+    /// collection also queues the presses on its own parts (a section row's part) on its own watch, as it sees the
+    /// presses on its rows' parts.
     fn note(kept: &Kept, cx: &mut EventCx<'_>, p: &PointerInput, part: u64) {
         if matches!(p.gesture, Gesture::Drag { .. }) {
             return;
         }
-        let Some(watch) = cx.provided::<PressWatch>().filter(|watch| watch.node != cx.node()) else { return };
-        let Some(origin) = cx.window_rect(watch.node).map(|rect| rect.min) else { return };
-        let input = NodeInput::DescendantPress {
-            owner: kept.id,
-            part: kept.parts.iter().find(|kp| part != 0 && kp.id == part).map(|kp| kp.part),
-            gesture: p.gesture,
-            pos: Pos2::ZERO + (p.pos - origin),
-            sense: kept.sense_of(part),
-        };
-        watch.queue.borrow_mut().push(input);
-        cx.request_build_of(watch.node);
+        let pressed = kept.parts.iter().find(|kp| part != 0 && kp.id == part).map(|kp| kp.part);
+        let sense = kept.sense_of(part);
+        if pressed.is_some()
+            && let Some(own) = &kept.press_watch
+        {
+            own.queue(cx, kept.id, pressed, p, sense);
+        }
+        let mut from = cx.node();
+        while let Some(watch) = cx.provided_above::<PressWatch>(from) {
+            watch.queue(cx, kept.id, pressed, p, sense);
+            from = watch.node;
+        }
+    }
+
+    /// Queues one press phase `owner` took on this watch's collection and marks it to build.
+    fn queue(&self, cx: &mut EventCx<'_>, owner: Id, part: Option<PartRef>, p: &PointerInput, sense: Sense) {
+        let Some(origin) = cx.window_rect(self.node).map(|rect| rect.min) else { return };
+        let input = NodeInput::DescendantPress { owner, part, gesture: p.gesture, pos: Pos2::ZERO + (p.pos - origin), sense };
+        self.queue.borrow_mut().push(input);
+        cx.request_build_of(self.node);
     }
 }
 

@@ -381,6 +381,12 @@ impl EventCx<'_> {
         self.rt.tree.provided::<T>(self.node)
     }
 
+    /// The nearest value of type `T` a node above `node` provides, passing over what `node` provides
+    /// itself: a press walks up through every collection above the node that took it.
+    pub fn provided_above<T: Clone + 'static>(&self, node: NodeId) -> Option<T> {
+        self.rt.tree.provided_above::<T>(node)
+    }
+
     /// The runtime, read only: the tree and the nodes' `Local`s, for a service that walks them
     /// (the craft focus service finds its stops this way).
     pub fn runtime(&self) -> &Runtime {
