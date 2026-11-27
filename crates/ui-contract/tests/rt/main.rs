@@ -8,6 +8,7 @@ mod harness;
 mod input;
 mod layout;
 mod overlay;
+mod env;
 mod services;
 mod text;
 mod windows;

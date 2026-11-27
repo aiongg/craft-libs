@@ -1,9 +1,9 @@
 //! The library values the env carries: scale, motion policy, arena id and the component set.
 
 use super::EnvValue;
+use crate::primitives::Id;
 use craft_behavior::{ColumnKey, MotionMode};
 use craft_theme::MotionTokens;
-use egui::Id;
 use std::hash::Hash;
 
 /// The interface scale: pixels per point.

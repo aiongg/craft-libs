@@ -19,7 +19,7 @@ use std::rc::Rc;
 
 use craft_behavior::{EditCommand, OwnerClass};
 use craft_keymap::{Active, Chord, CommandRef, Keymap, Lookup};
-use craft_ui_rt::{EventCx, Handled, Key, KeyInput, Reads, State, Store, Writes};
+use craft_ui_rt::{EventCx, Handled, Key, KeyInput, NodeId, Reads, Runtime, State, Store, Writes};
 
 use super::node::{ComponentNode, Kept, ScopeNode};
 use super::overlay::LayerScope;
@@ -35,7 +35,9 @@ struct Board {
     /// The commands a focused component takes as `Intent::Edit` (`CommandSet::edits`).
     edits: Vec<(CommandRef, EditCommand)>,
     states: Vec<(CommandRef, State<CommandState>)>,
-    handlers: Vec<(CommandRef, Handler)>,
+    /// Each handler with the node it was registered for (`Ui::on_command`; `None`: the board's own,
+    /// `CommandBoard::on`). One handler per owner and command.
+    handlers: Vec<(Option<NodeId>, CommandRef, Handler)>,
 }
 
 /// The app's commands: the keymap, each command's state as a cell and what each command does.
@@ -56,12 +58,51 @@ impl CommandBoard {
         self
     }
 
-    /// Runs `handler` when `command` fires.
+    /// Runs `handler` when `command` fires and no node on the firing path registered one of its own.
     pub fn on(&self, command: impl Into<CommandRef>, handler: impl FnMut(&Fired, &mut Store) + 'static) {
-        let command = command.into();
+        self.register(None, command.into(), Box::new(handler));
+    }
+
+    /// Registers `handler` for `command` under `owner`, replacing that owner's earlier handler for it.
+    fn register(&self, owner: Option<NodeId>, command: CommandRef, handler: Handler) {
         let mut board = self.0.borrow_mut();
-        board.handlers.retain(|(c, _)| *c != command);
-        board.handlers.push((command, Box::new(handler)));
+        board.handlers.retain(|(o, c, _)| !(*o == owner && *c == command));
+        board.handlers.push((owner, command, handler));
+    }
+
+    /// Takes the handler `command` runs when fired from `from`: the one registered by the nearest node on
+    /// `from`'s path, else the board's own. Handlers of nodes that left the tree go here.
+    fn take_handler(&self, rt: &Runtime, from: Option<NodeId>, command: &CommandRef) -> Option<(Option<NodeId>, CommandRef, Handler)> {
+        let mut board = self.0.borrow_mut();
+        board.handlers.retain(|(owner, _, _)| owner.is_none_or(|node| rt.window_of(node).is_some()));
+        let mut path = Vec::new();
+        let mut at = from;
+        while let Some(node) = at {
+            path.push(node);
+            at = rt.parent(node);
+        }
+        let rank = |owner: &Option<NodeId>| match owner {
+            Some(node) => path.iter().position(|n| n == node),
+            None => Some(path.len()),
+        };
+        let at = board
+            .handlers
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, c, _))| c == command)
+            .filter_map(|(at, (owner, _, _))| rank(owner).map(|rank| (rank, at)))
+            .min()
+            .map(|(_, at)| at)?;
+        Some(board.handlers.remove(at))
+    }
+
+    /// Puts back a handler taken to run outside the board's borrow (it may set command states or
+    /// register handlers); one registered for the same owner and command while it ran wins.
+    fn put_back(&self, (owner, command, handler): (Option<NodeId>, CommandRef, Handler)) {
+        let mut board = self.0.borrow_mut();
+        if !board.handlers.iter().any(|(o, c, _)| *o == owner && *c == command) {
+            board.handlers.push((owner, command, handler));
+        }
     }
 
     /// The cell of `command`'s state, created enabled on first use.
@@ -121,14 +162,11 @@ impl CommandBoard {
             _ => return Handled::No,
         };
         let fired = Fired::new(command.clone(), FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
-        // The handler runs outside the board's borrow: it may set command states.
-        let taken = {
-            let mut board = self.0.borrow_mut();
-            board.handlers.iter().position(|(c, _)| *c == command).map(|at| board.handlers.remove(at))
-        };
-        if let Some((command, mut handler)) = taken {
-            handler(&fired, cx.store_mut());
-            self.0.borrow_mut().handlers.push((command, handler));
+        let from = cx.focused();
+        let taken = self.take_handler(cx.runtime(), from, &command);
+        if let Some(mut taken) = taken {
+            (taken.2)(&fired, cx.store_mut());
+            self.put_back(taken);
         }
         Handled::Yes
     }
@@ -169,5 +207,35 @@ impl Ui<'_, '_> {
             Some(board) => board.state(self.cx, command),
             None => CommandState::new(),
         }
+    }
+
+    /// Runs `handler` when `command` fires from this node or a node under it, for as long as this
+    /// node stays. Calling it again from a later run of the node replaces the handler; it never adds
+    /// a second one. Nothing happens in a measuring run or with no board.
+    pub fn on_command(&mut self, command: impl Into<CommandRef>, handler: impl FnMut(&Fired, &mut Store) + 'static) {
+        if self.is_measuring() {
+            return;
+        }
+        if let Some(board) = self.cx.provided::<CommandBoard>() {
+            let node = self.cx.node();
+            board.register(Some(node), command.into(), Box::new(handler));
+        }
+    }
+
+    /// Fires `command` from this node now: the handler of the nearest node on its path that registered
+    /// one, else the board's, runs at once when the command is enabled. True when a handler ran.
+    pub fn fire(&mut self, command: impl Into<CommandRef>, source: FireSource) -> bool {
+        let Some(board) = self.cx.provided::<CommandBoard>() else { return false };
+        let command = command.into();
+        if !board.enabled(self.cx.runtime().store(), &command) {
+            return false;
+        }
+        let fired = Fired::new(command, source, FirePhase::Press, self.cx.now());
+        let from = Some(self.cx.node());
+        let taken = board.take_handler(self.cx.runtime(), from, &fired.command);
+        let Some(mut taken) = taken else { return false };
+        (taken.2)(&fired, self.cx.store_mut());
+        board.put_back(taken);
+        true
     }
 }

@@ -2,7 +2,7 @@
 
 use super::app_values::AppValues;
 use super::values::{AltCodePages, Scale, WheelSpeed};
-use crate::runtime::egui::memory::Service;
+use crate::contract::Context;
 use crate::runtime::focus::TabReach;
 use craft_behavior::MotionMode;
 use craft_i18n::CalendarDate;
@@ -10,7 +10,6 @@ use craft_i18n::Direction;
 use craft_theme::{
     AppSizes, Appearance, ComponentSet, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Size, SystemAppearance, TextSize, ThemeDef, ThemeId,
 };
-use egui::Context;
 use std::sync::Arc;
 
 /// The app's root values each frame.
@@ -113,7 +112,7 @@ impl RootEnv {
     pub(crate) fn fallback(ctx: &Context) -> RootEnv {
         #[derive(Default)]
         struct Fallback(Option<RootEnv>);
-        Service::<Fallback>::run(ctx, |fallback| fallback.0.get_or_insert_with(RootEnv::default).clone())
+        ctx.service::<Fallback, _>(|fallback| fallback.0.get_or_insert_with(RootEnv::default).clone())
     }
 
     /// A root with every value at its default.

@@ -49,6 +49,11 @@ impl Default for JobBoard {
 }
 
 impl JobBoard {
+    /// The waker the board calls when a job finishes, if it has one.
+    pub(crate) fn waker(&self) -> Option<Waker> {
+        self.inner.waker.clone()
+    }
+
     /// A board that runs jobs on `jobs` and calls `waker` when one finishes.
     pub fn new(jobs: Arc<dyn Jobs>, waker: Waker) -> JobBoard {
         JobBoard { inner: Arc::new(Inner { jobs, waker: Some(waker), done: Mutex::new(Vec::new()) }) }

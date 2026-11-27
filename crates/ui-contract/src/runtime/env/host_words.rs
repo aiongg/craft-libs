@@ -1,10 +1,9 @@
 //! The words, number format and dates of the installed Host.
 
-use crate::runtime::egui::memory::Service;
+use crate::contract::Context;
 use craft_host::Host;
 use craft_i18n::{DateFormat, Format};
 use craft_i18n::{WordRows, Words};
-use egui::Context;
 use std::sync::Arc;
 
 /// The words of the installed `Host`, kept until another host is installed (`Host::generation`; `None` without a
@@ -17,7 +16,7 @@ struct HostWords {
 /// The catalogs of `host` in its language, English without a host or a catalog.
 pub(super) fn host_words(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Words> {
     let generation = host.map(|host| host.generation());
-    Service::<HostWords>::run(ctx, |cached| {
+    ctx.service::<HostWords, _>(|cached| {
         if let Some((kept, words)) = &cached.words
             && *kept == generation
         {
@@ -36,8 +35,9 @@ pub(super) fn host_format(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Format
     }
     #[derive(Default)]
     struct System(Option<Arc<Format>>);
-    Service::<System>::of(ctx)
-        .with(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale)))))
+    ctx.service::<System, _>(|system| {
+        Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale))))
+    })
 }
 
 /// The date format of `host`'s catalogs, else the system region's, built once.
@@ -47,7 +47,7 @@ pub(super) fn host_dates(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<DateFor
     }
     #[derive(Default)]
     struct System(Option<Arc<DateFormat>>);
-    Service::<System>::of(ctx).with(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(DateFormat::new(&craft_i18n::Region::system())))))
+    ctx.service::<System, _>(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(DateFormat::new(&craft_i18n::Region::system())))))
 }
 
 /// `words` with `rows` over them, built once per (inherited words, rows): a clone of a `Words` starts with an
@@ -62,7 +62,7 @@ pub(super) fn overlaid_words(ctx: &Context, words: &Arc<Words>, rows: WordRows) 
     }
     #[derive(Default)]
     struct Overlays(Vec<Entry>);
-    Service::<Overlays>::run(ctx, |cache| {
+    ctx.service::<Overlays, _>(|cache| {
         cache.0.retain(|entry| entry.inherited.strong_count() > 0);
         let inherited = Arc::downgrade(words);
         if let Some(entry) = cache.0.iter().find(|entry| std::sync::Weak::ptr_eq(&entry.inherited, &inherited) && entry.rows == rows) {

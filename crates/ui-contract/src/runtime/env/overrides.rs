@@ -4,12 +4,13 @@
 use super::app_values::AppValues;
 use super::host_words::overlaid_words;
 use super::tokens::{same_def, tokens_for};
-use super::{Env, Restore, Scoped};
-use crate::runtime::egui::child;
+use super::{Env, Scoped};
+use crate::contract::{Context, Ui, UiBuilder};
+use crate::primitives::Id;
 use craft_behavior::MotionMode;
 use craft_i18n::{Direction, WordRows, Words};
 use craft_theme::{Contrast, ControlSize, Mode, Size, ThemeDef};
-use egui::{Context, Rect, Ui, UiBuilder};
+use craft_ui_rt::Rect;
 use std::sync::Arc;
 
 /// Token-changing values for a container: the container itself (its surface, header, rules, scroll bars, pads and
@@ -140,7 +141,7 @@ pub struct Overrides {
     /// App values set for the scope.
     pub values: AppValues,
     /// The child `Ui`'s id salt, as `ui.push_id` gives it: the ids of what it shows derive from it.
-    pub id_salt: Option<egui::Id>,
+    pub id_salt: Option<Id>,
 }
 
 /// How a scope changes the built-in text: the only override path for words.
@@ -205,29 +206,24 @@ pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnO
     let mut overrides = Overrides::default();
     set(&mut overrides);
     let id_salt = overrides.id_salt.take();
-    let outer = Env::of(ui);
     let ctx = ui.ctx().clone();
-    let inner = outer.derive(|scoped| overrides.apply(&ctx, scoped));
-    let direction = (inner.direction != outer.direction).then(|| inner.direction.is_rtl());
-    let disabled = !inner.enabled;
-    child::scope(ui, id_salt, disabled, direction, |child| {
-        let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(child, inner)) };
-        body(child)
-    })
+    let inner = Env::of(ui).derive(|scoped| overrides.apply(&ctx, scoped));
+    let builder = match id_salt {
+        Some(salt) => UiBuilder::new().id_salt(salt),
+        None => UiBuilder::new(),
+    };
+    ui.scope_builder(builder, |child| Env::run_in(child, inner, body))
 }
 
 /// Runs `body` in a child `Ui` held to `rect` and clipped to it, as a layout room of its own: the flow grid, content
 /// column and fill sharing of the body around it do not reach in, so a child that fills takes `rect`, whatever else
 /// that body holds. A split pane's body and a dock group's view show here.
 pub fn in_room<R>(ui: &mut Ui, rect: Rect, body: impl FnOnce(&mut Ui) -> R) -> R {
-    let ctx = ui.ctx().clone();
     let room = Env::of(ui).new_room();
     ui.scope_builder(UiBuilder::new().max_rect(rect), |child| {
-        child.shrink_clip_rect(rect);
-        let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(child, room)) };
-        body(child)
+        child.set_clip_rect(child.clip_rect().intersect(rect));
+        Env::run_in(child, room, body)
     })
-    .inner
 }
 
 /// The definition keys by its `Arc` (a caller keeps one per definition, as the token cache does), the rest by value.

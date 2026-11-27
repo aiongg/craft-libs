@@ -11,11 +11,11 @@ pub use shell::ShellEntry;
 pub use shell::{BodyMode, PageBandRoom, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
 pub use units::{ColumnSize, LengthUnits, PointSize, UnitKind, UnitWords, Units, ZoomPrecision};
 
+use crate::contract::Context;
+use crate::contract::Ui;
+use crate::contract::rt::{EnvCells, ThemeBase};
+use crate::primitives::Id;
 use crate::runtime::commands::CommandChain;
-use crate::runtime::egui::memory::{self, FastMap};
-use crate::runtime::egui::{pass, repaint, scale, stack, style};
-use crate::runtime::frame::PerViewport;
-use crate::runtime::windows;
 use crate::style::{EnvKey, GlyphRole, Ink, SurfaceKind, UiTokens};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::target::{Os, ShellInfo};
@@ -24,8 +24,9 @@ pub use craft_i18n::Direction;
 pub use craft_i18n::{AgeStyle, Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::ControlSize;
+use craft_theme::Tokens;
 pub use craft_ui_macros::EnvValue;
-use egui::{Context, Id, Ui, ViewportId};
+use craft_ui_rt::BuildCx;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -74,7 +75,7 @@ impl Deref for Env {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FooterSlotOf {
     pub owner: Id,
-    pub size: egui::Vec2,
+    pub size: craft_ui_rt::Vec2,
 }
 
 /// The flow facts of the body around a memoized view that its content is laid out by: whether that body is a
@@ -570,7 +571,7 @@ impl Scoped {
     pub(crate) fn scope_key(&self) -> u128 {
         *self.scope_key.get_or_init(|| {
             use crate::contract::{MemoKey, MemoProps as _};
-            let mut key = MemoKey::of_view(&self.ctx);
+            let mut key = MemoKey::new();
             key.feed_hash(&(self.enabled, self.read_only, self.size, self.glyphs, self.ink, self.surface, self.wheel));
             key.feed_hash(&(self.direction, self.text_direction, self.ids_stable));
             key.feed_hash(&(self.arena, self.roving, self.item, self.row, self.scroll_owner.map(|owner| (owner.id, owner.view))));
@@ -592,11 +593,7 @@ impl Scoped {
                 self.today,
             ));
             (&self.format, &self.dates, &self.host).key(&mut key);
-            let value_bytes = self.values.key(&mut key);
-            #[cfg(feature = "testing")]
-            crate::runtime::measure::count_memo_key_bytes(&self.ctx, key.bytes() + value_bytes);
-            #[cfg(not(feature = "testing"))]
-            let _ = value_bytes;
+            let _ = self.values.key(&mut key);
             key.finish()
         })
     }
@@ -677,28 +674,32 @@ impl Env {
         craft_i18n::relative_age(&self.words, &self.format, seconds, style)
     }
 
-    /// The root env of a frame: the app's values with the pixels per point read back from egui.
-    pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
+    /// The root env of a window: the app's values from `root`, with the tokens, direction, motion,
+    /// scale and window focus the window's env cells hold (`values`), or the tokens `root` resolves
+    /// to when no build gave cells yet.
+    pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, values: Option<&CellValues>) -> Env {
         let resolved = root.resolved(ctx);
         // An id that is not a valid `AppId` names no theme pins, so it resolves as no app.
         let app = host.as_ref().and_then(|host| craft_theme::AppId::parse(host.app().id).ok());
         let inputs = TokenInputs::of(root, resolved, app);
-        let tokens = tokens_for(ctx, &inputs);
-        let motion = MotionPolicy::new(motion_mode(ctx, resolved.motion), tokens.tokens().motion);
-        let os = windows::os_of(ctx);
-        let scale = Scale(pixels_per_point);
-        let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
-        let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
-        let active = shell.window.active;
-        let keyboard = Arc::new(crate::runtime::keys::layout_of(ctx));
-        // The window facts, the safe rect and the layout are tracked inputs: a view that read them runs when they change.
-        let safe = crate::runtime::egui::areas::safe_rect_raw(ctx);
-        crate::runtime::inputs::observe(ctx, crate::runtime::inputs::Input::Shell, ((*shell).clone(), safe));
-        crate::runtime::inputs::observe(ctx, crate::runtime::inputs::Input::Keyboard, (*keyboard).clone());
+        let tokens = match values {
+            Some(values) => values.tokens.clone(),
+            None => tokens_for(ctx, &inputs),
+        };
+        let mode = values.map_or(resolved.motion, |values| values.motion);
+        let motion = MotionPolicy::new(mode, tokens.tokens().motion);
+        let os = ctx.os();
+        let scale = Scale(values.map_or(1.0, |values| values.scale));
+        let active = values.is_none_or(|values| values.active);
+        let direction = values.map_or(root.direction, |values| values.direction);
+        // The interface stack's line facts are not measured on craft-ui-rt yet: control heights take
+        // the token alone.
+        let line_ratio = 0.0;
+        let shell = Arc::new(ShellInfo::default());
+        let keyboard = Arc::new(craft_keymap::Layout::default());
         let words = host_words(ctx, host.as_ref());
-        let key = EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash())
-            .with_line(line_ratio)
-            .with_words(words.generation());
+        let key =
+            EnvKey::new(tokens.key(), direction, scale, os, active, root.values.style_hash()).with_line(line_ratio).with_words(words.generation());
         Env {
             scoped: Arc::new(Scoped {
                 inherited: Arc::new(Inherited {
@@ -735,8 +736,8 @@ impl Env {
                 enabled: true,
                 read_only: false,
                 wheel: WheelScope::Plain,
-                direction: root.direction,
-                text_direction: root.direction,
+                direction,
+                text_direction: direction,
                 ids_stable: true,
                 arena: None,
                 roving: None,
@@ -778,70 +779,126 @@ impl Env {
         }
     }
 
-    /// The env of `ui`: the nearest entry up the `Ui` stack, else the running viewport's root env, so the `Ui`
-    /// of an egui `Area` or `Window` reads the app's root values. For app panels (layer 8) and caller closures only.
-    ///
-    /// What a body sets up for the children it places in flow (`Scoped::start_room`: its `Grid` or spread row's cells,
-    /// its unwrapped row's line and shrink step, its flow start, its content column) is for its direct children, which
-    /// it shows in the `Ui` it installed its env for. A `Ui` egui code makes below that one (an `egui::Grid`,
-    /// `ui.horizontal`, `ui.push_id` in a caller's closure) lays out its own children: an entry found for an ancestor
-    /// of `ui` comes without those facts, so a component there takes no cell, line or shrink step of the body around it.
-    /// Where that stack holds an `egui::Grid`'s `Ui`, the env says the component lays out in the grid's cell
-    /// (`Scoped::egui_cell`).
-    ///
-    /// While apps still use `add_enabled_ui`, it also ANDs `ui.is_enabled()`, outside sizing passes.
+    /// The env of `ui`: what the scope around it gives its children ([`Env::run_in`]), on the values
+    /// of the env cells in effect there. The call registers a read of every env cell the `Env`
+    /// copies (tokens, theme base, direction, density, motion, layer frame, the window's scale and
+    /// focus) for the scope whose build runs, so a write to one of them reruns the scopes that called
+    /// `Env::of` under the writing scope, and nothing else.
     pub fn of(ui: &Ui) -> Env {
         #[cfg(feature = "testing")]
         WALKS.with(|walks| walks.set(walks.get() + 1));
-        let ctx = ui.ctx();
-        let viewport = pass::current_viewport(ctx);
-        // The root env stands for an entry above the whole stack.
-        let (found, grid) = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| {
-            let stack::Found { value, grid } = stack::nearest(ui, |node| envs.entries.get(&node).cloned());
-            (value.or_else(|| envs.root.clone().map(|env| (env, false))), grid)
-        });
-        let (env, own) = found.unwrap_or_else(|| (Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)), false));
-        let egui_cell = env.egui_cell || grid;
-        let env = if own || !(env.scoped.has_room() || egui_cell != env.egui_cell) {
-            env
-        } else {
-            env.derive_local(|scoped| {
-                scoped.start_room();
-                scoped.egui_cell = egui_cell;
-            })
-        };
-        // egui's `invisible()` also disables the `Ui`, and a sizing `Ui` is invisible, not disabled: in a sizing pass
-        // the env keeps the enabled state the real run has, so a memoized view keys alike in both.
-        if style::is_enabled(ui) || ui.is_sizing_pass() { env } else { env.derive_local(|s| s.enabled = false) }
+        let cx: &BuildCx<'_> = &*ui.cx;
+        if let Some(cells) = EnvCells::of(cx) {
+            let window = cx.env();
+            crate::contract::context::log_env_read(cells, window.scale, window.window_focused);
+        }
+        ui.env.clone()
     }
 
-    /// The running viewport's root env: what code with no `Ui` (the ghost layer) paints with.
+    /// The window's root env: what code with no `Ui` (the ghost layer) paints with. The last root env a
+    /// build of `ctx`'s window made, else one from the fallback root.
     #[doc(hidden)]
     pub fn of_root(ctx: &Context) -> Env {
-        let viewport = pass::current_viewport(ctx);
-        let found = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root.clone());
-        found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)))
+        if let Some(env) = ctx.service::<RootCache, _>(|cache| cache.env.clone()) {
+            return env;
+        }
+        Env::from_root(ctx, &RootEnv::fallback(ctx), None, None)
     }
 
     /// How far from a handle, point or edge a press still takes it, in screen points: the theme's `size.hit.target` as
-    /// the running viewport's root env has it. `ToolContext::reach` reads the same
-    /// value; code with no tool context (a menu capture hit-testing a canvas point) reads it here.
+    /// the window's root env has it. `ToolContext::reach` reads the same value; code with no tool context (a menu
+    /// capture hit-testing a canvas point) reads it here.
     pub fn root_hit_reach(ctx: &Context) -> f32 {
         Self::of_root(ctx).hit_reach()
     }
 
-    /// The `Host` of the running viewport's root env.
+    /// The `Host` of the window's root env.
     pub(crate) fn host_of(ctx: &Context) -> Option<Arc<Host>> {
-        PerViewport::<ViewportEnvs>::with(ctx, pass::current_viewport(ctx), |envs| envs.root.as_ref().and_then(|env| env.host.clone()))
+        Self::of_root(ctx).host.clone()
     }
 
-    /// Where `ctx`'s background work runs: the host's jobs, else the jobs `install` was given, else
-    /// `craft_host::default_jobs()`.
+    /// Where `ctx`'s background work runs: the host's jobs, else `craft_host::default_jobs()`.
     pub(crate) fn jobs_of(ctx: &Context) -> Arc<dyn Jobs> {
-        if let Some(host) = Self::host_of(ctx) {
-            return Arc::clone(host.jobs_shared());
+        match Self::host_of(ctx) {
+            Some(host) => Arc::clone(host.jobs_shared()),
+            None => craft_host::default_jobs(),
         }
-        memory::with::<InstalledJobs, _>(ctx, |installed| installed.0.clone()).unwrap_or_else(craft_host::default_jobs)
+    }
+
+    /// The env a new cursor of `cx`'s node starts with: the env the enclosing body gives
+    /// ([`Env::run_in`]), else the window's root env, on the env cells' current values. The root env
+    /// comes from the `RootEnv` and `Host` the host provides above the window root (`Arc<RootEnv>`,
+    /// `Arc<Host>`), else the fallback root.
+    pub(crate) fn for_build(cx: &mut BuildCx<'_>, ctx: &Context) -> Env {
+        let values = CellValues::peek(cx, ctx);
+        let inherited = SCOPES.with(|scopes| scopes.borrow().last().cloned());
+        let env = match inherited {
+            Some(env) => env,
+            None => Env::root(cx, ctx, &values),
+        };
+        env.on_cells(&values)
+    }
+
+    /// The window's root env, built again only when the host's root or host moved.
+    fn root(cx: &BuildCx<'_>, ctx: &Context, values: &CellValues) -> Env {
+        let root = cx.provided::<Arc<RootEnv>>();
+        let host = cx.provided::<Arc<Host>>();
+        let kept = ctx.service::<RootCache, _>(|cache| {
+            let same_root = match (&cache.root, &root) {
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                (None, None) => true,
+                _ => false,
+            };
+            let same_host = match (&cache.host, &host) {
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                (None, None) => true,
+                _ => false,
+            };
+            cache.env.clone().filter(|_| same_root && same_host)
+        });
+        if let Some(env) = kept {
+            return env;
+        }
+        let env = match &root {
+            Some(root) => Env::from_root(ctx, root, host.clone(), Some(values)),
+            None => Env::from_root(ctx, &RootEnv::fallback(ctx), host.clone(), Some(values)),
+        };
+        ctx.service::<RootCache, _>(|cache| {
+            cache.env = Some(env.clone());
+            cache.root = root;
+            cache.host = host;
+        });
+        env
+    }
+
+    /// This env on the env cells' values: the same env when none moved, else a child entry with the
+    /// cells' tokens, direction, motion, scale and window focus.
+    fn on_cells(self, values: &CellValues) -> Env {
+        let same = Arc::ptr_eq(&self.tokens, &values.tokens)
+            && self.direction == values.direction
+            && self.motion.mode == values.motion
+            && self.scale == Scale(values.scale)
+            && self.active == values.active;
+        if same {
+            return self;
+        }
+        let env = self.derive(|scoped| {
+            if scoped.text_direction == scoped.direction {
+                scoped.text_direction = values.direction;
+            }
+            scoped.direction = values.direction;
+            let inherited = scoped.inherited_mut();
+            inherited.motion = MotionPolicy::new(values.motion, values.tokens.tokens().motion);
+            inherited.tokens = values.tokens.clone();
+            inherited.scale = Scale(values.scale);
+            inherited.active = values.active;
+        });
+        if let Some(root) = values.ctx.service::<RootCache, _>(|cache| cache.env.clone())
+            && Arc::ptr_eq(&root.scoped, &self.scoped)
+        {
+            values.ctx.service::<RootCache, _>(|cache| cache.env = Some(env.clone()));
+        }
+        env
     }
 
     /// A clone of the innermost app value, else `T::root()`. Large values hold an `Arc`.
@@ -920,47 +977,17 @@ impl Env {
         })
     }
 
-    /// Installs `env` for `ui` and everything below it; `restore` puts back what it replaced.
-    pub(crate) fn install_for(ui: &Ui, env: Env) -> Installed {
-        let viewport = pass::current_viewport(ui.ctx());
-        let node = stack::node_id(ui);
-        let previous = PerViewport::<ViewportEnvs>::with(ui.ctx(), viewport, |envs| envs.entries.insert(node, env));
-        Installed { viewport, node, previous }
-    }
-
-    /// Runs `body` in `ui` with `env` installed for it, and puts back what the install replaced, also when `body`
-    /// panics. A body runs its direct children this way in a `Ui` it makes for them.
+    /// Runs `body` in `ui` with `env` given to the children it shows: `Env::of` answers `env` in it, and
+    /// cursors of nodes built in it start from `env`. What it replaced comes back afterwards, also when
+    /// `body` panics. A body runs its direct children this way.
     pub(crate) fn run_in<R>(ui: &mut Ui, env: Env, body: impl FnOnce(&mut Ui) -> R) -> R {
-        let ctx = ui.ctx().clone();
-        let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(ui, env)) };
-        body(ui)
-    }
-
-    /// Puts back the entry `install_for` replaced.
-    pub(crate) fn restore(ctx: &Context, installed: Installed) {
-        PerViewport::<ViewportEnvs>::with(ctx, installed.viewport, |envs| match installed.previous {
-            Some(previous) => {
-                envs.entries.insert(installed.node, previous);
-            }
-            None => {
-                envs.entries.remove(&installed.node);
-            }
-        });
-    }
-
-    /// The root env of the running viewport, once its begin hook ran.
-    pub(crate) fn root_of(ctx: &Context) -> Option<Env> {
-        PerViewport::<ViewportEnvs>::with(ctx, ctx.viewport_id(), |envs| envs.root.clone())
-    }
-
-    /// The root env `viewport`'s last begin hook installed, for the input hook, which runs before the pass.
-    pub(crate) fn root_for(ctx: &Context, viewport: ViewportId) -> Option<Env> {
-        PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root.clone())
-    }
-
-    /// Records `env` as the root env of `viewport`, which `Env::of` falls back to for a `Ui` with no entry above it.
-    pub(crate) fn set_root(ctx: &Context, viewport: ViewportId, env: Env) {
-        PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root = Some(env));
+        let saved = std::mem::replace(&mut ui.env, env.clone());
+        SCOPES.with(|scopes| scopes.borrow_mut().push(env));
+        let restore = Restore;
+        let out = body(ui);
+        drop(restore);
+        ui.env = saved;
+        out
     }
 }
 
@@ -969,53 +996,95 @@ thread_local! {
     static WALKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-/// How many times this thread walked a `Ui` stack for its env (`Env::of`).
+/// How many times this thread asked for a `Ui`'s env (`Env::of`).
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub fn env_walks() -> u64 {
     WALKS.with(std::cell::Cell::get)
 }
 
-/// One viewport's env entries by the `Ui` they are installed for, and its root env. The lock is held only to
-/// install or look up an entry or clone an `Arc`.
-#[derive(Default)]
-pub(crate) struct ViewportEnvs {
-    entries: FastMap<Id, Env>,
-    root: Option<Env>,
+thread_local! {
+    /// The envs the bodies being built on this thread give their children, innermost last.
+    static SCOPES: std::cell::RefCell<Vec<Env>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// What `install_for` replaced.
-pub(crate) struct Installed {
-    viewport: ViewportId,
-    node: Id,
-    previous: Option<Env>,
+/// Forgets every env a panicked build left on this thread's stack: the window root calls it before
+/// its build.
+pub(crate) fn clear_scopes() {
+    SCOPES.with(|scopes| scopes.borrow_mut().clear());
 }
 
-/// Restores the replaced entry when dropped, so a panic in a scope's body leaves no entry behind.
-struct Restore<'a> {
-    ctx: &'a Context,
-    installed: Option<Installed>,
-}
+/// Pops the env `run_in` pushed when dropped, so a panic in a body leaves no entry behind.
+struct Restore;
 
-impl Drop for Restore<'_> {
+impl Drop for Restore {
     fn drop(&mut self) {
-        if let Some(installed) = self.installed.take() {
-            Env::restore(self.ctx, installed);
-        }
+        SCOPES.with(|scopes| scopes.borrow_mut().pop());
     }
 }
 
-/// The mode the root runs animations at: the app's, and off while egui's animation time is zero.
-fn motion_mode(ctx: &Context, motion: MotionMode) -> MotionMode {
-    if repaint::animation_time(ctx) > 0.0 { motion } else { motion.lowered_by(MotionMode::Off) }
+/// The window's last root env, with the host's root and host it was built from.
+#[derive(Default)]
+struct RootCache {
+    env: Option<Env>,
+    root: Option<Arc<RootEnv>>,
+    host: Option<Arc<Host>>,
 }
 
-/// The jobs `install` was given, for a context with no host.
-#[derive(Default)]
-struct InstalledJobs(Option<Arc<dyn Jobs>>);
+/// The env cells' values a new cursor starts from, read without recording (`Env::of` registers the
+/// reads).
+pub(crate) struct CellValues {
+    ctx: Context,
+    tokens: Arc<UiTokens>,
+    direction: Direction,
+    motion: MotionMode,
+    scale: f32,
+    active: bool,
+}
 
-/// Keeps `jobs` as where `ctx`'s background work runs while no host is installed; `None` leaves
-/// `craft_host::default_jobs()`.
-pub(crate) fn install_jobs(ctx: &Context, jobs: Option<Arc<dyn Jobs>>) {
-    memory::with::<InstalledJobs, _>(ctx, |installed| installed.0 = jobs);
+impl CellValues {
+    /// The values `cx`'s node sees now: its scope's env cells, else the window's tokens with the
+    /// defaults.
+    fn peek(cx: &mut BuildCx<'_>, ctx: &Context) -> CellValues {
+        let window = cx.env();
+        let scale = *cx.peek_state(window.scale);
+        let active = *cx.peek_state(window.window_focused);
+        let (tokens, theme, direction, density, motion) = match EnvCells::of(cx) {
+            Some(cells) => {
+                // Through the store, which records no reader and brings a derived cell up to date.
+                let store = cx.store_mut();
+                (cells.tokens.get(store), cells.theme.get(store), cells.direction.get(store), cells.density.get(store), cells.motion.get(store))
+            }
+            None => (cx.peek_state(window.tokens).clone(), None, Direction::Ltr, craft_theme::Size::Compact, MotionMode::Full),
+        };
+        let tokens = ui_tokens(ctx, tokens, theme, density);
+        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active }
+    }
+}
+
+/// The resolved tokens of a token cell's value, built once per value: from the theme base when the
+/// window has one (its theme's group values come with it), else from the tokens alone at `density`.
+fn ui_tokens(ctx: &Context, tokens: Arc<Tokens>, theme: Option<Arc<ThemeBase>>, density: craft_theme::Size) -> Arc<UiTokens> {
+    ctx.service::<UiTokensCache, _>(|cache| {
+        if let Some((_, _, out)) = cache.entries.iter().find(|(t, d, _)| Arc::ptr_eq(t, &tokens) && *d == density) {
+            return out.clone();
+        }
+        let out = Arc::new(match &theme {
+            Some(base) => UiTokens::of_theme(&base.def, base.appearance, base.app.as_ref(), &base.sizes),
+            None => UiTokens::new(tokens.clone(), craft_theme::Contrast::default(), density),
+        });
+        if cache.entries.len() >= KEPT_UI_TOKENS {
+            cache.entries.remove(0);
+        }
+        cache.entries.push((tokens, density, out.clone()));
+        out
+    })
+}
+
+/// How many token sets a window keeps resolved: the root's and a few themed scopes'.
+const KEPT_UI_TOKENS: usize = 8;
+
+#[derive(Default)]
+struct UiTokensCache {
+    entries: Vec<(Arc<Tokens>, craft_theme::Size, Arc<UiTokens>)>,
 }

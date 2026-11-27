@@ -3,6 +3,7 @@
 pub(crate) mod body;
 mod collection;
 mod container;
+pub(crate) mod context;
 mod cx;
 pub(crate) mod editor;
 pub use editor::{EditorHandle, EditorStep};
@@ -53,6 +54,7 @@ pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
 #[doc(hidden)]
+pub use context::Context;
 pub use body::REORDER_BAND;
 #[doc(hidden)]
 pub use body::grip_band;

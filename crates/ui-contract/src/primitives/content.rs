@@ -73,17 +73,10 @@ impl<'a> ContentPainterCx<'a> {
     }
 
     /// The style context of the scope being painted, for a content painter that resolves the style of a component
-    /// it draws the face of. Styles resolve through the egui context's style cache until the rt runtime has its own,
-    /// so it runs on the egui runtime only.
+    /// it draws the face of; styles resolve through the window's style caches (the env's `Context`).
     #[doc(hidden)]
     pub fn style_cx(&self) -> StyleCx<'_> {
-        StyleCx::of_env(self.egui_ctx(), self.env)
-    }
-
-    /// The egui context the style cache lives on; see [`style_cx`](Self::style_cx).
-    #[doc(hidden)]
-    pub fn egui_ctx(&self) -> &egui::Context {
-        self.painter.egui().expect("a content painter resolves styles on the egui runtime until the rt style cache exists")
+        StyleCx::of_env(self.env)
     }
 
     /// Runs `paint` with a `Draw` over this painter, in the scope's tokens and direction.
