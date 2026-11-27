@@ -22,6 +22,7 @@ use std::ops::RangeInclusive;
 
 mod emit;
 
+mod roles;
 pub(crate) mod scope;
 pub(crate) mod text;
 

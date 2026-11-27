@@ -344,7 +344,7 @@ fn window_tab_key(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) -> Handled {
 /// request focused. Without a canvas it is on only with a canvas focused, which then cannot be.
 fn tab_toggles(root: &Kept, cx: &mut EventCx<'_>) -> bool {
     let Some(cells) = root.env else { return false };
-    let enabled = cx.store_mut().peek(cells.root).root.as_ref().is_some_and(|env| env.tab_toggles_chrome);
+    let enabled = cx.runtime().store().peek(cells.root).root.as_ref().is_some_and(|env| env.tab_toggles_chrome);
     if !enabled {
         return false;
     }

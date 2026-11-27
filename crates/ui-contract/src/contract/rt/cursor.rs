@@ -29,7 +29,7 @@ pub(crate) fn platform(cursor: &craft_behavior::Cursor) -> craft_ui_rt::Cursor {
         Cursor::Painted(painted) => match painted {
             PaintedCursor::Hidden => return craft_ui_rt::Cursor::Hidden,
             PaintedCursor::Hand => CursorIcon::Grab,
-            PaintedCursor::Zoom { out: true } => CursorIcon::ZoomOut,
+            PaintedCursor::Zoom { out: true, .. } => CursorIcon::ZoomOut,
             PaintedCursor::Zoom { .. } => CursorIcon::ZoomIn,
             PaintedCursor::Badged { base, .. } => *base,
             _ => CursorIcon::Crosshair,

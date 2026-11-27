@@ -20,14 +20,15 @@ pub(crate) struct PartsStep {
 /// Runs `Component::parts` over the run's rect and content rect.
 /// `interact` is the node and its interaction state (`PartsCx::hovered`, `focus_visible`); `items`
 /// what the shape laid out before (`ShapeHooks::geometry`); `extra` the shape's own parts after the
-/// component's.
+/// component's. The parts context lives as long as the run's measuring host (`input`), which pins its
+/// lifetime, so the run's facts and the step's lists are lent for that long.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn declare_parts<C: Component>(
+pub(crate) fn declare_parts<'a, C: Component>(
     comp: &mut C,
-    cx: &mut Cx<'_, C>,
+    cx: &'a Cx<'_, C>,
     rect: Rect,
-    parts: &mut PartsStep,
-    input: &MeasureIn<'_>,
+    parts: &'a mut PartsStep,
+    input: &MeasureIn<'a>,
     interact: Option<(craft_ui_rt::NodeId, craft_ui_rt::Interact)>,
     items: Option<std::rc::Rc<dyn std::any::Any>>,
     extra: &mut dyn FnMut(&mut C, Rect, &mut PartsCx<'_, C>),

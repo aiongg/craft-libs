@@ -21,6 +21,7 @@ use super::access::Access;
 use super::focus::RingShape;
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, KeptPart, NodeInput, Place, Pointer, Variant, part_id};
+use super::overlay::PopupStates;
 use super::response::{self, InputFacts};
 use super::sweep;
 use super::tip;
@@ -365,11 +366,12 @@ fn settled_core<'a>(
     begun_env: &'a Env,
     resolved: &'a Resolved<'a>,
     memory: &'a mut MemoryStage,
+    popups: &'a mut PopupStates,
     response: Response,
     begun: &steps::EnvStep,
     run: RunIo<'a>,
 ) -> CxCore<'a> {
-    core_for(begun_env, resolved, memory, response, begun.command.clone(), run)
+    core_for(begun_env, resolved, memory, popups, response, begun.command.clone(), run)
 }
 
 /// The output of a kept node: `finish` on a settled `Cx` with the kept facts and no input.
@@ -385,7 +387,7 @@ pub(crate) fn settle<C: Component>(
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context));
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     finish_with(component, &mut core, &begun.style, value)
 }
@@ -403,7 +405,8 @@ pub(crate) fn finish_measured<C: Component>(
     let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
     let resolved = begun.resolved(id);
     let mut stage = MemoryStage::open_peek(&context, id);
-    let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1, RunIo::measuring(context));
+    let mut popups = PopupStates::default();
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, &mut popups, response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;
     core.visible = rect;
@@ -442,6 +445,8 @@ pub(crate) fn run_shaped<C: Component>(
     cx.mark_changed();
     let node = cx.node();
     let Ran { id, key, place, size, rect, tokens, sweep, begun, value, tip, context, flow_reveal } = ran;
+    // Before the core borrows the node's memory and popups for the run.
+    kept.note_id(cx, id);
     let resolved = begun.resolved(id);
     let facts = begun.facts;
     let style = &*begun.style;
@@ -474,13 +479,13 @@ pub(crate) fn run_shaped<C: Component>(
         &begun.env,
         &resolved,
         &mut kept.memory,
+        &mut kept.popups,
         response,
         begun.step1.command.clone(),
         RunIo { ime_history: kept.ime.history(), ime_body: kept.ime.body.clone().into(), ..RunIo::new(&input, context.clone()) },
     );
     place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
     // The popups live on the node; `PopupHandle` reads and changes them through the run's core.
-    core.popups = std::mem::take(&mut kept.popups);
     core.popups.begin_run(cx);
     core.run.inbox = inbox;
     core.run.swept = swept;
@@ -566,7 +571,7 @@ pub(crate) fn run_shaped<C: Component>(
     // 11 apply: the run's edits reach the binding, and the shown value follows.
     let wrote = steps::apply_values(&mut component, &mut cxx).wrote();
     hooks.apply(&mut component, &mut cxx);
-    steps::register_reset(&mut component, &cxx);
+    steps::register_reset(&mut component, &mut cxx);
 
     // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6); then the
     // shape's content (a collection's rows), whose children join the ones the paint showed.
@@ -590,7 +595,7 @@ pub(crate) fn run_shaped<C: Component>(
     // the tooltip and the kept retained facts.
     kept.close_guard = component.close_guard();
     kept.type_name = std::any::type_name::<C>();
-    kept.command = begun.step1.command.as_ref().map(|command| command.command.clone());
+    kept.command = begun.step1.command.as_ref().map(|command| craft_keymap::CommandRef::clone(&command.command));
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
     let mut built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, row.as_deref(), cx)).flatten();
@@ -658,7 +663,6 @@ pub(crate) fn run_shaped<C: Component>(
     let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
     let fires = std::mem::take(&mut cxx.core.run.fires);
     kept.id = id;
-    kept.note_id(cx, id);
     kept.key = if wrote { component_key(&component) } else { key };
     kept.place = place;
     kept.size = size;
@@ -666,7 +670,6 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
     let out = component.finish(cxx);
-    kept.popups = std::mem::take(&mut core.popups);
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
@@ -734,7 +737,7 @@ fn settle_shaped<C: Component>(
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
     let room = kept.place.room;
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context.clone()));
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     let mut cxx =
         Cx { core: &mut core, style: &*begun.style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
@@ -840,9 +843,9 @@ pub(crate) fn reach_layers<C: Component>(
         let node = cx.node();
         let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
         let resolved = begun.resolved(id);
-        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context.clone()));
+        let mut core =
+            settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
         place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
-        core.popups = std::mem::take(&mut kept.popups);
         core.popups.begin_run(cx);
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
         let host = RunHost::new(cx, run_flow(id, rect.min, kept.place.room, tokens.clone(), None), context, begun.env.clone());
@@ -852,7 +855,6 @@ pub(crate) fn reach_layers<C: Component>(
         };
         drop(host);
         drop(cxx);
-        kept.popups = std::mem::take(&mut core.popups);
         if changed {
             cx.rebuild();
         }

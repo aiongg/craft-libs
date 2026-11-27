@@ -234,9 +234,9 @@ pub struct CxCore<'a> {
     /// The facts the collection gave this row (`rt::items::row_facts`, a tracked read); `None` outside a collection's
     /// rows.
     pub(crate) row: Option<Arc<crate::runtime::env::ItemFacts>>,
-    /// The component's popups and whether each is open, taken from its node for the run (`Kept::popups`) and kept
-    /// with it after: `PopupHandle` reads and changes them, the overlay pass shows the open ones.
-    pub(crate) popups: crate::contract::rt::overlay::PopupStates,
+    /// The component's popups and whether each is open, borrowed from its node (`Kept::popups`): `PopupHandle` reads
+    /// and changes them, the overlay pass shows the open ones.
+    pub(crate) popups: &'a mut crate::contract::rt::overlay::PopupStates,
 }
 
 /// The node side of one run (or of a kept node's settled `Cx`): the input queued since the last run, and the outputs
