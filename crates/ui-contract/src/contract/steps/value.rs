@@ -6,13 +6,11 @@ use crate::contract::values::reuse_arc;
 use crate::contract::{BindMut, Component, ValueOf};
 use crate::runtime::commands::{CommandKind, ResolvedCommand};
 use crate::runtime::memory::MemoryStage;
-use crate::runtime::motion::StateTweens;
 use craft_behavior::{CancelReason, EditEvent, Gesture, Mixed, Value};
 use std::sync::Arc;
 
-/// What a component showed last pass, in one shown slot under its id: the shown copy of its value, the
-/// `(hovered, focus_visible)` that `PartsCx::hovered` and `focus_visible` read, and its eased
-/// hover, press and on.
+/// What a component showed last pass, in one shown slot under its id: the shown copy of its value and the
+/// `(hovered, focus_visible)` that `PartsCx::hovered` and `focus_visible` read.
 pub(crate) struct Shown<V> {
     pub copy: Option<Arc<V>>,
     pub state: ShownState,
@@ -24,7 +22,6 @@ pub(crate) struct ShownState {
     pub last_state: (bool, bool),
     /// A pointer click on the control, while the pointer has stayed over it since.
     pub clicked_over: bool,
-    pub tweens: Option<StateTweens>,
 }
 
 impl ShownState {

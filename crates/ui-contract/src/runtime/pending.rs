@@ -1,12 +1,10 @@
-//! Background results (14): one result per key in runtime memory, produced by a job on a `host::queue::JobQueue` per context.
+//! Background results (14): the `Pending` a node reads while its job runs, and a job's `Progress`. The jobs run on the
+//! runtime's `JobBoard`.
 
 pub use crate::contract::rt::pending::{Delivery, JobBoard, JobHandle};
 
-use crate::runtime::egui::repaint;
-
 use craft_host::queue::{Cancel, Priority};
-
-use egui::Context;
+use craft_ui_rt::Waker;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -38,24 +36,30 @@ impl<T, E> Default for Pending<T, E> {
     }
 }
 
-/// A job's report of how far it has come. A report asks for a pass, so the progress shows.
+/// A job's report of how far it has come. A report wakes the loop through the driver's waker, so the progress shows.
 #[derive(Clone)]
 pub struct Progress {
     bits: Arc<AtomicU32>,
-    ctx: Context,
+    waker: Waker,
 }
 
 /// The stored bits of "no report yet": a NaN, which a report never writes.
 const NO_REPORT: u32 = u32::MAX;
 
 impl Progress {
+    /// A progress with no report yet, which wakes the loop through `waker` at each report.
+    pub(crate) fn new(waker: Waker) -> Self {
+        Progress { bits: Arc::new(AtomicU32::new(NO_REPORT)), waker }
+    }
+
     /// Reports `fraction` (0 to 1) done.
     pub fn report(&self, fraction: f32) {
         self.bits.store(fraction.clamp(0.0, 1.0).to_bits(), Ordering::Release);
-        repaint::request(&self.ctx);
+        self.waker.wake();
     }
 
-    fn get(&self) -> Option<f32> {
+    /// The last report, 0 to 1; `None` before the first.
+    pub(crate) fn get(&self) -> Option<f32> {
         match self.bits.load(Ordering::Acquire) {
             NO_REPORT => None,
             bits => Some(f32::from_bits(bits)),

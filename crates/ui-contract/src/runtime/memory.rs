@@ -156,6 +156,8 @@ pub struct MemoryStage {
     appeared: bool,
     /// A face's stage: a `Remember` write is a debug assertion, because a face has no state of its own.
     pub(crate) face: bool,
+    /// The node's motions (`Animate`), which go with the node.
+    pub(crate) motion: crate::runtime::motion::Motions,
 }
 
 impl MemoryStage {
@@ -167,7 +169,16 @@ impl MemoryStage {
 
     /// A stage over the node memory `memory` of the component `owner`; [`MemoryStage::finish`] hands it back.
     pub(crate) fn on_node(ctx: &Context, owner: Id, memory: Memory) -> Self {
-        MemoryStage { ctx: ctx.clone(), owner, memory, staged: Vec::new(), peek_only: false, appeared: false, face: false }
+        MemoryStage {
+            ctx: ctx.clone(),
+            owner,
+            memory,
+            staged: Vec::new(),
+            peek_only: false,
+            appeared: false,
+            face: false,
+            motion: Default::default(),
+        }
     }
 
     /// A stage with no node behind it, for code that keeps session or saved slots only: its shown slots last for the

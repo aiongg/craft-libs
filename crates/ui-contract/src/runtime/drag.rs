@@ -2,10 +2,7 @@
 //! mark of the drop target that would take the payload, as data. The drop-target registrations of a pass resolve in the
 //! next pass, like the press arena's shapes. The ghost layer paints from this data (`contract::ghost`).
 
-use crate::runtime::egui::areas;
-use crate::runtime::egui::files;
 use crate::runtime::env::{Env, Label};
-use crate::runtime::frame;
 
 use crate::style::UiTokens;
 use craft_behavior::{CopyKeys, DropOperation};

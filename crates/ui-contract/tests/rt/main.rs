@@ -11,6 +11,7 @@ mod input;
 mod int5b;
 mod items;
 mod layout;
+mod motion;
 mod overlay;
 mod pipeline;
 mod services;

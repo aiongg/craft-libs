@@ -12,6 +12,7 @@ use crate::contract::Context;
 use crate::fonts::stack_facts;
 use crate::primitives::Id;
 use crate::runtime::env::{AppValues, MotionPolicy, Scale, StyleValue};
+use crate::runtime::memory::MemoryStage;
 use crate::runtime::motion::{MotionSpec, Presence};
 use craft_behavior::ControlMetrics;
 use craft_host::target::Os;
@@ -75,9 +76,9 @@ pub struct StyleCx<'a> {
     /// The window's context: the style caches and the frame's facts.
     ctx: &'a Context,
     values: &'a AppValues,
-    /// The component whose motion memory `exiting` reads, and the motion policy it runs under; set by the collection
-    /// hook for the layout it asks of the component.
-    owner: Option<(Id, MotionPolicy)>,
+    /// The memory stage of the node whose motions `exiting` reads, the component id its slots hang under, and the
+    /// motion policy it runs under; set by the collection hook for the layout it asks of the component.
+    owner: Option<(&'a MemoryStage, Id, MotionPolicy)>,
 }
 
 /// A variant's look as style parts.
@@ -213,20 +214,21 @@ impl<'a> StyleCx<'a> {
         super::look::TextLook::new(craft_theme::TypeRole::Body, Stateful::new(rest).off(States::new(rest, rest, rest, off)))
     }
 
-    /// The same context scoped to the component `id`, whose keyed presences `exiting` reads under `policy`.
-    pub(crate) fn owned_by(&self, id: Id, policy: MotionPolicy) -> StyleCx<'a> {
-        StyleCx { owner: Some((id, policy)), ..*self }
+    /// The same context scoped to the component `id` of the node whose memory stage is `memory`: `exiting` reads its
+    /// keyed presences under `policy`.
+    pub(crate) fn owned_by<'b>(&'b self, memory: &'b MemoryStage, id: Id, policy: MotionPolicy) -> StyleCx<'b> {
+        StyleCx { owner: Some((memory, id, policy)), ..*self }
     }
 
     /// The keyed presences of `name` in the motion memory of the component this context is scoped to, for the keys
     /// not among `listed` (the keys its source lists now): each is still fading out, with the payload it was last
-    /// given and the presence it has at this pass's clock, as `Animate::exiting` computes it. It reads without
+    /// given and the presence it has at the frame time, as `Animate::exiting` computes it. It reads without
     /// driving, so a collection's `item_layout` can keep the room of an item that is leaving until its exit ends.
     /// Empty outside a collection's layout.
     pub fn exiting<P: Clone + Send + Sync + 'static>(&self, name: &'static str, spec: MotionSpec, listed: &[impl Hash]) -> Vec<(Presence, P)> {
-        let Some((id, policy)) = self.owner else { return Vec::new() };
+        let Some((memory, id, policy)) = self.owner else { return Vec::new() };
         let listed: Vec<Id> = listed.iter().map(crate::runtime::motion::key_id).collect();
-        crate::runtime::motion::peek_exiting(self.ctx, id, policy, name, spec, &listed)
+        crate::runtime::motion::peek_exiting(memory, id, policy, name, spec, &listed)
     }
 
     /// The same context with another variant.
