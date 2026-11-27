@@ -11,9 +11,10 @@
 //! measuring run from its size cache, hands its captured reports to the open groups again ([`replay`]). The group's
 //! widths are thus those of every row it holds, run or kept.
 //!
-//! When a group closes with widths other than the ones it kept, it keeps the new ones; after a real run its node builds
-//! again in this frame, so the rows that read the old widths take the new ones. A measuring run before the real run
-//! (a container's plan) records them first, so the real run is right at once.
+//! When a group closes with widths other than the ones it kept, it keeps the new ones. When a row of a real run read
+//! a width other than the final one (a row before the widest, or a kept width the rows no longer reach), the node
+//! builds again in this frame, so those rows take the final width. A measuring run before the real run (a container's
+//! plan) records them first, so the real run is right at once.
 
 use crate::contract::{Context, Id, Ui};
 use crate::runtime::memory::{sub, with_session};
@@ -52,8 +53,9 @@ struct Open {
 }
 
 enum Frame {
-    /// A group: rows report their widths and read the widest. `measuring`: the group opened in a measuring run.
-    Group { id: Id, widest: Columns, measuring: bool },
+    /// A group: rows report their widths and read the widest. `reads`: per column, the narrowest and widest width a
+    /// row read. `measuring`: the group opened in a measuring run.
+    Group { id: Id, widest: Columns, reads: HashMap<ColumnKey, (f32, f32)>, measuring: bool },
     /// A labelled container's body, or a component's label step for a child: the field's control. Its labels stay
     /// its own, so rows inside read no label column; every other column (a content-sized number field's value and
     /// unit) they share with the group around.
@@ -101,6 +103,18 @@ impl Open {
         }
         widest
     }
+
+    /// Notes that a row of `group` read `width` in `column`.
+    fn read(&mut self, group: Id, column: &ColumnKey, width: f32) {
+        let reads = self.frames.iter_mut().rev().find_map(|frame| match frame {
+            Frame::Group { id, reads, .. } if *id == group => Some(reads),
+            _ => None,
+        });
+        if let Some(reads) = reads {
+            let (least, most) = reads.entry(column.clone()).or_insert((width, width));
+            (*least, *most) = (least.min(width), most.max(width));
+        }
+    }
 }
 
 /// The column group of column `column` of the `Grid` body `grid`.
@@ -118,7 +132,9 @@ fn recorded(ctx: &Context, group: Id) -> Columns {
 fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
     let so_far = ctx.service::<Open, _>(|open| open.add(Report { group, column: column.clone(), width: content })).unwrap_or(content);
     let kept = with_session::<Recorded, _>(ctx, sub(group, "widths"), |kept| kept.0.get(column).copied());
-    kept.map_or(so_far, |kept| kept.max(so_far))
+    let width = kept.map_or(so_far, |kept| kept.max(so_far));
+    ctx.service::<Open, _>(|open| open.read(group, column, width));
+    width
 }
 
 /// Starts capturing the reports made in the build or run of the node about to run (module docs).
@@ -212,12 +228,13 @@ impl ColumnGroup {
     fn open(ui: &Ui, groups: &[Id]) {
         let measuring = ui.is_measuring();
         ui.ctx().service::<Open, _>(|open| {
-            open.frames.extend(groups.iter().map(|&id| Frame::Group { id, widest: Columns::new(), measuring }));
+            open.frames.extend(groups.iter().map(|&id| Frame::Group { id, widest: Columns::new(), reads: HashMap::new(), measuring }));
         });
     }
 
     /// Closes the `count` innermost group frames. A group whose rows found other widths than it kept keeps the new
-    /// ones; after a real run the node builds again in this frame (module docs).
+    /// ones; when a row of a real run read another width than the final one, the node builds again in this frame
+    /// (module docs).
     fn close(ui: &mut Ui, count: usize) {
         let ctx = ui.ctx().clone();
         let frames = ctx.service::<Open, _>(|open| {
@@ -226,12 +243,15 @@ impl ColumnGroup {
         });
         let mut moved = false;
         for frame in frames {
-            let Frame::Group { id, widest, measuring } = frame else { continue };
-            if recorded(&ctx, id) == widest {
-                continue;
+            let Frame::Group { id, widest, reads, measuring } = frame else { continue };
+            let stale = reads.iter().any(|(column, &(least, most))| {
+                let last = widest.get(column).copied().unwrap_or(0.0);
+                least != last || most != last
+            });
+            moved |= stale && !measuring;
+            if recorded(&ctx, id) != widest {
+                with_session::<Recorded, _>(&ctx, sub(id, "widths"), |kept| kept.0 = widest);
             }
-            with_session::<Recorded, _>(&ctx, sub(id, "widths"), |kept| kept.0 = widest);
-            moved |= !measuring;
         }
         if moved {
             ui.build_cx().rebuild();
