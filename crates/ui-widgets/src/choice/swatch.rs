@@ -325,7 +325,7 @@ impl Swatch<()> {
 
 impl<T: Value + crate::contract::MemoProps + 'static> Swatch<T> {
     /// Makes the swatch the member standing for `value` of the enclosing `RadioGroup<U>`.
-    pub fn member<U: Value + 'static>(self, value: U) -> Swatch<U> {
+    pub fn member<U: Value + crate::contract::MemoProps + 'static>(self, value: U) -> Swatch<U> {
         Swatch {
             common: self.common,
             fill: self.fill,
