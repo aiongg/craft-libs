@@ -12,11 +12,10 @@ pub use body::{BodyLayout, CellAlign, GridFit, RowAlign, ShrinkOrder, ShrinkUnit
 pub use column_group::ColumnGroup;
 #[doc(hidden)]
 pub use column_group::ambient_width;
-#[doc(hidden)]
-pub use column_group::report_beyond;
-pub(crate) use column_group::{Columns, GLYPHS, LABELS, Reached, ambient_room, note_beside};
-pub use label::{control_baseline, place_label, record_control_baseline};
+pub(crate) use column_group::{GLYPHS, LABELS, Report, begin_capture, end_capture, replay};
+pub use label::{control_baseline, place_label, record_control_baseline, record_control_centre};
 pub use slot::measure_slot;
 
 #[doc(hidden)]
 pub use body::place_in_flow;
+pub(crate) use body::{flow_room, grid_cell};

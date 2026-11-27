@@ -11,7 +11,7 @@ use std::hash::Hash;
 /// What `arrange` needs of a child: its size, and a show at a rect under its id. The contract's
 /// `Show` is not object safe, so each child sits behind this.
 trait Arranged {
-    fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2;
+    fn measure_in(&mut self, ui: &mut Ui, proposal: Proposal) -> Vec2;
 
     fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Option<Response>;
 }
@@ -20,7 +20,7 @@ trait Arranged {
 struct Child<C>(Option<C>);
 
 impl<C: Show> Arranged for Child<C> {
-    fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2 {
+    fn measure_in(&mut self, ui: &mut Ui, proposal: Proposal) -> Vec2 {
         self.0.as_mut().map_or(Vec2::ZERO, |child| child.measure_in(ui, proposal))
     }
 

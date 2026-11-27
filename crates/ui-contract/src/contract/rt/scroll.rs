@@ -86,6 +86,8 @@ pub(crate) struct ScrollKept {
     anchor: Option<(NodeId, f32)>,
     /// A pressed strip: the direction it scrolls (-1 back, 1 forward) and when layout last paid it out.
     strip: Option<(f32, f64)>,
+    /// `jump_to` moved the offset since the last `finish_build`.
+    jumped: bool,
     look: Look,
 }
 
@@ -130,6 +132,7 @@ impl ScrollKept {
             misses: None,
             ease: WheelEase::default(),
             glide: None,
+            jumped: false,
             grab: None,
             at_end: true,
             anchor: None,
@@ -195,11 +198,27 @@ impl ScrollKept {
         self.anchor = placed.iter().find(|p| p.offset.y + p.size.y > self.offset.y).map(|p| (p.node, p.offset.y));
         self.band = if flow.limited { overscan(view).translate(-content_origin.to_vec2()) } else { Rect::EVERYTHING };
         let placed = vec![Placed { node: content, offset: Vec2::ZERO, size: extent }];
-        if self.kept.placed != placed || before != (self.offset, self.extent, self.view) || self.glide.is_some() {
+        let jumped = std::mem::take(&mut self.jumped);
+        if self.kept.placed != placed || before != (self.offset, self.extent, self.view) || self.glide.is_some() || jumped {
             self.kept.placed = placed;
             self.kept.size = self.view;
             cx.mark_changed();
         }
+    }
+
+    /// Sets the offset to `offset` at once (clamped once the build knows the extent): a bound offset that its owner
+    /// moved. It ends a glide, an eased step and a bar drag, and drops the anchor, so the first child in view does not
+    /// pull the offset back. The build that calls it lays the content out again when it finishes (`finish_build`).
+    pub(crate) fn jump_to(&mut self, offset: Vec2) {
+        if offset == self.offset && self.glide.is_none() {
+            return;
+        }
+        self.offset = offset.max(Vec2::ZERO);
+        self.glide = None;
+        self.ease = WheelEase::default();
+        self.grab = None;
+        self.anchor = None;
+        self.jumped = true;
     }
 
     /// Moves the offset to `to` (clamped); returns whether it moved.
