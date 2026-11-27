@@ -605,7 +605,7 @@ mod drawn {
     use craft_ui_contract::contract::{MemoView, Ui};
     use craft_ui_contract::primitives::Color32;
     use craft_ui_contract::testing::Harness;
-    use craft_ui_rt::{Item, Part, Pos2, Rect, Vec2};
+    use craft_ui_rt::{Item, Part, Pos2, Rect};
 
     const UNDER: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(10.0, 10.0) };
     const OVER: Rect = Rect { min: Pos2::new(20.0, 0.0), max: Pos2::new(30.0, 10.0) };
