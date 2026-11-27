@@ -20,13 +20,12 @@ pub(crate) mod stories;
 
 pub use detail::{DetailPlan, snap_to_texels};
 
-use crate::contract::MemoProps as _;
 use super::{AppPaint, PixelRect, RasterSource, canvas_space};
+use crate::contract::MemoProps as _;
 use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
 use crate::primitives::textures::UNTINTED;
 use crate::primitives::{
-    CachedTexture, Checker, CheckerArea, Draw, Revision, RuleKind, TextureState, TextureStore, TextureStoreOptions, texture_factor,
-    texture_side,
+    CachedTexture, Checker, CheckerArea, Draw, Revision, RuleKind, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side,
 };
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
@@ -298,8 +297,7 @@ pub struct RasterDisplay<'a> {
 
 /// Where a mapped display's picture lies in document space; a source picture is drawn through the homography on a
 /// mesh of cells instead of as a flat quad.
-#[derive(Clone, Copy, Debug)]
-#[derive(crate::contract::MemoProps)]
+#[derive(Clone, Copy, Debug, crate::contract::MemoProps)]
 struct Mapping {
     frame: Homography,
     cells: u32,

@@ -771,7 +771,9 @@ impl StartScreen<'_> {
             ui.painter().rect_filled(room, CornerRadius::ZERO, rgba_color(env.tokens.color.surface.page));
         } else {
             let look = SurroundLook::of(&env.tokens).shown(env.canvas_pattern);
-            crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| paint_surround(canvas, CheckerArea::Rect(room, CornerRadius::ZERO), &look));
+            crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| {
+                paint_surround(canvas, CheckerArea::Rect(room, CornerRadius::ZERO), &look)
+            });
         }
 
         let rail_stack = || Stack::new().gap(Gap::Tight).pad(Pad::Regular).label(words.start_links.clone());

@@ -113,8 +113,7 @@ impl ZoomAnimation {
 }
 
 /// What a view change asks of a canvas's zoom ease, from outside the canvas's own pass.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[derive(crate::contract::MemoProps)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 pub(crate) enum Steer {
     /// Ease from `from` (the view drawn when the change was asked for) to the canvas's next view, keeping the anchor.
     Ease { from: CanvasView, anchor: Option<(Point, Pos2)> },

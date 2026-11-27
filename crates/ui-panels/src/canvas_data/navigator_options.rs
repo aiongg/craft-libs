@@ -9,8 +9,7 @@ use egui::Color32;
 /// `Default` is the light red of the proxy in Photoshop's Navigator; the named colours are fixed data, the same in every
 /// theme, chosen to read on the dark preview box; `Custom` is a colour from the app's picker, kept as 8-bit sRGB.
 /// Serialised by variant name, `Custom` as `{ Custom = [r, g, b] }`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[derive(crate::contract::MemoProps)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 pub enum ProxyColor {
     /// The default proxy colour.
     #[default]

@@ -2,12 +2,12 @@
 //! moves the view, a drag of the proxy moves it by the distance dragged, a Cmd/Ctrl-drag zooms to the rectangle, the
 //! wheel and `+` and `-` zoom about the view centre, and the arrow and page keys move it.
 
-use crate::contract::MemoProps as _;
 use super::proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 use crate::canvas::AppPaint;
 use crate::canvas::zoom_motion::{self, Steer};
 use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommands, WheelAction, WheelNavigation, WheelScheme};
 use crate::canvas_data::ProxyColor;
+use crate::contract::MemoProps as _;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi,
     PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
@@ -544,7 +544,15 @@ impl crate::contract::MemoProps for NavigatorPreview<'_> {
     fn key(&self, key: &mut crate::contract::MemoKey) {
         match self {
             NavigatorPreview::Texture(texture) => {
-                (0u8, crate::primitives::texture_key(texture.id).0, texture.size.width, texture.size.height, texture.origin, texture.page.width, texture.page.height)
+                (
+                    0u8,
+                    crate::primitives::texture_key(texture.id).0,
+                    texture.size.width,
+                    texture.size.height,
+                    texture.origin,
+                    texture.page.width,
+                    texture.page.height,
+                )
                     .key(key);
             }
             NavigatorPreview::Paint(paint) => (1u8, paint).key(key),

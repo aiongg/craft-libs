@@ -38,8 +38,7 @@ impl TickEdge {
 /// How a ruler lays out its marks and numbers. A ruler takes a face from its `face` prop, else from the scope's
 /// component set ([`RulerFace::of`]); the face changes the arrangement only, every value still comes from the same
 /// tokens.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[derive(crate::contract::MemoProps)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub enum RulerFace {
     /// Marks rise from the strip's inner edge, a major one across the strip's depth, and each number sits beside its
     /// major mark.

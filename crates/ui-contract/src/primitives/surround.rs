@@ -22,7 +22,9 @@ pub fn paint_surround(painter: &super::Canvas<'_>, area: CheckerArea, look: &Sur
         }
         CheckerArea::Quad(corners) => {
             let feather = painter.egui().map_or(0.0, |ctx| {
-                ctx.tessellation_options(|options| if options.feathering { options.feathering_size_in_pixels / painter.pixels_per_point() } else { 0.0 })
+                ctx.tessellation_options(
+                    |options| if options.feathering { options.feathering_size_in_pixels / painter.pixels_per_point() } else { 0.0 },
+                )
             });
             let mesh = fill_polygon(&corners, look.fill, feather);
             if !mesh.is_empty() {
