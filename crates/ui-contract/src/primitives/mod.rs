@@ -18,6 +18,7 @@ mod ime_surface;
 pub mod items;
 mod kit;
 mod marker;
+mod paint_slot;
 pub(crate) mod pointer_art;
 mod record;
 mod reset_mark;
@@ -36,7 +37,6 @@ mod text_input;
 pub mod textures;
 mod tool;
 
-pub use crate::runtime::egui::paint_slot::PaintSlot;
 pub use auto_scroll_mark::AutoScrollMark;
 pub(crate) use canvas::NoServices;
 pub use canvas::{Canvas, CanvasMark, FaceJob, FrameServices, Services, image_key, rgba_image, texture_key};
@@ -57,6 +57,7 @@ pub use kit::{
     drop_mark, ellipse, fill_polygon, grid_lines, grid_lines_with, marching_ants, outline, outline_with, ramp, swath, ticks,
 };
 pub use marker::{Marker, MarkerSize};
+pub use paint_slot::PaintSlot;
 pub use pointer_art::painted_image;
 pub use reset_mark::ResetMark;
 pub use rule::{RectSide, Rule, RuleKind};

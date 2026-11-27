@@ -58,7 +58,7 @@ pub(crate) fn unfade(canvas: &Canvas<'_>, core: &mut CxCore<'_>, fade: Option<Fa
         return;
     }
     let radius = core.paint.borrow().surface_radius;
-    canvas.rect_filled(core.rect, radius, crate::style::paint::color(fade.ground.faded(1.0 - Opacity::DISABLED)));
+    canvas.rect_filled(core.rect, radius, crate::style::rgba_color(fade.ground.faded(1.0 - Opacity::DISABLED)));
 }
 
 /// The items of the root surface; `None` for a component with no surface.

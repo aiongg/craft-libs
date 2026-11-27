@@ -291,9 +291,9 @@ impl PaintUi<'_> {
     }
 
     /// Reserves an empty place at the current end of the variant's paint order, clipped to `clip`, for items added
-    /// later by code that holds no painter (`PaintSlot::extend`).
+    /// later by code that holds no painter (`PaintSlot::fill`).
     pub fn reserve_slot(&self, clip: Rect) -> PaintSlot {
-        PaintSlot::reserve_in(self.canvas, clip)
+        PaintSlot::reserve_in(self.canvas, self.record, self.id, self.rect.min, clip)
     }
 
     /// The raw painter for an allowlisted content painter, clipped to the component's own rect. Its data paths paint

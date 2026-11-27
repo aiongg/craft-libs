@@ -530,7 +530,7 @@ pub(crate) fn run_shaped<C: Component>(
         let items =
             hooks.geometry(&component, &steps::measure_cx::<C>(&input, style, &resolved, cxx.shown.as_deref()), (rect, cxx.core.content_rect), rtl);
         let mut extra = |c: &mut C, r: Rect, pcx: &mut crate::contract::PartsCx<'_, C>| hooks.parts(c, r, pcx);
-        steps::declare_parts(&mut component, &mut cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
+        steps::declare_parts(&mut component, &cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
     }
     kept.parts = steps::kept_parts(&parts, rect.min);
     kept.sense = sense;
@@ -933,6 +933,8 @@ fn record_variants<C: Component>(
         };
         let ((variant, children), read) = crate::style::pointer_reads(|| {
             steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
+            // Each look reserves its paint slots from key 0, so a slot names the same place in every look.
+            cxx.core.paint.borrow_mut().slots = 0;
             let canvas = Canvas::new(host, cxx.core.rect.min, Rect::EVERYTHING);
             let fade = steps::fade(&canvas, &begun.env, cxx.core);
             if let Some(items) = steps::surface_items(&begun.env, cxx.core, &*begun.style, scale) {

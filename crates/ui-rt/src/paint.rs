@@ -259,6 +259,26 @@ impl PaintCx<'_> {
     }
 }
 
+/// Puts each filled slot's items in place of its [`Item::Slot`] in `list`, and notes the slots `list` reserves. An
+/// unfilled slot stays in the list; renderers paint nothing for it.
+fn fill_slots(list: &mut DisplayList, kept: &[(u64, Arc<DisplayList>)], reserved: &mut SmallVec<[u64; 2]>) {
+    if !list.items.iter().any(|item| matches!(item, Item::Slot(_))) {
+        return;
+    }
+    for item in std::mem::take(&mut list.items) {
+        match item {
+            Item::Slot(key) => {
+                reserved.push(key);
+                match kept.iter().find(|(k, _)| *k == key) {
+                    Some((_, filled)) => list.items.extend(filled.items.iter().cloned()),
+                    None => list.items.push(Item::Slot(key)),
+                }
+            }
+            item => list.items.push(item),
+        }
+    }
+}
+
 const FULL_UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
 
 /// Re-records the display lists of the queued nodes. Nodes that did not change are not visited.
@@ -293,7 +313,15 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             close_guard: false,
         };
         el.paint(&mut cx);
-        let PaintCx { content, overlay, clip, opacity, hits, cursor, window_drop, close_guard, .. } = cx;
+        let PaintCx { mut content, mut overlay, clip, opacity, hits, cursor, window_drop, close_guard, .. } = cx;
+        if let Some(node) = rt.tree.nodes.get_mut(&id)
+            && !node.slot_lists.is_empty()
+        {
+            let mut reserved: SmallVec<[u64; 2]> = SmallVec::new();
+            fill_slots(&mut content, &node.slot_lists, &mut reserved);
+            fill_slots(&mut overlay, &node.slot_lists, &mut reserved);
+            node.slot_lists.retain(|(key, _)| reserved.contains(key));
+        }
         rt.version_clock += 1;
         let version = rt.version_clock;
         rt.counters.painted += 1;

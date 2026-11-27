@@ -252,6 +252,10 @@ pub enum Item {
         key: SurfaceKey,
         rect: Rect,
     },
+    /// A place in the list for items filled later by code with no painter ([`crate::BuildCx::fill_slot`]): the
+    /// node keeps slot `key`'s items beside its display lists and paints them here. ui-rt puts them in place
+    /// before a list reaches a renderer, so renderers never see a slot.
+    Slot(u64),
     PushClip(Clip),
     PopClip,
     /// Items up to the matching [`Item::PopOpacity`] composite as one group at `opacity`. Nothing
@@ -315,7 +319,7 @@ impl Item {
                     Rect::from_points(&corners).expand(reach)
                 }
             }
-            Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => return None,
+            Item::Slot(_) | Item::PushClip(_) | Item::PopClip | Item::PushOpacity { .. } | Item::PopOpacity => return None,
         };
         // Rects built from flipped corners are normalised before the margin goes on.
         Some(Rect::from_two_pos(r.min, r.max).expand(AA_MARGIN))

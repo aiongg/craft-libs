@@ -164,6 +164,8 @@ impl Recorder<'_> {
                 }
             }
             Item::Surface { key, rect } => self.surface(*key, *rect),
+            // ui-rt puts a slot's items in its place; an unfilled slot paints nothing.
+            Item::Slot(_) => {}
             Item::PushClip(clip) => self.push_clip(*clip),
             Item::PopClip | Item::PopOpacity => self.pop(),
             Item::PushOpacity { opacity, bounds } => {

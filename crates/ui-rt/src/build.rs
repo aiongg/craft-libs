@@ -500,6 +500,19 @@ impl BuildCx<'_> {
         self.rt.tree.mark_paint(node);
     }
 
+    /// Puts `list` (in `node`'s local coordinates) in `node`'s paint slot `key` in place of what it held, and
+    /// repaints `node`: its paint replays the lists it recorded with the slot's new items in place, and nothing
+    /// builds. A slot the node's lists no longer reserve drops its items at that paint.
+    pub fn fill_slot(&mut self, node: NodeId, key: u64, list: crate::display::DisplayList) {
+        let Some(n) = self.rt.tree.nodes.get_mut(&node) else { return };
+        let list = std::sync::Arc::new(list);
+        match n.slot_lists.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, kept)) => *kept = list,
+            None => n.slot_lists.push((key, list)),
+        }
+        self.rt.tree.mark_paint(node);
+    }
+
     /// This node's layout runs in this frame (its children moved).
     pub fn request_layout(&mut self) {
         let node = self.node;
