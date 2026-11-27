@@ -1,20 +1,25 @@
 //! Count trials of a component's popups on craft-ui-rt layers, through the real `Component` trait: opening a popup
 //! runs only its opener and its content, and a press outside that dismisses it runs only the opener; a hover popup
 //! waits for its delay with no frame; a popup's body memory outlasts a close; a modal blocks the content below it; a
-//! later wake does not replace an earlier one. Relations only, no times.
+//! later wake does not replace an earlier one; a fading popup takes no input and goes at its wake; a context opener
+//! offers its menu on its own node; a drag preview follows the pointer with no run; a panel popup closes on a row
+//! click; Space held lets a press through a modal to the canvas it keeps open. Relations only, no times.
 
 use std::cell::Cell;
 use std::rc::Rc;
 
 use craft_ui_contract::contract::overlay::{Overlay, OverlayUi, Overlays as _, Trigger};
-use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, Props as _, Response, Role, Show as _, Ui};
+use craft_ui_contract::contract::{
+    Common, Component, Container, ContainerProps, Cx, DragPreview, DragSource, MeasureCx, Mount, Props as _, Response, Role, Show as _,
+    ShowContainer, Ui,
+};
 use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui_contract::style::StyleCx;
-use craft_ui_platform_headless::Input;
+use craft_ui_platform_headless::{HeadlessPlatform, Input};
 use craft_ui_rt::record::RecordingRenderer;
-use craft_ui_rt::{Key, Mods, Pos2, Rect, StepReport, Vec2};
+use craft_ui_rt::{Key, Mods, Platform as _, Pos2, Rect, Runtime, Sense, StepReport, Vec2, WindowSpec};
 use craft_ui_test_kit::contract::PlainStyle;
-use craft_ui_test_kit::rt::Rig;
+use craft_ui_test_kit::rt::{Rig, test_tokens};
 
 use crate::skeleton::Chip;
 
@@ -391,4 +396,323 @@ fn a_later_wake_does_not_replace_an_earlier_one() {
         frame(&mut rig);
         assert_eq!(runs.get(), before + 1, "the one-second wake ran the leaf once (later first: {later_first})");
     }
+}
+
+/// The nodes on the window's layers above the content: popups, menus, dialogs, toasts, the drag ghost.
+fn layer_children(rig: &Rig<RecordingRenderer>) -> Vec<craft_ui_rt::NodeId> {
+    let rt = rig.runtime();
+    let Some(root) = rt.window_node(rig.main) else { return Vec::new() };
+    rt.children(root).iter().skip(1).flat_map(|&layer| rt.children(layer).to_vec()).collect()
+}
+
+/// Runs `rig` past the end of every fade and every wake it asked for.
+fn past_fades(rig: &mut Rig<RecordingRenderer>, step: &mut dyn FnMut(&mut Rig<RecordingRenderer>) -> StepReport) {
+    rig.driver.platform.advance(1.0);
+    for _ in 0..6 {
+        if !step(rig).ran {
+            return;
+        }
+    }
+    panic!("the rig did not settle");
+}
+
+/// Clicks at `at` through `frame`, which injects an input and steps.
+fn click_through(rig: &mut Rig<RecordingRenderer>, frame: &mut dyn FnMut(&mut Rig<RecordingRenderer>, Option<Input>) -> StepReport, at: Pos2) {
+    frame(rig, Some(Input::mouse_move(at)));
+    frame(rig, Some(Input::mouse_down(at)));
+    frame(rig, Some(Input::mouse_up(at)));
+}
+
+#[test]
+fn a_fading_popup_takes_no_click_or_key_and_is_gone_after_its_wake() {
+    let (mut rig, mut app) = setup();
+    open(&mut rig, &mut app);
+    settle(&mut rig, &mut app);
+    let rows = app.menu.rows.get();
+    let [down, up] = Input::key_press(Key::Escape, Mods::NONE);
+    step(&mut rig, &mut app, Some(down));
+    step(&mut rig, &mut app, Some(up));
+    settle(&mut rig, &mut app);
+    assert!(!app.menu.open.get(), "Escape closed the menu");
+    let fading = layer_children(&rig);
+    assert_eq!(fading.len(), 1, "the closed menu stays while it fades out");
+    // No key focus stays in it, and Tab finds none of its rows.
+    let focus_outside = |rig: &Rig<RecordingRenderer>| {
+        let mut at = rig.runtime().focused(rig.main);
+        while let Some(node) = at {
+            assert!(!fading.contains(&node), "focus is not in the fading menu");
+            at = rig.runtime().parent(node);
+        }
+    };
+    focus_outside(&rig);
+    for _ in 0..3 {
+        let [down, up] = Input::key_press(Key::Tab, Mods::NONE);
+        step(&mut rig, &mut app, Some(down));
+        step(&mut rig, &mut app, Some(up));
+        focus_outside(&rig);
+    }
+    // A click where a row shows reaches none of its rows.
+    click(&mut rig, &mut app, rows[1].center());
+    settle(&mut rig, &mut app);
+    assert_eq!(app.menu.picked.get(), None, "the fading menu's rows took nothing");
+    assert!(!app.menu.open.get(), "nothing opened it again");
+    assert_eq!(layer_children(&rig), fading, "a click inside a fading menu does not dismiss it again or reopen it");
+    let runs = app.runs.get();
+    past_fades(&mut rig, &mut |rig| step(rig, &mut app, None));
+    assert!(layer_children(&rig).is_empty(), "the fade's end woke the owner, which dropped the menu");
+    assert_eq!(app.runs.get(), runs + 1, "the owner ran once, at the fade's end");
+}
+
+/// A container shown as a layer: the trials' panel popups and modal.
+#[derive(Component)]
+#[component(container, unregistered)]
+struct Panel {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Panel {
+    fn new(overlay: Overlay) -> Panel {
+        Panel { common: Common::new(), props: ContainerProps::new().mount(Mount::Layer(overlay)) }
+    }
+}
+
+impl Component for Panel {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PanelStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Panel {}
+
+#[test]
+fn a_context_opener_offers_the_context_menu_on_its_own_node() {
+    let shown = Rc::new(Cell::new(0_u32));
+    let mut platform = HeadlessPlatform::new();
+    platform.set_access_active(true);
+    let main = platform.create_window(&WindowSpec { size: Some(Vec2::new(400.0, 300.0)), ..WindowSpec::new("main") });
+    let mut runtime = Runtime::new(test_tokens());
+    runtime.set_inline_root(main);
+    let mut rig = Rig::from_parts(runtime, platform, RecordingRenderer::default());
+    let mut frame = |rig: &mut Rig<RecordingRenderer>| {
+        let shown = shown.clone();
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                let target = Chip::new("Target").show(ui);
+                let shown = shown.clone();
+                let _ = ShowContainer::show(Panel::new(Overlay::menu().opened_by(&target, Trigger::Context)), ui, move |ui, _| {
+                    shown.set(shown.get() + 1);
+                    Chip::new("Rename").show(ui);
+                });
+            })
+        })
+    };
+    past_fades(&mut rig, &mut frame);
+    let entry = rig.runtime().access_snapshot(main).into_iter().find(|e| e.node.label() == Some("Target")).expect("the target's access node");
+    assert!(entry.node.supports_action(accesskit::Action::ShowContextMenu), "the opener's own node offers the context menu");
+    assert_eq!(shown.get(), 0, "the menu waits for its request");
+    rig.inject(main, Input::action(accesskit::Action::ShowContextMenu, entry.id));
+    past_fades(&mut rig, &mut frame);
+    assert!(shown.get() >= 1, "the assistive request on the opener's node opened its menu");
+}
+
+/// A leaf that drags a payload with a badge beside the pointer; it counts its runs.
+#[derive(Component)]
+struct Source {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    runs: Rc<Cell<u32>>,
+}
+
+impl Component for Source {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: SourceStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(80.0, 40.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK | Sense::DRAG
+    }
+
+    fn drag_source(&self) -> Option<DragSource> {
+        Some(DragSource::new(3_u32, DragPreview::Badge("3 files".to_owned().into())))
+    }
+
+    fn update(&mut self, _: &mut Cx<'_, Self>) {
+        self.runs.set(self.runs.get() + 1);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_drag_preview_follows_the_pointer_with_no_run_or_build() {
+    let runs = Rc::new(Cell::new(0_u32));
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+        if let Some(input) = input {
+            let main = rig.main;
+            rig.inject(main, input);
+        }
+        let (runs, rect) = (runs.clone(), rect.clone());
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| rect.set(Source { common: Common::new(), runs: runs.clone() }.show(ui).rect))
+        })
+    };
+    for _ in 0..6 {
+        if !frame(&mut rig, None).ran {
+            break;
+        }
+    }
+    let from = rect.get().center();
+    frame(&mut rig, Some(Input::mouse_move(from)));
+    frame(&mut rig, Some(Input::mouse_down(from)));
+    frame(&mut rig, Some(Input::mouse_move(from + Vec2::new(30.0, 0.0))));
+    frame(&mut rig, None);
+    assert_eq!(layer_children(&rig).len(), 1, "the drag shows its ghost on the drag layer");
+    let before = runs.get();
+    for at in 1..=4 {
+        let moved = frame(&mut rig, Some(Input::mouse_move(from + Vec2::new(30.0 + 15.0 * at as f32, 10.0))));
+        assert_eq!((moved.frame.runs, moved.frame.scopes, moved.frame.built), (0, 0, 0), "a move only moves the ghost: {moved:?}");
+    }
+    assert_eq!(runs.get(), before, "the source does not run while its ghost follows the pointer");
+    frame(&mut rig, Some(Input::mouse_up(from + Vec2::new(90.0, 10.0))));
+}
+
+#[test]
+fn a_panel_popup_stays_open_while_used_and_closes_on_a_row_click() {
+    let rows = Rc::new(Cell::new([Rect::NOTHING; 2]));
+    let picked = Rc::new(Cell::new(None::<usize>));
+    let opener = Rc::new(Cell::new(Rect::NOTHING));
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+        if let Some(input) = input {
+            let main = rig.main;
+            rig.inject(main, input);
+        }
+        let (rows, picked, opener) = (rows.clone(), picked.clone(), opener.clone());
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                let open = Chip::new("Open").show(ui);
+                opener.set(open.rect);
+                let (rows, picked) = (rows.clone(), picked.clone());
+                let _ = ShowContainer::show(Panel::new(Overlay::menu().opened_by(&open, Trigger::Click)), ui, move |ui, _| {
+                    let mut at = [Rect::NOTHING; 2];
+                    for (row, name) in ["One", "Two"].iter().enumerate() {
+                        let shown = Chip::new(name).show(ui);
+                        at[row] = shown.rect;
+                        if shown.clicked() {
+                            picked.set(Some(row));
+                        }
+                    }
+                    rows.set(at);
+                });
+            })
+        })
+    };
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    click_through(&mut rig, &mut frame, opener.get().center());
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    assert_eq!(layer_children(&rig).len(), 1, "the opener's click opened the panel");
+    // Moving over its rows, and time passing, keep it open.
+    frame(&mut rig, Some(Input::mouse_move(rows.get()[0].center())));
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    assert_eq!(layer_children(&rig).len(), 1, "the panel stays open while the pointer is on it");
+    click_through(&mut rig, &mut frame, rows.get()[1].center());
+    assert_eq!(picked.get(), Some(1), "the row took the click");
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    assert!(layer_children(&rig).is_empty(), "the row click closed the panel, and its fade ended");
+}
+
+/// A canvas under a modal; it counts the clicks that reach it.
+#[derive(Component)]
+struct Canvas {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    clicks: Rc<Cell<u32>>,
+}
+
+impl Component for Canvas {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: CanvasStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(200.0, 150.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK | Sense::DRAG
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if cx.response.clicked() {
+            self.clicks.set(self.clicks.get() + 1);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_space_held_press_pans_the_canvas_a_modal_keeps_open() {
+    use craft_ui_contract::contract::Sampler as _;
+    let clicks = Rc::new(Cell::new(0_u32));
+    let rect = Rc::new(Cell::new(Rect::NOTHING));
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+        if let Some(input) = input {
+            let main = rig.main;
+            rig.inject(main, input);
+        }
+        let (clicks, rect) = (clicks.clone(), rect.clone());
+        rig.step_with(&mut |_, cx| {
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                let canvas = Canvas { common: Common::new(), clicks: clicks.clone() }.show(ui);
+                rect.set(canvas.rect);
+                let id = canvas.id;
+                let _ = ShowContainer::show(Panel::new(Overlay::modal()), ui, move |ui, body| {
+                    body.keep_view_open(id);
+                    Chip::new("OK").show(ui);
+                });
+            })
+        })
+    };
+    past_fades(&mut rig, &mut |rig| frame(rig, None));
+    let at = rect.get().min + Vec2::new(10.0, 10.0);
+    click_through(&mut rig, &mut frame, at);
+    assert_eq!(clicks.get(), 0, "a plain primary press stays blocked by the modal");
+    let [space_down, space_up] = Input::key_press(Key::Space, Mods::NONE);
+    frame(&mut rig, Some(space_down));
+    click_through(&mut rig, &mut frame, at);
+    frame(&mut rig, Some(space_up));
+    assert_eq!(clicks.get(), 1, "with Space held the primary press reaches the canvas, for its pan");
 }
