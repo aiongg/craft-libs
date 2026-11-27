@@ -121,13 +121,14 @@ impl Bands {
     /// `start` is where the container stands in its body's flow: `Some(after_rule)` at the flow's start, with whether a
     /// rule precedes that start (`Scoped::after_rule`), `None` past it. A rule above separates the container from what
     /// precedes it: right after a rule there is none, and at its flow's start no rhythm band stands it off.
-    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, start: Option<bool>) -> Bands {
+    /// `gap` is the gap of the flow the container stands in, which the rhythm band before its rule replaces.
+    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, start: Option<bool>, gap: f32) -> Bands {
         let width = tokens.stroke.thin;
         let on = |rule: bool| if rule { width } else { 0.0 };
         let above = on(start != Some(true) && props.header.is_some_and(|h| h.rule_above));
         let spaced = above > 0.0 && env.get::<SectionRhythm>() == SectionRhythm::Spaced;
         Bands {
-            lead: if spaced && start.is_none() { tokens.space.gap.section } else { 0.0 },
+            lead: if spaced && start.is_none() { (tokens.space.gap.section - gap).max(0.0) } else { 0.0 },
             above,
             trail: if spaced { tokens.space.gap.row } else { 0.0 },
             under: on(props.header.is_some_and(|h| h.rule && !h.inline)),
@@ -171,7 +172,9 @@ struct Shape {
 }
 
 impl Shape {
-    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, at_start: bool) -> Shape {
+    /// `parent` is the flow the container is shown in.
+    fn of(props: &ContainerProps, env: &Env, tokens: &Tokens, parent: &Flow) -> Shape {
+        let at_start = parent.sizes.is_empty();
         let pad = props.pad.points(tokens);
         let pad = match props.pad_edges {
             PadEdges::Block => Vec2::new(0.0, pad),
@@ -193,7 +196,7 @@ impl Shape {
             scroll: props.scroll.filter(|_| !props.collection_body),
             least: Vec2::new(props.least_width.map_or(0.0, |l| l.points(tokens)), 0.0),
             room_height: props.room_height,
-            bands: Bands::of(props, env, tokens, at_start.then_some(env.after_rule)),
+            bands: Bands::of(props, env, tokens, at_start.then_some(env.after_rule), parent.gap()),
             rtl: env.direction.is_rtl(),
             closed: false,
             share: 1.0,
@@ -647,19 +650,24 @@ pub(crate) fn show_container<C: Container, R>(
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
     let props = slot.as_ref().expect("a container is shown once").props(Internal::new());
-    let (layer, theme) = (
-        match &props.mount {
-            Mount::Layer(overlay) => Some(overlay.clone()),
-            _ => None,
-        },
-        props.theme.clone(),
-    );
+    let layer = match &props.mount {
+        Mount::Layer(overlay) => Some(overlay.clone()),
+        _ => None,
+    };
+    let (layer_like, theme) = (matches!(props.mount, Mount::FullWindow | Mount::Viewport { .. }), props.theme.clone());
     let hosted = hosted_by(ui);
+    if layer_like && let Some(output) = unshown(slot, ui) {
+        return Inner { output, inner: None, settle: None };
+    }
     if let Some(overlay) = layer
         && hosted.is_none()
-        && ui.flow.measuring.is_none()
     {
-        return show_on_layer(slot, ui, &overlay, body);
+        if ui.flow.measuring.is_none() {
+            return show_on_layer(slot, ui, &overlay, body);
+        }
+        // A layer mount takes no room in the flow that shows it: its measuring run places it at a rect of its own.
+        let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
+        return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
     let Some(theme) = theme else { return show_plain(slot, ui, (at, place), body, tip, hosted) };
     // The scope always runs its content: the container's body runs whenever its scope's build reaches it.
@@ -673,6 +681,19 @@ pub(crate) fn show_container<C: Container, R>(
         out = Some(show_plain(&mut *slot, ui, (at, place.clone()), &mut *body, tip.take(), hosted.clone()));
     });
     out.expect("a theme scope with no out-of-view rule always runs its content")
+}
+
+/// The output of a layer-like container that is closed (its open binding or collapse says so), when its output has an
+/// unshown form: it then shows nothing and runs no hook.
+fn unshown<C: Container>(slot: &mut Option<C>, ui: &mut Ui<'_, '_>) -> Option<C::Output> {
+    let component = slot.as_mut().expect("a container is shown once");
+    let props = component.props(Internal::new()).clone();
+    let ctx = ui.ctx().clone();
+    if read_open(component, &props, None, &ctx) {
+        return None;
+    }
+    let (id, _) = ui.flow.peek_child(type_key::<C>(), component.common_mut(Internal::new()).id.clone());
+    C::Output::unshown(Response::inert(id, Rect::NOTHING))
 }
 
 /// The layer whose content a container shown now in `ui` is: the provided `LayerHost` of the layer
@@ -690,15 +711,11 @@ fn show_on_layer<C: Container, R>(
     overlay: &Overlay,
     body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
 ) -> Inner<C::Output, R> {
-    let component = slot.as_mut().expect("a container is shown once");
-    let source = component.common_mut(Internal::new()).id.clone();
-    let (id, _) = ui.flow.child(type_key::<C>(), source);
-    let props = component.props(Internal::new()).clone();
-    let ctx = ui.ctx().clone();
-    let open = read_open(component, &props, None, &ctx);
-    if !open && let Some(output) = C::Output::unshown(Response::inert(id, Rect::NOTHING)) {
+    if let Some(output) = unshown(slot, ui) {
         return Inner { output, inner: None, settle: None };
     }
+    let source = slot.as_mut().expect("a container is shown once").common_mut(Internal::new()).id.clone();
+    let (id, _) = ui.flow.child(type_key::<C>(), source);
     // The content shows under the layer's id, which the container takes as its own (`show_plain`, hosted).
     let (tokens, sweep, rtl) = (ui.flow.tokens.clone(), ui.flow.sweep, Env::of(ui).direction.is_rtl());
     let anchor = Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO);
@@ -752,8 +769,12 @@ fn show_plain<C: Container, R>(
     let (id, child) = ui.flow.child(type_key::<C>(), source);
     let key = component_key(&component);
     let props = component.props(Internal::new()).clone();
-    let at_start = ui.flow.sizes.is_empty();
-    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, at_start).in_bar(&props, &place);
+    let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place);
+    // A window mount is the whole content of its window.
+    let at = match (&props.mount, at) {
+        (Mount::Window { .. }, ShowAt::Flow) => ShowAt::Rect(ui.ctx().content_rect()),
+        (_, at) => at,
+    };
     let fills = shape.fills(&ui.flow);
     let (origin, room) = match at {
         ShowAt::Rect(rect) => (rect.min, rect.size()),
@@ -956,7 +977,7 @@ pub(crate) fn measure_container<C: Container, R>(
         return *size;
     }
     let props = component.props(Internal::new()).clone();
-    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, ui.flow.sizes.is_empty()).in_bar(&props, &begun.env);
+    let mut shape = Shape::of(&props, &begun.env, &ui.flow.tokens, &ui.flow).in_bar(&props, &begun.env);
     let open = read_open(component, &props, peeked.as_ref().and_then(|p| p.1), &ctx);
     shape.closed = !open;
     let size = {
