@@ -128,7 +128,7 @@ pub(crate) trait AnyElement {
 
 pub(crate) struct ElementBox<E: Element> {
     pub(crate) el: E,
-    local: Option<E::Local>,
+    pub(crate) local: Option<E::Local>,
 }
 
 impl<E: Element> ElementBox<E> {
@@ -220,4 +220,19 @@ impl<P: Hash + 'static, F: Fn(&P, &mut BuildCx<'_>) + 'static> Element for Memo<
     fn build(&self, _: &mut (), cx: &mut BuildCx<'_>) {
         (self.f)(&self.props, cx);
     }
+}
+
+/// The node of an inline root ([`crate::Runtime::set_inline_root`]): its children come from the
+/// host's closure in each frame that reaches it, and it stacks them at its origin.
+pub(crate) struct InlineRoot;
+
+impl Element for InlineRoot {
+    type Output = ();
+    type Local = ();
+
+    fn props_key(&self) -> u64 {
+        0
+    }
+
+    fn init(&self, _: &mut BuildCx<'_>) {}
 }

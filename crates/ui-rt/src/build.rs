@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use craft_theme::Tokens;
 
-use crate::element::{Element, ElementBox, Memo};
+use crate::element::{AnyElement, Element, ElementBox, Memo};
 use crate::id::{ChildKey, IdSet, NodeId, WindowId, hash_key};
 use crate::layer::{Layer, LayerSpec};
 use crate::runtime::Runtime;
@@ -21,6 +21,29 @@ pub struct BuildCx<'a> {
     layered: Vec<NodeId>,
     pos: u32,
     scope: Option<(u64, u32)>,
+    /// Set by [`BuildCx::keep_children`]: the build leaves the node's children as they were.
+    keep: bool,
+}
+
+/// Why an inline node is reached in its owner's build: the facts the owner decides on, before
+/// running the node's hooks or keeping its outputs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InlineState {
+    /// The node was created by this call.
+    pub new: bool,
+    /// Its props key differs from the last build's.
+    pub key_moved: bool,
+    /// It carried `BUILD`: queued input or a changed read of its own.
+    pub marked: bool,
+    /// It carried `PATH`: a node it owns is marked, so its content must be reached.
+    pub path: bool,
+}
+
+impl InlineState {
+    /// The node's own hooks must run: it is new, its key moved, or it is marked.
+    pub fn must_run(&self) -> bool {
+        self.new || self.key_moved || self.marked
+    }
 }
 
 impl Reads for BuildCx<'_> {
@@ -94,6 +117,11 @@ impl BuildCx<'_> {
 
     /// Reconciles one child and returns what it emitted since this node last built.
     pub fn child<E: Element>(&mut self, el: E) -> E::Output {
+        let id = self.next_child();
+        reconcile(self.rt, id, self.node, self.node, self.window, el)
+    }
+
+    fn next_child(&mut self) -> NodeId {
         let key = match &mut self.scope {
             Some((k, i)) => {
                 *i += 1;
@@ -106,7 +134,106 @@ impl BuildCx<'_> {
         };
         let id = self.node.child(key);
         self.children.push(id);
-        reconcile(self.rt, id, self.node, self.node, self.window, el)
+        id
+    }
+
+    /// Reconciles an inline child: a node whose content this build creates, through `f`, instead
+    /// of its own `Element::build`. The node keeps `el` (its props key decides
+    /// [`InlineState::key_moved`]) and its `Local`, which `f` gets with the node's facts and a
+    /// context for the node's own children. Its `BUILD` and `PATH` marks are cleared before `f`
+    /// runs. Children `f` does not reach go, unless `f` calls [`BuildCx::keep_children`].
+    ///
+    /// Nothing is marked for layout, paint or access: `f` calls [`BuildCx::mark_changed`] or
+    /// [`BuildCx::request_layout`] for what changed, so a kept node costs no phase work.
+    pub fn inline<E: Element, R>(&mut self, el: E, f: impl FnOnce(&mut E::Local, InlineState, &mut BuildCx<'_>) -> R) -> R {
+        let id = self.next_child();
+        let (parent, window) = (self.node, self.window);
+        let props_key = el.props_key();
+        let mut state = InlineState::default();
+        let reused = match self.rt.tree.nodes.get_mut(&id) {
+            Some(node) if node.inline && node.parent == Some(parent) && node.owner == Some(parent) => {
+                let mut boxed = node.element.take();
+                match boxed.as_mut().and_then(|b| b.as_any_mut().downcast_mut::<ElementBox<E>>()) {
+                    Some(slot) => {
+                        slot.el = el;
+                        state.key_moved = node.props_key != props_key;
+                        node.props_key = props_key;
+                        Ok(boxed)
+                    }
+                    None => {
+                        node.element = boxed;
+                        Err(el)
+                    }
+                }
+            }
+            _ => Err(el),
+        };
+        let mut boxed: Box<dyn AnyElement> = match reused {
+            Ok(Some(boxed)) => boxed,
+            Ok(None) => unreachable!("a reused node holds its element"),
+            Err(el) => {
+                if self.rt.tree.nodes.contains_key(&id) {
+                    self.rt.remove_subtree(id);
+                }
+                let depth = self.rt.tree.depth(parent) + 1;
+                let mut node = Node::new(Some(parent), Some(parent), window, depth, None, props_key);
+                node.inline = true;
+                self.rt.tree.nodes.insert(id, node);
+                state.new = true;
+                Box::new(ElementBox::new(el))
+            }
+        };
+        let Some(node) = self.rt.tree.nodes.get_mut(&id) else { unreachable!("the node was just reconciled") };
+        state.marked = node.dirty.has(Dirty::BUILD);
+        state.path = node.dirty.has(Dirty::PATH);
+        node.dirty.remove(Dirty::BUILD);
+        node.dirty.remove(Dirty::PATH);
+        let old = std::mem::take(&mut node.children);
+        let old_layered = std::mem::take(&mut node.layered);
+        let mut cx = BuildCx { rt: &mut *self.rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false };
+        let slot = boxed.as_any_mut().downcast_mut::<ElementBox<E>>().expect("the element's type was checked");
+        let local = match &mut slot.local {
+            Some(local) => local,
+            None => slot.local.insert(slot.el.init(&mut cx)),
+        };
+        let out = f(local, state, &mut cx);
+        let BuildCx { children, layered, keep, .. } = cx;
+        finish_children(self.rt, id, old, old_layered, children, layered, keep);
+        if let Some(node) = self.rt.tree.nodes.get_mut(&id) {
+            node.element = Some(boxed);
+        }
+        out
+    }
+
+    /// The build leaves this node's children and layer children as they were: an inline node whose
+    /// content is kept. Call it before reconciling any child.
+    pub fn keep_children(&mut self) {
+        debug_assert!(self.children.is_empty() && self.layered.is_empty(), "keep_children after reconciling a child");
+        self.keep = true;
+    }
+
+    /// This node's outputs changed: its layout, paint and access node run in this frame.
+    pub fn mark_changed(&mut self) {
+        let node = self.node;
+        self.rt.access_dirty(node);
+        self.rt.tree.mark_layout(node);
+        self.rt.tree.mark_paint(node);
+    }
+
+    /// This node's layout runs in this frame (its children moved).
+    pub fn request_layout(&mut self) {
+        let node = self.node;
+        self.rt.tree.mark_layout(node);
+    }
+
+    /// Counts a run of a contract component's hooks in the frame's report.
+    pub fn count_run(&mut self) {
+        self.rt.counters.runs += 1;
+    }
+
+    /// Counts a run of a scope's closure in the frame's report.
+    pub fn count_scope(&mut self) {
+        self.rt.counters.scopes += 1;
     }
 
     /// Shows `el` on `layer` of this node's window, placed by `spec`, above everything on the
@@ -215,19 +342,54 @@ pub(crate) fn build_node(rt: &mut Runtime, id: NodeId) {
         layered: Vec::with_capacity(old_layered.len()),
         pos: 0,
         scope: None,
+        keep: false,
     };
     el.build(&mut cx);
-    let (new, new_layered) = (cx.children, cx.layered);
-    for child in gone(old, &new).into_iter().chain(gone(old_layered, &new_layered)) {
-        rt.remove_subtree(child);
-    }
+    let BuildCx { children, layered, keep, .. } = cx;
+    finish_children(rt, id, old, old_layered, children, layered, keep);
     if let Some(node) = rt.tree.nodes.get_mut(&id) {
-        node.children = new;
-        node.layered = new_layered;
         node.element = Some(el);
     }
     rt.counters.built += 1;
     rt.access_dirty(id);
     rt.tree.mark_layout(id);
     rt.tree.mark_paint(id);
+}
+
+/// Runs an inline root's build: `content` creates its children. Marks its layout only when its
+/// child list changed; the children mark what they changed themselves.
+pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) {
+    let Some(node) = rt.tree.nodes.get_mut(&id) else {
+        return;
+    };
+    node.dirty.remove(Dirty::BUILD);
+    node.dirty.remove(Dirty::PATH);
+    let window = node.window;
+    let old = std::mem::take(&mut node.children);
+    let old_layered = std::mem::take(&mut node.layered);
+    let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false };
+    content(window, &mut cx);
+    let BuildCx { children, layered, keep, .. } = cx;
+    let changed = !keep && (children != old || layered != old_layered);
+    finish_children(rt, id, old, old_layered, children, layered, keep);
+    if changed {
+        rt.tree.mark_layout(id);
+    }
+}
+
+/// Stores a build's children on `id` and drops the old ones it did not reach; with `keep`, the old
+/// lists stay.
+fn finish_children(rt: &mut Runtime, id: NodeId, old: Vec<NodeId>, old_layered: Vec<NodeId>, new: Vec<NodeId>, new_layered: Vec<NodeId>, keep: bool) {
+    let (new, new_layered) = if keep {
+        (old, old_layered)
+    } else {
+        for child in gone(old, &new).into_iter().chain(gone(old_layered, &new_layered)) {
+            rt.remove_subtree(child);
+        }
+        (new, new_layered)
+    };
+    if let Some(node) = rt.tree.nodes.get_mut(&id) {
+        node.children = new;
+        node.layered = new_layered;
+    }
 }

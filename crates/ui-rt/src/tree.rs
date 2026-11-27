@@ -19,6 +19,9 @@ impl Dirty {
     pub(crate) const BUILD: Dirty = Dirty(1);
     pub(crate) const LAYOUT: Dirty = Dirty(2);
     pub(crate) const PAINT: Dirty = Dirty(4);
+    /// On an inline node: a node it owns, directly or further down, carries `BUILD`, so the build
+    /// of its owner must reach it.
+    pub(crate) const PATH: Dirty = Dirty(8);
 
     pub(crate) fn has(self, d: Dirty) -> bool {
         self.0 & d.0 != 0
@@ -58,6 +61,10 @@ pub(crate) struct Node {
     pub(crate) children: Vec<NodeId>,
     /// Children it put on layers, in build order.
     pub(crate) layered: Vec<NodeId>,
+    /// Its children are created by its owner's build ([`crate::BuildCx::inline`]), never by its own
+    /// `Element::build`. An inline node with no owner is an inline root: the host passes its content
+    /// per frame ([`crate::Runtime::frame_with`]).
+    pub(crate) inline: bool,
     /// Taken out while the node's own build, layout or paint runs.
     pub(crate) element: Option<Box<dyn AnyElement>>,
     pub(crate) props_key: u64,
@@ -97,6 +104,7 @@ impl Node {
             depth,
             children: Vec::new(),
             layered: Vec::new(),
+            inline: false,
             element,
             props_key,
             dirty: Dirty::default(),
@@ -141,13 +149,41 @@ impl Tree {
         }
     }
 
+    /// Queues `id`'s build. An inline node cannot build alone: it takes `BUILD`, each inline owner
+    /// above it takes `PATH`, and the build is queued on the first owner that can run, the inline
+    /// root (or a plain element, which rebuilds).
     pub(crate) fn mark_build(&mut self, id: NodeId) {
-        if let Some(n) = self.nodes.get_mut(&id)
-            && !n.is_fixed()
-            && !n.dirty.has(Dirty::BUILD)
-        {
-            n.dirty.insert(Dirty::BUILD);
-            self.build_q.push(id);
+        let Some(n) = self.nodes.get_mut(&id) else { return };
+        if n.is_fixed() {
+            return;
+        }
+        if !n.inline || n.owner.is_none() {
+            if !n.dirty.has(Dirty::BUILD) {
+                let queued = n.dirty.has(Dirty::PATH);
+                n.dirty.insert(Dirty::BUILD);
+                if !queued {
+                    self.build_q.push(id);
+                }
+            }
+            return;
+        }
+        n.dirty.insert(Dirty::BUILD);
+        let mut owner = n.owner;
+        while let Some(o) = owner {
+            let Some(n) = self.nodes.get_mut(&o) else { return };
+            if !n.inline {
+                self.mark_build(o);
+                return;
+            }
+            let queued = n.dirty.has(Dirty::BUILD) || n.dirty.has(Dirty::PATH);
+            n.dirty.insert(Dirty::PATH);
+            if n.owner.is_none() {
+                if !queued {
+                    self.build_q.push(o);
+                }
+                return;
+            }
+            owner = n.owner;
         }
     }
 
