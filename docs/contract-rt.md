@@ -943,3 +943,15 @@ Shared items:
 5. **`show_dialog` result.** Q4 says `show_dialog -> Shown<R>`; the rt form returns `Result<R, CloseReason>` for a dismissal. Frozen as `Result<Shown<R>, CloseReason>`. Recommendation: accept.
 6. **`Env::of` read granularity.** `Env` has public fields, so `Env::of` registers a read of every env cell it copies (15.2). A density write reruns all `Env::of` callers under the writing scope. INT-3's trial ("reruns only readers") holds with "readers" meaning `Env::of` callers. Recommendation: accept; per-field tracking would need accessor methods on `Env`, a later change.
 7. **`Ui::cursor` return type.** egui returns a `Rect`, the rt cut a `Pos2`. Frozen as egui's `Rect` (3 crate sites keep compiling); the bridge's internal uses move to `Flow::next_min`. Recommendation: accept.
+
+#### Lead decisions on 15.13 (27 Nov)
+
+1. **`take_command`/`take_step`: accepted with one change.** The node-owned cell holds the last fired command with a sequence number; the board handler the node's command scope registers writes it at event time. `take_command` returns the command when its sequence is newer than the last one this node consumed, and records the consumed sequence in the node's memory (not in a cell). The take never writes the cell it read, so it causes no same-frame rerun; only the declaring node reruns on a fire. INT-1b implements it in `runtime/commands/*` on `CommandBoard::on`.
+2. **`App`: accepted as frozen** (`logic` at event time, `frame` for the per-frame role).
+3. **`Color32`, `CornerRadius`: accepted.** `ecolor::Color32` re-exported at `craft_ui::Color32`; a craft `CornerRadius` in `primitives` (INT-1a; render backends convert).
+4. **`WindowId::ROOT`: accepted.**
+5. **`show_dialog -> Result<Shown<R>, CloseReason>`: accepted.**
+6. **`Env::of` granularity: accepted.** Per-field env reads are a later change, recorded in spike-int-items.md.
+7. **`Ui::cursor -> Rect`: accepted.**
+
+Also fixed: `Ui::on_command` called again in a later run of the same node replaces that node's handler for the command (keyed by node and command); it never adds a second registration.
