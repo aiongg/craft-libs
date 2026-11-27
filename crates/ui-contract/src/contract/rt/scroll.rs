@@ -29,7 +29,7 @@ use craft_ui_rt::{
     Sense, State, Vec2, WheelUnit,
 };
 
-use super::node::{Kept, Placed};
+use super::node::{Kept, NodeInput, Placed};
 use super::ui::Flow;
 use crate::contract::{Notch, Scroll, ScrollAnchor};
 
@@ -54,6 +54,28 @@ const GLIDE_SETTLE: f32 = 0.5;
 
 /// The frame interval a glide or eased step asks layout for, in seconds.
 const FRAME: f64 = 1.0 / 60.0;
+
+/// The smallest move of `view` that shows the latest reveal queued on the run input of a container that owns its
+/// body's scroll without a scroll region (`NodeInput::Reveal`, `Focus::take_reveal`): positive toward larger
+/// coordinates. `None` when none is queued or the view shows it already. A reveal larger than the view brings its start
+/// into view.
+pub(crate) fn reveal_move(input: &[NodeInput], view: Rect) -> Option<Vec2> {
+    let rect = input.iter().rev().find_map(|input| match input {
+        NodeInput::Reveal(rect) => Some(*rect),
+        _ => None,
+    })?;
+    let axis = |low: f32, high: f32, view_low: f32, view_high: f32| {
+        if low < view_low {
+            low - view_low
+        } else if high > view_high {
+            (high - view_high).min(low - view_low)
+        } else {
+            0.0
+        }
+    };
+    let by = Vec2::new(axis(rect.min.x, rect.max.x, view.min.x, view.max.x), axis(rect.min.y, rect.max.y, view.min.y, view.max.y));
+    (by != Vec2::ZERO).then_some(by)
+}
 
 /// The rect content is built for: the view and `OVERSCAN_SHARE` of it beyond each scrolling edge.
 pub(crate) fn overscan(view: Rect) -> Rect {

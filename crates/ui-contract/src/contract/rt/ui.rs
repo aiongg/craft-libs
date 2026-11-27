@@ -143,6 +143,11 @@ pub(crate) struct Flow {
 }
 
 impl Flow {
+    /// The gap the flow puts between its children.
+    pub(crate) fn gap(&self) -> f32 {
+        self.gap
+    }
+
     pub(crate) fn new(id: Id, origin: Pos2, region: Rect, gap: f32, tokens: Arc<Tokens>) -> Flow {
         Flow {
             id,

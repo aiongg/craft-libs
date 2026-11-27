@@ -104,10 +104,7 @@ impl Focus for CxCore<'_> {
     }
 
     fn take_reveal(&mut self, view: Rect) -> Option<Vec2> {
-        let _ = view;
-        todo!(
-            "reveals addressed to a component that scrolls its own content (Component::scroll): rt/scroll.rs reveal bubbling stops at it and queues the rect on its node, INT-2b"
-        )
+        crate::contract::rt::scroll::reveal_move(self.input(), view)
     }
 
     fn register_menu_bar(&mut self) {

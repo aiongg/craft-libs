@@ -375,7 +375,7 @@ impl EnvScope {
 
     /// Gives `ui`'s node cells for what the scope overrides and the flow its tokens. In a measuring
     /// run no node is reached: the flow gets the tokens the scope resolves from the peeked base.
-    fn enter(&self, ui: &mut Ui<'_, '_>) {
+    pub(crate) fn enter(&self, ui: &mut Ui<'_, '_>) {
         let measuring = ui.flow.measuring.is_some();
         let Some(parent) = EnvCells::of(ui.cx) else { return };
         if measuring {
