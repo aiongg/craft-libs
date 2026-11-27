@@ -303,6 +303,9 @@ pub struct Inherited {
     pub scale: Scale,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
+    /// The craft `Id` of the layer child the scope lies in (`rt::layers::LayerChildOf`); `None` on the content layer.
+    /// A hook resolving a command compares it with the window's top modal layer child (`Context::modal_at`).
+    pub(crate) layer_child: Option<Id>,
     pub(crate) host: Option<Arc<Host>>,
     #[doc(hidden)]
     pub values: AppValues,
@@ -729,6 +732,7 @@ impl Env {
                     motion,
                     scale,
                     commands: CommandChain::default(),
+                    layer_child: None,
                     words,
                     format: host_format(ctx, host.as_ref()),
                     dates: host_dates(ctx, host.as_ref()),
@@ -853,7 +857,12 @@ impl Env {
             Some(env) => env,
             None => Env::root(cx, ctx, &values),
         };
-        env.on_cells(&values)
+        let mut env = env.on_cells(&values);
+        let layer_child = cx.provided::<crate::contract::rt::layers::LayerChildOf>().map(|of| of.0);
+        if env.layer_child != layer_child {
+            env.local_mut().inherited_mut().layer_child = layer_child;
+        }
+        env
     }
 
     /// This env on the env cells `cx`'s node sees now: what a scope that just provided cells of its own

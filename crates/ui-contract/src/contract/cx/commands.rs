@@ -5,6 +5,7 @@ use super::context::Cx;
 use super::item::ItemCx;
 use crate::contract::Component;
 use crate::contract::Context;
+use crate::contract::rt::commands::ModalAt;
 use crate::primitives::Id;
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands};
 
@@ -25,6 +26,10 @@ impl<C: Component> CommandAccess for Cx<'_, C> {
         self.core.memory.is_peek()
     }
 
+    fn command_modal(&self) -> ModalAt {
+        self.core.context().modal_at(self.core.env.layer_child())
+    }
+
     fn command_inbox(&mut self) -> Option<(&mut crate::runtime::commands::InboxIn, &mut crate::runtime::memory::MemoryStage, Id)> {
         let core = &mut *self.core;
         (!core.run.settled).then(|| (&mut core.run.inbox, &mut *core.memory, core.id))
@@ -36,6 +41,10 @@ impl<C: Component> Commands for Cx<'_, C> {}
 impl CommandAccess for BodyCx<'_> {
     fn command_ctx(&self) -> &Context {
         self.memory.ctx()
+    }
+
+    fn command_modal(&self) -> ModalAt {
+        self.memory.ctx().modal_at(self.env.layer_child())
     }
 
     fn command_fenced(&self) -> bool {
@@ -56,6 +65,10 @@ impl Commands for BodyCx<'_> {}
 impl<K> CommandAccess for ItemCx<'_, '_, K> {
     fn command_ctx(&self) -> &Context {
         self.memory.ctx()
+    }
+
+    fn command_modal(&self) -> ModalAt {
+        self.memory.ctx().modal_at(self.env.layer_child())
     }
 
     fn command_fenced(&self) -> bool {

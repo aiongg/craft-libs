@@ -641,6 +641,8 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
     }
     /// Whether this context belongs to a measuring run, whose effects are fenced.
     fn command_fenced(&self) -> bool;
+    /// Where this context stands against the window's top modal layer, for the modal rule of a command it resolves.
+    fn command_modal(&self) -> crate::contract::rt::commands::ModalAt;
 }
 
 /// The chapter-11 context trait that `Cx`, `BodyCx` and `ItemCx` implement. "This instance" is the innermost
@@ -689,7 +691,7 @@ pub trait Commands: CommandAccess {
     /// scope is above the context.
     fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
         let ctx = self.command_ctx();
-        ctx.board()?.resolve_logged(ctx, self.command_chain(), &command.into(), crate::contract::rt::commands::ModalAt::Free)
+        ctx.board()?.resolve_logged(ctx, self.command_chain(), &command.into(), self.command_modal())
     }
 }
 

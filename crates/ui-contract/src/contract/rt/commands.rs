@@ -69,7 +69,8 @@ struct Board {
 
 /// Where a resolve or a fire stands against the window's modal layers (`ModalRule`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModalAt {
+#[doc(hidden)]
+pub enum ModalAt {
     /// No modal layer is open in the window.
     Free,
     /// A modal layer is open and the resolving or firing node is inside the top one.
@@ -535,9 +536,15 @@ impl CommandBoard {
         crate::contract::context::log_command_read(self.clone(), command.clone(), instance);
         let board = self.clone();
         let edit = self.edit_command(command).is_some();
+        // The modal rule's answer moves with the window's layers: a node that stands under one reads the open-layer
+        // cell and runs again when the stack changes.
+        let layered = modal != ModalAt::Free || self.0.borrow().modal_rule(command) != ModalRule::Always;
         crate::contract::context::log_build_read(move |cx| {
             board.gate_cell(cx.store_mut()).get(cx);
             board.parents_cell(cx.store_mut()).get(cx);
+            if layered {
+                super::layers::track(cx);
+            }
             if edit && let Some(ctx) = cx.provided::<Context>() {
                 FocusedEdits::get(&ctx, cx);
             }

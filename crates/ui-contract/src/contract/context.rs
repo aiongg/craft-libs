@@ -122,6 +122,9 @@ struct Shared {
     /// [`Context::set_focused_edits`]), for code with no store at hand.
     focused_edits: Cell<Option<State<FocusedEdits>>>,
     focused_edits_value: Cell<FocusedEdits>,
+    /// The craft `Id` of the window's top modal layer child, as the window root last found it: where a hook's
+    /// command resolve finds whether it stands inside the modal (`Context::modal_at`).
+    top_modal: Cell<Option<Id>>,
     /// The window's toast queue (`Ui::toasts`), and the node whose build shows it (`ToastHost::show`).
     toasts: RefCell<super::rt::ToastQueue>,
     toast_host: Cell<Option<Id>>,
@@ -169,6 +172,7 @@ impl Context {
                 focused_edits_value: Cell::new(FocusedEdits::NONE),
                 toasts: RefCell::new(super::rt::ToastQueue::new()),
                 toast_host: Cell::new(None),
+                top_modal: Cell::new(None),
                 held: RefCell::new(Vec::new()),
                 builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
@@ -209,6 +213,10 @@ impl Context {
         };
         ctx.shared.root_cells.set(cells);
         *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
+        // Untracked: a hook that resolves a command tracks the open-layer cell itself, and the root runs on every
+        // build pass that reaches a node below it, before that node.
+        let top_modal = super::rt::layers::top_modal(cx.runtime(), cx.window()).map(|open| open.entry.id);
+        ctx.shared.top_modal.set(top_modal);
         // The session's font host, where document faces are found from a component's hooks.
         if let Some(host) = cx.provided::<crate::fonts::FontHost>() {
             ctx.service(|slot: &mut crate::fonts::document::HostSlot| slot.0 = Some(host));
@@ -484,6 +492,17 @@ impl Context {
                 self.shared.focused_edits.set(Some(cell));
                 cell
             }
+        }
+    }
+
+    /// Where a node in the layer child `layer_child` (its env's) stands against the window's top modal layer child, as
+    /// the window root last found it; untracked (the asker tracks the open-layer cell, `rt::layers::track`).
+    pub(crate) fn modal_at(&self, layer_child: Option<Id>) -> super::rt::commands::ModalAt {
+        use super::rt::commands::ModalAt;
+        match self.shared.top_modal.get() {
+            None => ModalAt::Free,
+            Some(top) if layer_child == Some(top) => ModalAt::Inside,
+            Some(_) => ModalAt::Outside,
         }
     }
 
