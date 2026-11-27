@@ -132,6 +132,9 @@ struct Shared {
     builds: RefCell<Vec<Id>>,
     /// The command board the window root provides, for code with no build at hand (`Commands`).
     board: RefCell<Option<CommandBoard>>,
+    /// The job board the host provides above the window root, for code with no build at hand
+    /// (`Thumbnails::in_context`); with no host board, one inline board the window keeps.
+    jobs: RefCell<Option<super::rt::JobBoard>>,
     /// Crate-private services of the window, one value per type: caches and readers that egui kept
     /// in its context memory.
     services: RefCell<HashMap<TypeId, Box<dyn Any>>>,
@@ -173,6 +176,7 @@ impl Context {
                 held: RefCell::new(Vec::new()),
                 builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
+                jobs: RefCell::new(None),
                 services: RefCell::new(HashMap::new()),
                 commands: RefCell::new(Vec::new()),
                 platform: RefCell::new(Vec::new()),
@@ -210,6 +214,9 @@ impl Context {
         };
         ctx.shared.root_cells.set(cells);
         *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
+        if let Some(jobs) = cx.provided::<super::rt::JobBoard>() {
+            *ctx.shared.jobs.borrow_mut() = Some(jobs);
+        }
         // Untracked: a hook that resolves a command tracks the open-layer cell itself, and the root runs on every
         // build pass that reaches a node below it, before that node.
         let top_modal = super::rt::layers::top_modal(cx.runtime(), cx.window()).map(|open| open.entry.id);
@@ -448,6 +455,12 @@ impl Context {
     pub fn install_looks(&self, looks: crate::style::StyleReplacements) -> Result<(), crate::style::DuplicateStyle> {
         self.shared.styles.set_replacements(looks.freeze()?);
         Ok(())
+    }
+
+    /// The window's job board: the one the host provides above the window root, else one inline board the window
+    /// keeps, so every caller outside a build shares the same jobs and services.
+    pub(crate) fn jobs(&self) -> super::rt::JobBoard {
+        self.shared.jobs.borrow_mut().get_or_insert_with(super::rt::JobBoard::inline).clone()
     }
 
     /// The window's style caches (section 15.7).
