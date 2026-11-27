@@ -6,7 +6,7 @@ use crate::runtime::access::{self, FieldLabel, Politeness};
 
 /// Live announcements and the enclosing field label (chapter 12).
 pub trait Accessible {
-    /// Announces transient text; it is flushed at frame end as one status node and returned in `FrameOutput`.
+    /// Announces transient text: the node's access entry carries it as a live status after the run.
     fn announce(&mut self, text: impl Into<String>, politeness: Politeness);
 
     /// The label of the enclosing field container, when the component sits in one.
@@ -15,11 +15,11 @@ pub trait Accessible {
 
 impl Accessible for CxCore<'_> {
     fn announce(&mut self, text: impl Into<String>, politeness: Politeness) {
-        access::announce(&self.ctx, text, politeness);
+        self.run.announcements.push((text.into(), politeness));
     }
 
     fn field_label(&self) -> Option<FieldLabel> {
-        access::scope::field_label(&self.ctx)
+        access::scope::field_label(self.context())
     }
 }
 

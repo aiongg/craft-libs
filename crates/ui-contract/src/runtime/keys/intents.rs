@@ -181,6 +181,13 @@ impl Intents {
         std::mem::take(&mut self.chords)
     }
 
+    /// Takes the earliest queued chord among `wanted` (a claim's chords, `KeyUse::claims`), so a caller applies the
+    /// claimed keys of a run in the order they were pressed.
+    pub(crate) fn take_first_chord(&mut self, wanted: &[Chord]) -> Option<Chord> {
+        let at = self.chords.iter().position(|chord| wanted.contains(chord))?;
+        Some(self.chords.remove(at))
+    }
+
     /// Takes the AccessKit `SetValue` request aimed at the component's own node.
     pub fn take_set_value(&mut self) -> Option<f64> {
         self.take_set_value_of(None)

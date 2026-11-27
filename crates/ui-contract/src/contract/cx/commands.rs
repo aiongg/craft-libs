@@ -5,11 +5,12 @@ use super::context::Cx;
 use super::item::ItemCx;
 use crate::contract::Component;
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands};
-use egui::{Context, Id};
+use crate::contract::Context;
+use crate::primitives::Id;
 
 impl<C: Component> CommandAccess for Cx<'_, C> {
     fn command_ctx(&self) -> &Context {
-        &self.core.ctx
+        self.core.context()
     }
 
     fn command_chain(&self) -> &CommandChain {

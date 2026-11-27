@@ -6,17 +6,23 @@ use super::scroll::ScrollMove;
 use crate::contract::{Component, Resolved, Validity, ValueOf};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{PaintRecord, TextLayout};
-use crate::runtime::commands::{self, CommandRef, FireSource, ResolvedCommand};
+use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{Env, EnvView};
 use crate::runtime::focus::{self};
 use crate::runtime::keys::Intents;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::style::{Ink, StateSet};
-use craft_behavior::{Cursor, CursorPriority, EditEvent, Flow, PartKey, PartRef, PressCancel, PressState, Sense};
+use crate::contract::rt::motion::MotionSpec;
+use crate::contract::rt::node::NodeInput;
+use crate::contract::{Context, Response};
+use crate::primitives::Id;
+use crate::runtime::focus::{FocusTarget, KeepKeys};
+use crate::runtime::memory::Slot;
+use craft_behavior::{Cursor, CursorPriority, EditEvent, EditorInput, Flow, GestureId, PartKey, PartRef, PressCancel, PressState};
 use craft_keymap::Chord;
-use egui::{Context, Id, Rect, Response};
+use craft_ui_rt::{CloseReason, Rect};
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::sync::Arc;
@@ -100,7 +106,7 @@ pub struct CxCore<'a> {
     pub visible: Rect,
     /// Start and end geometry of the rect.
     pub flow: Flow,
-    /// The root widget's response.
+    /// The node's response: the run's input facts and the node's interaction state, each fact read on its own.
     pub response: Response,
     /// The bound command, resolved at step 1.
     pub command: Option<Arc<ResolvedCommand>>,
@@ -119,8 +125,8 @@ pub struct CxCore<'a> {
     pub intents: Intents,
     #[doc(hidden)]
     pub memory: &'a mut MemoryStage,
-    #[doc(hidden)]
-    pub ctx: Context,
+    /// The node's run on craft-ui-rt: its input queue and what the run hands back to the node.
+    pub(crate) run: RunIo<'a>,
     pub(crate) paint: RefCell<PaintRecord>,
     pub(crate) results: PartResults,
     /// A face reads idle results for parts it has not registered.
@@ -130,8 +136,6 @@ pub struct CxCore<'a> {
     /// What focus holds of this component, read once at step 8.
     #[doc(hidden)]
     pub focus: crate::runtime::focus::Facts,
-    /// The arena root this component is a member of; `None` for a component with its own egui widget.
-    pub(crate) member_of: Option<Id>,
     /// The keys a session member borrowed from its arena root and the window this pass (`KeyUse::session`).
     pub(crate) lent: crate::runtime::keys::Lent,
     pub(crate) activation: Option<Activation>,
@@ -144,8 +148,6 @@ pub struct CxCore<'a> {
     /// For an arena root: the member activated this pass.
     pub(crate) activated_member: Option<Id>,
     pub(crate) press: PressState,
-    /// The parent layout of a standalone control, used to keep a sweep within its siblings.
-    pub(crate) pointer_group: Option<Id>,
     pub(crate) cursor: Option<(Cursor, CursorPriority)>,
     /// The declared cursors of the parts hovered this pass, recorded at step 8 and written at step 16.
     pub(crate) part_cursors: Vec<Cursor>,
@@ -170,8 +172,6 @@ pub struct CxCore<'a> {
     pub toggles: Vec<Toggle>,
     /// The part a reset targeted that declared `own_reset`; step 9 leaves its value to `update`.
     pub(crate) reset_part: Option<PartRef>,
-    /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
-    pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
     pub(crate) roving_arrival: Option<Id>,
     /// The member of the container's roving group that moves start from, set by `Cx::roving_lead`.
@@ -205,8 +205,6 @@ pub struct CxCore<'a> {
     pub(crate) focus_shapes: Vec<((PartKey, Option<u64>), focus::FocusShape)>,
     /// The focus ring shape the component declared for its own ring (`Cx::focus_shape`); its rect when `None`.
     pub(crate) focus_shape: Option<focus::FocusShape>,
-    /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
-    pub(crate) surface_slot: Option<egui::layers::ShapeIdx>,
     /// The editor part as step 8b set it up.
     pub(crate) editor: Option<crate::contract::editor::EditorInfo>,
     /// The editor part's inputs of this pass, each with its order among the pass's events, until `editor_input` or
@@ -235,6 +233,142 @@ pub struct CxCore<'a> {
     pub(crate) escaped: bool,
 }
 
+/// The node side of one run (or of a kept node's settled `Cx`): the input queued since the last run, and the outputs
+/// the hooks hand back, which the driver keeps with the node after the run (`Kept`).
+pub(crate) struct RunIo<'a> {
+    /// The inputs queued since the last run, oldest first; empty on a settled `Cx`.
+    pub(crate) input: &'a [NodeInput],
+    /// The node did not run: `finish` gets the kept facts.
+    pub(crate) settled: bool,
+    /// The run is a measuring run (the parent measures its children); it reaches no node.
+    pub(crate) measuring: bool,
+    /// The window's context handle.
+    pub(crate) context: Context,
+    /// The run asked for the next Escape (`hold_escape`); kept as `FocusKept::holds_escape`.
+    pub(crate) holds_escape: Cell<bool>,
+    /// The opacity target and its tween (`fade_to`); aimed by the driver after the run.
+    pub(crate) level: Cell<Option<(f32, MotionSpec)>>,
+    /// The editor's caret rect in window coordinates (`ime_cursor`); kept as `ImeKept::caret`.
+    pub(crate) ime_cursor: Cell<Option<Rect>>,
+    /// Focus moves the run asked for (`request_focus`, `focus_part`, `focus_own`), in order; the driver hands them to
+    /// ui-rt's focus after the run.
+    pub(crate) focus_requests: RefCell<Vec<FocusTarget>>,
+    /// Commands the run fired (`Cx::fire`), with their source and modifiers; the driver runs their handlers on the
+    /// window's `CommandBoard` after the run, in order.
+    pub(crate) fires: Vec<(CommandRef, FireSource, craft_keymap::Mods)>,
+    /// Live announcements the run made (`Accessible::announce`); the driver gives them to the node's access entry.
+    pub(crate) announcements: Vec<(String, crate::runtime::access::Politeness)>,
+}
+
+impl<'a> RunIo<'a> {
+    /// The node side of a run over `input`.
+    pub(crate) fn new(input: &'a [NodeInput], context: Context) -> RunIo<'a> {
+        RunIo {
+            input,
+            settled: false,
+            measuring: false,
+            context,
+            holds_escape: Cell::new(false),
+            level: Cell::new(None),
+            ime_cursor: Cell::new(None),
+            focus_requests: RefCell::new(Vec::new()),
+            fires: Vec::new(),
+            announcements: Vec::new(),
+        }
+    }
+
+    /// The node side of a kept node's `finish`: no input, nothing handed back.
+    pub(crate) fn settled(context: Context) -> RunIo<'a> {
+        RunIo { settled: true, ..RunIo::new(&[], context) }
+    }
+
+    /// The node side of a measuring run: no node, no input.
+    pub(crate) fn measuring(context: Context) -> RunIo<'a> {
+        RunIo { settled: true, measuring: true, ..RunIo::new(&[], context) }
+    }
+}
+
+/// Gesture ids are unique in the process, so two nodes' gestures never share an undo step.
+static NEXT_GESTURE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+impl CxCore<'_> {
+    /// The inputs queued for the node since its last run, oldest first; empty on a settled `Cx`.
+    pub fn input(&self) -> &[NodeInput] {
+        self.run.input
+    }
+
+    /// The intents queued for the node since its last run (activation, moves, edits, typed text, Submit, Cancel ...),
+    /// each taken once. Horizontal moves are read in the node's direction.
+    pub fn intents(&mut self) -> &mut Intents {
+        &mut self.intents
+    }
+
+    /// Takes the next Escape while the node has focus (an open draft, a running gesture): the key reaches this node's
+    /// next run instead of the scopes around it. A run that does not ask leaves Escape to them.
+    pub fn hold_escape(&self) {
+        self.run.holds_escape.set(true);
+    }
+
+    /// Why the window was asked to close since the last run, when this component is its close guard
+    /// ([`Component::close_guard`]).
+    pub fn close_request(&self) -> Option<CloseReason> {
+        self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::Close(reason) => Some(*reason),
+            _ => None,
+        })
+    }
+
+    /// The node did not run: its outputs are the kept ones and its response carries no input.
+    pub fn is_settled(&self) -> bool {
+        self.run.settled
+    }
+
+    /// Aims the node's opacity at `target` (0 to 1): the paint phase tweens toward it over `spec`'s duration, reading
+    /// the frame time while it runs, so no hook runs per frame. The first target a node names is shown at once.
+    pub fn fade_to(&self, target: f32, spec: MotionSpec) {
+        self.run.level.set(Some((target.clamp(0.0, 1.0), spec)));
+    }
+
+    /// A copy of the node's memory slot of type `T`, or its default.
+    pub fn recall<T: Slot>(&self) -> T {
+        self.memory.recall::<T>(self.id)
+    }
+
+    /// The node's editor input since its last run, in arrival order: input method preedits and commits, and the
+    /// intents an editor reads (text, moves `keep` keeps, deletes, edits, Enter, Tab, Escape) that no taker took, taken.
+    pub fn editor_input(&mut self, keep: KeepKeys) -> Vec<EditorInput> {
+        crate::contract::rt::intents::editor_input(self.run.input, &mut self.intents, keep)
+    }
+
+    /// Reports the caret rect (window coordinates) of the node's editor: the platform places the input method's
+    /// candidate window there while the node has focus.
+    pub fn ime_cursor(&self, caret: Rect) {
+        self.run.ime_cursor.set(Some(caret));
+    }
+
+    /// The run only measures: it shows nothing and reaches no node.
+    pub fn is_measuring(&self) -> bool {
+        self.run.measuring
+    }
+
+    /// The window's context, for code that takes one.
+    pub fn context(&self) -> &Context {
+        &self.run.context
+    }
+
+    /// Moves key focus to `target` after the run. Returns whether the target names a component (a document key
+    /// resolves at the move).
+    pub fn request_focus(&self, target: FocusTarget) -> bool {
+        self.run.focus_requests.borrow_mut().push(target);
+        true
+    }
+
+    /// A gesture id no other gesture in the process has.
+    pub fn next_gesture_id(&self) -> GestureId {
+        GestureId::new(NEXT_GESTURE.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
 impl<C: Component> Cx<'_, C> {
     /// The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
     /// default. Reads `None` when the reset was the whole binding's, which step 9 applied.
@@ -245,17 +379,18 @@ impl<C: Component> Cx<'_, C> {
     /// Lays document `text` out `text.wrap` wide: the call `ContentPainterCx::layout` and `MeasureCx::layout_doc`
     /// make, so `update` finds a character at a point in the galley that `paint` draws.
     pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
-        text.layout(&self.core.ctx, &Env::of_root(&self.core.ctx).tokens, craft_i18n::Direction::Ltr)
+        let context = self.core.context();
+        text.layout(context, &Env::of_root(context).tokens, craft_i18n::Direction::Ltr)
     }
 
     /// Whether the control's link label was clicked in this pass.
     pub fn link_activated(&self) -> bool {
-        crate::runtime::access::scope::field_label(&self.core.ctx).is_some_and(|label| label.link)
+        crate::runtime::access::scope::field_label(self.core.context()).is_some_and(|label| label.link)
     }
 
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
     pub fn open_url(&mut self, url: &str, new_tab: bool) {
-        crate::runtime::egui::output::open_url(&self.core.ctx, url, new_tab);
+        self.core.context().open_url(url, new_tab);
     }
 
     /// Makes this component a member of the roving group of the body it is shown in: its stop and its focusable parts
@@ -273,12 +408,16 @@ impl<C: Component> Cx<'_, C> {
     }
 
     /// Runs `command` as this component's own activation would, for a command that is not the component's bound
-    /// one: resolved against the instances above the component, and not fired when disabled. `source` is where the
-    /// activation came from (`part_activated` gives it). Returns whether the command was queued.
+    /// one: its handler on the window's `CommandBoard`, looked up in the node's scope chain, runs at the end of this
+    /// run; a disabled command's binding is passed over there. `source` is where the activation came from
+    /// (`part_activated` gives it). Returns whether the command was queued: false on a settled or measuring `Cx`.
     pub fn fire(&mut self, command: impl Into<CommandRef>, source: FireSource) -> bool {
-        let Some(resolved) = commands::resolve_scoped(&self.core.ctx, self.core.env.command_chain(), &command.into()) else { return false };
+        if self.core.run.settled {
+            return false;
+        }
         let mods = self.core.activation.map_or(craft_keymap::Mods::NONE, |activation| activation.mods);
-        commands::fire_resolved(&self.core.ctx, &resolved, source, mods)
+        self.core.run.fires.push((command.into(), source, mods));
+        true
     }
 
     /// Where an activation of `part` came from this pass: `Key` for a keyboard activation while `part` is the
@@ -302,14 +441,14 @@ impl<C: Component> Cx<'_, C> {
     /// active part for the Menu key or Shift+F10; `None` without a request or when it was made at the component
     /// itself. The request is recorded after `update`, so `finish` reads it.
     pub fn context_part(&self) -> Option<PartRef> {
-        crate::runtime::keys::context_part(&self.core.ctx, self.core.id)
+        crate::runtime::keys::context_part(self.core.context(), self.core.id)
     }
 
     /// Whether the component was asked for its context menu in this pass: a secondary click on it, the Menu key or
     /// Shift+F10 it did not take, or AccessKit's `ShowContextMenu`. Recorded after `update`, so `overlay` and
     /// `finish` read it.
     pub fn context_requested(&self) -> bool {
-        crate::runtime::keys::context_request(&self.core.ctx, self.core.id).is_some()
+        crate::runtime::keys::context_request(self.core.context(), self.core.id).is_some()
     }
 
     /// The context requests made in this pass so far, in order: each component asked and the rect its menu opens at
@@ -317,7 +456,7 @@ impl<C: Component> Cx<'_, C> {
     /// ran before it finished: a secondary click or the Menu key on a child reaches the region around it this way,
     /// whatever the child does with its own request.
     pub fn context_requests(&self) -> Vec<(Id, Rect)> {
-        crate::runtime::keys::context_requests(&self.core.ctx)
+        crate::runtime::keys::context_requests(self.core.context())
     }
 
     /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the
@@ -342,8 +481,7 @@ impl<C: Component> Cx<'_, C> {
             self.core.focus.focused || self.core.press_held() || self.core.results.values().any(|result| result.press.phase.is_press()),
             "`focus_part` is for a component that holds focus or was just pressed; `update` never steals focus"
         );
-        focus::request(&self.core.ctx, focus::FocusTarget::Part(self.core.id, part));
-        self.core.sync_focus();
+        self.core.request_focus(FocusTarget::Part(self.core.id, part));
     }
 
     /// Moves focus to the component's own stop (not a part), under the rule of `focus_part`.
@@ -352,8 +490,7 @@ impl<C: Component> Cx<'_, C> {
             self.core.focus.focused || self.core.press_held(),
             "`focus_own` is for a component that holds focus or was just pressed; `update` never steals focus"
         );
-        focus::request(&self.core.ctx, focus::FocusTarget::Id(self.core.id));
-        self.core.sync_focus();
+        self.core.request_focus(FocusTarget::Id(self.core.id));
     }
 }
 
@@ -379,7 +516,7 @@ impl StageAccess for CxCore<'_> {
 /// # extern crate craft_ui_contract as craft_ui;
 /// use craft_ui::contract::{Component, Cx};
 /// fn update<C: Component>(cx: &mut Cx<'_, C>) {
-///     cx.rect = egui::Rect::NOTHING;
+///     cx.rect = craft_ui_rt::Rect::NOTHING;
 /// }
 /// ```
 #[non_exhaustive]

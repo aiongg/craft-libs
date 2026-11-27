@@ -5,7 +5,9 @@ use crate::contract::{Container, Resolved, Show, SideLabel};
 use crate::runtime::env::{Env, EnvView, Label, Message};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::overlay::CloseReason;
-use egui::{Id, Rect, Ui};
+use crate::contract::Ui;
+use crate::primitives::Id;
+use craft_ui_rt::Rect;
 use std::any::Any;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -54,7 +56,7 @@ impl<'a> BodyCx<'a> {
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
     /// `Link` uses. The footer's closure gets this context too.
     pub fn open_url(&mut self, url: &str, new_tab: bool) {
-        crate::runtime::egui::output::open_url(self.memory.ctx(), url, new_tab);
+        self.memory.ctx().open_url(url, new_tab);
     }
 
     /// The host file service's answer to the picker `ticket`, taken once. A measuring run gets none and leaves

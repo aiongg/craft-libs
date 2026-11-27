@@ -2,7 +2,9 @@
 
 use crate::runtime::env::EnvView;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
-use egui::{Id, Rect, Ui};
+use crate::contract::Ui;
+use crate::primitives::Id;
+use craft_ui_rt::Rect;
 use std::fmt::Debug;
 
 /// Rich tooltip content an item stored.
