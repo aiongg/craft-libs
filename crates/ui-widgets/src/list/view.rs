@@ -122,7 +122,7 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     document: Option<DocumentRows>,
 }
 
-impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
+impl<'a, K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> List<'a, K> {
     /// A list named `label`, with multiple selection.
     pub fn new(label: impl Into<Label>) -> Self {
         List {

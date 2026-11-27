@@ -16,7 +16,7 @@ use crate::popover::Popover;
 use crate::primitives::{ContentPainterCx, IconSpec, Span};
 use crate::runtime::env::{Env, Label};
 use crate::style::{Corners, SurfaceKind};
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, ValueAt, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, ValueAt, story};
 use crate::tile_grid::GroupHeads;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection};
 use craft_keymap::{Chord, Key, Mods};

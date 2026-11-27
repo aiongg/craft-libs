@@ -4,7 +4,7 @@ use super::Segmented;
 use crate::buttons::ActiveLook;
 use crate::contract::{Entry, Props as _, Show as _, Validity};
 use crate::runtime::env::{Message, with_env};
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::ControlSize;
 use craft_ui::Ui;

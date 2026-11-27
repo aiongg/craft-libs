@@ -5,7 +5,7 @@ use crate::contract::{Bind, CollectionEvent, MiddleButton, ShowCollection as _, 
 use crate::list::ThumbAspect;
 use crate::runtime::env::Label;
 use crate::testing::pictures::StoryPictures;
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use crate::tile_grid::stories::{ACTIONS, TileStoryCommand};
 use crate::tile_grid::{BadgeKind, BadgeSlot, Tile, TileActionPlace, TileBadge, TileFlag, TilePartEvent, TileZoom};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, SizeHint};
@@ -259,7 +259,7 @@ const LATCHED_MOVE: Vec2 = Vec2::new(0.0, 60.0);
 /// A middle click in the grid latches auto-scroll, and the pointer below the latch point scrolls the grid down; Escape
 /// ends the latch, so the driven story rests.
 fn middle_scroll(fixture: &mut StoryHarness) {
-    let at = fixture.shown().center();
+    let Some(at) = fixture.shown().map(|shown| shown.center()) else { return };
     fixture.hover_at(at);
     // REQUEST (P1a): `Harness::hover_at(Pos2)` and `Harness::middle_click_at(Pos2)` (the removed `pointer::moved`/`pointer::middle`).
     fixture.middle_click_at(at);

@@ -39,7 +39,7 @@ pub struct Segmented<'a, T: Value + 'static> {
     entries: &'a [Entry<T>],
 }
 
-impl<'a, T: Value + 'static> Segmented<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> Segmented<'a, T> {
     /// A row over `value` named `label`, one segment per entry. An entry's label is its text, or its tooltip and name
     /// when it has an icon; separators are not segments.
     pub fn new(label: impl Into<Label>, value: Bind<'a, T>, entries: &'a [Entry<T>]) -> Self {

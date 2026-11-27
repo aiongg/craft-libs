@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 /// The group kind of radios whose members stand for values of type `T`.
 pub struct RadioKind<T>(PhantomData<fn() -> T>);
 
-impl<T: Value + 'static> GroupKind for RadioKind<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> GroupKind for RadioKind<T> {
     type Member = T;
 }
 
@@ -38,13 +38,13 @@ struct GroupMemory<T: Value + 'static> {
     live: Arc<Mutex<GroupState<T>>>,
 }
 
-impl<T: Value + 'static> Default for GroupMemory<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Default for GroupMemory<T> {
     fn default() -> Self {
         GroupMemory { live: Arc::default() }
     }
 }
 
-impl<T: Value + 'static> Clone for GroupMemory<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Clone for GroupMemory<T> {
     fn clone(&self) -> Self {
         GroupMemory { live: Arc::clone(&self.live) }
     }
@@ -69,7 +69,7 @@ pub struct RadioGroup<'a, T: Value + 'static> {
     value: Bind<'a, T>,
 }
 
-impl<'a, T: Value + 'static> RadioGroup<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> RadioGroup<'a, T> {
     /// A group named `label` over `value`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, value: Bind<'a, T>) -> Self {
         let props = ContainerProps::new().arena(true).roving(Roving::new(NavShape::Flat));
@@ -167,7 +167,7 @@ pub struct Radio<T: Value + 'static> {
     detail: Option<crate::runtime::env::Label>,
 }
 
-impl<T: Value + 'static> Radio<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Radio<T> {
     /// A radio button standing for `value`.
     pub fn new(value: T) -> Self {
         Radio { common: Common::new(), value, checked: false, invalid: false, detail: None }

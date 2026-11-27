@@ -6,7 +6,7 @@ use crate::contract::{FieldLayout, Props as _, Show as _, ShowContainer as _, Si
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Message, with_env};
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_ui::{Response, Ui};
 

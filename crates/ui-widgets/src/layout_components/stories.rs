@@ -69,16 +69,18 @@ fn stack_fill_height(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         // design: allow[contract/allocate, literal-size/vec2](the story gives the stack a fixed stage box to show fill-height sizing)
         let stage = craft_ui::geom::Rect::from_min_size(ui.cursor().min, craft_ui::geom::vec2(360.0, 200.0));
         ui.scope_builder(craft_ui::UiBuilder::new().max_rect(stage), |ui| {
-            Row::new().fill().show(ui, |ui, _| {
-                Stack::new()
-                    .sizing(Sizing::FillHeight)
-                    .gap(Gap::Tight)
-                    .pad(Pad::Regular)
-                    .footer(|ui, _| words(ui, 2..3))
-                    .show(ui, |ui, _| words(ui, 0..2));
-                Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| words(ui, 3..4));
-            })
-            .output
+            Row::new()
+                .fill()
+                .show(ui, |ui, _| {
+                    Stack::new()
+                        .sizing(Sizing::FillHeight)
+                        .gap(Gap::Tight)
+                        .pad(Pad::Regular)
+                        .footer(|ui, _| words(ui, 2..3))
+                        .show(ui, |ui, _| words(ui, 0..2));
+                    Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| words(ui, 3..4));
+                })
+                .output
         })
         .into()
     })

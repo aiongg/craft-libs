@@ -13,11 +13,12 @@ use craft_ui::{Id, Ui};
 fn inspect_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let key = Id::NULL.with("story.inspect_overlay");
     let (shown, recorded) = inspect::record(ui, key, |ui| {
-        Stack::new().show(ui, |ui, _| {
-            Button::new("Apply").show(ui);
-            Checkbox::new(data.bind("snap", true)).label("Snap to grid").show(ui);
-        })
-        .output
+        Stack::new()
+            .show(ui, |ui, _| {
+                Button::new("Apply").show(ui);
+                Checkbox::new(data.bind("snap", true)).label("Snap to grid").show(ui);
+            })
+            .output
     });
     let rect = shown.rect;
     match recorded {

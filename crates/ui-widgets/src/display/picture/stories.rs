@@ -22,14 +22,15 @@ fn picture(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_thumbnail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    crate::layout_components::Row::new().show(ui, |ui, _| {
-        for (key, step) in [(2, ThumbSize::Small), (3, ThumbSize::Medium), (4, ThumbSize::Large)] {
-            Picture::new("Gradient", key, &gradient).extent(PictureSize::Thumb(step)).show(ui);
-        }
-        Picture::new("Gradient", 5, &gradient).extent(PictureSize::Icon).show(ui)
-    })
-    .output
-    .into()
+    crate::layout_components::Row::new()
+        .show(ui, |ui, _| {
+            for (key, step) in [(2, ThumbSize::Small), (3, ThumbSize::Medium), (4, ThumbSize::Large)] {
+                Picture::new("Gradient", key, &gradient).extent(PictureSize::Thumb(step)).show(ui);
+            }
+            Picture::new("Gradient", 5, &gradient).extent(PictureSize::Icon).show(ui)
+        })
+        .output
+        .into()
 }
 
 /// A picture made off the frame: its source renders as a `Later` job, so the picture shows the placeholder until the
@@ -53,13 +54,14 @@ const NOT_SVG: &[u8] = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><circle";
 
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_svg(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    crate::layout_components::Row::new().show(ui, |ui, _| {
-        Picture::svg("Mark", MARK).extent(PictureSize::Icon).show(ui);
-        Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Small)).show(ui);
-        Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Large)).show(ui)
-    })
-    .output
-    .into()
+    crate::layout_components::Row::new()
+        .show(ui, |ui, _| {
+            Picture::svg("Mark", MARK).extent(PictureSize::Icon).show(ui);
+            Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Small)).show(ui);
+            Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Large)).show(ui)
+        })
+        .output
+        .into()
 }
 
 /// A 4:1 SVG with no aspect set is shown four times wider than tall.

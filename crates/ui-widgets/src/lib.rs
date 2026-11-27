@@ -10,12 +10,12 @@
 // The derives' output names the crate as `craft_ui`, here as in every other crate.
 extern crate self as craft_ui;
 
+pub use craft_ui_contract::contract::{Context, Id, IdSalt, Response, Shown, Ui, UiBuilder};
+pub use craft_ui_contract::primitives::{Color32, CornerRadius};
 #[cfg(feature = "testing")]
 pub use craft_ui_contract::registry;
 #[doc(hidden)]
 pub use craft_ui_contract::{__private, __register_command_set, __register_contract, __register_pattern};
-pub use craft_ui_contract::primitives::{Color32, CornerRadius};
-pub use craft_ui_contract::contract::{Context, Id, IdSalt, Response, Shown, Ui, UiBuilder};
 pub use craft_ui_contract::{contract, fonts, layout, primitives, runtime, style, words};
 
 /// Geometry in logical points.

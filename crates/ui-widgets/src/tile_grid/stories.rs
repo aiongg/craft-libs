@@ -9,7 +9,7 @@ use crate::list::{ThumbAspect, ToggleState};
 use crate::runtime::env::Message;
 use crate::style::DataColor;
 use crate::testing::pictures::StoryPictures;
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;

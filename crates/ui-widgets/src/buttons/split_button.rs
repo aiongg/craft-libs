@@ -128,7 +128,7 @@ pub struct SplitButton<'a, T: Value + 'static> {
     chosen: Option<T>,
 }
 
-impl<'a, T: Value + 'static> SplitButton<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens `entries`.
     pub fn new(label: impl Into<Label>, entries: &'a [Entry<T>]) -> Self {
         SplitButton::with_menu(SplitMenu::Entries(entries)).label(label)
@@ -337,7 +337,7 @@ impl<T: Value + crate::contract::MemoProps + 'static> Component for SplitButton<
     }
 }
 
-impl<T: Value + 'static> SplitButton<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> SplitButton<'_, T> {
     /// Paints a stacked split button: the main part (the icon) over the arrow part (the label and its chevron), each
     /// with its own state fill, and the divider across the button where they meet. The arrow part is the one `parts`
     /// declared; a face, which declares none, shows the whole button as the arrow part.

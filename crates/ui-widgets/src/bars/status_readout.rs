@@ -136,9 +136,10 @@ impl StatusItem {
             StatusItem::Timing => values
                 .timing
                 .map_or_else(|| MISSING.to_owned(), |time| words.readout_timing_text.fill(&[("value", &units.duration(time.as_secs_f64()))])),
-            StatusItem::CurrentTool => {
-                values.current_tool.as_ref().map_or_else(|| MISSING.to_owned(), |tool| ui.resolve_command(tool.clone()).map(|command| command.label.to_string()).unwrap_or_default())
-            }
+            StatusItem::CurrentTool => values.current_tool.as_ref().map_or_else(
+                || MISSING.to_owned(),
+                |tool| ui.resolve_command(tool.clone()).map(|command| command.label.to_string()).unwrap_or_default(),
+            ),
             StatusItem::LayerCount => {
                 values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.readout_layers.text(n as u64, &env.format().integer(n as u64)))
             }

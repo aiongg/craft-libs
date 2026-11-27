@@ -246,8 +246,7 @@ impl Component for DropVeil {
         if !self.hovering {
             return;
         }
-        let draw = ui.draw();
-        draw.surface(cx.rect, SurfaceKind::Scrim, Corners::None);
+        ui.draw().surface(cx.rect, SurfaceKind::Scrim, Corners::None);
         if let Some(card) = self.card {
             ui.child("card", card, VeilCard::new(cx.label()));
         }

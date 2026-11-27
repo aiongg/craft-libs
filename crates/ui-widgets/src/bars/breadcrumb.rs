@@ -90,7 +90,7 @@ pub struct BreadcrumbBar<'a, K: Value + 'static> {
     whole: Label,
 }
 
-impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
+impl<'a, K: Value + crate::contract::MemoProps + 'static> BreadcrumbBar<'a, K> {
     /// A bar named `label` over `crumbs`, the root first.
     pub fn new(label: impl Into<Label>, crumbs: &'a [Entry<K>]) -> Self {
         debug_assert!(crumbs.iter().all(|crumb| !crumb.is_separator()), "a `BreadcrumbBar` has no separators");

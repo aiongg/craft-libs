@@ -365,7 +365,7 @@ struct Placed {
     toggle: bool,
 }
 
-impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
+impl<'a, K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> TileGrid<'a, K> {
     /// Insert gaps between tiles, keyed by display position; `label` names the gap before a position. None show
     /// while a drag is held. A press on one reports [`GridEvent::Insert`].
     ///

@@ -14,7 +14,7 @@ use crate::runtime::commands::EditCommands;
 use crate::runtime::env::{Message, with_env};
 use crate::style::{DataColor, SurfaceKind};
 use crate::testing::pictures::sample_picture;
-use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{ColumnWidth, IconId, Mixed, Proposal};
 use craft_theme::{ControlSize, Variant};
 use craft_ui::input::{Key, Mods};
