@@ -518,10 +518,13 @@ fn a_context_opener_offers_the_context_menu_on_its_own_node() {
         })
     };
     past_fades(&mut rig, &mut frame);
-    let entry = rig.runtime().access_snapshot(main).into_iter().find(|e| e.node.label() == Some("Target")).expect("the target's access node");
-    assert!(entry.node.supports_action(accesskit::Action::ShowContextMenu), "the opener's own node offers the context menu");
+    let (target, offers) = {
+        let entry = rig.runtime().access_snapshot(main).into_iter().find(|e| e.node.label() == Some("Target")).expect("the target's access node");
+        (entry.id, entry.node.supports_action(accesskit::Action::ShowContextMenu))
+    };
+    assert!(offers, "the opener's own node offers the context menu");
     assert_eq!(shown.get(), 0, "the menu waits for its request");
-    rig.inject(main, Input::action(accesskit::Action::ShowContextMenu, entry.id));
+    rig.inject(main, Input::action(accesskit::Action::ShowContextMenu, target));
     past_fades(&mut rig, &mut frame);
     assert!(shown.get() >= 1, "the assistive request on the opener's node opened its menu");
 }
