@@ -240,6 +240,14 @@ impl BuildCx<'_> {
         self.keyed_slot(node, key, init)
     }
 
+    /// The cell `node` owns under `key` ([`slot_of`](Self::slot_of)) when it was made; never makes one. A node asks
+    /// this of itself for a fact only some nodes carry, so the others own no cell.
+    pub fn find_slot_of<T: 'static>(&self, node: NodeId, key: impl Hash) -> Option<State<T>> {
+        let key = hash_key(&(std::any::TypeId::of::<T>(), key));
+        let n = self.rt.tree.nodes.get(&node)?;
+        n.slots.iter().find(|(k, _)| *k == key).map(|(_, at)| State::from_slot(*at))
+    }
+
     fn keyed_slot<T: 'static>(&mut self, node: NodeId, key: u64, init: impl FnOnce() -> T) -> Option<State<T>> {
         let n = self.rt.tree.nodes.get(&node)?;
         if let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key) {
@@ -612,7 +620,14 @@ impl BuildCx<'_> {
     /// For the layer child being built: what its modal block lets through ([`crate::ModalReach`]),
     /// as its content decided in this build. Its owner's next show of it keeps it in the spec.
     pub fn set_layer_reach(&mut self, reach: Option<crate::ModalReach>) {
-        if let Some(spec) = self.rt.windows.get_mut(&self.window).and_then(|w| w.layered.get_mut(&self.node)) {
+        let node = self.node;
+        self.set_layer_reach_of(node, reach);
+    }
+
+    /// [`set_layer_reach`](Self::set_layer_reach) for the layer child `node` of this node's window, from another
+    /// node's build: a canvas's host passed its running tool's gestures, which the modal over it lets through at once.
+    pub fn set_layer_reach_of(&mut self, node: NodeId, reach: Option<crate::ModalReach>) {
+        if let Some(spec) = self.rt.windows.get_mut(&self.window).and_then(|w| w.layered.get_mut(&node)) {
             spec.reach = reach;
         }
     }

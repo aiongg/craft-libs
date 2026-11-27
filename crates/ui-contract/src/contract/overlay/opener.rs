@@ -3,8 +3,10 @@
 use super::place::{Anchor, Place};
 use super::props::Overlay;
 use crate::contract::Response;
+use crate::contract::context::log_build_read;
+use crate::contract::rt::ids;
 use crate::primitives::Id;
-use craft_ui_rt::Rect;
+use craft_ui_rt::{BuildCx, NodeId, Rect};
 
 /// How a free-standing popup's trigger fires.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
@@ -82,6 +84,9 @@ impl Opener {
         // Only a hold reads whether the press is held: the read makes the reading scope run when it flips.
         let pressed = trigger == Trigger::Hold && anchor.is_pointer_button_down_on();
         let clicked = trigger == Trigger::Click && facts.clicked && !facts.activated;
+        if trigger == Trigger::Context && !facts.disabled {
+            offer_context_menu(anchor.id);
+        }
         Opener {
             id: anchor.id,
             rect: anchor.rect,
@@ -116,6 +121,34 @@ impl Opener {
         self.all().any(|opener| opener.fired || opener.clicked)
     }
 }
+
+/// A context menu hangs from the opener `opener`: its node's access node offers `ShowContextMenu`, whose request comes
+/// back to the opener as a context request. When the running build ends, a fact goes on the opener's node (found
+/// through the window's id map) and the opener runs once more to build its access node with the action; the fact
+/// lasts while the node does.
+fn offer_context_menu(opener: Id) {
+    log_build_read(move |cx| {
+        let Some(node) = ids::node_of(cx, opener) else { return };
+        if cx.find_slot_of::<ContextOffered>(node, CONTEXT_OFFERED).is_none() {
+            cx.slot_of(node, CONTEXT_OFFERED, || ContextOffered);
+            cx.request_build_of(node);
+        }
+    });
+}
+
+/// Whether a `Trigger::Context` opener elsewhere hangs a context menu from `node` ([`Overlay::opened_by`]): its access
+/// node offers `ShowContextMenu`. Step 16 of the node's run asks it.
+///
+/// [`Overlay::opened_by`]: super::Overlay::opened_by
+pub(crate) fn offers_context_menu(cx: &BuildCx<'_>, node: NodeId) -> bool {
+    cx.find_slot_of::<ContextOffered>(node, CONTEXT_OFFERED).is_some()
+}
+
+/// The fact on an opener's node that a context menu hangs from it.
+struct ContextOffered;
+
+/// The key of [`ContextOffered`] among the node's cells.
+const CONTEXT_OFFERED: &str = "craft-context-opener";
 
 /// How an opener opened its layer: what decides where a `Trigger::Context` layer hangs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]

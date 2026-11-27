@@ -1084,7 +1084,7 @@ fn report<C: Component>(
         pressable: &pressable,
         clickable: sense.takes_press(),
         focusable: !sense.intersection(Sense::FOCUS).is_empty(),
-        context_menu: cx.core.popups.offers_context_menu(),
+        context_menu: cx.core.popups.offers_context_menu() || crate::contract::overlay::offers_context_menu(build, build.node()),
     };
     super::access::finish(access, role, &facts)
 }

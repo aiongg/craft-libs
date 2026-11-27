@@ -1,6 +1,6 @@
 //! `OverlayUi`: what the `overlay` hook gets for the component's popups. Each open popup is a craft-ui-rt layer child
-//! of the component's node (`contract::rt::overlay`): a closed popup is not reached, so its layer goes and costs
-//! nothing; an open one keeps its content while nothing under it changed.
+//! of the component's node (`contract::rt::overlay`): an open one keeps its content while nothing under it changed; a
+//! closed one fades out with its content kept, taking no input, and its layer goes when the fade ends.
 
 use super::dismissal::{closed_after_show, closes_before_show};
 use super::placement::PopupRegion;
@@ -8,7 +8,7 @@ use super::popups::PopupHandle;
 use super::props::Overlay;
 use crate::contract::paint_ui::{UiHost, host_ui};
 use crate::contract::rt::memory::Memory;
-use crate::contract::rt::overlay::{BodyClose, LayerBody, LayerShow, PopupStates, Surface, show_layer_with};
+use crate::contract::rt::overlay::{BodyClose, LayerBody, LayerShow, PopupStates, Surface, show_layer_with, show_leaving};
 use crate::contract::{BodyCx, Component, Cx, Id, Inner, Resolved, ShowContainer, Ui};
 use crate::runtime::env::Env;
 use crate::runtime::memory::{MemoryStage, sub};
@@ -275,10 +275,23 @@ pub(crate) fn run_overlay<C: Component>(
     let mut popups = std::mem::take(&mut *cx.core.popups);
     let owner = OverlayOwner { id: cx.core.id, anchor: cx.core.rect, parts };
     let resolved = cx.core.resolved;
-    let mut overlays = OverlayUi::new(host, owner, resolved, env.clone(), &mut popups, owner_ran);
+    let mut overlays = OverlayUi::new(&mut *host, owner, resolved, env.clone(), &mut popups, owner_ran);
     component.overlay(&mut overlays, cx);
     let changed = overlays.changed;
     drop(overlays);
+    // A popup that closed fades out: its layer child stays, inert, and the owner builds when the fade ends, which
+    // drops it. One that closed after it showed in this build starts its fade in another build of this frame.
+    host_ui(&mut *host, |ui| {
+        for (popup, layer) in popups.leaving() {
+            match show_leaving(ui.cx, layer, popup.value()) {
+                Some(ends) => ui.cx.request_build_at(Some(ends)),
+                None => popups.left(popup),
+            }
+        }
+        if popups.closed_after_shown() {
+            ui.cx.rebuild();
+        }
+    });
     *cx.core.popups = popups;
     changed
 }

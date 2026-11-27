@@ -2,11 +2,12 @@
 //! build shows it (the window root's body), at the end-bottom corner of its body. The queue (`ToastQueue`) keeps the
 //! cards and their timers; a timer is a build wake of the showing node at the earliest deadline, so a waiting stack
 //! runs no frame. A component of a higher layer draws each card (`notices::ToastStack`). Each card is announced once,
-//! when the stack first shows it.
+//! when the stack first shows it. When the queue empties, the stack fades out with the cards it showed last, taking
+//! no input meanwhile.
 
 pub use crate::contract::rt::toast::ToastQueue;
 
-use crate::contract::rt::overlay::{LayerScope, LayerShow, Surface, show_layer};
+use crate::contract::rt::overlay::{LayerScope, LayerShow, Surface, show_layer, show_leaving};
 use crate::contract::{IdSalt, POPUP_PAD, Ui};
 use crate::runtime::access::Politeness;
 use crate::runtime::env::Env;
@@ -72,6 +73,11 @@ impl ToastHost {
         cx.request_build_at(next);
         if queue.is_empty() {
             queue.cards_hovered = false;
+            // The emptied stack fades out with the cards it showed last; this node builds when the fade ends, and
+            // the stack goes.
+            if let Some(ends) = show_leaving(cx, Layer::Toast, STACK_KEY) {
+                cx.request_build_at(Some(ends));
+            }
             return;
         }
         // Each new card is read out once, as the stack first shows it, by the node that shows the stack.
@@ -120,6 +126,10 @@ impl ToastHost {
         show_layer(ui.cx, id, STACK_KEY, show, rerun, &mut |ui| ran = Some(run_cards(ui, id, &cards, card)));
         let Some(StackRun { hovered, ends, focus }) = ran else { return };
         queue.cards_hovered = hovered;
+        // The stack shows the cards the user ended until this node builds again, in this frame.
+        if !ends.is_empty() {
+            ui.cx.rebuild();
+        }
         for (toast, end) in ends {
             queue.close(toast, end);
         }

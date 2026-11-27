@@ -50,10 +50,8 @@ pub fn show_dialog<R: Clone + 'static>(
     }
     let id = ui.flow.id.with(("craft-dialog", key));
     let mut fresh = false;
-    let escape = scope_escape(overlay);
     let value = show_layer(ui.cx, id, key, show, false, &mut |ui| {
         fresh = true;
-        ui.cx.provide(escape);
         body(ui)
     });
     Ok(Shown { value, fresh })

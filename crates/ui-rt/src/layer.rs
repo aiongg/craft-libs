@@ -117,13 +117,18 @@ pub struct LayerSpec {
     /// The child is one the window's layer queries list (a popup, dialog or floating window, not a tooltip): when it
     /// goes, the window's [`Env::layers`](crate::Env::layers) cell moves.
     pub listed: bool,
+    /// The child is leaving (a popup or toast stack fading out after it closed): it still paints, but takes no
+    /// pointer or key input, holds no focus, blocks nothing below it and is never dismissed. Its owner stops showing
+    /// it when the fade ends.
+    pub inert: bool,
 }
 
 /// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
 /// (a colour picker's eyedropper, a levels dialog's view navigation) lets some input through to
-/// that node. The wheel and middle presses always reach it, and so do presses of the listed
-/// buttons with at least the listed modifiers held. Only where the node is the topmost shape below
-/// the modal: something that covers it keeps the input.
+/// that node. The wheel and middle presses always reach it, and so does Space with the pointer over
+/// it and a primary press while Space is held (the view's pan), and presses of the listed buttons
+/// with at least the listed modifiers held. Only where the node is the topmost shape below the
+/// modal: something that covers it keeps the input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModalReach {
     pub node: NodeId,
@@ -147,9 +152,10 @@ impl ModalReach {
         self
     }
 
-    /// Whether a press of `button` with `held` down reaches the node.
-    pub fn admits_press(&self, button: PointerButton, held: Mods) -> bool {
+    /// Whether a press of `button` with `held` down reaches the node; `space` is whether Space is held.
+    pub fn admits_press(&self, button: PointerButton, held: Mods, space: bool) -> bool {
         button == PointerButton::Middle
+            || (space && button == PointerButton::Primary)
             || self.presses.iter().flatten().any(|&(b, need)| {
                 b == button && (!need.cmd || held.cmd) && (!need.ctrl || held.ctrl) && (!need.alt || held.alt) && (!need.shift || held.shift)
             })
@@ -171,7 +177,14 @@ impl LayerSpec {
             bounds: None,
             commands: false,
             listed: false,
+            inert: false,
         }
+    }
+
+    /// The child is leaving ([`LayerSpec::inert`]).
+    pub const fn inert(mut self) -> LayerSpec {
+        self.inert = true;
+        self
     }
 
     pub const fn listed(mut self) -> LayerSpec {

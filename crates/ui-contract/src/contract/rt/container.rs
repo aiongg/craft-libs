@@ -879,7 +879,6 @@ impl<C: Container, R> LayerBody<()> for LayerContent<'_, '_, C, R> {
     }
 
     fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) {
-        ui.cx.provide(self.escape);
         let rect = ui.flow.region;
         let place = Env::of(ui);
         self.shown = Some(show_container(self.slot, ui, (ShowAt::Rect(rect), place), self.body, None));
