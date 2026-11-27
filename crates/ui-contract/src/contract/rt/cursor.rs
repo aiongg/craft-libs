@@ -18,3 +18,22 @@ pub(crate) fn record_own_shape(kept: &Kept, cx: &mut PaintCx<'_>) {
         None => {}
     }
 }
+
+/// The platform cursor for a component's cursor. A system cursor maps one to one. ui-rt has no painted
+/// cursors yet (a pointer layer that draws them over the window), so a painted one shows the system
+/// cursor nearest to it and a hidden one hides the pointer.
+pub(crate) fn platform(cursor: &craft_behavior::Cursor) -> craft_ui_rt::Cursor {
+    use craft_behavior::{Cursor, CursorIcon, PaintedCursor};
+    let icon = match cursor {
+        Cursor::System(icon) => *icon,
+        Cursor::Painted(painted) => match painted {
+            PaintedCursor::Hidden => return craft_ui_rt::Cursor::Hidden,
+            PaintedCursor::Hand => CursorIcon::Grab,
+            PaintedCursor::Zoom { out: true } => CursorIcon::ZoomOut,
+            PaintedCursor::Zoom { .. } => CursorIcon::ZoomIn,
+            PaintedCursor::Badged { base, .. } => *base,
+            _ => CursorIcon::Crosshair,
+        },
+    };
+    craft_ui_rt::Cursor::Icon(icon)
+}

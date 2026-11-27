@@ -453,11 +453,6 @@ impl<'a> Draw<'a> {
             record.elided = Some(layout.full().to_owned());
         }
         drop(record);
-        if layout.elided {
-            if let (Some(ctx), Some(galley)) = (self.canvas.services().egui(), layout.egui_galley()) {
-                crate::runtime::egui::painted::note_elided(ctx, &galley, layout.full());
-            }
-        }
         // A run cut to nothing (an elided label in no room) has no glyphs.
         if layout.ink() == Rect::NOTHING {
             return;

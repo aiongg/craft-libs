@@ -10,7 +10,7 @@
 //! them in that frame (`Ui::take_submit`, `Ui::take_clear`).
 
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
-use craft_behavior::{EditorInput, Intent};
+use craft_behavior::{AccessRequest, EditorInput, Intent, PartRef};
 use craft_ui_rt::{Key, KeyInput};
 
 use super::node::NodeInput;
@@ -19,21 +19,35 @@ use crate::runtime::focus::{EnterRule, FocusPolicy, KeepKeys};
 use crate::runtime::keys::Intents;
 
 /// The intents of a run's queue; `rtl` (asked only when a horizontal move is queued) reads
-/// horizontal moves in the node's direction.
-pub(crate) fn of_queue(input: &[NodeInput], rtl: impl FnOnce() -> bool) -> Intents {
+/// horizontal moves in the node's direction. AccessKit actions become access requests on the part
+/// whose sub-node they name (`part_of` maps a sub-node key to its part); a SetValue with a number is
+/// also the run's set value. A Click or Focus on the node's own node is served elsewhere (the
+/// run's activation, ui-rt's focus).
+pub(crate) fn of_queue(input: &[NodeInput], part_of: impl Fn(u64) -> Option<PartRef>, rtl: impl FnOnce() -> bool) -> Intents {
     let mut items = Vec::new();
     let mut chords = Vec::new();
     let mut nudge = None;
+    let mut access = Vec::new();
     for (place, i) in input.iter().enumerate() {
         match i {
             NodeInput::Intent { intent, horizontal, shift } => items.push((intent.clone(), place, *horizontal, *shift)),
             NodeInput::Chord(chord) => chords.push(*chord),
             NodeInput::Nudge { direction, mods } => nudge = Some((*direction, *mods)),
+            NodeInput::Access(a) if a.sub.is_some() || !matches!(a.action, accesskit::Action::Click | accesskit::Action::Focus) => {
+                access.push((a.clone(), a.sub.and_then(&part_of)));
+            }
             _ => {}
         }
     }
     let rtl = items.iter().any(|(intent, _, horizontal, _)| *horizontal && matches!(intent, Intent::Move(..))) && rtl();
-    Intents::queued(items, chords, nudge, rtl)
+    let mut intents = Intents::queued(items, chords, nudge, rtl);
+    for (a, target) in access {
+        if let Some(value) = a.numeric_value() {
+            intents.note_set_value(target, value);
+        }
+        intents.push(Intent::Access(AccessRequest::new(a.action, target, a.data)));
+    }
+    intents
 }
 
 /// The editor input of a run's queue in arrival order: IME input as it came, and each intent the

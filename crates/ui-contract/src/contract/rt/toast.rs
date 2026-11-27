@@ -201,8 +201,12 @@ impl Component for ToastCard<'_> {
 
     /// The shaped text, wrapped at the room: the size the layer child is placed by.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.layout_at(&TextRun::new(self.message), cx.room.x).size();
-        Vec2::new(text.x.min(cx.room.x), text.y.max(cx.tokens.size.button))
+        let run = TextRun::new(self.message);
+        let text = match cx.room {
+            Some(width) => cx.layout_at(&run, width).size(),
+            None => cx.layout(&run).size(),
+        };
+        Vec2::new(text.x.min(cx.room.unwrap_or(f32::INFINITY)), text.y.max(cx.tokens.size.button))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -210,7 +214,7 @@ impl Component for ToastCard<'_> {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.label(self.message);
+        access.name(crate::runtime::access::Name::Text(self.message.to_owned()));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

@@ -12,7 +12,6 @@ mod focus_ring;
 #[doc(hidden)]
 pub mod glyph;
 mod handle;
-mod host;
 mod icon;
 mod id;
 mod ime_surface;
@@ -38,8 +37,6 @@ pub mod textures;
 mod tool;
 
 pub use crate::runtime::egui::paint_slot::PaintSlot;
-pub use crate::runtime::egui::surface_slot::frame_surfaces;
-pub(crate) use crate::runtime::egui::surface_slot::{Frames as SurfaceFrames, SurfaceSlot, fit_to_frame};
 pub use auto_scroll_mark::AutoScrollMark;
 pub(crate) use canvas::NoServices;
 pub use canvas::{Canvas, CanvasMark, FaceJob, FrameServices, Services, image_key, rgba_image, texture_key};
@@ -51,7 +48,6 @@ pub use face::FacePaint;
 pub use faces::FacesCx;
 pub use focus_ring::{FocusKind, FocusRing};
 pub use handle::{Handle, HandleShape};
-pub use host::HostStyle;
 pub(crate) use icon::SvgIcon;
 pub use icon::{Glyph, IconMark, IconSet, IconSource, IconSpec, Mirror, has_icon, icon_names, paint_icon};
 pub use id::{Id, IdSalt};

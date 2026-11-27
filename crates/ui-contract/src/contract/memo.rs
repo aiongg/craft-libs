@@ -1177,13 +1177,6 @@ impl MemoProps for craft_host::target::WindowKind {
     }
 }
 
-/// Derived `Hash` (the layer's order and id).
-impl MemoProps for crate::runtime::egui::areas::LayerKey {
-    fn key(&self, key: &mut MemoKey) {
-        key.feed_hash(self);
-    }
-}
-
 /// Derived `Hash` (an opaque hash value).
 impl MemoProps for crate::primitives::Id {
     fn key(&self, key: &mut MemoKey) {

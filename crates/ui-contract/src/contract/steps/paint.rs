@@ -2,7 +2,7 @@
 //! layers and a faded component's veil. All of it records into the look's canvas, so it is part of
 //! every recorded look.
 
-use crate::contract::cx::CxCore;
+use crate::contract::cx::{CxCore, Pointer as _};
 use crate::primitives::{Canvas, StateLayer, StateLayerKind, surface_look_items};
 use crate::runtime::env::{Env, EnvValue};
 use crate::style::{Ink, StateSet, StyleView, surface_style};
@@ -58,7 +58,7 @@ pub(crate) fn unfade(canvas: &Canvas<'_>, core: &mut CxCore<'_>, fade: Option<Fa
         return;
     }
     let radius = core.paint.borrow().surface_radius;
-    canvas.rect_filled(core.rect, radius, fade.ground.multiply(1.0 - Opacity::DISABLED));
+    canvas.rect_filled(core.rect, radius, fade.ground.faded(1.0 - Opacity::DISABLED));
 }
 
 /// The items of the root surface; `None` for a component with no surface.

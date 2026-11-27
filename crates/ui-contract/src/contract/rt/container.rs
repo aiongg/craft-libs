@@ -591,7 +591,7 @@ pub(crate) fn show_container<C: Container, R>(
             if own_kept && size == kept.size {
                 kept.cache(room, size);
                 // The body reconciled the children; the layer children are reached the same way.
-                reach_layers(&mut component, kept, cx, rect, &begun, &tokens, sweep, ctx.clone());
+                reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
                 return settle(component, kept, cx, rect, &begun, value, ctx.clone());
             }
             let ran = Ran {
@@ -620,8 +620,12 @@ pub(crate) fn show_container<C: Container, R>(
         })
     });
     let ran = frame.ran;
-    frame.stage.write_back();
-    let settle = ran.then(|| crate::contract::settle::SettleAt { ctx, body: body_id, owner: id });
+    let settle = if ran {
+        Some(crate::contract::settle::SettleAt::new(frame.stage, body_id))
+    } else {
+        frame.stage.write_back();
+        None
+    };
     Inner { output, inner: inner_value, settle }
 }
 

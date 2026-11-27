@@ -244,6 +244,7 @@ pub(crate) fn core_for<'a>(
         submitted: false,
         escaped: false,
         row: None,
+        popups: Default::default(),
         run,
     }
 }
@@ -357,7 +358,8 @@ pub(crate) fn measure_under<C: Component>(
         return size;
     }
     let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
-    let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), comp.style_key());
+    let ctx = ui.ctx.clone();
+    let style = steps::style::<C>(ui.build_cx(), &ctx, &steps::style_cx(&env, &step1), comp.style_key());
     let id = id.unwrap_or_else(|| ui.id().with("measure"));
     let resolved = steps::resolved(id, &step1, &common);
     let mut stage = MemoryStage::default();

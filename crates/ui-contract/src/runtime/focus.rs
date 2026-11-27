@@ -4,8 +4,6 @@
 //! egui's focus sits on an arena root. The focused member or part is runtime data keyed by that root, and
 //! every focus read of component code goes through `is_focused`.
 
-use crate::runtime::egui::focus as egui_focus;
-
 use crate::primitives::Id;
 use craft_behavior::PartRef;
 pub use craft_behavior::Roving;
@@ -15,8 +13,6 @@ pub(crate) use registration::{Group, Stop};
 use std::sync::Arc;
 
 mod policy;
-
-mod press;
 
 #[doc(hidden)]
 pub mod registration;
@@ -61,13 +57,6 @@ pub(crate) struct ScopeRec {
     /// For a layer's scope: whether this is its first pass since the layer appeared, as the layer's memory says;
     /// none for other scopes, which are new after a gap of a frame.
     pub(crate) entering: Option<bool>,
-}
-
-/// A change to egui's focus, applied after the state lock is released.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Act {
-    Focus(Id, egui_focus::KeyFilter),
-    Surrender(Id),
 }
 
 /// What a pick closes before its command runs.

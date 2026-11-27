@@ -345,7 +345,7 @@ pub enum EscapeEdit {
 }
 
 /// The core trait: every UI type is a `Component`.
-pub trait Component: Meta + Sized {
+pub trait Component: Meta + ComponentKey + Sized {
     /// The AccessKit role.
     const ROLE: Role;
     /// Roles `access` may pick per instance.
