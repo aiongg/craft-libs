@@ -53,6 +53,7 @@ fn canvas_tool_release_in_a_discarded_pass_reaches_the_tool_once() {
 struct ReadsPart<'a> {
     #[common]
     common: craft_ui::contract::Common,
+    #[key(skip)]
     read: &'a Cell<Option<PressPhase>>,
 }
 

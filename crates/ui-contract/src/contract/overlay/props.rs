@@ -14,7 +14,7 @@ use egui::{Align2, Id, Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 
 /// What a press outside the layer and its anchor does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Outside {
     /// Closes the layer; the press reaches the widget below.
@@ -27,7 +27,7 @@ pub enum Outside {
 }
 
 /// When a layer closes by itself. Escape goes through the focus policy's `CancelRule`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Dismiss {
     /// A press outside.
@@ -98,7 +98,7 @@ impl Default for Dismiss {
 }
 
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Overlay {
     /// Where it sits.

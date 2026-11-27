@@ -4,7 +4,7 @@ use craft_behavior::overlay::{Align, Side};
 use egui::{Align2, Pos2, Rect, Vec2};
 
 /// Where an overlay hangs from.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Anchor {
     /// A rect in the opener's layer space.
@@ -23,7 +23,7 @@ pub enum Anchor {
 }
 
 /// Where a floating layer sits.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FloatPlace {
     /// Where the layer's `corner` sits, in the layer's parent space; `None` centres it in the viewport.
@@ -61,7 +61,7 @@ impl FloatPlace {
 }
 
 /// Where an egui layer sits.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Place {
     /// Hung from an anchor.
@@ -132,7 +132,7 @@ impl Place {
 }
 
 /// A fraction of the viewport per axis.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ViewportShare {
     /// The share of the width.
@@ -149,7 +149,7 @@ impl ViewportShare {
 }
 
 /// How an egui layer sizes.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum OverlayFit {
     /// From its content.
@@ -161,7 +161,7 @@ pub enum OverlayFit {
 }
 
 /// How the user may resize a layer.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Resize {
     /// The edges whose grips resize the layer; a corner grip needs both its edges. A placement that holds an edge
@@ -186,7 +186,7 @@ impl Resize {
 }
 
 /// A set of layer edges.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct ResizeEdges(u8);
 
 impl ResizeEdges {

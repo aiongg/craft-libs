@@ -73,6 +73,7 @@ pub struct Block {
     #[common]
     common: Common,
     size: Vec2,
+    #[key(skip)]
     measures: Option<Arc<AtomicUsize>>,
 }
 

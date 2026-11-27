@@ -39,7 +39,9 @@ struct Bar<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     header: &'a Cell<Rect>,
+    #[key(skip)]
     doubles: &'a Cell<u32>,
 }
 

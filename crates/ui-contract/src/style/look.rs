@@ -60,7 +60,7 @@ pub enum FieldLook {
 }
 
 /// The surface a container or part sits on, which picks fill, edge, shadow and ink.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SurfaceKind {
     /// The window behind everything.

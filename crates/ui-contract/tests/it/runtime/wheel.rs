@@ -402,6 +402,7 @@ struct Easer<'a> {
     #[common]
     common: Common,
     mark: bool,
+    #[key(skip)]
     passes: &'a RefCell<Vec<(Option<Wheel>, Vec2)>>,
 }
 

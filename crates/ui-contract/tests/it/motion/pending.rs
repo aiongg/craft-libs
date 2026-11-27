@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 struct Thumbnail<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Vec<Pending<u32, String>>>,
 }
 

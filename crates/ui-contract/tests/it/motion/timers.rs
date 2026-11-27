@@ -23,6 +23,7 @@ enum Timer {
 struct Alarm<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     fired: &'a Cell<u32>,
 }
 

@@ -39,6 +39,7 @@ struct Floating<'a> {
     #[container]
     props: ContainerProps,
     move_disabled: bool,
+    #[key(skip)]
     log: &'a RefCell<Vec<PlacementChange>>,
 }
 

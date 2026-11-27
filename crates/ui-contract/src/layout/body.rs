@@ -16,7 +16,7 @@ use egui::{Id, IdMap, Rect, Ui, Vec2};
 use std::borrow::Cow;
 
 /// How a body lays out its children, in reading order: mirrored under a right-to-left direction.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BodyLayout {
     /// Children one under another.
@@ -42,7 +42,7 @@ pub enum BodyLayout {
 }
 
 /// Where a `Grid` sets a cell that is shorter than its row.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CellAlign {
     /// In the row's middle: a form's label beside a taller control.
@@ -54,7 +54,7 @@ pub enum CellAlign {
 }
 
 /// What a `Grid` does when the least widths of its columns do not fit beside each other in its room.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GridFit {
     /// The cells go one under another across the room, so no column is cut: a form that reflows in a narrow panel.
@@ -66,7 +66,7 @@ pub enum GridFit {
 }
 
 /// Where a `Row` places its block of children along the row.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowAlign {
     /// At the start edge.

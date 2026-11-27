@@ -34,9 +34,11 @@ const EDITOR: PartKey = PartKey::new("editor");
 struct Probe<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     log: &'a RefCell<Vec<EditorInput>>,
     report: bool,
     purpose: EditorPurpose,
+    #[key(skip)]
     doc: Option<&'a Doc>,
     /// The probe is a document canvas's editor: it marks its window as showing a document and keeps Tab.
     canvas: bool,
@@ -921,6 +923,7 @@ enum EditorCommand {
 struct Typer<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     steps: &'a RefCell<Vec<EditorStep<EditorCommand>>>,
 }
 

@@ -10,7 +10,7 @@ use craft_behavior::PointerButton;
 use egui::{Context, Id, Rect, Response};
 
 /// How a free-standing popup's trigger fires.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Trigger {
     /// A click on the opener toggles. A root opener (`Overlay::opened_by`) toggles on the primary press inside it, as
@@ -32,7 +32,7 @@ pub enum Trigger {
 
 /// A component that opens a free-standing popup, and how. A layer with several openers keeps the first as its
 /// `Overlay.opener`, which keys the layer's open state, and the others in `others`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Opener {
     /// The opener's id.
@@ -148,7 +148,7 @@ pub(super) fn secondary_release_in(response: &Response) -> bool {
 }
 
 /// How an opener opened its layer: what decides where a `Trigger::Context` layer hangs.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 pub(crate) enum Opening {
     /// A press, click, hold or the binding: the layer hangs from the opener.
     #[default]

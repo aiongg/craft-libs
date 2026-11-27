@@ -43,14 +43,18 @@ pub fn derive_command_set(input: TokenStream) -> TokenStream {
 /// registration and probe.
 ///
 /// Attributes: `#[component]`, `#[component(container)]`, `#[component(collection)]`, `widget`, `overlay`,
-/// `content_painter`, `canvas_control`, `unregistered`, `exempt(case = .., reason = ..)`, `probe(Type<..>, ..)` on the
-/// type;
-/// `#[common]`, `#[container]` and `#[style_key]` on fields.
+/// `content_painter`, `canvas_control`, `unregistered`, `unkeyed`, `exempt(case = .., reason = ..)`,
+/// `probe(Type<..>, ..)` on the type;
+/// `#[common]`, `#[container]`, `#[style_key]` and `#[key(skip)]` / `#[key(by = expr)]` on fields.
+///
+/// It also writes `ComponentKey` (docs/contract-rt.md section 6): every field feeds the component key through
+/// `MemoProps`, in order. `#[key(skip)]` leaves out a field the hooks do not read; `#[key(by = expr)]` feeds `expr`
+/// instead and may name `self`. `unkeyed` writes no key: the component runs at every build of its scope.
 ///
 /// `unregistered` implements `Meta` and registers nothing, for a face an app never composes on its own: a collection's
 /// item or a leaf that only its parent shows. Its parent's stories and suite cases cover it. It is not a way to skip
 /// stories for a type an app uses: such a type registers and has stories.
-#[proc_macro_derive(Component, attributes(component, common, container, style_key))]
+#[proc_macro_derive(Component, attributes(component, common, container, style_key, key))]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     expanded(component::derive(input.into()))
 }
@@ -114,15 +118,6 @@ pub fn derive_plain_data(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(MemoProps, attributes(memo_props))]
 pub fn derive_memo_props(input: TokenStream) -> TokenStream {
     expanded(memo::derive(input.into()))
-}
-
-/// Writes `contract::rt::ComponentKey`, the key that decides whether a component on craft-ui-rt runs or keeps its
-/// outputs: every field feeds it through `MemoProps`, in order. `#[key(skip)]` leaves out a field the hooks do not read;
-/// `#[key(by = expr)]` feeds `expr` instead and may name `self`. `#[component(unkeyed)]` on the type writes no key: the
-/// component runs at every build of its scope.
-#[proc_macro_derive(ComponentKey, attributes(key, component))]
-pub fn derive_component_key(input: TokenStream) -> TokenStream {
-    expanded(component_key::derive(input.into()))
 }
 
 /// Writes `ComponentStyle` from `#[style(surface)]`, `#[style(focus)]` and `#[style(metrics)]` fields (one each),

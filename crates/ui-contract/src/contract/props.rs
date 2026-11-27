@@ -9,7 +9,7 @@ use craft_theme::{ControlSize, Variant};
 use egui::{AsIdSalt, Id, IdSalt};
 
 /// What every component carries: the props the pipeline reads at step 1.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Common {
     pub(crate) id: IdSource,
@@ -277,11 +277,11 @@ impl Resolved<'_> {
 }
 
 /// A tooltip: one type for components and parts.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct Tooltip(Box<TooltipSpec>);
 
 /// What a tooltip shows and when.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TooltipSpec {
     /// The text.
@@ -295,7 +295,7 @@ pub struct TooltipSpec {
 }
 
 /// Where a tooltip appears.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TooltipAt {
     /// Below the control.
@@ -305,7 +305,7 @@ pub enum TooltipAt {
 }
 
 /// When a tooltip appears.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TooltipWhen {
     /// After the hover delay.

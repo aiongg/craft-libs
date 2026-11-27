@@ -82,9 +82,11 @@ pub(super) struct LabelLeaf {
     /// The colon drawn after the name or the glyph text, in the scope's language; a separate run, so the name stays
     /// the one text a narrow room elides.
     pub(super) colon: Option<String>,
+    #[key(skip)]
     pub(super) baseline: Cell<f32>,
     /// The height of the label's first line: the name's line, the icon and the trailing content. A control placed
     /// after the label is centred on it.
+    #[key(skip)]
     pub(super) first_line: Cell<f32>,
     /// The label sits after its control, as a check box's or a radio's text: the name reads in body type at full ink
     /// and wraps in its room instead of eliding.

@@ -10,7 +10,7 @@ use egui::{Context, Id, Pos2, Rect, Vec2};
 use std::hash::Hash;
 
 /// Which token of `MotionTokens` gives a spec its duration and curve.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 enum Token {
     Hover,
     Open,
@@ -20,7 +20,7 @@ enum Token {
 }
 
 /// How a value approaches its target.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 pub(crate) enum Curve {
     /// From where it was to the new target over the token's duration.
     Tween,
@@ -29,7 +29,7 @@ pub(crate) enum Curve {
 }
 
 /// A motion constant: a component picks one from `spec`, never writes seconds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct MotionSpec {
     token: Token,
     kind: MotionKind,

@@ -4,7 +4,7 @@ use craft_theme::{Flags, Mix, Resolve, State, StateMix, Stateful};
 
 /// The state of a component or one of its parts at step 12: the interaction state, the value flags and the
 /// animated blend. `StateSet.flags` is the only source of AccessKit states.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct StateSet {
     /// Disabled, pressed, hover or rest; `Flags::OPEN` counts as pressed.

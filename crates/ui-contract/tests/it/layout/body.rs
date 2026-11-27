@@ -155,7 +155,9 @@ struct Measures {
 struct Wrap<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
+    #[key(skip)]
     measures: &'a Measures,
 }
 
@@ -246,7 +248,9 @@ struct Picture<'a> {
     common: Common,
     least: f32,
     square: bool,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
+    #[key(skip)]
     measures: &'a Measures,
 }
 
@@ -486,6 +490,7 @@ struct Ended<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     end: &'a RefCell<Seen>,
 }
 

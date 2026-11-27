@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 /// How the icon-only buttons of a scope show their glyph, set by the container that holds them
 /// (`ContainerProps::child_glyphs`) or on one component (`Props::glyphs`). Each role reads size tokens only.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GlyphRole {
     /// A glyph inside a control: `size.icon.glyph_sm` or `glyph_md` by the control size, in the variant's ink.

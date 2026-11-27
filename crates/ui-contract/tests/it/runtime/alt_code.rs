@@ -29,6 +29,7 @@ const EDITOR: PartKey = PartKey::new("editor");
 struct Probe<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     typed: &'a RefCell<String>,
 }
 

@@ -5,7 +5,7 @@ use craft_keymap::{Chord, Mods};
 use egui::Id;
 
 /// Where focus goes the first time a scope is pushed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Initial {
     /// Focus stays where it is.
@@ -27,7 +27,7 @@ pub enum Initial {
 /// own (an inline editor, a view's search field): a layer names its stop with `Initial` instead. The component
 /// sends it in the one pass it asks for focus, and the focus service takes it there once the component's stops
 /// are registered; the press that opened the component then leaves the focus where the request put it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FocusRequest {
     /// The component's stop takes the focus.
@@ -37,7 +37,7 @@ pub enum FocusRequest {
 }
 
 /// What Enter does in a scope after the focused component declined it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum EnterRule {
     /// Nothing: an untaken `Submit` goes to the next scope outward.
@@ -47,7 +47,7 @@ pub enum EnterRule {
 }
 
 /// A focus scope's rules.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct FocusPolicy {
     /// What the scope is.
     pub kind: ScopeKind,

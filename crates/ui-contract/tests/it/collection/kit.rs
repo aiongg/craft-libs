@@ -126,6 +126,7 @@ impl ItemOutput<Dismissed> for RowOut {
 pub struct Row {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: Option<&'static Cell<Rect>>,
 }
 
@@ -167,7 +168,9 @@ pub struct List<'a> {
     selection: Option<Bind<'a, Selection<usize>>>,
     tree: bool,
     sized: bool,
+    #[key(skip)]
     on_empty: Option<&'a Cell<Rect>>,
+    #[key(skip)]
     drops: Vec<DropKind<'a, usize>>,
 }
 

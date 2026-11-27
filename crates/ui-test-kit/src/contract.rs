@@ -74,6 +74,7 @@ pub struct Probe<'a> {
     sense: Option<Sense>,
     takes_cancel: bool,
     injects: Option<FireSource>,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
 }
 
@@ -136,6 +137,7 @@ pub struct Panel<'a> {
     #[container]
     props: ContainerProps,
     sense: Sense,
+    #[key(skip)]
     seen: Option<&'a RefCell<Seen>>,
 }
 
@@ -251,6 +253,7 @@ pub struct RowProbe {
     #[common]
     common: Common,
     /// Where each row records its key and rect.
+    #[key(skip)]
     pub log: &'static std::sync::Mutex<Vec<(usize, Rect)>>,
     key: usize,
 }

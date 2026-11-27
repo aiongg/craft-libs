@@ -20,7 +20,9 @@ struct Overlaid<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     grip: &'a RefCell<Seen>,
+    #[key(skip)]
     child: &'a RefCell<Seen>,
 }
 

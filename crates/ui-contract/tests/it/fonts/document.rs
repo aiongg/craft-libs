@@ -84,6 +84,7 @@ struct Owner {
     #[common]
     common: Common,
     keys: Vec<String>,
+    #[key(skip)]
     tally: Tally,
     in_run: bool,
 }

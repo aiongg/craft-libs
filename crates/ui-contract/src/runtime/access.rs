@@ -170,7 +170,7 @@ impl Numeric {
 }
 
 /// A node's place in its set, on the closed list of items it belongs to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SetPosition {
     /// The zero-based index.
@@ -247,7 +247,7 @@ impl GridPlace {
 }
 
 /// How urgently a live announcement is read.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub enum Politeness {
     /// After the current speech.
     Polite,
@@ -256,7 +256,7 @@ pub enum Politeness {
 }
 
 /// The kind of popup a component opens.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PopupKind {
     /// A menu.

@@ -22,7 +22,9 @@ struct Dragger<'a> {
     #[common]
     common: Common,
     value: Bind<'a, u8>,
+    #[key(skip)]
     step: Step,
+    #[key(by = &*self.before)]
     before: &'a mut Option<Mixed<u8>>,
 }
 

@@ -35,6 +35,7 @@ struct Pane<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     log: &'a RefCell<Vec<PlacementChange>>,
 }
 

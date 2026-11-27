@@ -23,6 +23,7 @@ struct Themed<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     own_mode: Option<&'a Cell<Option<Mode>>>,
 }
 

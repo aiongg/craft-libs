@@ -26,7 +26,7 @@ pub enum SelectMode {
 }
 
 /// Where Delete and Backspace can target a deletable collection.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum DeleteTarget {
     /// Only while the collection has keyboard focus.
@@ -39,7 +39,7 @@ pub enum DeleteTarget {
 
 /// What a row drag shows while it runs. The text is the count word for the dragged items
 /// (`CollectionProps::drag_count`), else the number of items for several and the item's text for one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowPreview {
     /// The text in a badge by the pointer.
@@ -55,7 +55,7 @@ pub enum RowPreview {
 }
 
 /// How the user may reorder items.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ReorderRule {
     /// The held key that turns a drag into a copy (8.4); `None`: a drag only moves.
@@ -97,7 +97,7 @@ impl ReorderRule {
 }
 
 /// Who takes a collection's arrow keys while it has the key focus.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ItemKeys {
     /// The collection: the arrows move the lead, as in a list.
@@ -110,7 +110,7 @@ pub enum ItemKeys {
 }
 
 /// What Space does in a collection (Enter always activates the lead).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SpaceAction {
     /// Picks the lead row in a collection that selects, else activates it.
@@ -135,7 +135,7 @@ pub enum LeadSource {
 }
 
 /// The pointer gesture that activates an item.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ActivateOn {
     /// A double click.
@@ -147,7 +147,7 @@ pub enum ActivateOn {
 }
 
 /// Where the lead starts when the collection first shows rows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LeadOnOpen {
     /// On the selection's lead, and nowhere when nothing is selected.
@@ -159,7 +159,7 @@ pub enum LeadOnOpen {
 }
 
 /// What the pointer moving over the rows changes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HoverLead {
     /// Nothing: only a press moves the lead.
@@ -176,7 +176,7 @@ pub enum HoverLead {
 /// How tall a collection's rows are. Read-only display tables (a metadata table) take text rows; lists the user picks
 /// from or navigates keep control-high rows, a pointer target as tall as a control. A row with a thumbnail or a
 /// detail line is as tall as those need either way.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowHeight {
     /// A control high: `size.control` at the collection's control size.
@@ -198,7 +198,7 @@ impl RowHeight {
 
 /// What a collection reads from the app: plain data. A new builder's name is added to the forwarder list in
 /// `crates/ui-macros/src/props.rs`, so the components that embed these props forward it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CollectionProps {
     /// What can be selected.
@@ -321,7 +321,8 @@ type PayloadMap = Arc<dyn Fn(&dyn Any) -> Option<Payload> + Send + Sync>;
 /// A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
 /// beside the `ListDrag`, so one drag and one ghost serve the collection's own reorder and the targets of `P`. A row
 /// the map gives `None` for carries no payload: without a reorder rule it does not drag at all.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
+#[memo_props(every_pass = "the payload map is a closure the key cannot read")]
 pub struct DragPayload {
     map: PayloadMap,
 }

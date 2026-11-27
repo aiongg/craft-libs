@@ -71,6 +71,7 @@ struct ProbeRow {
     key: usize,
     children: bool,
     tall: bool,
+    #[key(skip)]
     log: &'static Log,
 }
 
@@ -154,12 +155,15 @@ struct Probe<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    #[key(skip)]
     selection: Option<Bind<'a, CellSelection<usize>>>,
     scroll: Option<Bind<'a, ScrollPos>>,
     auto: bool,
     /// The rename draft every row proposes, and whether the rename field reports Enter.
+    #[key(skip)]
     rename: Option<(&'a str, &'a Cell<bool>)>,
     /// The typed Enter the rename field reports, one per `Typing::press`.
+    #[key(skip)]
     typing: Option<&'a Typing>,
 }
 
@@ -276,6 +280,7 @@ struct Sheet<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    #[key(skip)]
     selection: Option<Bind<'a, CellSelection<usize>>>,
 }
 

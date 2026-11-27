@@ -8,7 +8,7 @@ use craft_host::target::Os;
 use craft_keymap::{Chord, Key, Mods};
 
 /// The named key scheme of a reorderable collection.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ReorderKeys {
     /// The stacking keys (`REORDER_KEYS`): Cmd+] and Cmd+[.

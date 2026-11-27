@@ -32,6 +32,7 @@ struct Composition {
     common: Common,
     text: &'static str,
     size: f32,
+    #[key(skip)]
     loads: Arc<AtomicUsize>,
 }
 

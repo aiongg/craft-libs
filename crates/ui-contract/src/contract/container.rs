@@ -19,7 +19,7 @@ pub use crate::runtime::env::{InBar, PaneEdge, ThemeScope};
 pub use crate::style::BandFill;
 
 /// Where a container lives.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Mount {
     /// In the parent's layout.
@@ -76,7 +76,7 @@ impl Mount {
 /// takes the rect's cross extent, its content's extent from the rect's outer edge, and that room in the flow of its
 /// parent: a top or central pane its height from the rect's top, a bottom pane its height from the rect's bottom, a
 /// start or end pane its width from that side.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ShellPane {
     /// The pane's name.
@@ -148,7 +148,7 @@ pub enum Pad {
 }
 
 /// The edges a container's padding tier applies to.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PadEdges {
     /// Every edge.
@@ -166,7 +166,7 @@ pub enum PadEdges {
 pub const POPUP_PAD: Pad = Pad::Control;
 
 /// How a container's size follows its content.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Sizing {
     /// The available rect.
@@ -197,7 +197,7 @@ impl Sizing {
 }
 
 /// A size role that sets the least width of a container's content or of a button.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LeastWidth {
     /// `size.popup_min`: popup surfaces.
@@ -238,7 +238,7 @@ impl LeastWidth {
 
 /// A size role that sets the line length of the paragraphs in a container whose width comes from its content: a
 /// wrapping text breaks its lines there when its room is wider, and content wider than it still widens the container.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum WrapWidth {
     /// `size.dialog.wrap`: a dialog's paragraphs.
@@ -258,7 +258,7 @@ impl WrapWidth {
 }
 
 /// What dragging the header does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum DragBand {
     /// Nothing.
@@ -313,7 +313,7 @@ impl HeaderParts {
 }
 
 /// An edge of a header's line, where a container's own header parts sit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HeaderEdge {
     /// The start edge: the parts there come before the header's children, in Tab order too.
@@ -365,7 +365,7 @@ pub enum MoveBandCursor {
 }
 
 /// A header region, filled by `Container::header`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct HeaderRegion {
     /// What dragging the header does. A move band lies beneath the header's children, which keep their presses; an
@@ -474,7 +474,7 @@ impl HeaderRegion {
 }
 
 /// A footer region, filled by `Container::footer`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FooterRegion {
     /// Whether a rule separates the footer from the content beside it (the body, or the end region's content), in a
@@ -531,7 +531,7 @@ impl FooterRegion {
 
 /// Where a footer region sits. In every place, `Container::body_end` fills the body's column under its content, so
 /// a notice it shows lies under the body and above the footer, or beside a footer in the end region.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FooterPlace {
     /// Under the line, across the container's width (under the body only beside a full-height end region).
@@ -558,7 +558,7 @@ impl FooterPlace {
 
 /// An end region, filled by `Container::end`: content in reading order at the line's end edge, beside the body and
 /// outside its scroll region, as wide as it measured. Its stops join the body's roving group.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct EndRegion {
     /// Whether the region takes the full height under the header, down to the container's bottom, beside the body and
@@ -607,7 +607,7 @@ impl EndRegion {
 }
 
 /// Which end of the content a scroll region stays at when the content grows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ScrollAnchor {
     /// The start.
@@ -618,7 +618,7 @@ pub enum ScrollAnchor {
 }
 
 /// The distance of one wheel notch.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Notch {
     /// This many text lines.
@@ -644,7 +644,7 @@ impl Notch {
 }
 
 /// The axes a body scrolls on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ScrollAxes {
     /// Along y.
@@ -656,7 +656,7 @@ pub enum ScrollAxes {
 }
 
 /// How a scrolling body shows that its content overflows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ScrollIndicator {
     /// A scroll bar over the view's end edge, and fades at the edges past which content is hidden.
@@ -672,7 +672,7 @@ pub enum ScrollIndicator {
 }
 
 /// A scrolling body.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Scroll {
     /// The axes that scroll.
@@ -766,7 +766,7 @@ impl Scroll {
 }
 
 /// Collapse configuration.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Collapse {
     /// Whether the body starts open.
@@ -801,7 +801,7 @@ impl Default for Collapse {
 }
 
 /// The spacing between the children of a body.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Gap {
     /// No gap: rows touch, as in native menus.
@@ -853,7 +853,7 @@ impl EnvValue for InMenu {
 /// height to their chain): a tick from each of the first and the last row's controls to the middle child's centre
 /// line, joined along that line. The middle child sits halfway between the two controls. The value is the link's
 /// state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Bracket {
     /// The rows are linked: the bracket is drawn.
@@ -868,7 +868,7 @@ pub enum Bracket {
 /// A container body may run more than once per pass: a measuring run first, then the real run. It builds or borrows
 /// what it shows on every run and consumes nothing (no `Option::take`, no "has run" flag); it changes state and
 /// reports only through `measure::effect`. A pattern around a container never guards against a second run.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ContainerProps {
     /// Where the container lives.
