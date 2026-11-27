@@ -4,7 +4,7 @@
 use crate::primitives::SvgIcon;
 use crate::runtime::cursor::{CursorArt, CursorBitmap};
 use craft_svg::tree::draw::tiny_skia;
-use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
+use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2};
 use std::sync::Arc;
 
 /// How far past a mark's geometry its antialiasing reaches, in device pixels.
@@ -98,7 +98,7 @@ impl Art {
     }
 
     /// Paints the art with its hotspot at `at`.
-    pub(crate) fn paint(&self, painter: &Painter, at: Pos2) {
+    pub(crate) fn paint(&self, painter: &crate::primitives::Canvas<'_>, at: Pos2) {
         let path = |points: &[Vec2]| points.iter().map(|p| at + *p).collect::<Vec<_>>();
         for mark in &self.marks {
             match mark {
@@ -117,10 +117,10 @@ impl Art {
                     }
                 }
                 Mark::Ring(centre, radius, stroke) => {
-                    painter.circle_stroke(at + *centre, *radius, *stroke);
+                    painter.add(egui::epaint::CircleShape::stroke(at + *centre, *radius, *stroke));
                 }
                 Mark::Frame(rect, stroke) => {
-                    painter.rect_stroke(rect.translate(at.to_vec2()), 0.0, *stroke, egui::StrokeKind::Middle);
+                    painter.add(egui::epaint::RectShape::stroke(rect.translate(at.to_vec2()), 0.0, *stroke, egui::StrokeKind::Middle));
                 }
                 Mark::Disc(centre, radius, color) => {
                     painter.circle_filled(at + *centre, *radius, *color);

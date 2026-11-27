@@ -161,3 +161,20 @@ fn a_changed_prop_runs_that_child_and_keeps_its_sibling() {
     assert_eq!(up.frame.scopes, 2);
     assert_eq!(up.frame.runs, 2, "Other and A run; B and the stack's own hooks are kept: {up:?}");
 }
+
+#[test]
+fn a_theme_token_change_runs_and_repaints_the_nodes_that_read_tokens() {
+    let mut app = App::new(false);
+    let mut rig = rig(&mut app);
+    let mut tokens = craft_ui_test_kit::rt::rig::test_tokens();
+    tokens.color.state.hover = craft_theme::Rgba([1, 2, 3, 255]);
+    rig.driver.runtime.set_tokens(tokens);
+    let changed = step(&mut rig, &mut app);
+    assert_eq!(changed.frame.runs, 4, "Other, the stack, A and B read the tokens in their runs: {changed:?}");
+    assert!(changed.frame.painted >= 3, "the three buttons repaint their recorded variants: {changed:?}");
+    let settled = step(&mut rig, &mut app);
+    assert_eq!((settled.frame.runs, settled.frame.painted), (0, 0), "the next frame runs and paints nothing: {settled:?}");
+    let at = app.a.center();
+    let hover = input(&mut rig, &mut app, Input::mouse_move(at));
+    assert_eq!((hover.frame.painted, hover.frame.runs), (1, 0), "the new hover look is a kept variant of A");
+}

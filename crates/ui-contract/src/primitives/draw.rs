@@ -1,18 +1,18 @@
 //! `Draw`: what a component paints content with. It takes only `StyleColor` or `DataColor`.
 
+use super::canvas::Canvas;
 use super::content::{DocRun, DocText, FaceRun};
 use super::record::PaintRecord;
 use super::rule::{RectSide, RuleKind};
 use super::surface::Surface;
 use super::text::{TextEnv, TextLayout, TextRun};
-use crate::fonts::document::DocumentFaces;
-use crate::fonts::stack_facts;
 use crate::fonts::{FaceBytes, FaceState, FontRef};
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, SurfaceStyle, TypeRole, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use craft_theme::Srgba;
+use craft_ui_rt::ImageKey;
 use egui::epaint::{CircleShape, RectShape};
-use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, TextureId, Vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2};
 use std::cell::RefCell;
 
 /// The "no colour" diagonal of a well stops this share of the well's height short of its edges.
@@ -260,7 +260,7 @@ impl DataMode {
 
 /// The content-paint API `PaintUi::draw` gives.
 pub struct Draw<'a> {
-    painter: &'a Painter,
+    canvas: &'a Canvas<'a>,
     record: &'a RefCell<PaintRecord>,
     env: DrawEnv<'a>,
     data: DataMode,
@@ -270,8 +270,8 @@ pub struct Draw<'a> {
 
 impl<'a> Draw<'a> {
     #[doc(hidden)]
-    pub fn new(painter: &'a Painter, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
-        Draw { painter, record, env, data: DataMode::Full, text_direction: env.direction }
+    pub fn new(canvas: &'a Canvas<'a>, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
+        Draw { canvas, record, env, data: DataMode::Full, text_direction: env.direction }
     }
 
     /// The same painter with `direction` as the paragraph direction of its text, while `env.direction` stays the
@@ -287,9 +287,14 @@ impl<'a> Draw<'a> {
         self
     }
 
-    /// The egui painter and the tokens this `Draw` paints with: what [`Glyph::paint`](super::Glyph::paint) takes.
-    pub(crate) fn painter_and_tokens(&self) -> (&'a Painter, &'a UiTokens) {
-        (self.painter, self.env.tokens)
+    /// The canvas and the tokens this `Draw` paints with: what [`Glyph::paint`](super::Glyph::paint) takes.
+    pub(crate) fn painter_and_tokens(&self) -> (&'a Canvas<'a>, &'a UiTokens) {
+        (self.canvas, self.env.tokens)
+    }
+
+    /// The canvas this `Draw` records into.
+    pub fn canvas(&self) -> &'a Canvas<'a> {
+        self.canvas
     }
 
     fn text_env(&self) -> TextEnv<'a> {
@@ -297,7 +302,7 @@ impl<'a> Draw<'a> {
             tokens: self.env.tokens,
             direction: self.text_direction,
             ink: ink_color(self.env.tokens, self.env.ink),
-            fonts: stack_facts(self.painter.ctx()),
+            fonts: self.canvas.services().fonts(),
         }
     }
 
@@ -310,7 +315,7 @@ impl<'a> Draw<'a> {
 
     #[doc(hidden)]
     pub fn width(&self, width: StrokeWidth) -> f32 {
-        width.points(self.env.tokens, self.painter.pixels_per_point())
+        width.points(self.env.tokens, self.canvas.pixels_per_point())
     }
 
     /// Lays `run` out in `rect`'s width and paints it placed in `rect`'s width by the run's alignment (Start at the
@@ -324,9 +329,9 @@ impl<'a> Draw<'a> {
 
     /// `run` laid out in `rect`'s width, and where `text` paints it.
     pub(crate) fn place_text(&self, rect: Rect, run: &TextRun<'_>) -> (TextLayout, Pos2) {
-        let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
+        let layout = run.layout(self.canvas.services(), &self.text_env(), rect.width());
         let x = self.text_x(rect, run, &layout);
-        let spare = if layout.galley.rows.len() <= 1 { (rect.height() - layout.size().y).max(0.0) } else { 0.0 };
+        let spare = if layout.rows() <= 1 { (rect.height() - layout.size().y).max(0.0) } else { 0.0 };
         (layout, Pos2::new(x, rect.top() + spare / 2.0))
     }
 
@@ -340,14 +345,14 @@ impl<'a> Draw<'a> {
     /// Paints a one-line `run` as `text` does, with the middle of its lowercase letters (the x-height) on the middle
     /// of `rect`'s height. A chevron or icon centred on the same rect then sits on the text's centre line.
     pub fn text_on_centre_line(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout {
-        let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
+        let layout = run.layout(self.canvas.services(), &self.text_env(), rect.width());
         let letters = TextRun { spans: vec![super::text::Span::new("x")], rotation: 0.0, ..run.clone() }.layout(
-            self.painter.ctx(),
+            self.canvas.services(),
             &self.text_env(),
             f32::INFINITY,
         );
         let x = self.text_x(rect, run, &layout);
-        self.galley(Pos2::new(x, rect.center().y - letters.galley.mesh_bounds.center().y), &layout);
+        self.galley(Pos2::new(x, rect.center().y - letters.ink().center().y), &layout);
         layout
     }
 
@@ -355,7 +360,7 @@ impl<'a> Draw<'a> {
     /// height ([`line_baseline`](Self::line_baseline)): a field's unit, in a smaller role than the field's text, sits
     /// on the text's baseline.
     pub fn text_on_line(&self, rect: Rect, run: &TextRun<'_>, line: TypeRole) -> TextLayout {
-        let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
+        let layout = run.layout(self.canvas.services(), &self.text_env(), rect.width());
         let x = self.text_x(rect, run, &layout);
         let baseline = self.line_baseline(rect.center().y, line);
         self.galley(Pos2::new(x, baseline - layout.first_baseline), &layout);
@@ -365,7 +370,7 @@ impl<'a> Draw<'a> {
     /// The baseline of a control's line of `role` whose centre line lies at `centre`: every text in the line sits on
     /// it, whatever its face or size (`text::line_baseline`).
     pub fn line_baseline(&self, centre: f32, role: TypeRole) -> f32 {
-        super::text::line_baseline(self.painter.ctx(), &self.text_env(), role, centre)
+        super::text::line_baseline(self.canvas.services(), &self.text_env(), role, centre)
     }
 
     /// Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
@@ -373,9 +378,7 @@ impl<'a> Draw<'a> {
     /// runs paint at `Opacity::DISABLED`, as `data_fill` does.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
         let text = DocText { wrap: Some(rect.width()), ..*text };
-        let layout = text.layout(self.painter.ctx(), self.env.tokens, self.text_direction);
-        let anchored = super::text::anchored_at_start(layout.galley.clone());
-        let layout = layout.with_galley(anchored);
+        let layout = text.layout(self.canvas.services(), self.env.tokens, self.text_direction);
         let share = super::text::free_room_before(text.align, self.text_direction == Direction::Rtl);
         let x = rect.left() + (rect.width() - layout.size().x).max(0.0) * share;
         // The runs' colours are data.
@@ -393,13 +396,14 @@ impl<'a> Draw<'a> {
     /// the face is kept; a `None` leaves the run in the interface face. The paragraph is left to right. A disabled
     /// component's run paints at `Opacity::DISABLED`, as `doc` does.
     pub fn face_run(&self, start: Pos2, run: &FaceRun<'_>, load: impl FnOnce() -> Option<FaceBytes>) -> TextLayout {
-        let ctx = self.painter.ctx();
-        let font = match DocumentFaces::over_interface(ctx, run.key, load) {
+        let services = self.canvas.services();
+        let mut load = Some(load);
+        let font = match services.face_over_interface(run.key, &mut || load.take().and_then(|load| load())) {
             FaceState::Ready(font) => font,
             _ => FontRef::proportional(),
         };
-        let runs = [DocRun::new(run.text, font, run.drawn_size(ctx), run.color)];
-        let layout = DocText::new(&runs).layout(ctx, self.env.tokens, Direction::Ltr);
+        let runs = [DocRun::new(run.text, font, run.drawn_size(services), run.color)];
+        let layout = DocText::new(&runs).layout(services, self.env.tokens, Direction::Ltr);
         let at = Pos2::new(start.x, start.y - layout.first_baseline);
         if self.data == DataMode::Dimmed {
             self.faded(craft_theme::Opacity::DISABLED, |draw| draw.galley(at, &layout));
@@ -412,7 +416,7 @@ impl<'a> Draw<'a> {
     /// Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
     /// they paint (the same layout `text` paints with).
     pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
-        run.layout(self.painter.ctx(), &self.text_env(), max_width)
+        run.layout(self.canvas.services(), &self.text_env(), max_width)
     }
 
     /// Records that the face dropped its label, so the component's tooltip text does not count it.
@@ -429,18 +433,16 @@ impl<'a> Draw<'a> {
             record.elided = Some(layout.full().to_owned());
         }
         drop(record);
-        super::text::note_painted(self.painter.ctx(), layout);
-        // A run cut to nothing (an elided label in no room) has no glyphs, and egui gives it NaN bounds.
-        if !layout.galley.mesh_bounds.is_finite() {
+        if layout.elided {
+            if let (Some(ctx), Some(galley)) = (self.canvas.services().egui(), layout.egui_galley()) {
+                crate::runtime::egui::painted::note_elided(ctx, &galley, layout.full());
+            }
+        }
+        // A run cut to nothing (an elided label in no room) has no glyphs.
+        if layout.ink() == Rect::NOTHING {
             return;
         }
-        let ink = ink_color(self.env.tokens, self.env.ink);
-        if layout.rotation == 0.0 {
-            self.painter.galley(pos, layout.galley.clone(), ink);
-        } else {
-            let shape = egui::epaint::TextShape::new(pos, layout.galley.clone(), ink).with_angle_and_anchor(layout.rotation, egui::Align2::LEFT_TOP);
-            self.painter.add(shape);
-        }
+        self.canvas.text(layout.rt(), pos);
     }
 
     /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
@@ -462,7 +464,7 @@ impl<'a> Draw<'a> {
             }
             super::IconSource::Glyph(glyph) => glyph.paint_draw(self, square, color, super::icon::glyph_mirrored(glyph, icon, self.env.direction)),
             _ => super::icon::paint(
-                self.painter,
+                self.canvas,
                 self.env.tokens,
                 self.env.direction,
                 rect,
@@ -512,12 +514,12 @@ impl<'a> Draw<'a> {
 
     /// Paints the auto-scroll mark of `look` at `anchor`.
     pub fn auto_scroll_mark(&self, look: &crate::style::AutoScrollMarkLook, anchor: Pos2) {
-        self.painter.extend(super::AutoScrollMark::shapes(look, anchor));
+        self.canvas.extend(super::AutoScrollMark::shapes(look, anchor));
     }
 
     /// Paints the reset mark of `look` centred on `center`: the dot while the value `differs`, else the ring.
     pub fn reset_mark(&self, look: &crate::style::ResetMarkLook, center: Pos2, differs: bool) {
-        self.painter.extend(super::ResetMark::shapes(look, center, differs));
+        self.canvas.extend(super::ResetMark::shapes(look, center, differs));
     }
 
     /// Paints `marker` in `look`. A filled marker's fill is a data colour, painted as `data_fill` paints it.
@@ -526,20 +528,20 @@ impl<'a> Draw<'a> {
             Some(color) => marker.with_fill(self.data_color(DataColor::new(color))),
             None => *marker,
         };
-        self.painter.extend(marker.shapes(look));
+        self.canvas.extend(marker.shapes(look));
     }
 
     /// Paints the line of `kind` from `from` to `to`.
     pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2) {
         let look = rule_look(self.env.tokens, kind);
-        self.painter.extend(super::rule::Rule::shapes(&look, from, to, self.painter.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::shapes(&look, from, to, self.canvas.pixels_per_point()));
     }
 
     /// Paints the line of `kind` along the `side` edge of `rect`, on the physical pixels just inside it
     /// (`Rule::edge`): a row's bottom rule, a cell's gridline, a strip's edge toward its neighbour.
     pub fn edge_rule(&self, kind: RuleKind, rect: Rect, side: RectSide) {
         let look = rule_look(self.env.tokens, kind);
-        self.painter.extend(super::rule::Rule::edge(&look, rect, side, self.painter.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::edge(&look, rect, side, self.canvas.pixels_per_point()));
     }
 
     /// Paints the scroll bar in `track` along `axis` for `span`, in the bar's `state` (`ScrollBar::shapes`;
@@ -553,35 +555,35 @@ impl<'a> Draw<'a> {
         span: &craft_behavior::ScrollSpan,
         state: &crate::style::StateSet,
     ) {
-        self.painter.extend(super::ScrollBar::shapes(look, track, axis, rtl, span, state));
+        self.canvas.extend(super::ScrollBar::shapes(look, track, axis, rtl, span, state));
     }
 
     /// The width in points of the line `rule` paints for `kind`.
     pub fn rule_width(&self, kind: RuleKind) -> f32 {
-        rule_look(self.env.tokens, kind).width.points(self.painter.pixels_per_point())
+        rule_look(self.env.tokens, kind).width.points(self.canvas.pixels_per_point())
     }
 
     /// Paints the line `look` from `from` to `to`, snapped to physical pixels as `rule` is: a rule in a component's own
     /// colour or width.
     pub fn rule_with(&self, look: &crate::style::RuleLook, from: Pos2, to: Pos2) {
-        self.painter.extend(super::rule::Rule::shapes(look, from, to, self.painter.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::shapes(look, from, to, self.canvas.pixels_per_point()));
     }
 
     /// Paints the line `look` from `from` to `to` as dots `gap` points apart (`Rule::dotted`): a dotted line.
     pub fn dotted_rule_with(&self, look: &crate::style::RuleLook, from: Pos2, to: Pos2, gap: f32) {
-        self.painter.extend(super::rule::Rule::dotted(look, from, to, gap, self.painter.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::dotted(look, from, to, gap, self.canvas.pixels_per_point()));
     }
 
     /// Paints the line `look` from `from` to `to` as ticks `across` points long, `gap` points apart (`Rule::ticks`):
     /// a grip's row of marks.
     pub fn ticked_rule_with(&self, look: &crate::style::RuleLook, from: Pos2, to: Pos2, gap: f32, across: f32) {
-        self.painter.extend(super::rule::Rule::ticks(look, from, to, gap, across, self.painter.pixels_per_point()));
+        self.canvas.extend(super::rule::Rule::ticks(look, from, to, gap, across, self.canvas.pixels_per_point()));
     }
 
     /// Paints `count` upright ticks of `look` centred on `centre`, side by side on a level line, `gap` points apart and
     /// `across` points tall (`Rule::ticks`): a grip's row of marks, `count` of them at every display scale.
     pub fn grip_ticks(&self, look: &crate::style::RuleLook, centre: Pos2, count: u16, gap: f32, across: f32) {
-        let ppp = self.painter.pixels_per_point().max(f32::EPSILON);
+        let ppp = self.canvas.pixels_per_point().max(f32::EPSILON);
         let (side, gap_px) = (look.width.pixels(ppp), (gap * ppp).round().max(1.0));
         // The run `Rule::ticks` fits exactly `count` marks into: their sides, the gaps between them and the one free
         // pixel it keeps.
@@ -593,9 +595,7 @@ impl<'a> Draw<'a> {
     /// Paints a surface of `kind` (tracks, plot wells).
     pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
         let style = surface_style(self.env.tokens, kind);
-        let mut shapes = Surface::shapes(&style, None, rect, corners, self.env.direction, self.painter.pixels_per_point());
-        super::fit_to_frame(self.painter.ctx(), self.painter.layer_id(), &mut shapes);
-        self.painter.extend(shapes);
+        self.canvas.extend(Surface::shapes(&style, None, rect, corners, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints the edge alone of a surface of `kind` over `rect`, with no shadow or fill: a floating window draws its
@@ -604,18 +604,18 @@ impl<'a> Draw<'a> {
         let mut style = surface_style(self.env.tokens, kind);
         style.shadow = None;
         style.fill = egui::Color32::TRANSPARENT;
-        self.painter.extend(Surface::shapes(&style, None, rect, Corners::All, self.env.direction, self.painter.pixels_per_point()));
+        self.canvas.extend(Surface::shapes(&style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints a surface of an already resolved `style` (a kind's look with one field changed, as a knob's round radius).
     pub fn surface_styled(&self, rect: Rect, style: &SurfaceStyle) {
-        self.painter.extend(Surface::shapes(style, None, rect, Corners::All, self.env.direction, self.painter.pixels_per_point()));
+        self.canvas.extend(Surface::shapes(style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Paints `look` over `rect` in `state`, as the paint step paints a component's surface: a part's own surface (an
     /// indicator's well) keeps the kind's edge and bevel.
     pub fn surface_look(&self, rect: Rect, look: &crate::style::SurfaceLook, state: &crate::style::StateSet) {
-        self.painter.extend(surface_look_shapes(self.env.tokens, look, state, rect, self.env.direction, self.painter.pixels_per_point()));
+        self.canvas.extend(surface_look_shapes(self.env.tokens, look, state, rect, self.env.direction, self.canvas.pixels_per_point()));
     }
 
     /// Fills `shape`.
@@ -655,36 +655,41 @@ impl<'a> Draw<'a> {
             mesh.append(super::kit::fill_polygon(piece, fill, 0.0));
         }
         if !mesh.is_empty() {
-            self.painter.add(Shape::mesh(mesh));
+            self.canvas.add(Shape::mesh(mesh));
         }
     }
 
     /// Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. The picture
     /// is data: a disabled component paints it at `Opacity::DISABLED`, and a `Draw` for an inactive part fills `rect`
     /// with the theme's disabled fill instead, as `data_fill` does.
-    pub fn texture(&self, rect: Rect, texture: TextureId, uv: Rect) {
-        data_picture(self.painter, self.env.tokens, self.data, texture, rect, uv, CornerRadius::ZERO);
+    pub fn texture(&self, rect: Rect, texture: ImageKey, uv: Rect) {
+        data_picture(self.canvas, self.env.tokens, self.data, texture, rect, uv, CornerRadius::ZERO);
     }
 
     /// Paints `uv` of `texture` onto the clockwise quad `corners` (from `uv`'s top left), untinted, as data: a
     /// disabled component paints it at `Opacity::DISABLED`, and for an inactive part the quad is filled with the
     /// theme's disabled fill. A quad has square corners.
-    pub fn texture_quad(&self, corners: [Pos2; 4], texture: TextureId, uv: Rect) {
-        data_quad(self.painter, self.env.tokens, self.data, texture, corners, uv);
+    pub fn texture_quad(&self, corners: [Pos2; 4], texture: ImageKey, uv: Rect) {
+        data_quad(self.canvas, self.env.tokens, self.data, texture, corners, uv);
     }
 
     /// The texture for `key` from the `TextureCache` of the context this painter paints in, for [`texture`](Self::texture):
     /// `image()` is built on the first request only (see `TextureCache::texture`). A painter with no `egui::Context`
     /// of its own, such as a canvas tool's paint call, loads its pictures through here.
-    pub fn cached_texture<K: std::hash::Hash + 'static>(&self, key: K, image: impl FnOnce() -> egui::ColorImage) -> TextureId {
-        super::TextureCache::texture(self.painter.ctx(), key, image)
+    pub fn cached_texture<K: std::hash::Hash + 'static>(&self, key: K, image: impl FnOnce() -> egui::ColorImage) -> ImageKey {
+        let id = super::canvas::image_key(&key);
+        let mut image = Some(image);
+        self.canvas
+            .services()
+            .image(id, craft_ui_rt::ImageOptions::default(), &mut || super::canvas::rgba_image(&(image.take().expect("made once"))()));
+        id
     }
 
     /// Paints `checker` over `rect` with corners `radius`, a light cell at the rect's top left. It shows through data,
     /// so it paints as the data over it: at `Opacity::DISABLED` for a disabled component, and for an inactive part as
     /// the theme's disabled fill, as `data_fill` does.
     pub fn checker(&self, checker: &super::Checker, rect: Rect, radius: CornerRadius) {
-        data_checker(self.painter, self.env.tokens, self.data, checker, rect, radius);
+        data_checker(self.canvas, self.env.tokens, self.data, checker, rect, radius);
     }
 
     /// Paints the well of a colour swatch over `well` with corners `radius`: the colour, over a checkerboard where it is
@@ -701,7 +706,7 @@ impl<'a> Draw<'a> {
     pub fn swatch_polygon_well(&self, corners: &[Pos2], fill: impl Into<WellFill>) {
         let bounds = Rect::from_points(corners);
         self.well_of(&PaintShape::Polygon(corners.to_vec()), bounds, fill.into(), |draw| {
-            data_polygon_checker(draw.painter, draw.env.tokens, draw.data, &super::Checker::new(), corners, bounds.min);
+            data_polygon_checker(draw.canvas, draw.env.tokens, draw.data, &super::Checker::new(), corners, bounds.min);
         });
     }
 
@@ -746,7 +751,7 @@ impl<'a> Draw<'a> {
     /// [`Self::stroke`] takes. `kit::dashed` is the one implementation; the kit painter's `dashed` calls it too.
     pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>) {
         let line = self.line(width.into(), color.into());
-        self.painter.extend(super::kit::dashed(path, pattern, line.width, line.color));
+        self.canvas.extend(super::kit::dashed(path, pattern, line.width, line.color));
     }
 
     /// The theme's dash pattern: `stroke.dash` dashes with `stroke.dash_gap` gaps.
@@ -771,8 +776,7 @@ impl<'a> Draw<'a> {
     /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
     /// under a frozen band, a bracket cut at a lane's edge.
     pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>)) {
-        let painter = self.painter.with_clip_rect(rect);
-        paint(&Draw { painter: &painter, record: self.record, env: self.env, data: self.data, text_direction: self.text_direction });
+        self.canvas.clipped(rect, || paint(self));
     }
 
     /// Runs `paint` with a `Draw` whose fills, strokes, text runs, icons and pictures are all `share` as opaque as
@@ -780,8 +784,7 @@ impl<'a> Draw<'a> {
     /// the shares. The share is the app's runtime value, such as an animation's progress; a value outside 0 to 1 is
     /// clamped and a non-finite one leaves the opacity as it was.
     pub fn faded(&self, share: f32, paint: impl FnOnce(&Draw<'_>)) {
-        let painter = faded_painter(self.painter, share);
-        paint(&Draw { painter: &painter, record: self.record, env: self.env, data: self.data, text_direction: self.text_direction });
+        self.canvas.faded(share, || paint(self));
     }
 
     /// Paints `shape` with its stroke where [`stroke`](Self::stroke) puts it.
@@ -808,7 +811,7 @@ impl<'a> Draw<'a> {
                     StrokePlace::Outside => 0.0,
                 };
                 if offset != 0.0 && fill.is_some() {
-                    self.painter.add(Shape::Circle(CircleShape { center: *center, radius: *radius, fill: fill_color, stroke: Stroke::NONE }));
+                    self.canvas.add(Shape::Circle(CircleShape { center: *center, radius: *radius, fill: fill_color, stroke: Stroke::NONE }));
                 }
                 let fill_color = if offset == 0.0 { fill_color } else { Color32::TRANSPARENT };
                 let radius = (*radius + offset).max(0.0);
@@ -816,12 +819,11 @@ impl<'a> Draw<'a> {
             }
             PaintShape::Polygon(points) => {
                 if fill.is_some() {
-                    let feather = self.painter.ctx().tessellation_options(|options| {
-                        if options.feathering { options.feathering_size_in_pixels / self.painter.pixels_per_point() } else { 0.0 }
-                    });
+                    // egui's default feathering: one physical pixel.
+                    let feather = 1.0 / self.canvas.pixels_per_point();
                     let mesh = super::kit::fill_polygon(points, fill_color, feather);
                     if !mesh.is_empty() {
-                        self.painter.add(Shape::mesh(mesh));
+                        self.canvas.add(Shape::mesh(mesh));
                     }
                 }
                 if stroke.is_empty() {
@@ -833,64 +835,68 @@ impl<'a> Draw<'a> {
             }
             PaintShape::Path(points) => Shape::line(points.clone(), stroke),
         };
-        self.painter.add(shape);
+        self.canvas.add(shape);
     }
 }
 
 /// Paints the part `uv` of `texture` into `rect` with corners `radius` as data in `mode`: tinted as `mode` maps a
 /// colour, or for an inactive part `rect` in the theme's disabled fill. `Draw::texture` and `ContentPainterCx::picture`
 /// paint through it.
-pub(super) fn data_picture(painter: &Painter, tokens: &UiTokens, mode: DataMode, texture: TextureId, rect: Rect, uv: Rect, radius: CornerRadius) {
+pub(super) fn data_picture(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, texture: ImageKey, rect: Rect, uv: Rect, radius: CornerRadius) {
     if mode == DataMode::Inactive {
-        painter.rect_filled(rect, radius, mode.color(tokens, Color32::TRANSPARENT));
+        canvas.rect_filled(rect, radius, mode.color(tokens, Color32::TRANSPARENT));
+    } else if radius == CornerRadius::ZERO {
+        canvas.image(texture, rect, uv, mode.color(tokens, super::textures::UNTINTED));
     } else {
-        crate::runtime::egui::textures::paint(painter, texture, rect, uv, mode.color(tokens, super::textures::UNTINTED), radius);
+        canvas.clipped(rect, || canvas.image(texture, rect, uv, mode.color(tokens, super::textures::UNTINTED)));
     }
 }
 
 /// Paints `uv` of `texture` onto the clockwise quad `corners` as the data in `mode`: untinted through `paint_quad`,
 /// or for an inactive part the quad filled with the disabled fill, as `data_picture` fills its rect.
-fn data_quad(painter: &Painter, tokens: &UiTokens, mode: DataMode, texture: TextureId, corners: [Pos2; 4], uv: Rect) {
+fn data_quad(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, texture: ImageKey, corners: [Pos2; 4], uv: Rect) {
     if mode == DataMode::Inactive {
         let fill = mode.color(tokens, Color32::TRANSPARENT);
-        painter.add(Shape::convex_polygon(corners.to_vec(), fill, Stroke::NONE));
+        canvas.add(Shape::convex_polygon(corners.to_vec(), fill, Stroke::NONE));
     } else {
-        crate::runtime::egui::textures::paint_quad(painter, texture, corners, uv, mode.color(tokens, super::textures::UNTINTED));
+        let tint = mode.color(tokens, super::textures::UNTINTED);
+        let mut mesh = egui::Mesh::with_texture(egui::TextureId::User(texture.0));
+        let uvs = [uv.left_top(), uv.right_top(), uv.right_bottom(), uv.left_bottom()];
+        for (pos, uv) in corners.into_iter().zip(uvs) {
+            mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: tint });
+        }
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(0, 2, 3);
+        canvas.add(Shape::mesh(mesh));
     }
 }
 
 /// Paints `checker` over `rect` with corners `radius`, a light cell at the rect's top left, as the data over it in
 /// `mode`: mapped as `mode` maps a colour, or for an inactive part `rect` in the theme's disabled fill. `Draw::checker`
 /// and `ContentPainterCx::checker_with` paint through it.
-pub(super) fn data_checker(painter: &Painter, tokens: &UiTokens, mode: DataMode, checker: &super::Checker, rect: Rect, radius: CornerRadius) {
+pub(super) fn data_checker(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, checker: &super::Checker, rect: Rect, radius: CornerRadius) {
     if mode == DataMode::Inactive {
-        painter.rect_filled(rect, radius, mode.color(tokens, Color32::TRANSPARENT));
+        canvas.rect_filled(rect, radius, mode.color(tokens, Color32::TRANSPARENT));
     } else {
-        let mut shape = checker.shape(painter.ctx(), tokens, super::CheckerArea::Rect(rect, radius), rect.min);
+        let mut shape = checker.shape(canvas, tokens, super::CheckerArea::Rect(rect, radius), rect.min);
         mode.shape(tokens, &mut shape);
-        painter.add(shape);
+        canvas.add(shape);
     }
 }
 
 /// The checkerboard over the convex polygon `corners`, as [`data_checker`] paints a rect: for an inactive `mode` the
 /// polygon in the theme's disabled fill.
-fn data_polygon_checker(painter: &Painter, tokens: &UiTokens, mode: DataMode, checker: &super::Checker, corners: &[Pos2], origin: Pos2) {
+fn data_polygon_checker(canvas: &Canvas<'_>, tokens: &UiTokens, mode: DataMode, checker: &super::Checker, corners: &[Pos2], origin: Pos2) {
     if mode == DataMode::Inactive {
-        painter.add(Shape::convex_polygon(corners.to_vec(), mode.color(tokens, Color32::TRANSPARENT), Stroke::NONE));
+        canvas.add(Shape::convex_polygon(corners.to_vec(), mode.color(tokens, Color32::TRANSPARENT), Stroke::NONE));
     } else {
-        let mut shape = checker.polygon_shape(painter.ctx(), tokens, corners, origin);
+        let mut shape = checker.polygon_shape(canvas, tokens, corners, origin);
         mode.shape(tokens, &mut shape);
-        painter.add(shape);
+        canvas.add(shape);
     }
 }
 
 /// `painter` with its opacity multiplied by `share`: the one fade `Draw::faded` and `ContentPainterCx::faded` share.
-pub(super) fn faded_painter(painter: &Painter, share: f32) -> Painter {
-    let mut painter = painter.clone();
-    painter.multiply_opacity(share);
-    painter
-}
-
 /// The shapes of `look` over `rect` in `state`: the kind's surface (its edge and bevel) with the state fill, or the
 /// fill alone without a kind, then the state border.
 pub(crate) fn surface_look_shapes(

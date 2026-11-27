@@ -8,6 +8,7 @@ use crate::id::{ChildKey, IdSet, NodeId, WindowId, hash_key};
 use crate::layer::{Layer, LayerSpec};
 use crate::runtime::Runtime;
 use crate::state::{Access, Phase, Reader, Reads, State, Store, Writes};
+use crate::text::{RichText, TextEngine, TextLayout};
 use crate::tree::{Dirty, Node};
 use crate::window::Env;
 
@@ -23,6 +24,9 @@ pub struct BuildCx<'a> {
     scope: Option<(u64, u32)>,
     /// Set by [`BuildCx::keep_children`]: the build leaves the node's children as they were.
     keep: bool,
+    /// The frame's text engine, under an inline root: content built inline measures its text in
+    /// the build.
+    text: Option<&'a mut dyn TextEngine>,
 }
 
 /// Why an inline node is reached in its owner's build: the facts the owner decides on, before
@@ -78,6 +82,30 @@ impl BuildCx<'_> {
     pub fn tokens(&mut self) -> Arc<Tokens> {
         let tokens = self.env().tokens;
         tokens.get(self)
+    }
+
+    /// The window's scale, read in build: a scale change runs the reading node again.
+    pub fn scale(&mut self) -> f32 {
+        let scale = self.env().scale;
+        scale.get(self)
+    }
+
+    /// The frame's text engine; `None` outside an inline root (an element's own build measures
+    /// text in layout).
+    pub fn text_engine(&mut self) -> Option<&mut dyn TextEngine> {
+        self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t })
+    }
+
+    /// Shapes `text` at the window's scale with the frame's engine; `None` outside an inline root.
+    pub fn text_layout_rich(&mut self, text: &RichText) -> Option<TextLayout> {
+        let scale = self.scale();
+        Some(self.text.as_deref_mut()?.layout_rich(text, scale))
+    }
+
+    /// The text engine and the image store together, for code that lays out text and registers
+    /// images while it records a paint (a component's run).
+    pub fn paint_services(&mut self) -> (Option<&mut dyn TextEngine>, &mut crate::display::ImageStore) {
+        (self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t }), &mut self.rt.images)
     }
 
     /// The images renderers upload. A component registers the pixels its display lists name (a
@@ -190,7 +218,9 @@ impl BuildCx<'_> {
         node.dirty.remove(Dirty::PATH);
         let old = std::mem::take(&mut node.children);
         let old_layered = std::mem::take(&mut node.layered);
-        let mut cx = BuildCx { rt: &mut *self.rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false };
+        let text = self.text.as_deref_mut().map(|t| -> &mut dyn TextEngine { t });
+        let mut cx =
+            BuildCx { rt: &mut *self.rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false, text };
         let slot = boxed.as_any_mut().downcast_mut::<ElementBox<E>>().expect("the element's type was checked");
         let local = match &mut slot.local {
             Some(local) => local,
@@ -343,6 +373,7 @@ pub(crate) fn build_node(rt: &mut Runtime, id: NodeId) {
         pos: 0,
         scope: None,
         keep: false,
+        text: None,
     };
     el.build(&mut cx);
     let BuildCx { children, layered, keep, .. } = cx;
@@ -358,7 +389,7 @@ pub(crate) fn build_node(rt: &mut Runtime, id: NodeId) {
 
 /// Runs an inline root's build: `content` creates its children. Marks its layout only when its
 /// child list changed; the children mark what they changed themselves.
-pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) {
+pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn FnMut(WindowId, &mut BuildCx<'_>), text: &mut dyn TextEngine) {
     let Some(node) = rt.tree.nodes.get_mut(&id) else {
         return;
     };
@@ -370,7 +401,7 @@ pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn 
     };
     let old = std::mem::take(&mut node.children);
     let old_layered = std::mem::take(&mut node.layered);
-    let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false };
+    let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false, text: Some(text) };
     // Creates the root's `Local` on the first build; the element's own build adds nothing.
     el.build(&mut cx);
     content(window, &mut cx);

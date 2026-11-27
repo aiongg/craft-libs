@@ -70,7 +70,7 @@ fn a_texture_quad_lands_each_corner_of_its_part_on_the_quads_corner() {
     let corners = [pos2(30.0, 10.0), pos2(30.0, 50.0), pos2(10.0, 50.0), pos2(10.0, 10.0)];
     let mut frames = Frames::new();
     let (painted, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.texture_quad(corners, egui::TextureId::User(7), uv);
+        draw.texture_quad(corners, craft_ui_rt::ImageKey(7), uv);
     });
     let [Shape::Mesh(mesh)] = painted.as_slice() else { panic!("one mesh, got {painted:?}") };
     assert_eq!(mesh.texture_id, egui::TextureId::User(7));

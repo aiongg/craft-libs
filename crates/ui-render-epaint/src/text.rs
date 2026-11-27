@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use craft_theme::FontSlot;
-use craft_ui_rt::{Overflow, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text};
+use craft_ui_rt::{FontFace, GlyphPlace, Overflow, RichText, TextEngine, TextHandle, TextLayout, TextMetrics, TextRow, TextSpec, overflow_text};
 use emath::{Pos2, Rect, Vec2};
-use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, Galley, LayoutJob, TextFormat, TextOptions};
+use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
 use epaint::{Color32, ImageDelta};
 
 /// The family name craft's font stack registers for the semibold face.
@@ -20,10 +20,22 @@ pub const CONDENSED_FAMILY: &str = "tab-title";
 pub(crate) struct Shaped {
     pub galley: Arc<Galley>,
     text: Arc<str>,
-    spec: TextSpec,
+    source: Source,
     scale: f32,
     /// The atlas generation the galley's glyph coordinates belong to.
     generation: u64,
+}
+
+/// What a layout was shaped from, to shape it again after an atlas reset.
+#[derive(Clone)]
+enum Source {
+    Plain(TextSpec),
+    Rich(RichText),
+}
+
+fn color(c: craft_theme::Rgba) -> Color32 {
+    let [r, g, b, a] = c.0;
+    Color32::from_rgba_unmultiplied(r, g, b, a)
 }
 
 impl Shaped {
@@ -104,14 +116,127 @@ impl EpaintText {
         };
         let text = overflow_text(spec, |t| layout(t).rect.width());
         let galley = layout(&text);
-        Shaped { galley, text, spec: spec.clone(), scale, generation }
+        Shaped { galley, text, source: Source::Plain(spec.clone()), scale, generation }
+    }
+
+    fn face(&self, face: &FontFace) -> FontFamily {
+        match face {
+            FontFace::Slot(slot) => self.family(*slot),
+            FontFace::Family(name) => FontFamily::Name(name.as_ref().into()),
+        }
+    }
+
+    /// The job craft's text runs lay out: one section per format, rows at the left edge (then
+    /// placed by `row_align`), the paragraph direction for bidi.
+    fn shape_rich(&mut self, rich: &RichText, scale: f32) -> Shaped {
+        let generation = self.fonts.atlas_generation();
+        let sections: Vec<(std::ops::Range<usize>, f32, TextFormat)> = rich
+            .sections
+            .iter()
+            .map(|section| {
+                let f = &section.format;
+                let mut format = TextFormat {
+                    font_id: FontId::new(f.size, self.face(&f.face)),
+                    color: color(f.color),
+                    background: color(f.background),
+                    italics: f.italic,
+                    extra_letter_spacing: f.letter_spacing,
+                    line_height: f.line_height,
+                    ..TextFormat::default()
+                };
+                if let Some(line) = f.underline {
+                    format.underline = epaint::Stroke::new(line.width, color(line.color));
+                }
+                if let Some(line) = f.strikethrough {
+                    format.strikethrough = epaint::Stroke::new(line.width, color(line.color));
+                }
+                for &(tag, value) in &f.axes {
+                    format.coords.push(tag, value);
+                }
+                if !f.features.is_empty() {
+                    format.font_features = epaint::text::FontFeatures::new(f.features.iter().copied());
+                }
+                (section.bytes.clone(), section.indent, format)
+            })
+            .collect();
+        let mut fonts = self.fonts.with_pixels_per_point(scale);
+        let mut job = LayoutJob {
+            text: rich.text.to_string(),
+            direction: if rich.rtl { epaint::text::TextDirection::RightToLeft } else { epaint::text::TextDirection::LeftToRight },
+            halign: emath::Align::LEFT,
+            halign_min_is_start: false,
+            wrap: TextWrapping {
+                max_width: rich.wrap.max_width,
+                max_rows: rich.wrap.max_rows,
+                break_anywhere: rich.wrap.break_anywhere,
+                overflow_character: rich.wrap.overflow,
+            },
+            ..LayoutJob::default()
+        };
+        for (bytes, indent, mut format) in sections {
+            // A section without its own line height takes its face's row height rounded up to whole
+            // points, so a wrapped text keeps its height at every scale.
+            if format.line_height.is_none() {
+                format.line_height = Some(fonts.row_height(&format.font_id).ceil());
+            }
+            job.sections.push(epaint::text::LayoutSection {
+                leading_space: indent,
+                byte_range: epaint::text::ByteIndex(bytes.start)..epaint::text::ByteIndex(bytes.end),
+                format,
+            });
+        }
+        let galley = aligned_rows(anchored_at_start(fonts.layout_job(job)), rich.row_align, scale);
+        let text: Arc<str> = galley.job.text.as_str().into();
+        Shaped { galley, text, source: Source::Rich(rich.clone()), scale, generation }
     }
 
     /// `shaped` shaped again when the atlas was cleared since it was made, `None` while it is
     /// current. Metrics are the same, only the glyph coordinates differ.
     pub(crate) fn reshaped(&mut self, shaped: &Shaped) -> Option<Shaped> {
-        (shaped.generation != self.fonts.atlas_generation()).then(|| self.shape(&shaped.spec, shaped.scale))
+        (shaped.generation != self.fonts.atlas_generation()).then(|| match &shaped.source {
+            Source::Plain(spec) => self.shape(spec, shaped.scale),
+            Source::Rich(rich) => self.shape_rich(rich, shaped.scale),
+        })
     }
+}
+
+/// The galley moved so its rect starts at x = 0, so every layout is placed by its top-left corner.
+fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
+    let shift = -galley.rect.min.x;
+    if shift == 0.0 {
+        return galley;
+    }
+    let g = Arc::make_mut(&mut galley);
+    for placed in &mut g.rows {
+        placed.pos.x += shift;
+    }
+    g.rect = g.rect.translate(Vec2::new(shift, 0.0));
+    g.mesh_bounds = g.mesh_bounds.translate(Vec2::new(shift, 0.0));
+    galley
+}
+
+/// Each row placed within the widest by `share` of its free room, rounded to whole pixels.
+fn aligned_rows(mut galley: Arc<Galley>, share: f32, scale: f32) -> Arc<Galley> {
+    let width = galley.rect.width();
+    if share == 0.0 || galley.rows.iter().all(|placed| placed.size.x >= width) {
+        return galley;
+    }
+    let g = Arc::make_mut(&mut galley);
+    for placed in &mut g.rows {
+        let free = (width - placed.size.x).max(0.0);
+        placed.pos.x = (free * share * scale).round() / scale;
+    }
+    galley
+}
+
+fn layout_of(shaped: Shaped) -> TextLayout {
+    let size = shaped.galley.rect.size();
+    let baseline = shaped.galley.rows.first().map_or(0.0, |row| {
+        let glyph_y = row.glyphs.first().map_or(row.size.y, |g| g.pos.y);
+        row.pos.y + glyph_y
+    });
+    let lines = shaped.galley.rows.len();
+    TextLayout { handle: TextHandle::new(Arc::new(shaped)), size, baseline, lines }
 }
 
 fn shaped(layout: &TextLayout) -> Option<&Shaped> {
@@ -120,14 +245,28 @@ fn shaped(layout: &TextLayout) -> Option<&Shaped> {
 
 impl TextEngine for EpaintText {
     fn layout(&mut self, spec: &TextSpec, scale: f32) -> TextLayout {
-        let shaped = self.shape(spec, scale);
-        let size = shaped.galley.rect.size();
-        let baseline = shaped.galley.rows.first().map_or(0.0, |row| {
-            let glyph_y = row.glyphs.first().map_or(row.size.y, |g| g.pos.y);
-            row.pos.y + glyph_y
-        });
-        let lines = shaped.galley.rows.len();
-        TextLayout { handle: TextHandle::new(Arc::new(shaped)), size, baseline, lines }
+        layout_of(self.shape(spec, scale))
+    }
+
+    fn layout_rich(&mut self, text: &RichText, scale: f32) -> TextLayout {
+        layout_of(self.shape_rich(text, scale))
+    }
+
+    fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {
+        let Some(s) = shaped(layout) else {
+            return TextMetrics { text: Arc::from(""), rows: Vec::new(), ink: Rect::NOTHING, elided: false };
+        };
+        let rows = s
+            .galley
+            .rows
+            .iter()
+            .map(|placed| TextRow {
+                rect: Rect::from_min_size(placed.pos, placed.row.size),
+                glyphs: placed.row.glyphs.iter().map(|g| GlyphPlace { chr: g.chr, x: g.pos.x, advance: g.advance_width, rtl: g.is_rtl() }).collect(),
+            })
+            .collect();
+        let ink = if s.galley.mesh_bounds.is_finite() { s.galley.mesh_bounds } else { Rect::NOTHING };
+        TextMetrics { text: s.text.clone(), rows, ink, elided: s.galley.elided }
     }
 
     fn hit_index(&mut self, layout: &TextLayout, pos: Pos2) -> usize {

@@ -495,7 +495,7 @@ fn minus(center: Vec2, half: f32) -> Line {
 /// The mark of `badge` in `ink`, centred in `rect` at a cursor badge's size and with no halo: the drawing the cursor
 /// badges use, for interface icons that show the same mark. The hairline and the reading direction are those of the
 /// component that paints the icon: `tokens` and `direction`.
-pub(crate) fn paint_badge(painter: &egui::Painter, tokens: &UiTokens, direction: Direction, rect: Rect, badge: CursorBadge, ink: Color32) {
+pub(crate) fn paint_badge(painter: &super::Canvas<'_>, tokens: &UiTokens, direction: Direction, rect: Rect, badge: CursorBadge, ink: Color32) {
     let pen = Pen { art: RefCell::new(Art::default()), fill: ink, halo: Color32::TRANSPARENT, thin: tokens.stroke.thin, rtl: direction.is_rtl() };
     self::badge(&pen, Vec2::ZERO, badge);
     pen.art.into_inner().paint(painter, rect.center());

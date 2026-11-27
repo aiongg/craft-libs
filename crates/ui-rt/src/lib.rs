@@ -72,7 +72,10 @@ pub use platform::{
 pub use render::{ReadBack, ReadBackId, RenderStats, Renderer};
 pub use runtime::{FrameReport, Runtime};
 pub use state::{Access, DeriveCx, Derived, Phase, Reads, State, Store, Writes};
-pub use text::{FontSpec, Overflow, TextEngine, TextHandle, TextLayout, TextSpec, overflow_text};
+pub use text::{
+    FontFace, FontSpec, GlyphPlace, Overflow, RichText, TextEngine, TextFormat, TextHandle, TextLayout, TextLine, TextMetrics, TextRow, TextSection,
+    TextSpec, TextWrap, overflow_text,
+};
 pub use window::Env;
 
 pub use craft_behavior::{

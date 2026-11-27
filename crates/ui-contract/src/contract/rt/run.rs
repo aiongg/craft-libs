@@ -8,13 +8,18 @@
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, CornerRadii, DisplayList, Gesture, ImageKey, Item, PointerButton, Pos2, Rect, Rgba, Sense, Stroke, Vec2};
+use std::cell::{Cell, RefCell};
+
+use craft_ui_rt::{BuildCx, Gesture, PointerButton, Rect, Sense, Vec2};
 use smallvec::SmallVec;
 
 use super::key::{ComponentKey, component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, NodeInput, Place, Pointer, Variant};
 use super::ui::{Flow, Ui};
 use crate::contract::IdSource;
+use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
+use crate::style::{Ink, UiTokens};
+use craft_i18n::Direction;
 
 /// What `measure` sees: the room the component is shown in.
 pub struct MeasureCx<'a> {
@@ -59,52 +64,34 @@ impl<'a> Cx<'a> {
     }
 }
 
-/// Records one paint variant in the node's local coordinates, and whether the paint read the
-/// pointer state.
+/// One paint variant being recorded: the content-paint API (`Draw`, in window coordinates, recorded as display items
+/// in the node's coordinates) and the pointer state the variant shows.
 pub struct Paint<'a> {
     /// The tokens of the run.
     pub tokens: &'a Tokens,
-    size: Vec2,
+    rect: Rect,
     pointer: Pointer,
-    read: bool,
-    over: bool,
-    content: DisplayList,
-    overlay: DisplayList,
+    read: Cell<bool>,
+    canvas: &'a Canvas<'a>,
+    record: &'a RefCell<PaintRecord>,
+    ui_tokens: &'a UiTokens,
 }
 
 impl Paint<'_> {
     /// The pointer state this variant shows. Reading it makes the run record a variant per state.
-    pub fn pointer(&mut self) -> Pointer {
-        self.read = true;
+    pub fn pointer(&self) -> Pointer {
+        self.read.set(true);
         self.pointer
     }
 
-    /// The node's rect in its own coordinates.
+    /// The node's rect in window coordinates, where `draw` paints.
     pub fn bounds(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO, self.size)
+        self.rect
     }
 
-    /// Records `item` at the current level.
-    pub fn push(&mut self, item: Item) {
-        if self.over { self.overlay.items.push(item) } else { self.content.items.push(item) }
-    }
-
-    /// A rounded rect, filled and optionally stroked.
-    pub fn rect(&mut self, rect: Rect, radii: impl Into<CornerRadii>, fill: Rgba, stroke: Option<Stroke>) {
-        self.push(Item::Rect { rect, radii: radii.into(), fill, stroke });
-    }
-
-    /// `color` through an image's alpha (an icon mask).
-    pub fn image_mask(&mut self, key: ImageKey, rect: Rect, color: Rgba) {
-        self.push(Item::ImageMask { key, rect, uv: Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), color });
-    }
-
-    /// Records what `f` adds over the node's children.
-    pub fn over<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
-        let saved = std::mem::replace(&mut self.over, true);
-        let out = f(self);
-        self.over = saved;
-        out
+    /// The content-paint API.
+    pub fn draw(&self) -> Draw<'_> {
+        Draw::new(self.canvas, self.record, DrawEnv { tokens: self.ui_tokens, direction: Direction::Ltr, ink: Ink::OnPanel })
     }
 }
 
@@ -136,7 +123,7 @@ pub trait Component: ComponentKey + Sized {
     fn update(&mut self, _cx: &mut Cx<'_>) {}
 
     /// Paints in local coordinates; may run once per pointer state it reads.
-    fn paint(&mut self, _paint: &mut Paint<'_>, _cx: &Cx<'_>) {}
+    fn paint(&mut self, _paint: &Paint<'_>, _cx: &Cx<'_>) {}
 
     /// Fills the node's AccessKit node (its role is set).
     fn access(&self, _node: &mut accesskit::Node, _cx: &Cx<'_>) {}
@@ -247,7 +234,7 @@ fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ra
     let input = std::mem::take(&mut kept.queue);
     let mut rcx = Cx { rect: ran.rect, tokens: ran.tokens, input: &input, settled: false };
     component.update(&mut rcx);
-    kept.variants = record_variants(&mut component, &rcx, ran.size, sense);
+    kept.variants = record_variants(&mut component, &rcx, cx, sense);
     let mut node = accesskit::Node::new(C::ROLE);
     component.access(&mut node, &rcx);
     kept.access = Some(node);
@@ -261,19 +248,27 @@ fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ra
 
 /// One paint, then one per further pointer state when the paint read it (`Press` only for a
 /// component that takes presses).
-fn record_variants<C: Component>(component: &mut C, cx: &Cx<'_>, size: Vec2, sense: Sense) -> SmallVec<[Variant; 1]> {
+fn record_variants<C: Component>(component: &mut C, cx: &Cx<'_>, build: &mut BuildCx<'_>, sense: Sense) -> SmallVec<[Variant; 1]> {
+    let scale = build.scale();
+    let (text, images) = build.paint_services();
+    let services = FrameServices::new(text, images, scale);
+    let ui_tokens = UiTokens::new(Arc::new(cx.tokens.clone()), craft_theme::Contrast::Standard, craft_theme::Size::Compact);
     let mut paint_as = |look: Pointer| {
-        let mut p = Paint {
+        let canvas = Canvas::new(&services, cx.rect.min, Rect::EVERYTHING);
+        let record = RefCell::new(PaintRecord::default());
+        let p = Paint {
             tokens: cx.tokens,
-            size,
+            rect: cx.rect,
             pointer: look,
-            read: false,
-            over: false,
-            content: DisplayList::default(),
-            overlay: DisplayList::default(),
+            read: Cell::new(false),
+            canvas: &canvas,
+            record: &record,
+            ui_tokens: &ui_tokens,
         };
-        component.paint(&mut p, cx);
-        (Variant { look, content: p.content, overlay: p.overlay }, p.read)
+        component.paint(&p, cx);
+        let read = p.read.get();
+        let (content, overlay) = canvas.finish();
+        (Variant { look, content, overlay }, read)
     };
     let (rest, read) = paint_as(Pointer::Rest);
     let mut out = SmallVec::new();

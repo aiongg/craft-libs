@@ -134,7 +134,8 @@ fn an_accent_part_on_a_dark_surface_paints_in_the_icons_ink() {
         let record = RefCell::new(PaintRecord::default());
         let shapes = frames.frame_shapes(|ui| {
             let env = DrawEnv { tokens: &tokens, direction: Direction::Ltr, ink: surface };
-            Draw::new(ui.painter(), &record, env).icon(rect, &spec);
+            let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+            Draw::new(&canvas, &record, env).icon(rect, &spec);
         });
         textured(&shapes).into_iter().map(|(_, tint)| tint).collect::<Vec<_>>()
     };
@@ -159,7 +160,8 @@ fn an_accent_part_paints_in_the_accent_ink_a_fixed_part_as_drawn_and_both_take_t
         let record = RefCell::new(PaintRecord::default());
         let shapes = frames.frame_shapes(|ui| {
             let env = DrawEnv { tokens: &tokens, direction: Direction::Ltr, ink: Ink::OnPanel };
-            Draw::new(ui.painter(), &record, env).data(mode).icon(rect, &spec);
+            let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+            Draw::new(&canvas, &record, env).data(mode).icon(rect, &spec);
         });
         textured(&shapes)
     };
@@ -268,7 +270,8 @@ fn a_glyph_that_paints_with_draw_lays_out_text_in_the_themes_type() {
     let mut theme_font = None;
     let record = RefCell::new(PaintRecord::default());
     let drawn = frames.frame_shapes(|ui| {
-        let draw = Draw::new(ui.painter(), &record, env);
+        let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+        let draw = Draw::new(&canvas, &record, env);
         theme_font = draw.layout(&MarkGlyph::run(color), f32::INFINITY).galley.job.sections.first().map(|section| section.format.font_id.clone());
         draw.icon(rect, &IconSpec::glyph(&asks));
     });
@@ -286,7 +289,8 @@ fn a_glyph_that_paints_with_draw_lays_out_text_in_the_themes_type() {
     assert!(!raw.iter().any(|shape| matches!(shape, Shape::Text(_))));
 
     let record = RefCell::new(PaintRecord::default());
-    let plain = frames.frame_shapes(|ui| Draw::new(ui.painter(), &record, env).icon(rect, &IconSpec::glyph(&dot)));
+    let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+    let plain = frames.frame_shapes(|ui| Draw::new(&canvas, &record, env).icon(rect, &IconSpec::glyph(&dot)));
     let circles: Vec<_> = plain.iter().filter_map(|shape| if let Shape::Circle(circle) = shape { Some(circle) } else { None }).collect();
     assert_eq!(circles.len(), 1, "a glyph with no Draw path paints with its painter, got {plain:?}");
     assert!(rect.contains(circles[0].center), "inside the icon");

@@ -11,6 +11,8 @@ use super::node::Pointer;
 use super::run::{Component, Container, Cx, MeasureCx, Paint, show_container, show_leaf};
 use super::ui::Ui;
 use crate::contract::IdSource;
+use crate::primitives::PaintShape;
+use crate::style::{StyleColor, UiTokens, rgba_color};
 
 /// What `IconButton::show` returns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -64,17 +66,22 @@ impl Component for IconButton<'_> {
         Sense::HOVER | Sense::CLICK
     }
 
-    fn paint(&mut self, paint: &mut Paint<'_>, _: &Cx<'_>) {
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_>) {
         let bounds = paint.bounds();
         let (state, radius) = (paint.tokens.color.state, paint.tokens.size.button / 4.0);
-        match paint.pointer() {
-            Pointer::Rest => {}
-            Pointer::Hover => paint.rect(bounds, radius, state.hover, None),
-            Pointer::Press => paint.rect(bounds, radius, state.pressed, None),
+        let draw = paint.draw();
+        let fill = match paint.pointer() {
+            Pointer::Rest => None,
+            Pointer::Hover => Some(state.hover),
+            Pointer::Press => Some(state.pressed),
+        };
+        if let Some(fill) = fill {
+            draw.fill(&PaintShape::Rect(bounds, UiTokens::corner(radius)), StyleColor(rgba_color(fill)));
         }
         let glyph = Rect::from_center_size(bounds.center(), Vec2::splat(paint.tokens.size.icon.md));
-        let ink = paint.tokens.color.text.normal;
-        paint.image_mask(ImageKey(hash_key(&self.icon)), glyph, ink);
+        let ink = rgba_color(paint.tokens.color.text.normal);
+        let uv = Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0));
+        draw.canvas().image_mask(ImageKey(hash_key(&self.icon)), glyph, uv, ink);
     }
 
     fn access(&self, node: &mut accesskit::Node, _: &Cx<'_>) {

@@ -56,13 +56,15 @@ pub struct PaintUi<'a> {
     pub(crate) node: bool,
     /// The children's `Ui`, built on the first child under `sub(id, "children")`.
     pub(crate) kids: Option<Ui>,
+    /// What `draw` records into.
+    pub(crate) canvas: crate::primitives::Canvas<'static>,
 }
 
 impl PaintUi<'_> {
     /// The content-paint API: text, rules, surfaces and shapes, recorded for the later steps. While the component
     /// paints its Disabled state (`DisabledLook::States`), its data colours paint at `Opacity::DISABLED`.
     pub fn draw(&self) -> Draw<'_> {
-        Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
+        Draw::new(&self.canvas, self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
             .text_direction(self.env.text_direction)
             .data(self.data)
     }
@@ -283,6 +285,18 @@ impl PaintUi<'_> {
     /// The raw painter for an allowlisted content painter, clipped to the component's own rect. Its data paths paint
     /// data colours as [`draw`](Self::draw) does.
     pub fn content_painter<C: ContentPainter>(&self, cx: &Cx<'_, C>) -> ContentPainterCx<'_> {
-        ContentPainterCx::new(self.ui.painter().with_clip_rect(cx.core.rect.intersect(self.ui.clip_rect())), self.env, self.ink).data(self.data)
+        let _ = cx;
+        ContentPainterCx::new(&self.canvas, self.env, self.ink).data(self.data)
+    }
+}
+
+/// While the egui runtime runs the pipeline, what `draw` recorded is painted on the component's egui painter when the
+/// paint view goes.
+impl Drop for PaintUi<'_> {
+    fn drop(&mut self) {
+        let (content, overlay) = self.canvas.take();
+        let painter = self.ui.painter();
+        crate::runtime::egui::text_layout::paint_items(painter, &content.items);
+        crate::runtime::egui::text_layout::paint_items(painter, &overlay.items);
     }
 }

@@ -630,6 +630,7 @@ pub(crate) trait ErasedPass<'a> {
 /// The paint view of a component's pass.
 pub(super) fn paint_ui<'a>(ui: &'a mut Ui, env: &'a Env, core: &'a CxCore<'_>, style: &'a dyn StyleView) -> PaintUi<'a> {
     let focus = core.active.map(|part| (part, core.state.flags.contains(crate::style::Flags::FOCUS_VISIBLE)));
+    let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
     PaintUi {
         ui,
         env,
@@ -651,6 +652,7 @@ pub(super) fn paint_ui<'a>(ui: &'a mut Ui, env: &'a Env, core: &'a CxCore<'_>, s
         fade: core.fade,
         node: core.node,
         kids: None,
+        canvas,
     }
 }
 

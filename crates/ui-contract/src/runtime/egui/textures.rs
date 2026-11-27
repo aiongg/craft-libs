@@ -17,19 +17,6 @@ pub(crate) fn replace_region(handle: &mut TextureHandle, origin: [u32; 2], image
     handle.set_partial(origin.map(|n| n as usize), image, filter);
 }
 
-/// Paints the part `uv` of `texture` onto the clockwise quad `corners` (from `uv`'s top left), tinted by `tint`, as one
-/// textured mesh of two triangles.
-pub(crate) fn paint_quad(painter: &Painter, texture: TextureId, corners: [Pos2; 4], uv: Rect, tint: Color32) {
-    let texels = [uv.left_top(), uv.right_top(), uv.right_bottom(), uv.left_bottom()];
-    let mut mesh = egui::Mesh::with_texture(texture);
-    for (pos, uv) in corners.into_iter().zip(texels) {
-        mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: tint });
-    }
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(0, 2, 3);
-    painter.add(egui::Shape::mesh(mesh));
-}
-
 /// Paints `texture` in `rect`, the part `uv` of it, tinted by `tint`, with corners rounded by `radius`.
 #[doc(hidden)]
 pub fn paint(painter: &Painter, texture: TextureId, rect: Rect, uv: Rect, tint: Color32, radius: CornerRadius) {

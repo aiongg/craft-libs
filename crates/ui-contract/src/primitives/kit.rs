@@ -2,18 +2,16 @@
 //! allowlisted content painter draws them through one implementation. The shape functions are pure; the
 //! `ContentPainterCx` methods add their shapes to its painter.
 
+use super::canvas::Canvas;
 use super::content::ContentPainterCx;
 use super::draw::{Dashes, PaintShape, StrokeWidth};
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
-use super::textures::{TextureCache, UNTINTED};
+use super::textures::UNTINTED;
 use crate::style::{Corners, DataColor, RuleLook, RuleWidth, SurfaceKind, UiTokens, ink_color, rgba_color, rule_look, surface_style};
 use craft_behavior::{Axis, CanvasView, kurbo};
 use egui::epaint::{RectShape, Vertex};
-use egui::{
-    Color32, ColorImage, Context, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, TextureFilter, TextureId, TextureOptions, TextureWrapMode, Vec2,
-    pos2,
-};
+use egui::{Color32, ColorImage, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, TextureId, Vec2, pos2};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
 /// Which edge of a rect a tick row sits on, and so which way its marks point.
@@ -177,17 +175,17 @@ impl Checker {
     }
 
     /// The texture of the two colours and the side of a cell.
-    fn texture(&self, ctx: &Context, tokens: &UiTokens) -> (TextureId, f32) {
+    fn texture(&self, canvas: &Canvas<'_>, tokens: &UiTokens) -> (TextureId, f32) {
         let side = self.size.unwrap_or(tokens.size.checker).max(f32::EPSILON);
         let light = self.light.map_or_else(|| rgba_color(tokens.color.overlay.checker_light), |color| color.0);
         let dark = self.dark.map_or_else(|| rgba_color(tokens.color.overlay.checker_dark), |color| color.0);
-        (checker_texture(ctx, light, dark), side)
+        (checker_texture(canvas, light, dark), side)
     }
 
     /// The checkerboard over the convex polygon `corners` as one textured mesh, a light cell with its top-left corner at
     /// `origin`: the cells follow the polygon's edge, which a rect's clip cannot.
-    pub fn polygon_shape(&self, ctx: &Context, tokens: &UiTokens, corners: &[Pos2], origin: Pos2) -> Shape {
-        let (texture, side) = self.texture(ctx, tokens);
+    pub fn polygon_shape(&self, canvas: &Canvas<'_>, tokens: &UiTokens, corners: &[Pos2], origin: Pos2) -> Shape {
+        let (texture, side) = self.texture(canvas, tokens);
         let mut mesh = fill_polygon(corners, UNTINTED, 0.0);
         mesh.texture_id = texture;
         for vertex in &mut mesh.vertices {
@@ -198,8 +196,8 @@ impl Checker {
 
     /// The checkerboard over `area` as one textured shape: square cells of the light and dark colours, a light cell
     /// with its top-left corner at `origin`. A painter's clip cuts it.
-    pub fn shape(&self, ctx: &Context, tokens: &UiTokens, area: CheckerArea, origin: Pos2) -> Shape {
-        let (texture, side) = self.texture(ctx, tokens);
+    pub fn shape(&self, canvas: &Canvas<'_>, tokens: &UiTokens, area: CheckerArea, origin: Pos2) -> Shape {
+        let (texture, side) = self.texture(canvas, tokens);
         // One texel per cell; the texture repeats every two cells.
         let uv = |p: Pos2| ((p - origin) / (2.0 * side)).to_pos2();
         match area {
@@ -228,14 +226,11 @@ pub enum CheckerArea {
 
 /// The 2 x 2 texture of the checkerboard's two colours (light at the top left and bottom right), repeating, sampled
 /// without blending so each texel stays one sharp cell.
-fn checker_texture(ctx: &Context, light: Color32, dark: Color32) -> TextureId {
-    let options = TextureOptions {
-        magnification: TextureFilter::Nearest,
-        minification: TextureFilter::Nearest,
-        wrap_mode: TextureWrapMode::Repeat,
-        mipmap_mode: None,
-    };
-    TextureCache::texture_with(ctx, ("craft-ui-checker", light, dark), options, || ColorImage::new([2, 2], vec![light, dark, dark, light]))
+fn checker_texture(canvas: &Canvas<'_>, light: Color32, dark: Color32) -> TextureId {
+    let options = craft_ui_rt::ImageOptions { magnify: craft_ui_rt::Filter::Nearest, minify: craft_ui_rt::Filter::Nearest, mipmaps: false };
+    let key = super::canvas::image_key(&("craft-ui-checker", light, dark));
+    canvas.services().image(key, options, &mut || super::canvas::rgba_image(&ColorImage::new([2, 2], vec![light, dark, dark, light])));
+    TextureId::User(key.0)
 }
 
 /// A turn whose cross product is at most this (in square points) is straight: its vertex is cut away without a
@@ -972,8 +967,8 @@ impl ContentPainterCx<'_> {
 
     /// Paints the part `uv` of `texture` into `rect`, untinted, with corners of `radius` points (zero for square ones).
     /// The picture is data, painted as `Draw::texture` paints one.
-    pub fn picture(&self, texture: egui::TextureId, rect: Rect, uv: Rect, radius: f32) {
-        super::draw::data_picture(&self.painter, self.tokens, self.data, texture, rect, uv, UiTokens::corner(radius));
+    pub fn picture(&self, texture: craft_ui_rt::ImageKey, rect: Rect, uv: Rect, radius: f32) {
+        super::draw::data_picture(self.painter, self.tokens, self.data, texture, rect, uv, UiTokens::corner(radius));
     }
 
     /// Paints the theme's transparency checkerboard over `rect`, as the data over it; see [`Self::checker_with`].
