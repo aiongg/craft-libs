@@ -28,6 +28,12 @@ pub trait RuleScope {
     /// Whether the file belongs to a crate that links egui.
     fn egui_linked(&self, file: &Path) -> bool;
 
+    /// Whether the file belongs to a crate that depends on `craft-ui-contract` and is not exempt from `app/no-egui`
+    /// (`craft-cloud-ui`, `craft-update` and the contract crate itself are).
+    fn contract_client(&self, _file: &Path) -> bool {
+        false
+    }
+
     /// Whether the file belongs to a test target with `harness = false`.
     fn harness_free(&self, file: &Path) -> bool;
 
@@ -47,6 +53,7 @@ pub struct StaticScope {
     allowed: Vec<(String, PathBuf)>,
     layers: Vec<(PathBuf, u8)>,
     egui_linked: Vec<PathBuf>,
+    contract_clients: Vec<PathBuf>,
     harness_free: Vec<PathBuf>,
     closed: Vec<String>,
     types: BTreeMap<PathBuf, Types>,
@@ -77,6 +84,13 @@ impl StaticScope {
     #[must_use]
     pub fn egui_linked(mut self, prefix: impl Into<PathBuf>) -> Self {
         self.egui_linked.push(prefix.into());
+        self
+    }
+
+    /// Files under `prefix` belong to a crate that `app/no-egui` applies to.
+    #[must_use]
+    pub fn contract_client(mut self, prefix: impl Into<PathBuf>) -> Self {
+        self.contract_clients.push(prefix.into());
         self
     }
 
@@ -118,6 +132,10 @@ impl RuleScope for StaticScope {
 
     fn egui_linked(&self, file: &Path) -> bool {
         self.egui_linked.iter().any(|p| file.starts_with(p))
+    }
+
+    fn contract_client(&self, file: &Path) -> bool {
+        self.contract_clients.iter().any(|p| file.starts_with(p))
     }
 
     fn harness_free(&self, file: &Path) -> bool {

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "tools/rt-runner"]
+members = ["crates/*", "tools/rt-runner", "tools/codemod-v4"]
 exclude = ["vendor/krilla", "vendor/hayro", "vendor/hayro-interpret", "vendor/hayro-syntax", "vendor/hayro-jbig2", "vendor/hayro-cmap", "vendor/hayro-postscript", "vendor/linesweeper", "vendor/vello_common", "vendor/vello_cpu"]
 
 [workspace.package]
