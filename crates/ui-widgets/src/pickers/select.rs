@@ -316,7 +316,7 @@ fn step(stops: &[usize], from: Option<usize>, mv: NavMove) -> Option<usize> {
     }
 }
 
-impl<T: Value + 'static> Component for Select<'_, T> {
+impl<T: Value + 'static + crate::contract::MemoProps> Component for Select<'_, T> {
     const ROLE: Role = Role::COMBO_BOX;
     const KEYS: crate::runtime::focus::KeyUse = {
         let mut keys = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();

@@ -17,7 +17,6 @@ use crate::contract::{
 };
 use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::{EnvView, Label, LengthUnits, UnitKind, Units};
-use crate::runtime::frame;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
@@ -46,6 +45,12 @@ const DEFAULT_STEP: f64 = 1.0;
 /// so their values and units line up across the group's fields.
 const VALUES: ColumnKey = ColumnKey::new("number_values");
 const UNITS: ColumnKey = ColumnKey::new("number_units");
+
+/// The time of the last build that stepped a held step half, to count the steps due in between.
+#[derive(Clone, Default)]
+struct HoldClock {
+    last: Option<f64>,
+}
 
 /// Where a number field shows its unit.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
@@ -679,7 +684,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         }
     }
 }
-impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
+impl<V: NumberValue + 'static + crate::contract::MemoProps> Component for NumberField<'_, V> {
     const ROLE: Role = Role::SPIN_BUTTON;
     const INPUT: Input = Input::Text;
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Text).with_moves();
@@ -885,9 +890,12 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             if cx.resolved.read_only || !cx.resolved.enabled {
                 continue;
             }
-            let ctx = cx.response.ctx.clone();
+            let ctx = cx.core.context().clone();
             let hold = HoldRepeat::new(start.time);
-            let (now, elapsed) = frame::running(&ctx).map_or((start.time, 0.0), |facts| (facts.now, facts.elapsed));
+            let now = ctx.time();
+            let clock = cx.memory::<HoldClock>();
+            let elapsed = if first { 0.0 } else { clock.last.map_or(0.0, |last| (now - last).max(0.0)) };
+            clock.last = Some(now);
             let scale = key_scale(MoveMods::new(press.mods.shift, false, Granularity::Unit).fine(press.mods.alt), fine_shows);
             for _ in 0..if first { 1 } else { hold.due(now, elapsed) } {
                 self.step_by(cx, notches, scale);

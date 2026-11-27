@@ -214,7 +214,7 @@ fn arrange<K: Value>(cx: &MeasureCx<'_, WordRun<'_, K>>, words: &[RunWord<K>], r
     Arranged { placement: place(&wants, room, cx.gap()), wants, line }
 }
 
-impl<K: Value + 'static> Component for WordRun<'_, K> {
+impl<K: Value + 'static + crate::contract::MemoProps> Component for WordRun<'_, K> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
     const SINGLE_VALUE: bool = true;

@@ -146,7 +146,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> Component for Table<'_, K> {
     const ROLE: Role = Role::TABLE;
     const PARTS: bool = false;
     type Style = TableStyle;
@@ -216,7 +216,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> Collection for Table<'_, K> {
     type Key = K;
     type ItemLayout = SpanLayout;
     type Selection = Selection<K>;

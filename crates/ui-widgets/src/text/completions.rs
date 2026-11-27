@@ -60,7 +60,9 @@ pub(crate) fn show<C: Component, V: 'static>(ui: &mut OverlayUi<'_>, cx: &mut Cx
         hasher.finish()
     };
     let list_id = cx.id.with("completions");
-    let focus = Overlay::dropdown().focus.list_enter(enter).list(list_id);
+    let mut focus = Overlay::dropdown().focus;
+    focus.list_enter = enter;
+    let focus = focus.list(list_id);
     let overlay = Overlay::dropdown().focus(focus);
     let events = ui.show(popup, overlay, |ui, _| {
         let list = List::options(name.clone()).id(list_id).rows_stamp(stamp).show_items(ui, &Candidates { labels: &labels }, &mut |at, _| {
