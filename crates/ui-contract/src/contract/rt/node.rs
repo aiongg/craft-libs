@@ -456,6 +456,8 @@ pub(crate) struct Kept {
     pub(crate) menu_bar: Option<bool>,
     /// The window's menu bar record (window root only), provided to the window's nodes.
     pub(crate) menu: Option<MenuBar>,
+    /// The window's pending focus part (window root only), provided to the window's nodes.
+    pub(crate) focus_part: Option<super::focus::PendingPart>,
     /// The component's type name and bound command, from its last run (`runtime::inspect` records them).
     pub(crate) type_name: &'static str,
     pub(crate) command: Option<craft_keymap::CommandRef>,
@@ -532,6 +534,7 @@ impl Kept {
             notch: craft_behavior::WheelNotch::DEFAULT,
             menu_bar: None,
             menu: None,
+            focus_part: None,
             fade: Default::default(),
             level: Default::default(),
             focus: FocusKept::default(),
@@ -717,6 +720,10 @@ impl Element for ComponentNode {
                 }
                 if *on {
                     kept.focus.took_focus();
+                    // A move from another node that named one of this node's parts.
+                    if let Some(part) = super::focus::PendingPart::take(cx) {
+                        kept.focus.part = Some(part);
+                    }
                 } else {
                     super::ime::focus_left(kept, cx);
                 }

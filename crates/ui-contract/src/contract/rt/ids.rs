@@ -169,6 +169,12 @@ pub(crate) fn request_focus(cx: &mut BuildCx<'_>, target: FocusTarget) -> bool {
     };
     let Some(node) = node_of(cx, id) else { return false };
     if cx.is_focusable(node) {
+        if let FocusTarget::Part(_, part) = target
+            && cx.runtime().focused(cx.window()) != Some(node)
+        {
+            // The node takes the part as it gains focus.
+            super::focus::PendingPart::set(cx, node, part);
+        }
         cx.focus_node(node);
     } else {
         // A node that is no stop (a collection row holding stops) gives focus to its first stop.
