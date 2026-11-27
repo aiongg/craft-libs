@@ -8,7 +8,7 @@ use crate::buttons::Button;
 use crate::contract::{Politeness, Show as _, clicked};
 use crate::display::{Shade, Text};
 use crate::primitives::IconSpec;
-use crate::runtime::env::{Label, WindowKey};
+use crate::runtime::env::Label;
 use crate::runtime::toast;
 use crate::testing::{Drive, StoryData, StoryOutput, stage, story};
 use craft_behavior::IconId;
@@ -107,18 +107,17 @@ fn settings_notices(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(NoticeCenter, covers = [], drive = Drive::Never)]
 fn notice_center(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let ctx = ui.ctx().clone();
-    let window = WindowKey::new("notice-center-story");
-    if toast::cards(&ctx, &window).is_empty() {
-        let center = NoticeCenter::new().window(window.clone());
-        let _ = center.post(&ctx, &PostedNotice::new("Pasted from the clipboard").sticky(), &[]);
+    if ctx.toasts().is_empty() {
+        let center = NoticeCenter::new();
+        let _ = center.post(ui, &PostedNotice::new("Pasted from the clipboard").sticky(), &[]);
         let warning = PostedNotice::new("Profile mismatch").lines(vec!["The document uses its own profile.".to_owned()]).tone(Tone::Warn);
-        let _ = center.post(&ctx, &warning.dismiss_key("profile-mismatch".to_owned()).sticky(), &[]);
+        let _ = center.post(ui, &warning.dismiss_key("profile-mismatch".to_owned()).sticky(), &[]);
         let error = PostedNotice::new("Couldn't save the document").lines(vec!["The disk is full.".to_owned()]).tone(Tone::Bad);
-        let _ = center.post(&ctx, &error.sticky(), &[]);
+        let _ = center.post(ui, &error.sticky(), &[]);
     }
     let area = stage(ui);
-    ToastStack::show(ui, &window, area);
-    NoticeCenter::new().window(window).show(ui).into()
+    ToastStack::show(ui, area);
+    NoticeCenter::new().show(ui).into()
 }
 
 /// A notice with a title, a message, its own action and Don't Show Again in the bottom corner of the story's stage. It
@@ -126,36 +125,34 @@ fn notice_center(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(NoticeCenter, covers = [], drive = Drive::Never)]
 fn notice_center_with_message(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let ctx = ui.ctx().clone();
-    let window = WindowKey::new("notice-center-message-story");
-    if toast::cards(&ctx, &window).is_empty() {
-        let center = NoticeCenter::new().window(window.clone());
+    if ctx.toasts().is_empty() {
+        let center = NoticeCenter::new();
         let notice = PostedNotice::new("Form submitted")
             .message("The server accepted all 12 fields.")
             .action("Show Response")
             .tone(Tone::Good)
             .dismiss_key("form-submitted".to_owned())
             .sticky();
-        let _ = center.post(&ctx, &notice, &[]);
+        let _ = center.post(ui, &notice, &[]);
     }
     let area = stage(ui);
-    ToastStack::show(ui, &window, area);
-    NoticeCenter::new().window(window).show(ui).into()
+    ToastStack::show(ui, area);
+    NoticeCenter::new().show(ui).into()
 }
 
 /// A neutral toast, a warning with ten lines and an error in the bottom corner of the story's stage.
 #[story(ToastStack, covers = [], drive = Drive::Never)]
 fn toast_stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let ctx = ui.ctx().clone();
-    let window = WindowKey::new("toast-stack-story");
-    if toast::cards(&ctx, &window).is_empty() {
+    if ctx.toasts().is_empty() {
         let lines = (1..=10).map(|n| format!("Warning {n}"));
-        toast::post(&ctx, &window, toast::Toast::new(Label::Empty).title("Pasted from the clipboard").timeout(None));
-        toast::post(&ctx, &window, toast::Toast::new(Label::Empty).title("Opened with 10 warnings").lines(lines).tone(Tone::Warn).timeout(None));
+        ctx.toasts().post(toast::Toast::new(Label::Empty).title("Pasted from the clipboard").timeout(None));
+        ctx.toasts().post(toast::Toast::new(Label::Empty).title("Opened with 10 warnings").lines(lines).tone(Tone::Warn).timeout(None));
         let error = toast::Toast::new(Label::Empty).title("Couldn't save the document").lines(["The disk is full."]).tone(Tone::Bad);
-        toast::post(&ctx, &window, error.timeout(None));
+        ctx.toasts().post(error.timeout(None));
     }
     let area = stage(ui);
-    ToastStack::show(ui, &window, area);
+    ToastStack::show(ui, area);
     Text::new("Toasts").show(ui).into()
 }
 
@@ -164,17 +161,18 @@ fn toast_stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(ToastStack, covers = [], drive = Drive::Never)]
 fn toast_stack_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let ctx = ui.ctx().clone();
-    let window = WindowKey::new("toast-stack-progress-story");
-    let cards = toast::cards(&ctx, &window);
-    if cards.is_empty() {
-        toast::post(&ctx, &window, toast::Toast::new(Label::Empty).title("Pasted from the clipboard").timeout(None));
+    let (empty, running) = {
+        let queue = ctx.toasts();
+        (queue.is_empty(), queue.cards().any(|(_, toast)| toast.progress.is_some()))
+    };
+    if empty {
+        ctx.toasts().post(toast::Toast::new(Label::Empty).title("Pasted from the clipboard").timeout(None));
     }
-    let running = cards.iter().any(|card| card.toast.progress.is_some());
     if clicked(&Button::new("Export").show(ui)) && !running {
         let job = toast::Toast::new("Page 3 of 8").title("Exporting poster.pdf").progress(0.375).action(toast::ToastAction::new("Cancel"));
-        toast::post(&ctx, &window, job);
+        ctx.toasts().post(job);
     }
     let area = stage(ui);
-    ToastStack::show(ui, &window, area);
+    ToastStack::show(ui, area);
     Text::new("Toasts").show(ui).into()
 }
