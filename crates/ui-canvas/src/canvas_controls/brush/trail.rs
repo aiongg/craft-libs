@@ -182,6 +182,7 @@ impl CoverageMask {
 /// What the trail shows its footprint as.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum TrailTone {
     /// The marquee's colour.
     #[default]
@@ -214,6 +215,7 @@ pub struct StrokeTrailStyle {
 pub struct StrokeTrail<'a> {
     #[common]
     common: Common,
+    #[key(by = (self.mask.id, self.mask.revision))]
     mask: &'a mut CoverageMask,
     /// What the footprint shows as.
     #[prop]
@@ -258,7 +260,7 @@ impl Component for StrokeTrail<'_> {
             return;
         }
         let painter = ui.content_painter(cx);
-        let ctx = painter.painter.ctx();
+        let ctx = painter.egui_ctx();
         let store = TextureStore::<(egui::Id, u64)>::in_context(ctx, STORE_SALT, TextureStoreOptions::frames());
         let (key, revision) = ((cx.id, self.mask.id), Revision::new(self.mask.revision));
         // A second paint of the pass finds the entry at this revision and nothing dirty.

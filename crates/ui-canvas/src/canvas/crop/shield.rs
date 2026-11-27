@@ -16,6 +16,7 @@ const SHIELD_EDITING: f32 = 0.5;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui_macros::PlainData)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum ShieldColor {
     /// The canvas colour.
     #[default]
@@ -28,6 +29,7 @@ pub enum ShieldColor {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui_macros::PlainData)]
 #[serde(default)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct CropShield {
     /// Show Cropped Area: off hides everything outside the frame behind the canvas colour.
     pub show_cropped_area: bool,

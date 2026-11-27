@@ -142,7 +142,7 @@ fn stretches(around: &Option<(Label, Label)>) -> (&str, &str) {
 /// Where the layout is painted in the content rect: a single line is centred with its underline in a taller rect, so
 /// the underline follows the text.
 fn origin(content: Rect, flow: &Flow, layout: &TextLayout) -> Pos2 {
-    let spare = if layout.galley.rows.len() <= 1 { (content.height() - painted_height(layout)).max(0.0) } else { 0.0 };
+    let spare = if layout.rows() <= 1 { (content.height() - painted_height(layout)).max(0.0) } else { 0.0 };
     let line = Flow::new(content, flow.is_rtl()).take_start(layout.size().x).0;
     Pos2::new(line.left(), content.top() + spare / 2.0)
 }
@@ -289,5 +289,5 @@ impl Component for Link {
 
 /// The height a link paints: its text, and the underline where it reaches below the text's box.
 fn painted_height(layout: &TextLayout) -> f32 {
-    layout.size().y.max(layout.galley.mesh_bounds.max.y)
+    layout.size().y.max(layout.ink().max.y)
 }

@@ -8,6 +8,7 @@ pub use craft_behavior::MiddleButton;
 /// The navigation choices, with Photoshop's defaults.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct NavigationOptions {
     /// General, Animated Zoom: a zoom command, a Zoom tool click and a Navigator zoom ease on the canvas, and a held Zoom
     /// tool press zooms continuously; the wheel and a pinch follow the input at once. On.
@@ -54,6 +55,7 @@ pub struct NavigationOptions {
 /// How a middle-button autoscroll runs: its speed, what its release does and what ends it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum MiddleAutoscrollFeel {
     /// The canvas's one autoscroll rule (`Autoscroll::step`) on the pointer's offset past the dead zone; letting go
     /// after a drag past the drag threshold ends the run.
@@ -69,6 +71,7 @@ pub enum MiddleAutoscrollFeel {
 /// What a plain and a modified wheel do over a canvas.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum WheelScheme {
     /// The wheel scrolls; Alt and the zoom modifiers zoom.
     #[default]

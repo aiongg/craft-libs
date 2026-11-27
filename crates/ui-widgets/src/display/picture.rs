@@ -207,7 +207,7 @@ impl Component for Picture<'_> {
                 let texture = store(&cx.ctx).get_or_put(&cx.ctx, (cx.resolved.id, *key), self.revision, *image);
                 let target = fit_rect(cx.content_rect, texture.size_vec2());
                 // The store packs, so the texture is the picture's part of a shared page.
-                ui.content_painter(cx).picture(texture.id, target, texture.uv(), 0.0);
+                ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
             }
             Source::Painter(paint) => paint(&ui.content_painter(cx), cx.content_rect),
             Source::Rendered { key, thumbnails, source } => {
@@ -241,7 +241,7 @@ impl Component for Picture<'_> {
                 };
                 let target = fit_rect(cx.content_rect, texture.size_vec2());
                 // The store packs, so the texture is the picture's part of a shared page.
-                ui.content_painter(cx).picture(texture.id, target, texture.uv(), 0.0);
+                ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
             }
         }
     }

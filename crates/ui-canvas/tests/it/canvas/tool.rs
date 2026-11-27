@@ -1072,6 +1072,7 @@ const TARGET: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(100.0, 50.0
 struct DropSlot<'a> {
     #[common]
     common: Common,
+    #[key(skip)] // a test fixture's recording cell
     taken: &'a RefCell<Vec<u32>>,
 }
 

@@ -611,7 +611,7 @@ impl Component for PreviewPane<'_> {
                                 mesh.add_rect_with_uv(visible, uv, tint.0);
                                 painter.data_shapes([Shape::mesh(mesh)]);
                             }
-                            None => painter.picture(texture.id, visible, uv, 0.0),
+                            None => painter.picture(crate::primitives::texture_key(texture.id), visible, uv, 0.0),
                         }
                     }
                     if let Some(PaneOverlay(overlay)) = self.overlay.take() {

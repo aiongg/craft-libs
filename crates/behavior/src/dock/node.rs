@@ -449,3 +449,46 @@ impl<P> Node<P> {
         Self::Dock { side, columns }
     }
 }
+
+impl<P: std::hash::Hash> std::hash::Hash for Node<P> {
+    /// The tree, depth first.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        match self {
+            Self::Split { axis, size, first, second } => {
+                axis.hash(state);
+                size.hash(state);
+                first.hash(state);
+                second.hash(state);
+            }
+            Self::Tabs { panels, active } => {
+                panels.hash(state);
+                active.hash(state);
+            }
+            Self::Stack { entries } => entries.hash(state),
+            Self::Dock { side, columns } => {
+                side.hash(state);
+                columns.hash(state);
+            }
+        }
+    }
+}
+
+impl<P: std::hash::Hash> std::hash::Hash for StackEntry<P> {
+    /// Every field, the height by its bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.panel.hash(state);
+        self.open.hash(state);
+        super::groups::hash_size(self.height, state);
+    }
+}
+
+impl<P: std::hash::Hash> std::hash::Hash for Floating<P> {
+    /// What equality compares: everything but `id`, the rect and the placement by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.column.hash(state);
+        [self.rect.min.x, self.rect.min.y, self.rect.max.x, self.rect.max.y].map(f32::to_bits).hash(state);
+        self.native.hash(state);
+        self.edge.hash(state);
+    }
+}

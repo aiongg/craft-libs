@@ -409,8 +409,10 @@ pub struct CanvasScrollbars<'a> {
     /// While the vertical thumb drags, the bars show the tip this builds from the view as the drag moved it, beside the
     /// thumb on the reading-start side.
     #[prop]
+    #[key(skip)] // the tip text shows while a thumb drags, which input drives; it marks the node
     tip: Option<&'a dyn Fn(&CanvasView) -> Label>,
     /// The thumb pressed in this pass, as `update` read it from the press slot, for `paint` and `access`.
+    #[key(skip)] // the thumb pressed this pass, read by update
     held: Option<HeldThumb>,
 }
 

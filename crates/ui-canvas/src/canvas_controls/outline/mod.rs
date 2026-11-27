@@ -37,6 +37,7 @@ const MAX_SEGMENT_POINTS: f64 = 1000.0;
 /// What a click under the pointer would pick, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum HoverShape {
     /// A layer's or group's bounds: the line sits just outside the rectangle, so it never covers the layer's edge
     /// pixels.
@@ -51,6 +52,7 @@ pub enum HoverShape {
 /// How a [`SelectionOutline`] strokes its shapes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum SelectionOutlineLook {
     /// A thin line: the selected paths of a vector or design app.
     #[default]
@@ -202,7 +204,7 @@ fn tint(mask: &HoverMask, color: Color32) -> ColorImage {
 }
 
 fn paint_mask(painter: &ContentPainterCx<'_>, id: egui::Id, view: &CanvasView, mask: &HoverMask, color: Color32) {
-    let ctx = painter.painter.ctx();
+    let ctx = painter.egui_ctx();
     let store = TextureStore::<(egui::Id, u64)>::in_context(ctx, "canvas_controls.hover_mask", TextureStoreOptions::frames());
     let texture = store.get_or_put(ctx, (id, mask.generation()), Revision::of(&color.to_array()), || tint(mask, color));
     let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];

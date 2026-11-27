@@ -245,7 +245,7 @@ impl ActivateKeys {
 }
 
 /// The edit commands a component takes as `Intent::Edit`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct EditSet(u8);
 
 impl EditSet {
@@ -545,7 +545,7 @@ impl KeyUse {
 
 /// A set of modifier combinations held with the arrows (`KeyUse::nudge_mods`): each is matched exactly, so Shift alone
 /// does not admit Shift with Alt.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct NudgeMods(u16);
 
 impl NudgeMods {

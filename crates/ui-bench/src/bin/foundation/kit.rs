@@ -70,7 +70,7 @@ impl ItemOutput<Infallible> for RowOut {
 const CELL: PartKey = PartKey::new("cell");
 
 /// What a row is.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, craft_ui::contract::MemoProps)]
 pub enum RowKind {
     /// A sheet row: `cells` cell parts, each painting its own text.
     Cells { row: usize, cells: usize },

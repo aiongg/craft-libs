@@ -21,11 +21,11 @@ pub(crate) mod stories;
 pub use detail::{DetailPlan, snap_to_texels};
 
 use super::{AppPaint, PixelRect, RasterSource, canvas_space};
+use crate::contract::MemoProps as _;
 use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
 use crate::primitives::textures::UNTINTED;
 use crate::primitives::{
-    CachedTexture, Checker, CheckerArea, Draw, PaintSlot, Revision, RuleKind, TextureState, TextureStore, TextureStoreOptions, texture_factor,
-    texture_side,
+    CachedTexture, Checker, CheckerArea, Draw, Revision, RuleKind, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side,
 };
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
@@ -50,6 +50,7 @@ pub struct RasterStyle {
 /// How far a display's picture reaches past the document's edge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum Extent {
     /// The document alone.
     #[default]
@@ -289,13 +290,14 @@ pub struct RasterDisplay<'a> {
     #[prop(flag, name = "picture")]
     under_controls: bool,
     read: PixelRect,
+    #[key(skip)] // what update leaves for paint, written by the run
     shown: Option<Shown>,
     mapping: Option<Mapping>,
 }
 
 /// Where a mapped display's picture lies in document space; a source picture is drawn through the homography on a
 /// mesh of cells instead of as a flat quad.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, crate::contract::MemoProps)]
 struct Mapping {
     frame: Homography,
     cells: u32,
@@ -536,7 +538,7 @@ impl Component for RasterDisplay<'_> {
         // slot at the end, in show order with every other picture. Outside a canvas, or in a space with no slot, it
         // paints in place.
         let space = canvas_space(&cx.env);
-        let first = (self.under_controls && space.and_then(|space| space.picture_slot()).is_some()).then(|| PaintSlot::reserve(&painter.painter));
+        let first = (self.under_controls && space.and_then(|space| space.picture_slot()).is_some()).then(|| ui.slot_here());
         // The picture's area on screen: the document, or the mapped area. A mapped area with nothing of the unit
         // square in it has no checkerboard and no edge.
         let corners = match &self.mapping {
@@ -558,7 +560,7 @@ impl Component for RasterDisplay<'_> {
             // A light cell sits at the picture's top-left corner on screen, wherever the view puts the picture.
             let origin = corners.map_or(shown.view.rect.min, |corners| corners[0]);
             for area in areas.into_iter().flatten() {
-                painter.painter.add(checker.shape(painter.painter.ctx(), &ui.env.tokens, CheckerArea::Quad(area), origin));
+                painter.painter.add(checker.shape(painter.painter, &ui.env.tokens, CheckerArea::Quad(area), origin));
             }
         }
         // The region's colour past the document, over the checkerboard and under the picture. Only a region reaches
@@ -599,9 +601,7 @@ impl Component for RasterDisplay<'_> {
             painter.with_draw(|draw| edge(draw, corners));
         }
         if let (Some(first), Some(space)) = (first, space) {
-            let ctx = painter.painter.ctx().clone();
-            let shapes = first.take_after(&ctx);
-            space.paint_picture(&ctx, shapes);
+            space.paint_picture(&cx.ctx, ui.take_after(first));
         }
     }
 
@@ -677,4 +677,13 @@ fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: Pix
         }
     }
     Shape::mesh(mesh)
+}
+
+impl crate::contract::MemoProps for Picture<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            Picture::Source(source) => (0u8, source.size(), source.revision()).key(key),
+            Picture::Painted { size, paint } => (1u8, *size, paint).key(key),
+        }
+    }
 }

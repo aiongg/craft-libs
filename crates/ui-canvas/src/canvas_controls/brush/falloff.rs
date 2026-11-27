@@ -18,7 +18,7 @@ const MOST_SEGMENTS: usize = 160;
 /// How a dab of the tip covers from its centre out: solid to `core`, then falling to nothing at `reach` (document
 /// units), sampled at [`RINGS`](Self::RINGS) + 1 rings. The engine supplies the numbers
 /// ([`sampled`](Self::sampled)); an app without an engine uses [`from_hardness`](Self::from_hardness).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct TipFalloff {
     core: f64,
     reach: f64,

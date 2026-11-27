@@ -171,6 +171,7 @@ pub struct Guides<'a> {
     /// The distance an arrow key moves a guide with Shift held, in document units.
     #[prop(quantity = "document units")]
     big_step: f64,
+    #[key(skip)] // the guides' output, written by the run
     report: Report,
 }
 

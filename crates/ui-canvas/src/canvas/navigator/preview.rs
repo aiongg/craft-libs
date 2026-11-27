@@ -7,6 +7,7 @@ use crate::canvas::AppPaint;
 use crate::canvas::zoom_motion::{self, Steer};
 use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommands, WheelAction, WheelNavigation, WheelScheme};
 use crate::canvas_data::ProxyColor;
+use crate::contract::MemoProps as _;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi,
     PartsCx, Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
@@ -465,7 +466,7 @@ impl Component for Navigator<'_> {
         match preview {
             NavigatorPreview::Texture(texture) => {
                 painter.checker(fitted);
-                painter.picture(texture.id, fitted, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), 0.0);
+                painter.picture(crate::primitives::texture_key(texture.id), fitted, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), 0.0);
             }
             NavigatorPreview::Paint(mut paint) => paint.paint(&painter, fitted),
             NavigatorPreview::None => painter.checker(fitted),
@@ -536,5 +537,26 @@ impl Outcome for NavigatorOutput {
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
         self.view.story_facts()
+    }
+}
+
+impl crate::contract::MemoProps for NavigatorPreview<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            NavigatorPreview::Texture(texture) => {
+                (
+                    0u8,
+                    crate::primitives::texture_key(texture.id).0,
+                    texture.size.width,
+                    texture.size.height,
+                    texture.origin,
+                    texture.page.width,
+                    texture.page.height,
+                )
+                    .key(key);
+            }
+            NavigatorPreview::Paint(paint) => (1u8, paint).key(key),
+            NavigatorPreview::None => 2u8.key(key),
+        }
     }
 }

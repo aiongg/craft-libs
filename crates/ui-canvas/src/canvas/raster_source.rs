@@ -8,6 +8,7 @@ use egui::ColorImage;
 /// A rectangle of whole document pixels, `x0..x1` by `y0..y1` (exclusive ends).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct PixelRect {
     /// First column, inclusive.
     pub x0: i32,

@@ -75,19 +75,6 @@ fn named_params(ty: &Type, generics: &Generics) -> Vec<Type> {
     visit.found
 }
 
-/// The crates whose `#[derive(Component)]` types get their `ComponentKey`: every field of every component type there
-/// feeds the key or carries `#[key(..)]`. A crate joins once its field types implement `MemoProps`. `craft-layers` has no
-/// component type. Still unkeyed: ui-canvas (needs
-/// `MemoProps` for kurbo `Rect`, `Point`, `Vec2` and `BezPath` and for its own types) and the crates not yet checked above it; when the last joins, the list goes
-/// and every crate gets the key.
-const KEYED_CRATES: &[&str] =
-    &["craft-ui-contract", "craft-ui-test-kit", "craft-ui-widgets", "craft-ui-panels", "craft-ui-patterns", "craft-ui-shell", "craft-color-ui"];
-
-/// Whether the crate being compiled gets the `ComponentKey` impls (see [`KEYED_CRATES`]).
-pub(crate) fn keyed_crate() -> bool {
-    std::env::var("CARGO_PKG_NAME").is_ok_and(|name| KEYED_CRATES.contains(&name.as_str()))
-}
-
 /// The `ComponentKey` impl for a `#[derive(Component)]` type. A field whose type names a type parameter adds
 /// a `MemoProps` bound for that parameter (or its associated type); every other field must be `MemoProps` as written, so a field the key cannot feed
 /// is an error at the field.

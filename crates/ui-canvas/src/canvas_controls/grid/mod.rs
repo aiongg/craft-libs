@@ -7,7 +7,7 @@ pub(crate) mod stories;
 
 use crate::canvas::{CanvasSpace, GuideLine, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
-use crate::primitives::{GridInk, GridLook, GridStroke, PaintSlot, grid_lines_with};
+use crate::primitives::{GridInk, GridLook, GridStroke, grid_lines_with};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
@@ -27,6 +27,7 @@ const MAX_CROSSINGS: usize = 200_000;
 /// How the grid's lines are drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum GridLine {
     /// An unbroken line.
     #[default]
@@ -233,11 +234,10 @@ impl Component for CanvasGrid {
         let Some(space) = canvas_space(&cx.env) else { return };
         let shapes = cx.recall::<GridShapes>().shapes;
         let painter = ui.content_painter(cx);
-        let first = (self.under_pictures && space.picture_slot().is_some()).then(|| PaintSlot::reserve(&painter.painter));
+        let first = (self.under_pictures && space.picture_slot().is_some()).then(|| ui.slot_here());
         painter.painter.extend(shapes.iter().cloned());
         if let Some(first) = first {
-            let ctx = painter.painter.ctx().clone();
-            space.paint_picture(&ctx, first.take_after(&ctx));
+            space.paint_picture(&cx.ctx, ui.take_after(first));
         }
     }
 

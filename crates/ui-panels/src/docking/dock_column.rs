@@ -178,7 +178,7 @@ pub struct DockColumnStyle {
 /// In a floating window ([`ColumnBar::Window`]) the window's title row is the column's bar and the window's edges
 /// size it: the column shows its groups and their dividers only, and registers its seams.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container, unkeyed, probe(DockColumn<'static, u8>))]
+#[component(container, probe(DockColumn<'static, u8>))]
 pub struct DockColumn<'a, P: Value + Hash + 'static> {
     #[common]
     common: Common,
