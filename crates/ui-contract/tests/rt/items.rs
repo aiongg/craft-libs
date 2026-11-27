@@ -139,6 +139,8 @@ struct App {
     /// Item fn calls in the last step.
     calls: Cell<usize>,
     rect: Rect,
+    /// The list takes its width from its widest row, with a rows stamp so its kept measure serves.
+    content_width: bool,
 }
 
 fn app_ui(ui: &mut Ui, app: &mut App) {
@@ -146,8 +148,12 @@ fn app_ui(ui: &mut Ui, app: &mut App) {
     let calls = &app.calls;
     let list = List {
         common: Common::new(),
-        props: ContainerProps::new().sizing(Sizing::Fill),
-        items: CollectionProps::new().select(SelectMode::Single),
+        props: ContainerProps::new().sizing(if app.content_width { Sizing::Content } else { Sizing::Fill }),
+        items: if app.content_width {
+            CollectionProps::new().select(SelectMode::Single).rows_stamp(1)
+        } else {
+            CollectionProps::new().select(SelectMode::Single)
+        },
         selection: Some(Bind::bound(&mut app.selection)),
     };
     let out = list.show_items(ui, &Count(app.rows), &mut |_, _| {
@@ -184,7 +190,7 @@ fn row_center(app: &App, at: usize) -> Pos2 {
 }
 
 fn app(rows: usize) -> App {
-    App { rows, selection: Selection::default(), calls: Cell::new(0), rect: Rect::NOTHING }
+    App { rows, selection: Selection::default(), calls: Cell::new(0), rect: Rect::NOTHING, content_width: false }
 }
 
 #[test]
@@ -236,4 +242,21 @@ fn a_wheel_step_inside_the_band_runs_nothing() {
     let report = step(&mut rig, &mut app);
     assert_eq!((report.frame.runs, report.frame.scopes, report.frame.built), (0, 0, 0), "the rows view moves its content in layout: {report:?}");
     assert_eq!(app.calls.get(), 0, "no item fn call: the scope did not build");
+}
+
+#[test]
+fn a_select_keeps_the_largest_row_measure() {
+    let mut app = App { content_width: true, ..app(40) };
+    let mut rig = rig(&mut app);
+    let built = craft_ui::contract::take_widest_runs();
+    assert!(!built.is_empty(), "a content-sized list measures its largest row once: {built:?}");
+    let at = row_center(&app, 3);
+    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
+    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_down(at));
+    let _ = craft_ui::contract::take_row_builds();
+    let up = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_up(at));
+    assert_eq!(app.selection.lead(), Some(&3), "the click selects row 3");
+    assert!(up.frame.runs >= 1, "the list runs on the select: {up:?}");
+    assert!(craft_ui::contract::take_widest_runs().is_empty(), "the rows, room and stamp hold: the kept measure serves");
+    assert!(craft_ui::contract::take_row_builds().is_empty(), "no row is built to be measured again");
 }

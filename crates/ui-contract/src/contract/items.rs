@@ -31,10 +31,8 @@ fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body
         pressed: None,
         menu_open: false,
     };
-    let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(Arc::new(facts))));
-    let shown = body(ui, id);
-    Env::restore(ui.ctx(), installed);
-    shown
+    let env = Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(Arc::new(facts)));
+    Env::run_in(ui, env, |ui| body(ui, id))
 }
 
 /// Measures `item` as the item at `at` of a set, under the id and the item facts [`show_item`] shows it with.
@@ -87,6 +85,10 @@ mod hooks;
 mod keys;
 mod lead;
 mod measure;
+#[cfg(feature = "testing")]
+#[doc(hidden)]
+pub use measure::counts::{take_row_builds, take_row_measures, take_widest_runs};
+pub(crate) use measure::{MeasureAt, report_cell_width};
 mod members;
 pub use members::item_node;
 mod output;
@@ -259,8 +261,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     ended_rename: bool,
     /// The editor of the rename that ended still held focus, so focus goes back to the collection.
     refocus: bool,
-    /// The mapping between the screen and the rows when `ContainerProps.transform` zooms them.
-    xf: Option<areas::LayerMap>,
+    /// What the collection measured of its rows, read from its node's memory at step 4 and kept at step 15.
+    sizes: measure::RowSizes,
     header: Header,
     drags: Drags<C::Key>,
     /// The row a key move brought to the lead in a collection without its own scroll: the page's scroll owner shows it.
@@ -269,11 +271,13 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     revealing: Option<usize>,
     /// The row the collection's own press is held on this pass, and where on it.
     pressed: Option<(usize, crate::contract::collection::RowPressed)>,
-    /// The rows above and below the edge-press band declared this pass.
-    edge: Option<(C::Key, C::Key)>,
+    /// The rows above and below each edge-press band declared this run, by the band's part index.
+    edges: Vec<(C::Key, C::Key)>,
     /// The item rows that declare their `ROW` part this pass: the hash of the row's key, the row and its rect in the
     /// rows' view.
     row_parts: Vec<(u64, usize, Rect)>,
+    /// The member rows' recorded looks this run (`MEMBERS`), which the driver keeps on the collection's node.
+    member_looks: Vec<crate::contract::rt::items::MemberLooks>,
 }
 
 /// The primary-ness, click count, position in the layout's coordinates and scroll offset of a press on a row.
@@ -328,7 +332,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             renaming: Renaming::default(),
             ended_rename: false,
             refocus: false,
-            xf: None,
+            sizes: measure::RowSizes::default(),
             header: Header::default(),
             drags: Drags::default(),
             page_reveal: None,
@@ -336,10 +340,41 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             lead_at_read: None,
             renaming_at_read: None,
             pressed: None,
-            edge: None,
+            edges: Vec::new(),
             row_parts: Vec::new(),
+            member_looks: Vec::new(),
         }
     }
+}
+
+/// The modifiers of the newest pointer input in the run's queue `input`: the ones held at the press the run handles.
+/// Empty when the run had no pointer input.
+fn press_mods(input: &[crate::contract::rt::NodeInput]) -> craft_keymap::Mods {
+    input
+        .iter()
+        .rev()
+        .find_map(|event| match event {
+            crate::contract::rt::NodeInput::Pointer { mods, .. } => Some(*mods),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// The newest pointer input of the run's queue `input` with the given button that ended its press (`Gesture::Up`),
+/// with where it ended.
+fn released(input: &[crate::contract::rt::NodeInput], button: craft_ui_rt::PointerButton) -> Option<Pos2> {
+    input.iter().rev().find_map(|event| match event {
+        crate::contract::rt::NodeInput::Pointer { gesture: craft_ui_rt::Gesture::Up { .. }, pos, button: held, .. } if *held == button => Some(*pos),
+        _ => None,
+    })
+}
+
+/// The newest pointer position in the run's queue `input`.
+fn last_pointer(input: &[crate::contract::rt::NodeInput]) -> Option<Pos2> {
+    input.iter().rev().find_map(|event| match event {
+        crate::contract::rt::NodeInput::Pointer { pos, .. } => Some(*pos),
+        _ => None,
+    })
 }
 
 fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
@@ -351,11 +386,20 @@ fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
 
 // `StyleCx::face` sits here, with the measuring it calls, not in `style`: `style` is below `contract`.
 impl crate::style::StyleCx<'_> {
-    /// The size `face` has, measured from the `Ui` the collection hook fills this context from, so a collection's
-    /// `item_layout` measures a button's label and icon in the pass it lays out in. Zero in a context no collection
-    /// filled, which has nothing to measure in.
+    /// The size `face` has, measured in the build the collection hook lends this context
+    /// (`StyleCx::measuring_host`), so a collection's `item_layout` measures a button's label and icon in the run it
+    /// lays out in. Zero in a context no collection lent a build, which has nothing to measure in.
     pub fn face<S: crate::contract::Show>(&self, mut face: S) -> craft_ui_rt::Vec2 {
-        let Some(ui) = self.measuring else { return craft_ui_rt::Vec2::ZERO };
-        crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None)
+        let Some(host) = self.measuring_host() else { return craft_ui_rt::Vec2::ZERO };
+        let mut size = craft_ui_rt::Vec2::ZERO;
+        host.borrow_mut().with_ui(&mut |ui| size = crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None));
+        size
     }
+}
+
+/// Runs `f` with `scx` lending the build of `ui` to `StyleCx::face`, for a collection's `item_layout`.
+fn with_measuring<R>(ui: &mut Ui, scx: &crate::style::StyleCx<'_>, f: impl FnOnce(&crate::style::StyleCx<'_>) -> R) -> R {
+    let host: &mut dyn crate::contract::paint_ui::UiHost = ui;
+    let host = std::cell::RefCell::new(host);
+    f(&scx.clone().with_measuring(&host))
 }

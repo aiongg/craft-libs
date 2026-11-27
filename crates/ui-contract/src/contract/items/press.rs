@@ -11,7 +11,6 @@ use crate::primitives::Id;
 use crate::runtime::egui::response;
 use crate::runtime::env::ArenaId;
 use crate::runtime::focus;
-use crate::runtime::frame;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
 use craft_behavior::{Flow, ItemLayout, MiddleButton, PointerButton, PressPhase, SelectionChange, Sense};
@@ -56,17 +55,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let Placement { rect, offset, rtl } = at;
         let ctx = cx.context().clone();
         let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
-        let xf = self.xf;
         // A screen point in the layout's logical coordinates, relative to the rows' rect.
         let local = |at: Pos2| {
-            let at = xf.map_or(at, |map| map.to_layer(at)) - rect.min.to_vec2();
+            let at = at - rect.min.to_vec2();
             if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
         };
-        let mods_now = crate::runtime::pointer::frame_raw(&ctx).mods;
+        let mods_now = super::press_mods(cx.core.input());
         // A click on a row the collection does not take (a caption, a disabled row) is no pick: the layers around the
         // collection (a dropdown's list) stay open.
         if cx.core.activation.as_ref().is_some_and(|activation| !activation.by_key)
-            && let Some(pos) = crate::runtime::pointer::frame_raw(&ctx).pos
+            && let Some(pos) = super::last_pointer(cx.core.input())
             && local(pos).y >= 0.0
             && layout
                 .hit(local(pos), offset)
@@ -111,7 +109,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     self.drags.command = Some(self.source.key(at));
                     self.move_lead(at, LeadSource::Pointer);
                 } else if !secondary_on_toggle && (primary || !props.primary_picks) {
-                    let mods = crate::runtime::pointer::frame_raw(&ctx).mods;
+                    let mods = super::press_mods(cx.core.input());
                     let key = self.source.key(at);
                     let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
                     // A plain press on a selected row of a multiple selection leaves the selection whole, so a drag
@@ -137,7 +135,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         && comp.can_rename(&key)
                         && self.selected_keys(&self.selection) == std::slice::from_ref(&key);
                     if slow {
-                        let point = xf.map_or(start.origin, |map| map.to_layer(start.origin));
+                        let point = start.origin;
                         self.drags.slow = Some(SlowClick { key: key.clone(), at: point, on_label: false, released: None });
                     }
                     // A secondary press on a row of the selection leaves the selection whole: its menu acts on all of it.
@@ -225,7 +223,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
         {
             // A modified click is a command on the thumbnail (load as selection, and so on), not a pick.
-            let mods = crate::runtime::pointer::frame_raw(&ctx).mods;
+            let mods = super::press_mods(cx.core.input());
             if !(mods.shift || mods.cmd || mods.alt) {
                 if !self.keeps_pick(at, start.clicks) {
                     self.click_pick(comp, at, false, false, mods);
@@ -255,7 +253,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     self.ask_menu(request);
                 }
                 match self.drags.slow.as_mut() {
-                    Some(slow) if click && slow.on_label => slow.released = Some(frame::clock(&ctx)),
+                    Some(slow) if click && slow.on_label => slow.released = Some(ctx.time()),
                     _ => self.drags.slow = None,
                 }
                 if let Some(key) = self.drags.rename.take()
@@ -309,19 +307,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             _ => {}
         }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
-        // Something over the collection, or a part of a row or of the collection that takes the secondary click itself
-        // (its own menu, L-198) and is under the pointer, keeps the request away; a part that picks its item (a thumbnail) is the row's, and the request names
-        // it.
-        let released = crate::runtime::pointer::frame_raw(&ctx);
-        let hover = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover;
-        let menu_at = if released.release == Some(craft_behavior::PointerButton::Secondary)
-            && cx.core.response.hovered()
-            && hover.find(|hit| hit.part.is_some() && hit.sense.contains(Sense::CONTEXT_CLICK) && !hit.sense.contains(Sense::PICKS_ITEM)).is_none()
-        {
-            released.pos.filter(|pos| rect.contains(xf.map_or(*pos, |map| map.to_layer(*pos))))
-        } else {
-            None
-        };
+        // A part or row node under the pointer that takes the secondary click itself (its own menu, L-198) keeps it:
+        // the release reaches the collection's queue only when nothing under the pointer took it.
+        let menu_at = super::released(cx.core.input(), craft_ui_rt::PointerButton::Secondary).filter(|pos| rect.contains(*pos));
         let menu_row = menu_at.map(|pos| (pos, layout.hit(local(pos), offset)));
         // A secondary release on the empty space asks for the collection's own menu, which no item's menu is.
         if let Some((pos, None)) = menu_row {
