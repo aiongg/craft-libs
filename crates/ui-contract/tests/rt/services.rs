@@ -707,3 +707,51 @@ mod focused {
         assert_eq!(runs(), settled + 2, "nothing more while focus stays");
     }
 }
+
+// ----- session memory across windows
+
+mod moved_panel {
+    use craft_ui_contract::contract::{Id, Ui};
+    use craft_ui_contract::runtime::memory::RuntimeMemory;
+    use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Vec2, WindowId, WindowSpec};
+    use craft_ui_test_kit::rt::Rig;
+
+    /// The panel: counts its shows in session memory under its own id.
+    fn panel(ui: &mut Ui) -> u32 {
+        ui.with_session(Id::new("moved-panel"), |shows: &mut u32| {
+            *shows += 1;
+            *shows
+        })
+    }
+
+    /// One frame showing the panel in `at` only, with the runtime's memory above every window root, as the host
+    /// provides it.
+    fn frame(rig: &mut Rig<RecordingRenderer>, memory: &RuntimeMemory, windows: [WindowId; 2], at: WindowId) -> Vec<(WindowId, u32)> {
+        for window in windows {
+            rig.driver.runtime.mark_root(window);
+        }
+        let mut seen = Vec::new();
+        rig.frame_with(0.0, &mut |window, cx| {
+            cx.provide(memory.clone());
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                if window == at {
+                    seen.push((window, panel(ui)));
+                }
+            })
+        });
+        seen
+    }
+
+    /// A panel moved to another window finds the session memory it wrote in the first.
+    #[test]
+    fn session_memory_survives_a_window_move() {
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        let main = rig.main;
+        let other = rig.driver.open_inline_window(&WindowSpec::new("Other"));
+        let memory = RuntimeMemory::default();
+        assert_eq!(frame(&mut rig, &memory, [main, other], main), [(main, 1)]);
+        assert_eq!(frame(&mut rig, &memory, [main, other], other), [(other, 2)], "the moved panel reads what it wrote before");
+    }
+}
