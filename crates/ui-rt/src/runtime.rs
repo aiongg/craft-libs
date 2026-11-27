@@ -100,6 +100,8 @@ pub struct Runtime {
     pub(crate) clipboard: Vec<(WindowId, ClipboardRequest)>,
     /// Nodes that repaint at a frame time: (node, time), one entry per node.
     pub(crate) wakes: Vec<(NodeId, f64)>,
+    /// Nodes that lay out again at a frame time (`LayoutCx::time_until`): (node, time).
+    pub(crate) layout_wakes: Vec<(NodeId, f64)>,
     /// Nodes showing each image or surface.
     pub(crate) media: HashMap<Media, SmallVec<[NodeId; 2]>>,
     pub(crate) window_commands: Vec<(WindowId, WindowCommand)>,
@@ -145,6 +147,7 @@ impl Runtime {
             interact: IdMap::default(),
             clipboard: Vec::new(),
             wakes: Vec::new(),
+            layout_wakes: Vec::new(),
             media: HashMap::new(),
             window_commands: Vec::new(),
             closing: Vec::new(),
@@ -262,6 +265,7 @@ impl Runtime {
         self.windows.remove(&window);
         self.z_order.retain(|&w| w != window);
         self.wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
+        self.layout_wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
     }
 
     /// The open windows.
@@ -478,7 +482,7 @@ impl Runtime {
     }
 
     /// Queues the paint of every node whose wake time (`PaintCx::time_until`) is at or before
-    /// `now`.
+    /// `now`, and the layout of every node whose layout wake (`LayoutCx::time_until`) is.
     pub fn wake_due(&mut self, now: f64) {
         let tree = &mut self.tree;
         self.wakes.retain(|&(id, at)| {
@@ -488,11 +492,18 @@ impl Runtime {
             }
             !due
         });
+        self.layout_wakes.retain(|&(id, at)| {
+            let due = at <= now;
+            if due {
+                tree.mark_layout(id);
+            }
+            !due
+        });
     }
 
-    /// The earliest frame time a node asked to repaint at.
+    /// The earliest frame time a node asked to repaint or lay out at.
     pub fn next_wake(&self) -> Option<f64> {
-        self.wakes.iter().map(|&(_, at)| at).reduce(f64::min)
+        self.wakes.iter().chain(&self.layout_wakes).map(|&(_, at)| at).reduce(f64::min)
     }
 
     /// Every pixel of every window is drawn in the next frame (new surfaces, lost content).

@@ -47,16 +47,7 @@ pub(super) fn shared_line(props: &ContainerProps, sizes: RegionSizes) -> Option<
 
 #[doc(hidden)]
 pub fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
-    let pads = &tokens.tokens().space.pad;
-    match pad {
-        Pad::Tight => tokens.tokens().space.gap.tight,
-        Pad::Control => pads.control,
-        Pad::Regular => pads.regular,
-        Pad::Dialog => pads.dialog,
-        Pad::Roomy => pads.roomy,
-        Pad::Page => pads.roomy * 2.5,
-        _ => 0.0,
-    }
+    pad.points(tokens.tokens())
 }
 
 /// A container's padding on each side along each axis: its tier on `edges`, none on the others.
@@ -137,24 +128,7 @@ impl Gap {
 }
 
 pub(super) fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
-    let (gaps, page) = (&tokens.tokens().space.gap, &tokens.tokens().size.page.gap);
-    match gap {
-        Gap::None => 0.0,
-        Gap::Tight => gaps.tight,
-        Gap::Stack => gaps.stack,
-        Gap::Item => gaps.item,
-        Gap::Section => gaps.section,
-        Gap::CardColumn => gaps.card_column,
-        Gap::CardRow => gaps.card_row,
-        Gap::Inline => gaps.inline,
-        Gap::PageTitle => page.title,
-        Gap::PageLead => page.lead,
-        Gap::PageActions => page.actions,
-        Gap::PageSection => page.section,
-        Gap::PageHeading => page.heading,
-        Gap::PageLink => page.link,
-        _ => gaps.row,
-    }
+    gap.points_in(tokens.tokens())
 }
 
 pub(super) fn least_of(tokens: &UiTokens, least: Option<LeastWidth>) -> f32 {

@@ -55,8 +55,9 @@ impl<P: MemoProps> MemoView<P> {
         self
     }
 
-    /// Runs `view` with the props, or returns its kept value.
-    pub fn show<R: Clone + 'static>(self, ui: &mut Ui<'_, '_>, view: impl FnOnce(&mut Ui<'_, '_>, &P) -> R) -> R {
+    /// Runs `view` with the props, or returns its kept value. In a measuring run a kept view
+    /// answers with its kept size and value; one that must run runs `view` as a measuring run.
+    pub fn show<R: Clone + 'static>(self, ui: &mut Ui<'_, '_>, mut view: impl FnMut(&mut Ui<'_, '_>, &P) -> R) -> R {
         let (id, child) = ui.flow.child(type_key::<MemoView<P>>(), self.id);
         let mut key = MemoKey::new();
         key.feed_hash(&P::identity());
@@ -64,13 +65,33 @@ impl<P: MemoProps> MemoView<P> {
         let key = fold(key.finish());
         let place = Place { room: ui.flow.room() };
         let origin = ui.flow.next_min();
+        if let Some(under) = ui.flow.measuring {
+            let peeked = under.and_then(|u| ui.cx.peek::<ScopeNode>(u, child));
+            let node = peeked.as_ref().map(|p| p.node);
+            let kept = peeked
+                .filter(|p| !p.state.path && !p.state.marked && p.local.place == place)
+                .and_then(|p| p.local.value.as_ref().and_then(|v| v.downcast_ref::<R>()).map(|v| (v.clone(), p.local.size)));
+            if let Some((value, size)) = kept {
+                ui.flow.allocate(None, size, false);
+                return value;
+            }
+            let tokens = ui.flow.tokens.clone();
+            let gap = tokens.space.gap.stack;
+            let mut inner =
+                Ui::new(ui.cx, Flow::new(id, origin, Rect::from_min_size(origin, place.room), gap, tokens).in_view(ui.flow.view).measuring(node));
+            let out = view(&mut inner, &self.props);
+            let size = inner.flow.content_size();
+            ui.flow.absorb(&inner.flow);
+            ui.flow.allocate(None, size, false);
+            return out;
+        }
         let Ui { cx, flow } = ui;
         cx.keyed(child, |cx| {
             cx.inline(ScopeNode { key }, |kept, state, cx| {
                 let value = kept.value.as_ref().and_then(|v| v.downcast_ref::<R>());
                 if let Some(value) = value.filter(|_| !state.must_run() && !state.path && kept.place == place) {
                     cx.keep_children();
-                    flow.allocate(cx.node(), kept.size);
+                    flow.allocate(Some(cx.node()), kept.size, false);
                     return value.clone();
                 }
                 cx.count_scope();
@@ -80,11 +101,12 @@ impl<P: MemoProps> MemoView<P> {
                 let tokens = cx.tokens();
                 let gap = tokens.space.gap.stack;
                 let region = Rect::from_min_size(origin, place.room);
-                let mut inner = Ui::new(cx, Flow::new(id, origin, region, gap, tokens));
+                let mut inner = Ui::new(cx, Flow::new(id, origin, region, gap, tokens).in_view(flow.view));
                 let out = view(&mut inner, &self.props);
                 let Ui { cx, flow: inner } = inner;
                 let size: Vec2 = inner.content_size();
-                flow.allocate(cx.node(), size);
+                flow.absorb(&inner);
+                flow.allocate(Some(cx.node()), size, false);
                 if kept.placed != inner.placed || kept.size != size {
                     kept.placed = inner.placed;
                     kept.size = size;

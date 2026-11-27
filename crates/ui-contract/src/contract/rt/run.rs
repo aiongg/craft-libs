@@ -8,12 +8,12 @@
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, CornerRadii, DisplayList, Gesture, ImageKey, Item, PointerButton, Pos2, Rect, Rgba, Sense, Stroke, Vec2};
+use craft_ui_rt::{BuildCx, CornerRadii, DisplayList, Gesture, ImageKey, InlineState, Item, PointerButton, Pos2, Rect, Rgba, Sense, Stroke, Vec2};
 use smallvec::SmallVec;
 
 use super::key::{ComponentKey, component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, NodeInput, Place, Pointer, Variant};
-use super::ui::{Flow, Ui};
+use super::ui::Ui;
 use crate::contract::IdSource;
 
 /// What `measure` sees: the room the component is shown in.
@@ -35,7 +35,7 @@ pub struct Cx<'a> {
 }
 
 impl<'a> Cx<'a> {
-    fn settled(rect: Rect, tokens: &'a Tokens) -> Cx<'a> {
+    pub(crate) fn settled(rect: Rect, tokens: &'a Tokens) -> Cx<'a> {
         Cx { rect, tokens, input: &[], settled: true }
     }
 
@@ -145,102 +145,64 @@ pub trait Component: ComponentKey + Sized {
     fn finish(self, cx: &Cx<'_>) -> Self::Output;
 }
 
-/// A component with a body: its body closure runs whenever its scope's build reaches it; its own
-/// hooks run only when its own inputs changed.
-pub trait Container: Component {
-    /// The space around the body.
-    fn padding(&self, _cx: &MeasureCx<'_>) -> f32 {
-        0.0
-    }
-
-    /// The space between the body's children.
-    fn gap(&self, cx: &MeasureCx<'_>) -> f32;
+/// Whether a node keeps its outputs: it ran before with this component key and carries no mark.
+/// Its room may have moved: what it shows depends on its size, which the size cache or `measure`
+/// gives for the new room.
+pub(crate) fn holds(kept: &Kept, key: Option<u128>, state: InlineState) -> bool {
+    !state.must_run() && key.is_some() && kept.key == key && !kept.variants.is_empty()
 }
 
-/// The keep decision (section 3.3): same type (the child key holds it), same component key, same
-/// place, no mark, and a run before.
-fn keeps(kept: &Kept, key: Option<u128>, place: Place, must_run: bool) -> bool {
-    !must_run && key.is_some() && kept.key == key && kept.place == place && !kept.variants.is_empty()
-}
-
-/// Shows a leaf: keeps it, or runs its hooks.
-pub(crate) fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
+/// Shows a leaf: keeps it, or runs its hooks. In a measuring run it only reports its size: a kept
+/// node's from its size cache, otherwise `measure`'s.
+pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
     let (id, child) = ui.flow.child(type_key::<C>(), component.id_source());
     let key = component_key(&component);
-    let place = Place { room: ui.flow.room() };
+    let room = ui.flow.room();
+    let mut component = component;
+    if let Some(under) = ui.flow.measuring {
+        let cached =
+            under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).filter(|p| holds(p.local, key, p.state)).and_then(|p| p.local.cached(room));
+        let tokens = ui.flow.tokens.clone();
+        let size = cached.unwrap_or_else(|| component.measure(&MeasureCx { room, tokens: &tokens }));
+        let rect = ui.flow.allocate(None, size, false);
+        return component.finish(&Cx::settled(rect, &tokens));
+    }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold) }, |kept, state, cx| {
-            if keeps(kept, key, place, state.must_run()) {
+            let kept_outputs = holds(kept, key, state);
+            let size = match kept.cached(room).filter(|_| kept_outputs) {
+                Some(size) => size,
+                None => {
+                    let tokens = if kept_outputs { flow.tokens.clone() } else { cx.tokens() };
+                    component.measure(&MeasureCx { room, tokens: &tokens })
+                }
+            };
+            let rect = flow.allocate(Some(cx.node()), size, false);
+            if kept_outputs && size == kept.size {
                 cx.keep_children();
-                let rect = flow.allocate(cx.node(), kept.size);
+                kept.cache(room, size);
                 return component.finish(&Cx::settled(rect, &flow.tokens));
             }
             let tokens = cx.tokens();
-            let mut component = component;
-            let size = component.measure(&MeasureCx { room: place.room, tokens: &tokens });
-            let rect = flow.allocate(cx.node(), size);
-            run(component, kept, cx, Ran { id, key, place, size, rect, tokens: &tokens })
-        })
-    })
-}
-
-/// Shows a container: its body always runs; its own hooks run when its key, place or size moved or
-/// it is marked.
-pub(crate) fn show_container<C: Container, R>(
-    component: C,
-    ui: &mut Ui<'_, '_>,
-    fill_width: bool,
-    body: impl FnOnce(&mut Ui<'_, '_>) -> R,
-) -> (R, C::Output) {
-    let (id, child) = ui.flow.child(type_key::<C>(), component.id_source());
-    let key = component_key(&component);
-    let place = Place { room: ui.flow.room() };
-    let origin = ui.flow.next_min();
-    let Ui { cx, flow } = ui;
-    cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold) }, |kept, state, cx| {
-            let own_kept = keeps(kept, key, place, state.must_run());
-            let tokens = if own_kept { flow.tokens.clone() } else { cx.tokens() };
-            let measure = MeasureCx { room: place.room, tokens: &tokens };
-            let (pad, gap) = (component.padding(&measure), component.gap(&measure));
-            let region = Rect::from_min_size(origin + Vec2::splat(pad), (place.room - Vec2::splat(2.0 * pad)).max(Vec2::ZERO));
-            let mut inner = Ui::new(cx, Flow::new(id, origin, region, gap, tokens.clone()));
-            let out = body(&mut inner);
-            let Ui { cx, flow: inner } = inner;
-            let mut size = inner.content_size() + Vec2::splat(2.0 * pad);
-            if fill_width {
-                size.x = place.room.x;
-            }
-            let rect = flow.allocate(cx.node(), size);
-            let moved = kept.placed != inner.placed;
-            if moved {
-                kept.placed = inner.placed;
-            }
-            if own_kept && kept.size == size {
-                if moved {
-                    cx.request_layout();
-                }
-                return (out, component.finish(&Cx::settled(rect, &tokens)));
-            }
-            (out, run(component, kept, cx, Ran { id, key, place, size, rect, tokens: &tokens }))
+            run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens })
         })
     })
 }
 
 /// The facts of a run decided before its hooks.
-struct Ran<'a> {
-    id: egui::Id,
-    key: Option<u128>,
-    place: Place,
-    size: Vec2,
-    rect: Rect,
-    tokens: &'a Arc<Tokens>,
+pub(crate) struct Ran<'a> {
+    pub(crate) id: egui::Id,
+    pub(crate) key: Option<u128>,
+    pub(crate) place: Place,
+    pub(crate) size: Vec2,
+    pub(crate) rect: Rect,
+    pub(crate) tokens: &'a Arc<Tokens>,
 }
 
 /// Runs the hooks after `measure`: input, update, paint variants, access, finish. The node's
 /// layout, paint and access run in this frame.
-fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ran: Ran<'_>) -> C::Output {
+pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ran: Ran<'_>) -> C::Output {
     cx.count_run();
     cx.mark_changed();
     let sense = component.sense();
@@ -255,6 +217,8 @@ fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut BuildCx<'_>, ra
     kept.key = ran.key;
     kept.place = ran.place;
     kept.size = ran.size;
+    kept.forget_sizes();
+    kept.cache(ran.place.room, ran.size);
     kept.sense = sense;
     component.finish(&rcx)
 }

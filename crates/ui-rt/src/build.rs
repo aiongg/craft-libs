@@ -39,6 +39,14 @@ pub struct InlineState {
     pub path: bool,
 }
 
+/// What an inline node kept, read without reconciling it ([`BuildCx::peek`]).
+pub struct Peek<'p, L> {
+    pub node: NodeId,
+    pub local: &'p L,
+    /// Its marks as they stand; `new` and `key_moved` are always false.
+    pub state: InlineState,
+}
+
 impl InlineState {
     /// The node's own hooks must run: it is new, its key moved, or it is marked.
     pub fn must_run(&self) -> bool {
@@ -203,6 +211,27 @@ impl BuildCx<'_> {
             node.element = Some(boxed);
         }
         out
+    }
+
+    /// The inline child of `parent` that `keyed(key, |cx| cx.inline(el, ..))` reconciles, when it
+    /// exists with an element of type `E`: its `Local` and marks, left as they are. A measuring run
+    /// asks a kept child for its size this way, so it reaches and changes no node.
+    pub fn peek<E: Element>(&self, parent: NodeId, key: impl Hash) -> Option<Peek<'_, E::Local>> {
+        let id = parent.child(ChildKey::Keyed(hash_key(&key), 0));
+        let node = self.rt.tree.nodes.get(&id)?;
+        if !node.inline || node.parent != Some(parent) {
+            return None;
+        }
+        let local = node.element.as_ref()?.as_any().downcast_ref::<ElementBox<E>>()?.local.as_ref()?;
+        let state = InlineState { new: false, key_moved: false, marked: node.dirty.has(Dirty::BUILD), path: node.dirty.has(Dirty::PATH) };
+        Some(Peek { node: id, local, state })
+    }
+
+    /// This inline node runs again in a later build round of this frame: what its build decided
+    /// from turned out stale (a reused measurement its content no longer matches).
+    pub fn rebuild(&mut self) {
+        let node = self.node;
+        self.rt.tree.mark_build(node);
     }
 
     /// The build leaves this node's children and layer children as they were: an inline node whose

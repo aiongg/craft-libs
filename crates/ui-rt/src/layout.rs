@@ -56,6 +56,18 @@ impl LayoutCx<'_> {
         scale.get(self)
     }
 
+    /// The frame time, for a layout that moves at moments it names (a scroll glide): `next` gives
+    /// the next such moment after the time, and the node lays out again then.
+    pub fn time_until(&mut self, next: impl FnOnce(f64) -> Option<f64>) -> f64 {
+        let now = self.rt.time;
+        if let Some(at) = next(now) {
+            let node = self.node;
+            self.rt.layout_wakes.retain(|&(n, _)| n != node);
+            self.rt.layout_wakes.push((node, at));
+        }
+        now
+    }
+
     pub fn child_count(&self) -> usize {
         self.rt.tree.nodes.get(&self.node).map_or(0, |n| n.children.len())
     }
@@ -109,6 +121,7 @@ pub(crate) fn layout_node(rt: &mut Runtime, text: &mut dyn TextEngine, id: NodeI
     };
     node.constraints = Some(c);
     let window = node.window;
+    rt.layout_wakes.retain(|&(n, _)| n != id);
     let size = c.constrain(el.layout(&mut LayoutCx { rt: &mut *rt, text, node: id }, c));
     let boundary = c.is_tight() || el.relayout_boundary();
     rt.counters.laid_out += 1;

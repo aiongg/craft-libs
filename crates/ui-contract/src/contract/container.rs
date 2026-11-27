@@ -147,6 +147,22 @@ pub enum Pad {
     Page,
 }
 
+impl Pad {
+    /// The padding in points under `tokens`.
+    pub fn points(self, tokens: &craft_theme::Tokens) -> f32 {
+        let pads = &tokens.space.pad;
+        match self {
+            Pad::Tight => tokens.space.gap.tight,
+            Pad::Control => pads.control,
+            Pad::Regular => pads.regular,
+            Pad::Dialog => pads.dialog,
+            Pad::Roomy => pads.roomy,
+            Pad::Page => pads.roomy * 2.5,
+            Pad::None => 0.0,
+        }
+    }
+}
+
 /// The edges a container's padding tier applies to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -835,6 +851,30 @@ pub enum Gap {
     PageHeading,
     /// `size.page.gap.link`: between a page's links.
     PageLink,
+}
+
+impl Gap {
+    /// The gap in points under `tokens`.
+    pub fn points_in(self, tokens: &craft_theme::Tokens) -> f32 {
+        let (gaps, page) = (&tokens.space.gap, &tokens.size.page.gap);
+        match self {
+            Gap::None => 0.0,
+            Gap::Tight => gaps.tight,
+            Gap::Stack => gaps.stack,
+            Gap::Item => gaps.item,
+            Gap::Section => gaps.section,
+            Gap::CardColumn => gaps.card_column,
+            Gap::CardRow => gaps.card_row,
+            Gap::Inline => gaps.inline,
+            Gap::PageTitle => page.title,
+            Gap::PageLead => page.lead,
+            Gap::PageActions => page.actions,
+            Gap::PageSection => page.section,
+            Gap::PageHeading => page.heading,
+            Gap::PageLink => page.link,
+            _ => gaps.row,
+        }
+    }
 }
 
 /// Set by a menu for its body: a horizontal divider takes `space.gap.inline` above and below its line, since the rows
