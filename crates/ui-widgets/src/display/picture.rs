@@ -56,7 +56,7 @@ enum Source<'a> {
     /// Pixels the caller makes, stored as a texture under `key`.
     Image { key: u64, image: &'a dyn Fn() -> ColorImage },
     /// A content painter that paints into the picture's rect.
-    Painter(Paint<'a>),
+    Painter(crate::contract::Versioned<Paint<'a>>),
     /// A picture rendered off the frame by a thumbnail source, shown pending until it arrives.
     Rendered { key: u64, thumbnails: &'a Thumbnails<u64>, source: &'a dyn ThumbSource<u64> },
     /// An SVG asset, rasterised at the picture's drawn size.
@@ -77,7 +77,6 @@ pub struct Picture<'a> {
     /// The version of the key's picture: a new revision makes `image` run again.
     #[prop]
     revision: Revision,
-    #[key(skip)]
     source: Source<'a>,
     /// The width of the picture's rect as a multiple of its height. Unset, an SVG takes its view box's aspect and any
     /// other source a square.
@@ -93,6 +92,33 @@ pub struct Picture<'a> {
     checker: bool,
 }
 
+impl crate::contract::MemoProps for Source<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            // The image is read only when the store lacks the texture of `key` at the picture's revision.
+            Source::Image { key: id, .. } => {
+                key.write(&[0]);
+                key.write(&id.to_le_bytes());
+            }
+            Source::Painter(paint) => {
+                key.write(&[1]);
+                paint.key(key);
+            }
+            Source::Rendered { key: id, thumbnails, source } => {
+                key.write(&[2]);
+                key.write(&id.to_le_bytes());
+                key.write(&(std::ptr::from_ref(*thumbnails) as usize).to_le_bytes());
+                key.write(&(std::ptr::from_ref(*source).cast::<()>() as usize).to_le_bytes());
+            }
+            Source::Svg(svg) => {
+                key.write(&[3]);
+                key.write(&(svg.as_ptr() as usize).to_le_bytes());
+                key.write(&svg.len().to_le_bytes());
+            }
+        }
+    }
+}
+
 /// A picture held by a component (a button's or a tile's) keys as the picture's own component key does.
 impl crate::contract::MemoProps for Picture<'_> {
     fn key(&self, key: &mut crate::contract::MemoKey) {
@@ -101,6 +127,16 @@ impl crate::contract::MemoProps for Picture<'_> {
 }
 
 impl<'a> Picture<'a> {
+    /// Declares the version of the data a painter picture's closure reads: the picture reruns when it changes.
+    /// Without it a painter reruns the picture at every build.
+    #[must_use]
+    pub fn painter_revision(mut self, revision: u64) -> Self {
+        if let Source::Painter(paint) = &mut self.source {
+            paint.revision = Some(revision);
+        }
+        self
+    }
+
     /// A picture of the image `image` makes, stored under `key`. `label` names it for a screen reader; an empty
     /// one leaves it decorative.
     pub fn new(label: impl Into<Label>, key: u64, image: &'a dyn Fn() -> ColorImage) -> Self {
@@ -110,7 +146,7 @@ impl<'a> Picture<'a> {
     /// A picture of what `paint` paints into the picture's rect, whose width is `aspect` times its height. `label`
     /// names it for a screen reader; an empty one leaves it decorative.
     pub fn painter(label: impl Into<Label>, aspect: ThumbAspect, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
-        Picture::from_source(label, Source::Painter(Box::new(paint))).aspect(aspect)
+        Picture::from_source(label, Source::Painter(crate::contract::Versioned::new(Box::new(paint)))).aspect(aspect)
     }
 
     /// A picture made off the frame by `source` for `key`: pending, with the framework's placeholder, until the
@@ -209,7 +245,7 @@ impl Component for Picture<'_> {
                 // The store packs, so the texture is the picture's part of a shared page.
                 ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
             }
-            Source::Painter(paint) => paint(&ui.content_painter(cx), cx.content_rect),
+            Source::Painter(paint) => (paint.value)(&ui.content_painter(cx), cx.content_rect),
             Source::Rendered { key, thumbnails, source } => {
                 let rect = cx.content_rect;
                 let request = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.ctx.pixels_per_point());

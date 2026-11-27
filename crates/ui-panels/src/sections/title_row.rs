@@ -120,16 +120,35 @@ pub struct TitleOutput {
     pub menu_rect: Option<Rect>,
 }
 
-type MenuRowsFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type MenuRowsFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
 
 /// The rows of the menu a container hangs from its header row.
 #[doc(hidden)]
 pub struct MenuRows<'a>(MenuRowsFn<'a>);
 
+impl crate::contract::MemoProps for MenuRows<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
+
 impl<'a> MenuRows<'a> {
     #[doc(hidden)]
     pub fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        MenuRows(Box::new(rows))
+        MenuRows(crate::contract::Versioned::new(Box::new(rows)))
+    }
+
+    /// Declares the version of the data the rows read: the container reruns when it changes. Without it the rows
+    /// rerun the container at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
+    }
+
+    #[doc(hidden)]
+    pub fn set_revision(&mut self, revision: u64) {
+        self.0.revision = Some(revision);
     }
 
     /// Hangs the menu `name` from the header row `shown`. It opens from the row's Menu action, under that action's
@@ -141,7 +160,7 @@ impl<'a> MenuRows<'a> {
         if let Some(button) = shown.menu_rect {
             menu = menu.anchor(Anchor::Rect(button));
         }
-        menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| (self.0)(ui, menu));
+        menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| (self.0.value)(ui, menu));
         (shown.action == Some(HeaderAction::Menu)).then_some(shown.edit.response.id)
     }
 }
@@ -159,6 +178,7 @@ impl Outcome for TitleOutput {
     }
 }
 
+#[derive(crate::contract::MemoProps)]
 enum Lead<'a> {
     None,
     Disclosure(Bind<'a, bool>),
@@ -238,7 +258,6 @@ pub struct TitleRow<'a> {
     /// the pointer, a handle mark at its end.
     #[prop]
     handle: bool,
-    #[key(skip)]
     lead: Lead<'a>,
     /// Whether the gate's value is mixed: the check box lead shows the mixed face.
     #[prop]

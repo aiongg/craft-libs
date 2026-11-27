@@ -50,7 +50,7 @@ impl Outcome for SectionOutput {
 }
 
 /// The closure that fills a section's trailing header region.
-type Controls<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type Controls<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
 
 /// An inline section of a panel that fills the width offered: a rule over a section-strength title row over a body. The open state is the container's own (it starts open), the caller's binding, or remembered across runs
 /// under a key; a fixed section is always open and shows the title alone.
@@ -68,10 +68,8 @@ pub struct Section<'a> {
     strength: HeaderStrength,
     /// The rows of the menu the header's Menu action, a right click, the Menu key and Shift+F10 open.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
-    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
-    #[key(skip)]
     controls: Option<Controls<'a>>,
     #[key(skip)]
     taken: Option<HeaderAction>,
@@ -146,7 +144,16 @@ impl<'a> Section<'a> {
     #[must_use]
     pub fn controls(mut self, controls: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.update_header(|header| header.trailing(true));
-        self.controls = Some(Box::new(controls));
+        self.controls = Some(crate::contract::Versioned::new(Box::new(controls)));
+        self
+    }
+
+    /// Declares the version of the data the `menu` rows and the `controls` read: the section reruns when it changes.
+    /// Without it each reruns the section at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.menu.iter_mut().for_each(|menu| menu.set_revision(revision));
+        self.controls.iter_mut().for_each(|controls| controls.revision = Some(revision));
         self
     }
 
@@ -227,7 +234,7 @@ impl Container for Section<'_> {
 
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         if let Some(controls) = self.controls.as_mut() {
-            controls(ui, cx);
+            (controls.value)(ui, cx);
         }
     }
 

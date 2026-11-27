@@ -219,8 +219,7 @@ pub struct Notice<'a> {
     lines: Vec<Label>,
     /// The host's leaves: under the actions of a centred notice, between the bullet lines and the actions of an inline
     /// or card notice; and their sizes in this pass.
-    #[key(skip)]
-    content: Vec<Box<dyn for<'r> Hosted<Notice<'r>> + 'a>>,
+    content: crate::contract::Versioned<Vec<Box<dyn for<'r> Hosted<Notice<'r>> + 'a>>>,
     content_sizes: Vec<Vec2>,
     #[key(skip)]
     placed: Option<Placed>,
@@ -299,7 +298,7 @@ impl<'a> Notice<'a> {
             announce: None,
             actions: Vec::new(),
             lines: Vec::new(),
-            content: Vec::new(),
+            content: crate::contract::Versioned::new(Vec::new()),
             content_sizes: Vec::new(),
             placed: None,
             taken: None,
@@ -328,6 +327,14 @@ impl<'a> Notice<'a> {
     #[must_use]
     pub fn content<C: Show + 'a>(mut self, component: C, output: impl FnOnce(C::Output) + 'a) -> Self {
         self.content.push(Box::new(Hosting::new(component, output)));
+        self
+    }
+
+    /// Declares the version of the data the hosted leaves read: the notice reruns when it changes. Without it the
+    /// leaves rerun the notice at every build, so call it after `content`.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.content.revision = Some(revision);
         self
     }
 
@@ -829,7 +836,7 @@ impl Component for Notice<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(placed) = self.placed.clone() else { return };
         let words = cx.words::<NoticeWords>();
-        for (at, (item, rect)) in std::mem::take(&mut self.content).into_iter().zip(&placed.content).enumerate() {
+        for (at, (item, rect)) in std::mem::take(&mut self.content.value).into_iter().zip(&placed.content).enumerate() {
             item.show(ui, (CONTENT, at), *rect);
         }
         for (at, label) in placed.labels.iter().cloned().enumerate() {

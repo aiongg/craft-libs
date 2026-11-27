@@ -85,7 +85,6 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The text a row's rename field opens with, `None` for the row's text: an empty draft when several rows are picked
     /// takes a name for all of them. Enter on a proposed draft nobody typed in commits it.
     #[prop(func = "Fn(&K) -> Option<String>")]
-    #[key(skip)]
     rename_draft: Option<RowText<'a, K>>,
     /// Which rows may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
@@ -110,7 +109,6 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop(flag)]
     row_menu: bool,
     /// The rows the query keeps, set by `filter`.
-    #[key(skip)]
     filter: Option<Filter<'a, K>>,
     /// The kept rows are in order of how well they match the query.
     #[prop]
@@ -183,7 +181,16 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
         let mut hasher = DefaultHasher::new();
         query.hash(&mut hasher);
         self.items = self.items.rows_stamp(hasher.finish());
-        self.filter = Some(Filter { query: query.to_owned(), texts: Box::new(texts) });
+        self.filter = Some(Filter { query: query.to_owned(), texts: crate::contract::Versioned::new(Box::new(texts)) });
+        self
+    }
+
+    /// Declares the version of the data the list's `rename_draft` and `filter` closures read: the list reruns when it
+    /// changes. Without it each reruns the list at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.rename_draft.iter_mut().for_each(|draft| draft.set_revision(revision));
+        self.filter.iter_mut().for_each(|filter| filter.texts.revision = Some(revision));
         self
     }
 
@@ -355,7 +362,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
 }
 
 /// The texts a row's key matches by.
-type KeyTexts<'a, K> = Box<dyn Fn(&K) -> Vec<Label> + 'a>;
+type KeyTexts<'a, K> = crate::contract::Versioned<Box<dyn Fn(&K) -> Vec<Label> + 'a>>;
 
 /// What `List::filter` keeps: the query and the texts a row's key matches by.
 struct Filter<'a, K> {
@@ -363,10 +370,17 @@ struct Filter<'a, K> {
     texts: KeyTexts<'a, K>,
 }
 
+impl<K> crate::contract::MemoProps for Filter<'_, K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::MemoProps::key(&self.query, key);
+        key.revision(self.texts.revision);
+    }
+}
+
 impl<K> Filter<'_, K> {
     /// The best rank of any text of `key`; `None` when none matches.
     fn rank(&self, matcher: &Matcher, key: &K, env: &Env) -> Option<Rank> {
-        (self.texts)(key).iter().filter_map(|text| matcher.score(text.resolved(&env.words).as_str())).map(|found| found.rank).min()
+        (self.texts.value)(key).iter().filter_map(|text| matcher.score(text.resolved(&env.words).as_str())).map(|found| found.rank).min()
     }
 }
 

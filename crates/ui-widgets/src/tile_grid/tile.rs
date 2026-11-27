@@ -465,7 +465,6 @@ pub struct Tile<'a> {
     #[prop]
     hue: Option<DataColor>,
     aspect: ThumbAspect,
-    #[key(skip)]
     first: Option<ThumbPaint<'a>>,
     /// A picture component shown as the tile's picture, for a face that is more than a painter.
     picture: Option<Picture<'a>>,
@@ -536,9 +535,19 @@ impl<'a> Tile<'a> {
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.aspect = aspect;
-        self.first = Some(Box::new(paint));
+        self.first = Some(ThumbPaint::new(Box::new(paint)));
         self.picture = None;
         self.icon = None;
+        self
+    }
+
+    /// Declares the version of the data the thumbnail's painter reads: the component reruns when it changes. Without
+    /// it the painter reruns the component at every build.
+    #[must_use]
+    pub fn thumb_revision(mut self, revision: u64) -> Self {
+        if let Some(paint) = &mut self.first {
+            paint.revision = Some(revision);
+        }
         self
     }
 

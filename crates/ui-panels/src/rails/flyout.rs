@@ -148,9 +148,7 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
     tear_off: bool,
     /// The tips of the tools: where one `has` a tip, its row shows it, and while it is the shown tool the button leaves
     /// its command tooltip to the tip the host shows the button with.
-    #[prop]
-    #[key(skip)]
-    tips: Option<&'a dyn ToolTips<T>>,
+    tips: Option<crate::contract::Versioned<&'a dyn ToolTips<T>>>,
     /// A request of the pass, the index of a tool among `tools`: the button comes into view in its scroll owner and,
     /// when the tool is not the shown one, opens its flyout.
     #[prop(vis = "pub(crate)")]
@@ -171,6 +169,22 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
 }
 
 impl<'a, T: Value + 'static> FlyoutButton<'a, T> {
+    /// The tips of the tools: where one `has` a tip, its row shows it, and while it is the shown tool the button leaves
+    /// its command tooltip to the tip the host shows the button with.
+    #[must_use]
+    pub fn tips(mut self, tips: &'a dyn ToolTips<T>) -> Self {
+        self.tips = Some(crate::contract::Versioned::new(tips));
+        self
+    }
+
+    /// Declares the version of the data the tips read: the button reruns when it changes. Without it set tips rerun
+    /// the button at every build.
+    #[must_use]
+    pub fn tips_revision(mut self, revision: u64) -> Self {
+        self.tips.iter_mut().for_each(|tips| tips.revision = Some(revision));
+        self
+    }
+
     /// A button for `tools` showing the tool `shown`. With fewer than two tools it is a plain button.
     pub fn new(tools: &'a [RailTool<T>], shown: &'a T) -> Self {
         FlyoutButton {
@@ -275,7 +289,7 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let laid = self.resolve(cx);
         let face = cx.part(FACE, rect).priority(HitPriority::new(HitLevel::Body, 0));
-        let tipped = self.tips.is_some_and(|tips| tips.has(self.shown));
+        let tipped = self.tips.is_some_and(|tips| tips.value.has(self.shown));
         if let Some(resolved) = self.lead(&laid).filter(|_| !tipped) {
             face.tooltip(match &resolved.chord_text {
                 Some(chord) => Label::from(format!("{} ({chord})", resolved.label)),
@@ -384,7 +398,7 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
             return;
         }
         let popup = cx.popup("menu");
-        let (tools, shown, tips, marked, tear_off) = (self.tools, self.shown, self.tips, self.marked_row, self.tear_off);
+        let (tools, shown, tips, marked, tear_off) = (self.tools, self.shown, self.tips.map(|tips| tips.value), self.marked_row, self.tear_off);
         let name = self.laid.as_ref().and_then(|laid| laid.resolved.get(laid.shown)).and_then(Option::as_ref).map(|resolved| resolved.label.clone());
         let name = name.map_or(Label::Empty, Label::Shared);
         let bar_name = cx.words::<RailWords>().tear_off.clone();

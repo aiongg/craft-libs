@@ -81,23 +81,35 @@ const HEADER_MENU_ICON: &str = "more";
 
 /// The options a searchable select keeps whatever the query: a destination of its own beside the searched ones (Save
 /// as PDF among the printers).
-struct SearchKept<'a, T>(Box<dyn Fn(&T) -> bool + 'a>);
+struct SearchKept<'a, T>(crate::contract::Versioned<Box<dyn Fn(&T) -> bool + 'a>>);
 
 impl<'a, T> SearchKept<'a, T> {
     /// Keeps the options `kept` answers true for.
     fn new(kept: impl Fn(&T) -> bool + 'a) -> Self {
-        SearchKept(Box::new(kept))
+        SearchKept(crate::contract::Versioned::new(Box::new(kept)))
+    }
+}
+
+impl<T> crate::contract::MemoProps for SearchKept<'_, T> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
 /// The rows of the menu a select's popup header opens: the host's menu body.
-struct HeaderMenu<'a>(Box<HeaderRows<'a>>);
+struct HeaderMenu<'a>(crate::contract::Versioned<Box<HeaderRows<'a>>>);
 
 type HeaderRows<'a> = dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a;
 
 impl<'a> HeaderMenu<'a> {
     fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        HeaderMenu(Box::new(rows))
+        HeaderMenu(crate::contract::Versioned::new(Box::new(rows)))
+    }
+}
+
+impl crate::contract::MemoProps for HeaderMenu<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
@@ -134,7 +146,6 @@ pub struct Select<'a, T: Value + 'static> {
     no_matches: Option<Label>,
     /// Options the search never hides, shown after the matches.
     #[prop(func = "Fn(&T) -> bool")]
-    #[key(skip)]
     search_kept: Option<SearchKept<'a, T>>,
     /// The open list is at least this wide, in points, within the screen; the field's width without it.
     #[prop(quantity = "width of the open list, in points")]
@@ -144,11 +155,9 @@ pub struct Select<'a, T: Value + 'static> {
     placeholder: Option<Label>,
     /// Adds the host's content to each entry's row.
     #[prop(func = "Fn(&T, ListRow<'a>) -> ListRow<'a>")]
-    #[key(skip)]
     decorate: Option<RowDress<'a, T>>,
     /// Paints an entry's picture, given its value: the thumbnail of its row and of the face while it is picked.
     #[prop(func = "Fn(&T, &ContentPainterCx, Rect)")]
-    #[key(skip)]
     picture: Option<SelectPicture<'a, T>>,
     /// The face shows the picked entry's picture alone; its label stays the accessible value.
     #[prop(flag)]
@@ -162,7 +171,6 @@ pub struct Select<'a, T: Value + 'static> {
     preview: bool,
     /// A button in the popup header opens a menu of these rows (a list's own options: sort, view).
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
-    #[key(skip)]
     header_menu: Option<HeaderMenu<'a>>,
     /// How the closed box looks and how wide it is.
     #[style_key]
@@ -171,6 +179,18 @@ pub struct Select<'a, T: Value + 'static> {
 }
 
 impl<'a, T: Value + 'static> Select<'a, T> {
+    /// Declares the version of the data the host's closures read (`search_kept`, `decorate`, `picture`,
+    /// `header_menu`, as set so far): the select reruns when it changes. Without it each closure reruns the select at
+    /// every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.search_kept.iter_mut().for_each(|kept| kept.0.revision = Some(revision));
+        self.decorate.iter_mut().for_each(|dress| dress.set_revision(revision));
+        self.picture.iter_mut().for_each(|picture| picture.set_revision(revision));
+        self.header_menu.iter_mut().for_each(|menu| menu.0.revision = Some(revision));
+        self
+    }
+
     /// A select named `label` over `value`, choosing among `entries`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, T>, entries: &'a [Entry<T>]) -> Self {
         Select {
@@ -420,8 +440,9 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let held = self.position(cx.value());
         let (searchable, dress, picture) =
             (self.searchable, self.decorate.as_ref(), self.picture.as_ref().map(|picture| (picture, self.picture_aspect)));
-        let kept =
-            |at: usize| self.search_kept.as_ref().is_some_and(|kept| entries.get(at).and_then(Entry::value).is_some_and(|value| (kept.0)(value)));
+        let kept = |at: usize| {
+            self.search_kept.as_ref().is_some_and(|kept| entries.get(at).and_then(Entry::value).is_some_and(|value| (kept.0.value)(value)))
+        };
         let (search_label, no_matches, wide) = (self.search_label.clone(), self.no_matches.clone(), self.list_width.is_some());
         let folder = cx.env.folder();
         let mut header_menu = self.header_menu.as_mut();
@@ -445,7 +466,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         if crate::contract::clicked(&more) {
                             Popup::toggle(more.id, cx);
                         }
-                        Menu::new(words.header_menu.clone()).opened_by(&more, Trigger::Manual).show(ui, |ui, menu| (rows.0)(ui, menu));
+                        Menu::new(words.header_menu.clone()).opened_by(&more, Trigger::Manual).show(ui, |ui, menu| (rows.0.value)(ui, menu));
                     }
                 });
             }

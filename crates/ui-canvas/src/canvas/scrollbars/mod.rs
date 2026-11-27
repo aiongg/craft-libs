@@ -408,15 +408,29 @@ pub struct CanvasScrollbars<'a> {
     document_chrome: bool,
     /// While the vertical thumb drags, the bars show the tip this builds from the view as the drag moved it, beside the
     /// thumb on the reading-start side.
-    #[prop]
-    #[key(skip)] // the tip text shows while a thumb drags, which input drives; it marks the node
-    tip: Option<&'a dyn Fn(&CanvasView) -> Label>,
+    tip: Option<crate::contract::Versioned<&'a dyn Fn(&CanvasView) -> Label>>,
     /// The thumb pressed in this pass, as `update` read it from the press slot, for `paint` and `access`.
     #[key(skip)] // the thumb pressed this pass, read by update
     held: Option<HeldThumb>,
 }
 
 impl<'a> CanvasScrollbars<'a> {
+    /// While the vertical thumb drags, the bars show the tip this builds from the view as the drag moved it, beside the
+    /// thumb on the reading-start side.
+    #[must_use]
+    pub fn tip(mut self, tip: &'a dyn Fn(&CanvasView) -> Label) -> Self {
+        self.tip = Some(crate::contract::Versioned::new(tip));
+        self
+    }
+
+    /// Declares the version of the data the tip closure reads: the bars rerun when it changes. Without it a set tip
+    /// reruns the bars at every build.
+    #[must_use]
+    pub fn tip_revision(mut self, revision: u64) -> Self {
+        self.tip.iter_mut().for_each(|tip| tip.revision = Some(revision));
+        self
+    }
+
     /// Scroll bars named `label` that edit `view`, a view over the document `document` (document units).
     pub fn new(label: impl Into<Label>, view: Bind<'a, CanvasView>, document: DocRect) -> Self {
         CanvasScrollbars {
@@ -646,7 +660,7 @@ impl Component for CanvasScrollbars<'_> {
         else {
             return;
         };
-        let label = tip(&view);
+        let label = (tip.value)(&view);
         let layer = Overlay::tooltip().place(Place::anchored(Anchor::Rect(thumb), Side::Start, Align::Center));
         let _ = ui.show(popup, layer, |ui, _| Text::new(label.clone()).show(ui));
     }

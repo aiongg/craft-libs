@@ -64,6 +64,8 @@ pub struct NodeGraph<'a, E: 'static = ()> {
     props: ContainerProps,
     items: CollectionProps,
     wires: &'a [Wire],
+    /// The version of the data the kinds read.
+    kinds_version: crate::contract::Versioned<()>,
     #[key(skip)]
     kinds: &'a [&'a dyn NodeKind<E>],
     positions: &'a [Rect],
@@ -80,7 +82,25 @@ impl<'a, E: 'static> NodeGraph<'a, E> {
         let zoom = CanvasTransform::new(1.0, Vec2::ZERO);
         let props = ContainerProps::new().surface(SurfaceKind::Sunken).arena(true).sizing(Sizing::Fill);
         let items = CollectionProps::new().select(SelectMode::Multi);
-        NodeGraph { common: Common::new(), props, items, wires, kinds, positions, selection: None, zoom }
+        NodeGraph {
+            common: Common::new(),
+            props,
+            items,
+            wires,
+            kinds_version: crate::contract::Versioned::new(()),
+            kinds,
+            positions,
+            selection: None,
+            zoom,
+        }
+    }
+
+    /// Declares the version of the data the kinds read: the graph reruns when it changes. Without it the graph reruns
+    /// at every build.
+    #[must_use]
+    pub fn kinds_revision(mut self, revision: u64) -> Self {
+        self.kinds_version.revision = Some(revision);
+        self
     }
 
     /// Shows the nodes zoomed and moved by `zoom`, so their inline controls keep working at any scale.

@@ -211,12 +211,29 @@ pub struct MenuTitle<'a> {
     holds: Arc<[CommandRef]>,
     /// The letter that opens the menu in place of the bar's own pick.
     mnemonic: Option<char>,
+    /// The version of the data `body` reads; `None` reruns the bar at every build.
+    revision: Option<u64>,
+}
+
+impl crate::contract::MemoProps for MenuTitle<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::MemoProps::key(&(&self.label, &self.holds, self.mnemonic), key);
+        key.revision(self.revision);
+    }
 }
 
 impl<'a> MenuTitle<'a> {
     /// A menu titled `label` (a `&` marks the mnemonic) whose rows `body` shows.
     pub fn new(label: impl Into<Label>, body: impl FnMut(&mut Ui) + 'a) -> Self {
-        MenuTitle { label: label.into(), body: Box::new(body), holds: Arc::default(), mnemonic: None }
+        MenuTitle { label: label.into(), body: Box::new(body), holds: Arc::default(), mnemonic: None, revision: None }
+    }
+
+    /// Declares the version of the data the body reads: the bar reruns when it changes. Without it the bar reruns at
+    /// every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = Some(revision);
+        self
     }
 
     /// The letter that opens the menu, in place of the bar's own pick. A letter the title lacks still opens it, with
@@ -241,6 +258,14 @@ impl<'a> MenuTitle<'a> {
 pub struct MenuHelp<'a> {
     menu: usize,
     entries: &'a dyn Fn() -> Vec<HelpEntry>,
+    revision: Option<u64>,
+}
+
+impl crate::contract::MemoProps for MenuHelp<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::MemoProps::key(&self.menu, key);
+        key.revision(self.revision);
+    }
 }
 
 impl std::fmt::Debug for MenuHelp<'_> {
@@ -254,7 +279,15 @@ impl<'a> MenuHelp<'a> {
     /// lists. The bar runs it only in a pass that shows the Help menu, so an app whose command list is costly to
     /// collect (every row of its menus) pays nothing while the menu is closed.
     pub fn new(menu: usize, entries: &'a dyn Fn() -> Vec<HelpEntry>) -> Self {
-        MenuHelp { menu, entries }
+        MenuHelp { menu, entries, revision: None }
+    }
+
+    /// Declares the version of the commands `entries` lists: the bar reruns when it changes. Without it the bar reruns
+    /// at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = Some(revision);
+        self
     }
 }
 
@@ -362,11 +395,9 @@ fn declared(cx: &impl crate::contract::Pointer) -> Declared {
 pub struct MenuBar<'a> {
     #[common]
     common: Common,
-    #[key(skip)]
     titles: Vec<MenuTitle<'a>>,
     /// The Help menu's search.
     #[prop]
-    #[key(skip)]
     help: Option<MenuHelp<'a>>,
     /// Whether the bar takes F10, Alt and Alt+letter. Off while a dialog or the shortcut recorder owns the keys.
     #[prop]

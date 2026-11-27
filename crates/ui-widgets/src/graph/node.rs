@@ -59,6 +59,8 @@ pub struct Node<'r, E: 'static = ()> {
     #[common]
     common: Common,
     id: NodeId,
+    /// The version of the data `kind` reads.
+    kind_version: crate::contract::Versioned<()>,
     #[key(skip)]
     kind: &'r dyn NodeKind<E>,
     #[key(skip)]
@@ -68,7 +70,15 @@ pub struct Node<'r, E: 'static = ()> {
 impl<'r, E: 'static> Node<'r, E> {
     /// The node `id` of `kind`; its title names it.
     pub fn new(id: NodeId, kind: &'r dyn NodeKind<E>) -> Self {
-        Node { common: Common::new(), id, kind, event: None }.label(kind.title().to_owned())
+        Node { common: Common::new(), id, kind_version: crate::contract::Versioned::new(()), kind, event: None }.label(kind.title().to_owned())
+    }
+
+    /// Declares the version of the data the kind reads: the node reruns when it changes. Without it the node reruns at
+    /// every build.
+    #[must_use]
+    pub fn kind_revision(mut self, revision: u64) -> Self {
+        self.kind_version.revision = Some(revision);
+        self
     }
 }
 

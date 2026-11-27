@@ -10,7 +10,7 @@
 use super::toggle::ToggleCell;
 use super::view::DocumentRows;
 use super::words::ListWords;
-use crate::contract::{Common, OpenChange, RowHeight, RowPressed, RowState, Show};
+use crate::contract::{Common, OpenChange, RowHeight, RowPressed, RowState, Show, Versioned};
 use crate::primitives::{ContentPainterCx, HAlign, IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::DataColor;
@@ -245,7 +245,7 @@ pub(super) struct StatusCell {
     pub status: CellStatus,
 }
 
-type LeadPaintFn<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
+type LeadPaintFn<'a> = Versioned<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>;
 
 /// One row of a list.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -418,8 +418,6 @@ pub struct ListRow<'a> {
     /// The leading slot, one icon wide and as high as the row, painted by the closure into its rect (a timeline rail:
     /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
     /// replaces the row's icon; thumbnails replace it in turn.
-    #[prop(boxed = "FnOnce(&ContentPainterCx, Rect) + 'a", name = "lead_painter")]
-    #[key(skip)]
     pub(super) lead_paint: Option<LeadPaintFn<'a>>,
     /// The leading text and the widest text its slot is sized for (`lead_text`).
     pub(super) lead_text: Option<(Label, Label)>,
@@ -431,21 +429,16 @@ pub struct ListRow<'a> {
     #[prop(name = "thumb_height")]
     pub(super) thumb: ThumbSize,
     pub(super) thumb_aspect: ThumbAspect,
-    #[key(skip)]
     pub(super) first: Option<ThumbPaint<'a>>,
-    #[key(skip)]
     pub(super) extras: Vec<Thumb<'a>>,
     /// The thumbnails the row's editing is aimed at: one target, or several together (`[ThumbTarget; N]`), framed with
     /// corner brackets whether or not the row is selected.
     #[prop(into, name = "thumb_target")]
     pub(super) targets: ThumbTargets,
-    #[key(skip)]
     pub(super) trailing: Vec<Trailing<'a>>,
     /// The components under the label band's text, in one line (`below`).
-    #[key(skip)]
     pub(super) below: Vec<Hosted<'a>>,
     /// The components shown in a column's cell in place of its text (`cell_field`).
-    #[key(skip)]
     pub(super) cell_fields: Vec<(ColumnKey, Hosted<'a>)>,
     /// Columns whose field is followed by their text cell.
     pub(super) field_suffixes: Vec<ColumnKey>,
@@ -723,7 +716,7 @@ impl<'a> ListRow<'a> {
     /// column that `cells(..)` does not list shows nothing.
     #[must_use]
     pub fn cell_field<C: Show + 'a>(mut self, column: ColumnKey, field: C, output: impl FnOnce(C::Output) + 'a) -> Self {
-        self.cell_fields.push((column, Hosted { item: Some(Box::new(Hosting::new(field, output))), size: None }));
+        self.cell_fields.push((column, Hosted { item: Some(Box::new(Hosting::new(field, output))), size: None, revision: None }));
         self
     }
 
@@ -747,7 +740,7 @@ impl<'a> ListRow<'a> {
     pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = size;
         self.thumb_aspect = ThumbAspect::SQUARE;
-        self.first = Some(Box::new(paint));
+        self.first = Some(ThumbPaint::new(Box::new(paint)));
         self
     }
 
@@ -760,11 +753,47 @@ impl<'a> ListRow<'a> {
         self
     }
 
+    /// The leading slot, one icon wide and as high as the row, painted by the closure into its rect (a timeline rail:
+    /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
+    /// replaces the row's icon; thumbnails replace it in turn.
+    #[must_use]
+    pub fn lead_painter(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        self.lead_paint = Some(Versioned::new(Box::new(paint)));
+        self
+    }
+
+    /// Declares the version of the data the row's painters and hosted items read (the thumbnails, the leading painter,
+    /// the trailing, `below` and cell components added so far): the row reruns when it changes. Without it each of
+    /// them reruns the row at every build, so call it after adding them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        let set = |hosted: &mut Hosted<'a>| hosted.revision = Some(revision);
+        if let Some(first) = &mut self.first {
+            first.revision = Some(revision);
+        }
+        if let Some(lead) = &mut self.lead_paint {
+            lead.revision = Some(revision);
+        }
+        for extra in &mut self.extras {
+            if let Some(paint) = &mut extra.paint {
+                paint.revision = Some(revision);
+            }
+        }
+        for trailing in &mut self.trailing {
+            if let TrailingItem::Hosted(hosted) = &mut trailing.item {
+                set(hosted);
+            }
+        }
+        self.below.iter_mut().for_each(set);
+        self.cell_fields.iter_mut().for_each(|(_, hosted)| set(hosted));
+        self
+    }
+
     /// A thumbnail after the first and any earlier extra ones, of the same size and frame (a layer's mask). Extra
     /// thumbnails never drop out for width: the label is cut first. Nothing is drawn without a first thumbnail.
     #[must_use]
     pub fn extra_thumb(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.extras.push(Thumb { paint: Some(Box::new(paint)), link: None });
+        self.extras.push(Thumb { paint: Some(ThumbPaint::new(Box::new(paint))), link: None });
         self
     }
 
@@ -883,12 +912,12 @@ impl<'a> ListRow<'a> {
     /// `output` in the pass it is shown; its stop joins the row's roving group as a trailing field's does.
     #[must_use]
     pub fn below<C: Show + 'a>(mut self, component: C, output: impl FnOnce(C::Output) + 'a) -> Self {
-        self.below.push(Hosted { item: Some(Box::new(Hosting::new(component, output))), size: None });
+        self.below.push(Hosted { item: Some(Box::new(Hosting::new(component, output))), size: None, revision: None });
         self
     }
 
     fn hosted(mut self, hosting: impl for<'r> crate::contract::Hosted<ListRow<'r>> + 'a, optional: bool) -> Self {
-        let item = Hosted { item: Some(Box::new(hosting)), size: None };
+        let item = Hosted { item: Some(Box::new(hosting)), size: None, revision: None };
         self.trailing.push(Trailing { item: TrailingItem::Hosted(item), optional });
         self
     }

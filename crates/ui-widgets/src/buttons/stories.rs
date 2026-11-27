@@ -518,7 +518,7 @@ fn split_button_body(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A split button whose main part is the Paste command, stacked as a ribbon shows it, its menu the paste options.
 #[story(SplitButton<'static, u8>, covers = [], drive = Drive::Never, title = "Command")]
 fn split_button_command(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SplitButton::<u8>::command(EditCommands::Paste, SplitMenu::Body(Box::new(paste_rows)))
+    SplitButton::<u8>::command(EditCommands::Paste, SplitMenu::Body(crate::buttons::MenuBody::new(Box::new(paste_rows))))
         .icon(IconId::new("copy"))
         .arrow_label("Paste options")
         .arrangement(Arrangement::Stacked)

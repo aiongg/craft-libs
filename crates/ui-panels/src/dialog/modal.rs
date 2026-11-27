@@ -38,7 +38,7 @@ type OnPickFn<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
 
 type SettleFn<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
 
-type RefusalFn<'a> = Box<dyn FnMut() -> Option<Label> + 'a>;
+type RefusalFn<'a> = crate::contract::Versioned<Box<dyn FnMut() -> Option<Label> + 'a>>;
 
 /// Where a dialog's buttons stand. Wherever they stand, the dialog shows them: their roles, the platform's order,
 /// Enter and Escape, access keys, the close guard and `on_pick` are the dialog's.
@@ -80,7 +80,6 @@ pub struct Dialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     /// Lets the host refuse the close of a picked button: `allows` gets every picked button but `Cancel`
     /// and the dialog's body context, so a host reads its kept state, and returns whether a button that closes the
@@ -125,8 +124,6 @@ pub struct Dialog<'a> {
     /// Shows the label `reason` gives as an inline bad-tone notice in the body-end hook, above the footer: the one
     /// display of a held answer's refusal. The closure is called in that hook in every run that shows it, after the
     /// body ran, so a notice never trails an edit by a pass; `None` shows no notice.
-    #[prop(boxed = "FnMut() -> Option<Label> + 'a")]
-    #[key(skip)]
     refusal: Option<RefusalFn<'a>>,
 }
 
@@ -312,8 +309,33 @@ impl<'a> Dialog<'a> {
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_, '_>) + 'a) -> Self {
         let region = self.footer_region();
         self.props = self.props.footer(region);
-        self.footer = Some(Box::new(content));
+        self.footer = Some(crate::contract::Versioned::new(Box::new(content)));
         self.overlay(|overlay| overlay)
+    }
+
+    /// Declares the version of the data the footer closure reads: the dialog reruns when it changes. Without it the
+    /// footer reruns the dialog at every build.
+    #[must_use]
+    pub fn footer_revision(mut self, revision: u64) -> Self {
+        self.footer.iter_mut().for_each(|footer| footer.revision = Some(revision));
+        self
+    }
+
+    /// Shows the label `reason` gives as an inline bad-tone notice in the body-end hook, above the footer: the one
+    /// display of a held answer's refusal. The closure is called in that hook in every run that shows it, after the
+    /// body ran, so a notice never trails an edit by a pass; `None` shows no notice.
+    #[must_use]
+    pub fn refusal(mut self, reason: impl FnMut() -> Option<Label> + 'a) -> Self {
+        self.refusal = Some(crate::contract::Versioned::new(Box::new(reason)));
+        self
+    }
+
+    /// Declares the version of the data the refusal closure reads: the dialog reruns when it changes. Without it the
+    /// closure reruns the dialog at every build.
+    #[must_use]
+    pub fn refusal_revision(mut self, revision: u64) -> Self {
+        self.refusal.iter_mut().for_each(|reason| reason.revision = Some(revision));
+        self
     }
 
     /// Where the buttons and the footer content stand; across the foot by default.
@@ -545,7 +567,7 @@ impl Container for Dialog<'_> {
 
     /// The refusal notice, under the body and above the footer: the reason is read in every run, after the body ran.
     fn body_end(&mut self, ui: &mut Ui, _cx: &mut BodyCx<'_>) {
-        if let Some(reason) = self.refusal.as_mut().and_then(|reason| reason()) {
+        if let Some(reason) = self.refusal.as_mut().and_then(|reason| (reason.value)()) {
             Notice::new(Tone::Bad, reason).layout(NoticeLayout::Inline).show(ui);
         }
     }

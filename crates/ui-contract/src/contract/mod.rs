@@ -105,7 +105,7 @@ pub use lazy::Lazy;
 #[cfg(feature = "suite")]
 pub use level::{Catalog, CatalogEntry, Level, StoryLayout, Surface, catalog, stale_table_rows, story_title};
 pub use looks::Looks;
-pub use memo::{ComponentKey, KeyOf, MemoKey, MemoProps, Stateless};
+pub use memo::{ComponentKey, KeyOf, MemoKey, MemoProps, Stateless, Versioned};
 pub use memo_view::{MemoView, Outbox};
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
 pub use pages::Pages;

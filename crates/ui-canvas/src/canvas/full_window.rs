@@ -71,7 +71,6 @@ pub struct FullWindowDialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    #[key(by = self.revision)]
     footer: Option<FooterFn<'a>>,
     /// Lets the host act on a picked button and refuse its close: `allows` gets every picked button but `Cancel`
     /// and the dialog's body context, so a host reads and writes its kept state, and returns whether a button that
@@ -90,12 +89,7 @@ pub struct FullWindowDialog<'a> {
     #[key(skip)] // a callback on a pick; it produces no content
     on_pick: Option<OnPickFn<'a>>,
     buttons: Vec<FooterButton>,
-    /// The host's version of what its `footer`, `sides` and `side_footer` closures show: they run again when it moves.
-    #[prop]
-    revision: u64,
-    #[key(by = self.revision)]
     sides: Option<SidesFn<'a>>,
-    #[key(by = self.revision)]
     side_footer: SideFooter<'a>,
     /// Whether the title row has a close action.
     #[prop]
@@ -120,7 +114,6 @@ impl<'a> FullWindowDialog<'a> {
             common: Common::new(),
             props,
             open: None,
-            revision: 0,
             footer: None,
             guard: None,
             settle: None,
@@ -215,7 +208,17 @@ impl<'a> FullWindowDialog<'a> {
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_, '_>) + 'a) -> Self {
         let region = self.footer_region();
         self.props = self.props.footer(region);
-        self.footer = Some(Box::new(content));
+        self.footer = Some(crate::contract::Versioned::new(Box::new(content)));
+        self
+    }
+
+    /// The host's version of what its `footer`, `sides` and `side_footer` closures show: they run again when it moves.
+    /// Without it they run at every build, so call it after setting them.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.footer.iter_mut().for_each(|footer| footer.revision = Some(revision));
+        self.sides.iter_mut().for_each(|sides| sides.revision = Some(revision));
+        self.side_footer = self.side_footer.revision(revision);
         self
     }
 
@@ -226,7 +229,7 @@ impl<'a> FullWindowDialog<'a> {
     #[must_use]
     pub fn sides(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.props = self.props.end(EndRegion::new().full_height(true).rule(true));
-        self.sides = Some(Box::new(content));
+        self.sides = Some(crate::contract::Versioned::new(Box::new(content)));
         self.place_footer()
     }
 
@@ -252,7 +255,7 @@ impl<'a> FullWindowDialog<'a> {
 }
 
 /// Fills the side columns' region.
-type SidesFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type SidesFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
 
 impl Component for FullWindowDialog<'_> {
     const ROLE: Role = Role::DIALOG;
@@ -312,7 +315,7 @@ impl Container for FullWindowDialog<'_> {
 
     fn end(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         if let Some(sides) = self.sides.as_mut() {
-            sides(ui, cx);
+            (sides.value)(ui, cx);
         }
     }
 

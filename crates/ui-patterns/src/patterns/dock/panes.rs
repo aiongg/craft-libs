@@ -542,7 +542,6 @@ pub struct PaneFrame<'a> {
     #[container]
     props: ContainerProps,
     actions: Vec<HeaderAction>,
-    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     #[key(skip)]
     take_drop: Option<TakeDrop<'a, PaneFrame<'a>>>,
@@ -553,6 +552,14 @@ pub struct PaneFrame<'a> {
 }
 
 impl<'a> PaneFrame<'a> {
+    /// Declares the version of the data the menu rows read: the pane reruns when it changes. Without it the rows rerun
+    /// the pane at every build, so call it after setting them.
+    #[must_use]
+    pub fn menu_revision(mut self, revision: u64) -> Self {
+        self.menu.iter_mut().for_each(|menu| menu.set_revision(revision));
+        self
+    }
+
     /// A pane for `spec` on `edge`, `extent` along it (`None`: the size it first took). The body scrolls unless the
     /// spec says it is one collection, which owns the scroll.
     fn new(spec: &PaneSpec, edge: PaneEdge, extent: Option<f32>) -> Self {

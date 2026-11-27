@@ -64,7 +64,6 @@ pub struct SelectFace<'a> {
     /// The text is a placeholder, not a pick: it shows in the faint ink.
     #[prop(flag)]
     placeholder: bool,
-    #[key(skip)]
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
     /// The picked entry's icon, drawn before the text in the chevron's ink.
     #[prop]
@@ -109,7 +108,17 @@ impl<'a> SelectFace<'a> {
     /// content painter, which is clipped to it. The picture's height comes from the style.
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.thumb = Some((aspect, Box::new(paint)));
+        self.thumb = Some((aspect, ThumbPaint::new(Box::new(paint))));
+        self
+    }
+
+    /// Declares the version of the data the thumbnail's painter reads: the component reruns when it changes. Without
+    /// it the painter reruns the component at every build.
+    #[must_use]
+    pub fn thumb_revision(mut self, revision: u64) -> Self {
+        if let Some((_, paint)) = &mut self.thumb {
+            paint.revision = Some(revision);
+        }
         self
     }
 

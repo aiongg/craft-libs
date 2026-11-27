@@ -243,35 +243,63 @@ struct MenuAt(Option<Pos2>);
 #[derive(Clone, Copy, Default)]
 struct MenuAsked(Option<Pos2>);
 
-type HeaderHookFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
-type MenuRowsFn<'a> = Box<dyn FnMut() -> Vec<PanelRow> + 'a>;
+type HeaderHookFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
+type MenuRowsFn<'a> = crate::contract::Versioned<Box<dyn FnMut() -> Vec<PanelRow> + 'a>>;
 
 /// The rows of a group's menu, built while the menu is open: the panel menu button and a context request on a tab open
 /// it.
 pub struct MenuRows<'a>(MenuRowsFn<'a>);
 
+impl crate::contract::MemoProps for MenuRows<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
+
 impl<'a> MenuRows<'a> {
     /// Rows that `rows` builds each pass the menu shows.
     pub fn new(rows: impl FnMut() -> Vec<PanelRow> + 'a) -> Self {
-        MenuRows(Box::new(rows))
+        MenuRows(crate::contract::Versioned::new(Box::new(rows)))
+    }
+
+    /// Declares the version of the data the rows read: the group reruns when it changes. Without it the rows rerun the
+    /// group at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
     }
 
     fn rows(&mut self) -> Vec<PanelRow> {
-        (self.0)()
+        (self.0.value)()
     }
 }
 
 /// A closure that adds the host's items to a group's header, before the tab strip.
 pub struct HeaderHook<'a>(HeaderHookFn<'a>);
 
+impl crate::contract::MemoProps for HeaderHook<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
+
 impl<'a> HeaderHook<'a> {
     /// A hook that runs `add` in the header's row, with the group's `BodyCx`.
     pub fn new(add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        HeaderHook(Box::new(add))
+        HeaderHook(crate::contract::Versioned::new(Box::new(add)))
+    }
+
+    /// Declares the version of the data the hook reads: the group reruns when it changes. Without it the hook reruns
+    /// the group at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
     }
 
     fn run(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        (self.0)(ui, cx);
+        (self.0.value)(ui, cx);
     }
 }
 
@@ -406,7 +434,6 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The rows of the group menu, read while it is open: the panel menu button and a context request on a tab open
     /// it.
     #[prop(func = "FnMut() -> Vec<PanelRow>")]
-    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     /// Whether the panel menu button shows beside the tabs; a context request on a tab opens the menu either way.
     #[prop]
@@ -419,10 +446,8 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     command_states: Vec<(DockCommands, CommandState)>,
     /// The host's items before the tab strip.
     #[prop(func = "FnMut(&mut egui::Ui, &mut BodyCx<'_>)")]
-    #[key(skip)]
     extra: Option<HeaderHook<'a>>,
     /// The shown panel's footer, pinned under the body: [`footer`](DockGroup::footer).
-    #[key(skip)]
     footer: Option<HeaderHookFn<'a>>,
     /// The size of the group this pass, where its drag starts.
     size: Vec2,
@@ -474,7 +499,24 @@ impl<'a, P: Clone + Hash + Send + Sync + PartialEq + Debug + 'static> DockGroup<
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.props = self.props.footer(FooterRegion::new());
-        self.footer = Some(Box::new(content));
+        self.footer = Some(crate::contract::Versioned::new(Box::new(content)));
+        self
+    }
+
+    /// Declares the version of the data the `menu` rows and the `extra` hook read: the group reruns when it changes.
+    /// Without it each reruns the group at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.menu.iter_mut().for_each(|menu| menu.0.revision = Some(revision));
+        self.extra.iter_mut().for_each(|extra| extra.0.revision = Some(revision));
+        self
+    }
+
+    /// Declares the version of the data the footer reads: the group reruns when it changes. Without it the footer
+    /// reruns the group at every build.
+    #[must_use]
+    pub fn footer_revision(mut self, revision: u64) -> Self {
+        self.footer.iter_mut().for_each(|footer| footer.revision = Some(revision));
         self
     }
 
@@ -733,7 +775,7 @@ impl<P: Clone + Hash + Send + Sync + PartialEq + Debug + 'static> Container for 
 
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
         if let Some(content) = self.footer.as_mut() {
-            FooterBar::body().show(ui, |ui, bar| content(ui, bar));
+            FooterBar::body().show(ui, |ui, bar| (content.value)(ui, bar));
         }
     }
 

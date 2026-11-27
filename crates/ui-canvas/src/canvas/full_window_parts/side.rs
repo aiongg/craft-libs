@@ -12,7 +12,7 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Ui};
 
-type LeadingFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
+type LeadingFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui) + 'a>>;
 
 /// Where the footer of a [`FullWindowDialog`](crate::dialog::FullWindowDialog) with side columns sits: at the bottom
 /// of the side columns' region (Liquify, Select and Mask, Content-Aware Fill, Wide Angle, Vanishing Point) or at its
@@ -22,6 +22,15 @@ type LeadingFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
 pub struct SideFooter<'a> {
     top: bool,
     leading: Option<LeadingFn<'a>>,
+}
+
+impl crate::contract::MemoProps for SideFooter<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::MemoProps::key(&(self.top, self.leading.is_some()), key);
+        if let Some(leading) = &self.leading {
+            crate::contract::MemoProps::key(leading, key);
+        }
+    }
 }
 
 impl<'a> SideFooter<'a> {
@@ -38,7 +47,15 @@ impl<'a> SideFooter<'a> {
     /// Shows `add` at the reading start of the footer row, the buttons at its end: Select and Mask's and
     /// Content-Aware Fill's Reset.
     pub fn leading(mut self, add: impl FnMut(&mut Ui) + 'a) -> Self {
-        self.leading = Some(Box::new(add));
+        self.leading = Some(crate::contract::Versioned::new(Box::new(add)));
+        self
+    }
+
+    /// Declares the version of the data the leading slot reads: the dialog reruns when it changes. Without it the slot
+    /// reruns the dialog at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.leading.iter_mut().for_each(|add| add.revision = Some(revision));
         self
     }
 
@@ -54,7 +71,7 @@ impl<'a> SideFooter<'a> {
         let leading = &mut self.leading;
         Row::new().fill_width().align(align).show(ui, |ui, _| {
             if let Some(add) = leading.as_mut() {
-                add(ui);
+                (add.value)(ui);
             }
             rest(ui);
         });

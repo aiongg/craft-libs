@@ -201,22 +201,31 @@ impl Default for PreviewView {
     }
 }
 
-type PaneOverlayFn<'a> = Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>;
+type PaneOverlayFn<'a> = crate::contract::Versioned<Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>>;
 
 /// The host's drawing over a pane's picture: it gets the content painter, the transform the pane drew the picture with
 /// (the picture's centre is the canvas origin) and the picture's rect in the painter's coordinates. It runs after the
 /// picture and before the pending line or the failed message.
 pub struct PaneOverlay<'a>(PaneOverlayFn<'a>);
 
+impl crate::contract::MemoProps for PaneOverlay<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
+
 impl<'a> PaneOverlay<'a> {
     /// The overlay that runs `paint`.
     pub fn new(paint: impl FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a) -> Self {
-        PaneOverlay(Box::new(paint))
+        PaneOverlay(crate::contract::Versioned::new(Box::new(paint)))
     }
 
-    /// The drawing to run, for a caller that passes the overlay on.
-    pub fn into_paint(self) -> PaneOverlayFn<'a> {
-        self.0
+    /// Declares the version of the data the overlay reads: the pane reruns when it changes. Without it the overlay
+    /// reruns the pane at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
     }
 }
 
@@ -297,7 +306,6 @@ pub struct PreviewPane<'a> {
     pressed: Option<Pos2>,
     /// The host's drawing over the picture of a `Ready` pane.
     #[prop(func = "FnOnce(&ContentPainterCx, CanvasTransform, Rect)")]
-    #[key(skip)]
     overlay: Option<PaneOverlay<'a>>,
     /// Multiplies the `Ready` picture's colours, as `ThumbPaint::tint` does.
     #[prop]
@@ -309,6 +317,15 @@ pub struct PreviewPane<'a> {
     /// is given and declares no wheel sense.
     #[style_key]
     fixed: bool,
+}
+
+impl<'a> PreviewPane<'a> {
+    /// The host's drawing over the picture of a `Ready` pane, as [`PaneOverlay`] holds it with its version.
+    #[must_use]
+    pub fn overlay_with(mut self, overlay: PaneOverlay<'a>) -> Self {
+        self.overlay = Some(overlay);
+        self
+    }
 }
 
 impl PreviewPane<'_> {
@@ -625,7 +642,7 @@ impl Component for PreviewPane<'_> {
                         }
                     }
                     if let Some(PaneOverlay(overlay)) = self.overlay.take() {
-                        overlay(&painter, view, picture);
+                        (overlay.value)(&painter, view, picture);
                     }
                 }
                 PreviewState::Pending(_) => painter.checker(inside),

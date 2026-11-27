@@ -18,7 +18,7 @@ use egui::{Response, Ui};
 use std::num::NonZeroU8;
 
 /// The trailing group's content.
-type TrailingFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type TrailingFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
 
 /// What a bar is for; it picks the bar's role, spacing and name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
@@ -104,7 +104,6 @@ pub struct Bar<'a> {
     commit_cancel: Option<(Label, Label)>,
     committed: bool,
     cancelled: bool,
-    #[key(skip)]
     trailing: Option<TrailingFn<'a>>,
 }
 
@@ -211,8 +210,16 @@ impl<'a> Bar<'a> {
     /// readouts at its end before its message.
     #[must_use]
     pub fn trailing(mut self, group: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.trailing = Some(Box::new(group));
+        self.trailing = Some(crate::contract::Versioned::new(Box::new(group)));
         self.props = self.props.end(EndRegion::new().gap(Gap::Stack).fit(true));
+        self
+    }
+
+    /// Declares the version of the data the trailing group reads: the bar reruns when it changes. Without it the
+    /// group reruns the bar at every build.
+    #[must_use]
+    pub fn trailing_revision(mut self, revision: u64) -> Self {
+        self.trailing.iter_mut().for_each(|group| group.revision = Some(revision));
         self
     }
 }
@@ -284,7 +291,7 @@ impl Container for Bar<'_> {
                 IconButton::command(IconId::new("check"), BarCommands::Commit).label(commit.clone()).show(ui);
             }
             if let Some(group) = trailing {
-                group(ui, cx);
+                (group.value)(ui, cx);
             }
         });
     }

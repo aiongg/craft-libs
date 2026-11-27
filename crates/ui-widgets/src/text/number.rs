@@ -151,8 +151,9 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     value: Bind<'a, V>,
     /// The codec, to read another locale's separators or units, or to read words such as "Auto" (`or_parse`).
     /// Without one the field reads and writes with the env's locale and the spellings of `unit_kind`.
+    /// A codec holds closures a key cannot follow, so a field with one reruns at every build.
     #[prop]
-    #[key(skip)]
+    #[key(by = self.codec.as_ref().map(|_| crate::contract::Versioned::new(())))]
     codec: Option<NumberCodec>,
     /// What the number counts: typed text may carry this kind's unit spellings ("12 mm") in the user's language or
     /// English, and the field shows at most the kind's decimals.

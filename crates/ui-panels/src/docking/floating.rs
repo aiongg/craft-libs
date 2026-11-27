@@ -269,7 +269,6 @@ pub struct FloatingGroup<'a> {
     native: Option<WindowSpec>,
     /// The rows of the menu a context request on the title row, or the Menu action, opens.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
-    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     /// The title row is a bare grip (a small handle that moves the window), with no menu, float or close action, no
@@ -339,6 +338,14 @@ type StartDrag<'a> = Box<dyn for<'b, 'c> FnOnce(&'b mut Cx<'c, FloatingGroup<'a>
 type TakeDrop<'a> = Box<dyn for<'b, 'c> FnMut(&'b mut Cx<'c, FloatingGroup<'a>>) + 'a>;
 
 impl<'a> FloatingGroup<'a> {
+    /// Declares the version of the data the `menu` rows read: the group reruns when it changes. Without it the rows
+    /// rerun the group at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.menu.iter_mut().for_each(|menu| menu.set_revision(revision));
+        self
+    }
+
     /// A floating group titled `title` at `rect`, with the Close action.
     pub fn new(title: impl Into<Label>, rect: Rect) -> Self {
         let props = ContainerProps::new()

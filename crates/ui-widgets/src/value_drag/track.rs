@@ -91,18 +91,32 @@ pub(crate) fn travel(rect: Rect, thumb: f32) -> Rangef {
 
 /// A caller's look for the groove: a component shown as the face of the `GROOVE` part, such as a colour gradient. It
 /// replaces the groove and the fill.
-pub struct TrackFace<'a>(FaceFn<'a>);
+pub struct TrackFace<'a>(crate::contract::Versioned<FaceFn<'a>>);
 
 type FaceFn<'a> = Box<dyn Fn(&mut PaintUi<'_>, PartRef) + 'a>;
 
 impl<'a> TrackFace<'a> {
     /// A track painted by `face`.
     pub fn new<C: Show + Clone + 'a>(face: C) -> Self {
-        TrackFace(Box::new(move |ui, part| ui.face(part, face.clone())))
+        TrackFace(crate::contract::Versioned::new(Box::new(move |ui, part| ui.face(part, face.clone()))))
+    }
+
+    /// Declares the version of the data the face reads: the component reruns when it changes. Without it the component
+    /// reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
     }
 
     pub(crate) fn paint(&self, ui: &mut PaintUi<'_>) {
-        (self.0)(ui, GROOVE.into());
+        (self.0.value)(ui, GROOVE.into());
+    }
+}
+
+impl crate::contract::MemoProps for TrackFace<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        self.0.key(key);
     }
 }
 

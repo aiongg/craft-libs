@@ -2,7 +2,7 @@
 
 #[cfg(doc)]
 use super::ListRow;
-use crate::contract::{Common, Component, Cx, DisabledLook, PaintUi, Role};
+use crate::contract::{Common, Component, Cx, DisabledLook, PaintUi, Role, Versioned};
 use crate::list::words::ListWords;
 use crate::primitives::ContentPainterCx;
 use crate::runtime::env::Label;
@@ -129,9 +129,13 @@ impl<const N: usize> From<[ThumbTarget; N]> for ThumbTargets {
 }
 
 /// Paints into a thumbnail's rect through the content painter, which is clipped to it.
-pub type ThumbPaint<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
+///
+/// A [`Versioned`] closure: `ThumbPaint::versioned(v, f)` names the version of the data `f` reads, and a painter
+/// without one reruns its row at every build.
+pub type ThumbPaint<'a> = Versioned<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>;
 
 /// A thumbnail after the first: its painter and the link glyph before it.
+#[derive(crate::contract::MemoProps)]
 pub(in crate::list) struct Thumb<'a> {
     pub paint: Option<ThumbPaint<'a>>,
     /// The state of the link glyph before an extra thumbnail and its name, a whole pattern with `{row}`.
@@ -160,13 +164,12 @@ pub(crate) struct RowThumbStyle {
 pub(crate) struct RowThumb<'a> {
     #[common]
     common: Common,
-    #[key(skip)]
     paint: Option<ThumbPaint<'a>>,
 }
 
 impl RowThumb<'static> {
     fn sample() -> Self {
-        RowThumb::new(Box::new(|_, _| {}))
+        RowThumb::new(ThumbPaint::new(Box::new(|_, _| {})))
     }
 }
 
@@ -196,7 +199,7 @@ impl Component for RowThumb<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let painter = ui.content_painter(cx);
         if let Some(paint) = self.paint.take() {
-            paint(&painter, cx.rect);
+            (paint.value)(&painter, cx.rect);
         }
     }
 
